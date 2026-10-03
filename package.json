@@ -1,0 +1,39 @@
+{
+  "name": "novi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A quiet space to think. A local, bring-your-own-key AI desktop companion.",
+  "main": "out/main/main.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && electron-vite build",
+    "start": "electron-vite preview",
+    "test": "node --experimental-transform-types --test tests/*.test.ts",
+    "test:desktop": "npm run build && tsx scripts/smoke.ts"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^1.0.1",
+    "lucide-react": "^0.468.0",
+    "pdfjs-dist": "^5.4.149",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "electron": "^41.0.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "playwright": "^1.58.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}
