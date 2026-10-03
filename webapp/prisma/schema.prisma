@@ -1,0 +1,170 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  passwordHash String?
+  name         String
+
+  memberships Membership[]
+  credentials ApiCredential[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Tenant {
+  id             String       @id @default(cuid())
+  type           String       @default("INDIVIDUAL") // "INDIVIDUAL" | "CORPORATION"
+  name           String
+
+  parentTenantId String?
+  parentTenant   Tenant?      @relation("TenantTree", fields: [parentTenantId], references: [id], onDelete: Cascade)
+  children       Tenant[]     @relation("TenantTree")
+
+  memberships    Membership[]
+  licenses       License[]
+  credentials    ApiCredential[]
+  orders         Order[]
+  auditLogs      AuditLog[]
+
+  status         String       @default("ACTIVE") // "ACTIVE" | "SUSPENDED" | "INACTIVE"
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Membership {
+  id       String @id @default(cuid())
+
+  userId   String
+  tenantId String
+
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  role     String @default("MEMBER") // "OWNER" | "ADMIN" | "BILLING" | "MEMBER" | "VIEWER"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, tenantId])
+}
+
+model License {
+  id              String   @id @default(cuid())
+
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  licenseHash     String   @unique
+  keyMasked       String   // e.g. NVI-7K4M-****-****-DM73
+
+  status          String   @default("ACTIVE") // "CREATED" | "ACTIVE" | "GRACE" | "EXPIRED" | "SUSPENDED" | "REVOKED"
+
+  issuedAt        DateTime @default(now())
+  activatedAt     DateTime?
+  expiresAt       DateTime
+  graceUntil      DateTime?
+
+  activationLimit Int      @default(1)
+
+  activations     LicenseActivation[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Device {
+  id              String   @id @default(cuid())
+
+  tenantId        String
+
+  name            String?
+  platform        String?
+  appVersion      String?
+  fingerprintHash String
+  publicKey       String?
+
+  firstSeenAt     DateTime @default(now())
+  lastSeenAt      DateTime @default(now())
+
+  status          String   @default("ACTIVE") // "ACTIVE" | "INACTIVE" | "BLOCKED"
+
+  activations     LicenseActivation[]
+
+  @@unique([tenantId, fingerprintHash])
+}
+
+model LicenseActivation {
+  id            String    @id @default(cuid())
+
+  licenseId     String
+  deviceId      String
+
+  license       License   @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  device        Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  deviceToken   String    @unique
+  activatedAt   DateTime  @default(now())
+  lastHeartbeat DateTime?
+  deactivatedAt DateTime?
+
+  @@unique([licenseId, deviceId])
+}
+
+model ApiCredential {
+  id              String   @id @default(cuid())
+
+  provider        String   // "OPENAI", "ANTHROPIC", "GEMINI", "DEEPSEEK"
+  label           String
+  scope           String   @default("TENANT") // "PERSONAL" | "TENANT"
+
+  encryptedSecret String
+
+  tenantId        String?
+  userId          String?
+
+  tenant          Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Order {
+  id            String   @id @default(cuid())
+
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  productName   String
+  amount        Float
+  currency      String   @default("USD")
+  paymentMethod String   @default("CRYPTO")
+  status        String   @default("COMPLETED")
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+
+  actorId   String?
+  tenantId  String?
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  action    String
+  details   String?
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+}
