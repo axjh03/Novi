@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
-import { desktop, login, mutate, state } from '@/lib/access';
+import { activity, desktop, login, mutate, state } from '@/lib/access';
 import { AccessError } from '@/lib/access-policy';
 
 export const runtime = 'nodejs';
@@ -34,7 +34,7 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
     }
     let data: unknown;
     if (path.join('/') === 'login' && req.method === 'POST') {
-      const result = await login(body);
+      const result = await login(body, req);
       const response = NextResponse.json({ data: body.audience === 'desktop' ? result : { user: result.user } });
       if (body.audience !== 'desktop') {
         const isHttps = req.url.startsWith('https://') || req.headers.get('x-forwarded-proto') === 'https';
@@ -50,6 +50,7 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
       return setCors(response, req);
     }
     if (path.join('/') === 'state' && req.method === 'GET') data = await state(req);
+    else if (path.join('/') === 'activity' && req.method === 'GET') data = await activity(req);
     else if (path.join('/') === 'desktop' && req.method === 'GET') data = await desktop(req);
     else if (['POST', 'PATCH', 'DELETE'].includes(req.method) && path.length <= 2) data = await mutate(req, path[0], path[1], body);
     else throw new AccessError('Not found.', 404);

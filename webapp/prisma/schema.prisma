@@ -50,6 +50,7 @@ model AccessSession {
   activeSlot  String? @unique
   deviceId    String?
   deviceName  String?
+  ipAddress   String?
   expiresAt   DateTime
   lastSeenAt  DateTime @default(now())
   revokedAt   DateTime?

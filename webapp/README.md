@@ -46,13 +46,17 @@ Administrator (one)
 | Sub-corporation | Own licensed accounts | Own keys | No |
 | Licensed account | None | Read-only inherited connections | Yes |
 
-The admin can edit usernames/names, suspend/reactivate accounts, reset passwords, and delete account branches. Deletion is permanent soft deletion: descendants and licenses are disabled, sessions revoked, and historical assignments retained. Roles and parent relationships cannot be changed. Search by username, filter by type/parent, or inspect the expandable organization tree with online devices. The admin can end device sessions from the user list.
+The admin can edit usernames/names, suspend/reactivate accounts, reset anyone's password (including their own), and delete account branches. Corporations can reset passwords for their sub-corporations and licensed desktop descendants; sub-corporations can reset passwords for their licensed desktop accounts. Deletion is permanent soft deletion: descendants and licenses are disabled, sessions revoked, and historical assignments retained. Roles and parent relationships cannot be changed. Search by username, filter by type/parent, or inspect the expandable organization tree with online devices. The admin can end device sessions from the user list.
 
 ## Licenses and purchase requests
 
 Keys are generated with cryptographic randomness in `XXXX-XXXX-XXXX-XXXX` format. A license is issued to a standalone or sub-corporation owner and permanently bound when that owner creates a desktop account. Each licensed account has one license. Database constraints and triggers prevent reassignment, owner changes, key changes, deletion, and revival of terminated licenses. **Use migrations, not `prisma db push`, because the triggers and partial unique admin index are part of the migration.**
 
 Admin renewal accepts days, calendar months, or calendar years; it extends from the later of now and the current expiry. Month/year extensions clamp to the last valid calendar day. Termination is irreversible. The portal shows expiry, remaining days, assignment, and current status.
+
+The license inventory groups by owner by default, with assigned/unassigned views, owner/account/status filters, and search across keys, names, and usernames. Sort by owner, assigned account, expiry, or issue date. Pagination shows 20 rows by default (50/100 optional); filtering and sorting apply to the full authorized inventory before pagination. License data still comes from the existing workspace state endpoint.
+
+Activity shows only account and license changes, including password resets and licenses issued through approved requests. Sign-ins, sessions, API keys, and unfulfilled requests are excluded from the view; audit records are retained. Its admin-only endpoint filters the complete history before returning 20 events per page, with event type, inclusive date/time range, and newest/oldest ordering. Date inputs use the browser's local time zone and include the entire ending minute.
 
 Purchases use admin-approved requests with quantity and term. Approval atomically issues the requested licenses; a request cannot be fulfilled twice. This implementation does not charge cards or imply a successful payment. Automated checkout requires a payment provider, pricing, and verified payment webhooks.
 
@@ -79,6 +83,7 @@ All paths use `/api/control/`. Success responses are `{ data: ... }`, failures `
 | `login` | POST | Username/password, portal role or desktop audience/device metadata |
 | `logout` | POST | Revoke current session |
 | `state` | GET | Authorized portal account tree, licenses, devices, requests, masked keys |
+| `activity` | GET | Admin account/license audit history; `page`, `event`, `sort=asc\|desc`, `from`/`to` as ISO timestamps with time zone; 20 per page |
 | `desktop` | GET | Validate license, renew heartbeat, return inherited credentials to main |
 | `accounts` | POST | Create authorized account; desktop creation binds license atomically |
 | `accounts/:id` | PATCH, DELETE | Admin edit, password reset, status, permanent branch deletion |

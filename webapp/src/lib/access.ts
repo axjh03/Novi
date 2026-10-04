@@ -1,6 +1,8 @@
 import { Prisma, type AccessAccount } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { prisma } from './db';
+import { canResetPassword } from './access-permissions';
+import { activityEvents } from './activity-events';
 import { AccessError, durationDate, licenseKey, password, providers, roles, string, validParent } from './access-policy';
 import { readToken, seal, tokenFor, unseal } from './access-security';
 
@@ -26,7 +28,12 @@ async function eligible(db: DB, account: AccessAccount) {
   if (!license || license.ownerId !== account.parentId || license.status !== 'ACTIVE' || license.expiresAt <= new Date()) throw new AccessError('Your license is expired or terminated. Contact your administrator.', 403);
   return license;
 }
-export async function login(body: Record<string, unknown>) {
+function clientIp(req?: Request) {
+  const value = req?.headers.get('cf-connecting-ip') || req?.headers.get('x-real-ip') || req?.headers.get('x-forwarded-for')?.split(',')[0];
+  const ip = value?.trim();
+  return ip && ip.length <= 64 ? ip : null;
+}
+export async function login(body: Record<string, unknown>, req?: Request) {
   const username = string(body.username, 'username', 64).toLowerCase();
   string(body.password, 'password', 128);
   const secret = body.password as string;
@@ -55,6 +62,7 @@ export async function login(body: Record<string, unknown>) {
       accountId: account.id, audience, activeSlot: audience === 'desktop' ? account.id : null,
       deviceId: audience === 'desktop' ? string(body.deviceId, 'device identifier') : null,
       deviceName: audience === 'desktop' ? string(body.deviceName, 'device name') : null,
+      ipAddress: audience === 'desktop' ? clientIp(req) : null,
       expiresAt: new Date(+now + 8 * 60 * 60 * 1000),
     } });
     const token = tokenFor(account.id, session.id, audience);
@@ -90,22 +98,60 @@ export async function state(req: Request) {
   const { account, session } = await authenticate(req);
   if (session.audience !== 'portal') throw new AccessError('Use the management portal.', 403);
   const ids = await visibleIds(prisma, account);
-  const [accounts, licenses, sessions, credentials, requests, audits] = await Promise.all([
+  const [accounts, licenses, sessions, credentials, requests] = await Promise.all([
     prisma.accessAccount.findMany({ where: { id: { in: ids } }, select: publicAccount, orderBy: { createdAt: 'asc' } }),
     prisma.accessLicense.findMany({ where: { ownerId: { in: ids } }, orderBy: { createdAt: 'desc' } }),
-    prisma.accessSession.findMany({ where: { accountId: { in: ids }, audience: 'desktop', revokedAt: null, expiresAt: { gt: new Date() }, lastSeenAt: { gt: new Date(Date.now() - LEASE_MS) } }, select: { id: true, accountId: true, deviceName: true, lastSeenAt: true } }),
+    prisma.accessSession.findMany({ where: { accountId: { in: ids }, audience: 'desktop', revokedAt: null, expiresAt: { gt: new Date() }, lastSeenAt: { gt: new Date(Date.now() - LEASE_MS) } }, select: { id: true, accountId: true, deviceName: true, ipAddress: true, lastSeenAt: true } }),
     prisma.managedCredential.findMany({ where: { ownerId: account.id }, select: credentialFields }),
     prisma.licenseRequest.findMany({ where: { ownerId: { in: ids } }, orderBy: { createdAt: 'desc' } }),
-    account.role === 'ADMIN' ? prisma.accessAudit.findMany({ orderBy: { createdAt: 'desc' }, take: 100 }) : [],
   ]);
-  return { user: { id: account.id, name: account.name, username: account.username, role: account.role }, accounts, licenses, sessions, credentials, requests, audits, providers };
+  return { user: { id: account.id, name: account.name, username: account.username, role: account.role }, accounts, licenses, sessions, credentials, requests, providers };
+}
+export async function activity(req: Request) {
+  const { account, session } = await authenticate(req);
+  if (session.audience !== 'portal' || account.role !== 'ADMIN') throw new AccessError('Administrator portal access required.', 403);
+  const params = new URL(req.url).searchParams;
+  const event = params.get('event') || '';
+  const sort = params.get('sort') || 'desc';
+  const requestedPage = Number(params.get('page') || '1');
+  if (event && !Object.hasOwn(activityEvents, event)) throw new AccessError('Choose an account or license event.');
+  if (!['asc', 'desc'].includes(sort)) throw new AccessError('Choose newest or oldest first.');
+  if (!Number.isSafeInteger(requestedPage) || requestedPage < 1) throw new AccessError('Invalid page.');
+  const parseDate = (key: string) => {
+    const value = params.get(key);
+    if (!value) return undefined;
+    const date = new Date(value);
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) || !Number.isFinite(+date)) throw new AccessError('Invalid date and time.');
+    return date;
+  };
+  const from = parseDate('from'), to = parseDate('to');
+  if (from && to && from > to) throw new AccessError('The end must be on or after the start.');
+  const where: Prisma.AccessAuditWhereInput = {
+    action: event || { in: Object.keys(activityEvents) },
+    createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) },
+  };
+  return prisma.$transaction(async db => {
+    const total = await db.accessAudit.count({ where });
+    const pageSize = 20, pages = Math.max(1, Math.ceil(total / pageSize)), page = Math.min(requestedPage, pages);
+    const items = await db.accessAudit.findMany({ where, orderBy: [{ createdAt: sort as 'asc' | 'desc' }, { id: sort as 'asc' | 'desc' }], skip: (page - 1) * pageSize, take: pageSize });
+    const targetIds = items.map(item => item.targetId);
+    const [accounts, licenses, requests] = await Promise.all([
+      db.accessAccount.findMany({ where: { id: { in: [...targetIds, ...items.map(item => item.actorId)] } }, select: { id: true, username: true } }),
+      db.accessLicense.findMany({ where: { id: { in: targetIds } }, select: { id: true, key: true } }),
+      db.licenseRequest.findMany({ where: { id: { in: targetIds } }, select: { id: true, quantity: true } }),
+    ]);
+    const usernames = new Map(accounts.map(item => [item.id, `@${item.username}`]));
+    const targets = new Map([...usernames, ...licenses.map(item => [item.id, item.key] as const), ...requests.map(item => [item.id, `${item.quantity} licenses`] as const)]);
+    return { items: items.map(item => ({ ...item, actorName: usernames.get(item.actorId) || item.actorId, targetName: targets.get(item.targetId) || item.targetId })), total, page, pages, pageSize };
+  });
 }
 export async function desktop(req: Request) {
   const { account, session } = await authenticate(req);
   if (session.audience !== 'desktop') throw new AccessError('Desktop session required.', 403);
   const parents = await chain(prisma, account);
   const credentials = await prisma.managedCredential.findMany({ where: { ownerId: { in: parents.slice(1).map(a => a.id) } } });
-  await prisma.accessSession.update({ where: { id: session.id }, data: { lastSeenAt: new Date() } });
+  const ipAddress = clientIp(req);
+  await prisma.accessSession.update({ where: { id: session.id }, data: { lastSeenAt: new Date(), ...(ipAddress ? { ipAddress } : {}) } });
   return { user: { id: account.id, username: account.username, name: account.name }, license: await eligible(prisma, account), credentials: credentials.map(c => ({ id: c.id, name: c.nickname, ownerName: parents.find(a => a.id === c.ownerId)?.name, provider: providers[c.provider as keyof typeof providers].kind, baseUrl: providers[c.provider as keyof typeof providers].baseUrl, model: c.model, stream: true, apiKey: unseal(c.encryptedSecret) })) };
 }
 export async function mutate(req: Request, resource: string, id: string | undefined, body: Record<string, unknown>) {
@@ -142,9 +188,12 @@ export async function mutate(req: Request, resource: string, id: string | undefi
       await audit(db, actor.id, 'ACCOUNT_CREATED', created.id); return created;
     }
     if (resource === 'accounts' && id && ['PATCH', 'DELETE'].includes(req.method)) {
-      needAdmin();
       const target = await db.accessAccount.findUnique({ where: { id } });
-      if (!target || target.role === 'ADMIN') throw new AccessError('The administrator account is protected.', 403);
+      if (!target) throw new AccessError('Account not found.', 404);
+      const passwordOnly = req.method === 'PATCH' && body.password !== undefined && body.name === undefined && body.username === undefined && body.status === undefined;
+      const allowedReset = passwordOnly && canResetPassword(actor.role, target.role) && (admin || ids.includes(target.id));
+      if (!allowedReset) needAdmin();
+      if (target.role === 'ADMIN' && !allowedReset) throw new AccessError('The administrator account is protected.', 403);
       if (req.method === 'DELETE') {
         const descendants = await visibleIds(db, target);
         await db.accessAccount.updateMany({ where: { id: { in: descendants } }, data: { status: 'DELETED' } });
@@ -158,8 +207,8 @@ export async function mutate(req: Request, resource: string, id: string | undefi
         if (body.password !== undefined) data.passwordHash = await bcrypt.hash(password(body.password), 12);
         if (body.status !== undefined) { if (!['ACTIVE', 'SUSPENDED'].includes(String(body.status))) throw new AccessError('Invalid status.'); data.status = String(body.status); }
         await db.accessAccount.update({ where: { id }, data });
-        const descendants = await visibleIds(db, target);
-        await db.accessSession.updateMany({ where: { accountId: { in: descendants } }, data: { revokedAt: new Date(), activeSlot: null } });
+        const affected = passwordOnly ? [target.id] : await visibleIds(db, target);
+        await db.accessSession.updateMany({ where: { accountId: { in: affected } }, data: { revokedAt: new Date(), activeSlot: null } });
       }
       await audit(db, actor.id, req.method === 'DELETE' ? 'ACCOUNT_DELETED' : body.password ? 'PASSWORD_RESET' : 'ACCOUNT_UPDATED', id); return {};
     }
