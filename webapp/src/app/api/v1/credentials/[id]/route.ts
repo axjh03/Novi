@@ -14,7 +14,7 @@ export async function DELETE(req: Request, context: { params: Promise<{ id: stri
     await prisma.apiCredential.delete({ where: { id } });
 
     await createAuditLog({
-      tenantId: existing.tenantId || undefined,
+      organizationId: existing.organizationId || undefined,
       actorId: existing.userId || undefined,
       action: "API_KEY_DELETED",
       details: { provider: existing.provider, label: existing.label },

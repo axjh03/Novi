@@ -11,17 +11,17 @@ export async function GET(req: Request) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const tenantId = searchParams.get("tenantId");
+    const organizationId = searchParams.get("organizationId") || searchParams.get("tenantId");
     const userId = searchParams.get("userId");
 
     const where: any = {};
-    if (tenantId) where.tenantId = tenantId;
+    if (organizationId) where.organizationId = organizationId;
     if (userId) where.userId = userId;
 
     const licenses = await prisma.license.findMany({
       where,
       include: {
-        tenant: { select: { id: true, name: true, type: true, parentTenant: { select: { name: true } } } },
+        organization: { select: { id: true, name: true, type: true, parentOrganization: { select: { name: true } } } },
         user: { select: { id: true, username: true, email: true, name: true } },
         activations: {
           include: {
@@ -34,28 +34,38 @@ export async function GET(req: Request) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ success: true, data: licenses });
+    const formatted = licenses.map((l: any) => ({
+      ...l,
+      tenant: l.organization ? {
+        ...l.organization,
+        parentTenant: l.organization.parentOrganization,
+      } : null,
+      tenantId: l.organizationId,
+    }));
+
+    return NextResponse.json({ success: true, data: formatted });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
 
 // POST /api/v1/admin/licenses — Issue a new license (admin creates, not yet activated)
-// body: { tenantId, validDays, activationLimit }
+// body: { organizationId, tenantId, validDays, activationLimit }
 export async function POST(req: Request) {
   const actor = requireAdmin(req);
   if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
   try {
     const body = await req.json();
-    const { tenantId, validDays = 365, activationLimit = 1 } = body;
+    const { organizationId, tenantId, validDays = 365, activationLimit = 1 } = body;
+    const targetOrgId = organizationId || tenantId;
 
-    if (!tenantId) {
-      return NextResponse.json({ success: false, error: "tenantId is required" }, { status: 400 });
+    if (!targetOrgId) {
+      return NextResponse.json({ success: false, error: "organizationId is required" }, { status: 400 });
     }
 
-    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
-    if (!tenant) return NextResponse.json({ success: false, error: "Tenant not found" }, { status: 404 });
+    const organization = await prisma.organization.findUnique({ where: { id: targetOrgId } });
+    if (!organization) return NextResponse.json({ success: false, error: "Organization not found" }, { status: 404 });
 
     const rawLicenseKey = generateLicenseKey();
     const licenseHash = hashLicenseKey(rawLicenseKey);
@@ -64,7 +74,7 @@ export async function POST(req: Request) {
 
     const license = await prisma.license.create({
       data: {
-        tenantId,
+        organizationId: targetOrgId,
         licenseHash,
         keyMasked,
         status: "UNACTIVATED",
@@ -76,7 +86,7 @@ export async function POST(req: Request) {
     await createAuditLog({
       actorId: actor.userId,
       action: "LICENSE_ISSUED",
-      tenantId,
+      organizationId: targetOrgId,
       details: { licenseId: license.id, keyMasked, validDays, activationLimit },
     });
 
@@ -85,7 +95,8 @@ export async function POST(req: Request) {
       message: "License issued. This is the only time the plaintext key is shown.",
       data: {
         id: license.id,
-        tenantId: license.tenantId,
+        organizationId: license.organizationId,
+        tenantId: license.organizationId,
         plaintextLicenseKey: rawLicenseKey,
         keyMasked: license.keyMasked,
         status: license.status,

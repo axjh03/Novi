@@ -15,7 +15,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const license = await prisma.license.findUnique({
       where: { id: (await params).id },
-      include: { tenant: true },
+      include: { organization: true },
     });
 
     if (!license) return NextResponse.json({ success: false, error: "License not found" }, { status: 404 });
@@ -53,11 +53,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     await createAuditLog({
       actorId: actor.userId,
       action: `LICENSE_${action}`,
-      tenantId: license.tenantId,
+      organizationId: license.organizationId,
       details: { licenseId: (await params).id, keyMasked: license.keyMasked, ...updateData },
     });
 
-    return NextResponse.json({ success: true, data: updated });
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...updated,
+        tenantId: updated.organizationId,
+      },
+    });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
@@ -77,7 +83,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     await createAuditLog({
       actorId: actor.userId,
       action: "LICENSE_DELETED",
-      tenantId: license.tenantId,
+      organizationId: license.organizationId,
       details: { licenseId: (await params).id, keyMasked: license.keyMasked },
     });
 

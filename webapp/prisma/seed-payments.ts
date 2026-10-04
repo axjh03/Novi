@@ -14,20 +14,20 @@ const PENDING_PRODUCTS = [
 async function main() {
   console.log("💰 Seeding pending payment orders...");
 
-  const tenants = await prisma.tenant.findMany({ take: 5 });
-  if (tenants.length === 0) {
-    console.error("No tenants found. Run the main seed first.");
+  const organizations = await prisma.organization.findMany({ take: 5 });
+  if (organizations.length === 0) {
+    console.error("No organizations found. Run the main seed first.");
     return;
   }
 
   // Create pending orders
   for (let i = 0; i < PENDING_PRODUCTS.length; i++) {
-    const tenant = tenants[i % tenants.length];
+    const organization = organizations[i % organizations.length];
     const product = PENDING_PRODUCTS[i];
     
     const order = await prisma.order.create({
       data: {
-        tenantId: tenant.id,
+        organizationId: organization.id,
         productName: product.name,
         amount: product.amount,
         currency: "USD",
@@ -35,7 +35,7 @@ async function main() {
         status: "PENDING",
       },
     });
-    console.log(`  Created PENDING: ${product.name} ($${product.amount}) → ${tenant.name}`);
+    console.log(`  Created PENDING: ${product.name} ($${product.amount}) → ${organization.name}`);
   }
 
   // Also add some already completed historical orders
@@ -47,11 +47,11 @@ async function main() {
   ];
 
   for (let i = 0; i < historicalOrders.length; i++) {
-    const tenant = tenants[i % tenants.length];
+    const organization = organizations[i % organizations.length];
     const product = historicalOrders[i];
     await prisma.order.create({
       data: {
-        tenantId: tenant.id,
+        organizationId: organization.id,
         productName: product.name,
         amount: product.amount,
         currency: "USD",
@@ -59,7 +59,7 @@ async function main() {
         status: product.status,
       },
     });
-    console.log(`  Created ${product.status}: ${product.name} → ${tenant.name}`);
+    console.log(`  Created ${product.status}: ${product.name} → ${organization.name}`);
   }
 
   console.log("\n✅ Payment orders seeded! Open Admin Dashboard → Payments to approve/reject.");

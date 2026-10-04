@@ -62,20 +62,20 @@ async function main() {
     },
   });
 
-  const acmeTenant = await prisma.tenant.upsert({
-    where: { id: "tenant_acme_corp_001" },
+  const acmeOrganization = await prisma.organization.upsert({
+    where: { id: "org_acme_corp_001" },
     update: {},
     create: {
-      id: "tenant_acme_corp_001",
+      id: "org_acme_corp_001",
       name: "Acme Corp",
       type: "CORPORATION",
     },
   });
 
   await prisma.membership.upsert({
-    where: { userId_tenantId: { userId: corpUser.id, tenantId: acmeTenant.id } },
+    where: { userId_organizationId: { userId: corpUser.id, organizationId: acmeOrganization.id } },
     update: {},
-    create: { userId: corpUser.id, tenantId: acmeTenant.id, role: "OWNER" },
+    create: { userId: corpUser.id, organizationId: acmeOrganization.id, role: "OWNER" },
   });
   console.log("✅ Corp:", corpUser.username, "/ corp123");
 
@@ -93,21 +93,21 @@ async function main() {
     },
   });
 
-  const acmeWestTenant = await prisma.tenant.upsert({
-    where: { id: "tenant_acme_west_001" },
+  const acmeWestOrganization = await prisma.organization.upsert({
+    where: { id: "org_acme_west_001" },
     update: {},
     create: {
-      id: "tenant_acme_west_001",
+      id: "org_acme_west_001",
       name: "Acme West",
       type: "CORPORATION",
-      parentTenantId: acmeTenant.id,
+      parentOrganizationId: acmeOrganization.id,
     },
   });
 
   await prisma.membership.upsert({
-    where: { userId_tenantId: { userId: subCorpUser.id, tenantId: acmeWestTenant.id } },
+    where: { userId_organizationId: { userId: subCorpUser.id, organizationId: acmeWestOrganization.id } },
     update: {},
-    create: { userId: subCorpUser.id, tenantId: acmeWestTenant.id, role: "OWNER" },
+    create: { userId: subCorpUser.id, organizationId: acmeWestOrganization.id, role: "OWNER" },
   });
   console.log("✅ Sub-Corp:", subCorpUser.username, "/ subcorp123");
 
@@ -125,20 +125,20 @@ async function main() {
     },
   });
 
-  const indvTenant = await prisma.tenant.upsert({
-    where: { id: "tenant_john_001" },
+  const indvOrganization = await prisma.organization.upsert({
+    where: { id: "org_john_001" },
     update: {},
     create: {
-      id: "tenant_john_001",
+      id: "org_john_001",
       name: "John Doe's Account",
       type: "INDIVIDUAL",
     },
   });
 
   await prisma.membership.upsert({
-    where: { userId_tenantId: { userId: indvUser.id, tenantId: indvTenant.id } },
+    where: { userId_organizationId: { userId: indvUser.id, organizationId: indvOrganization.id } },
     update: {},
-    create: { userId: indvUser.id, tenantId: indvTenant.id, role: "OWNER" },
+    create: { userId: indvUser.id, organizationId: indvOrganization.id, role: "OWNER" },
   });
   console.log("✅ Individual:", indvUser.username, "/ indv123");
 
@@ -149,7 +149,7 @@ async function main() {
   console.log("  Acme Corp license:", corpLicKey);
   await prisma.license.create({
     data: {
-      tenantId: acmeTenant.id,
+      organizationId: acmeOrganization.id,
       licenseHash: hashLicenseKey(corpLicKey),
       keyMasked: maskLicenseKey(corpLicKey),
       status: "UNACTIVATED",
@@ -163,7 +163,7 @@ async function main() {
   console.log("  John Doe license:", indvLicKey);
   await prisma.license.create({
     data: {
-      tenantId: indvTenant.id,
+      organizationId: indvOrganization.id,
       licenseHash: hashLicenseKey(indvLicKey),
       keyMasked: maskLicenseKey(indvLicKey),
       status: "UNACTIVATED",

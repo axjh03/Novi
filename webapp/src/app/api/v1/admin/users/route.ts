@@ -34,7 +34,7 @@ export async function GET(req: Request) {
         orderBy: { createdAt: "desc" },
         include: {
           memberships: {
-            include: { tenant: { include: { parentTenant: true } } },
+            include: { organization: { include: { parentOrganization: true } } },
           },
           licenses: {
             select: { id: true, status: true, keyMasked: true, expiresAt: true },
@@ -44,9 +44,18 @@ export async function GET(req: Request) {
       prisma.user.count({ where }),
     ]);
 
+    const formattedUsers = users.map((u: any) => ({
+      ...u,
+      memberships: u.memberships?.map((m: any) => ({
+        ...m,
+        tenant: m.organization,
+        tenantId: m.organizationId,
+      })),
+    }));
+
     return NextResponse.json({
       success: true,
-      data: users,
+      data: formattedUsers,
       meta: { total, page, pageSize, totalPages: Math.ceil(total / pageSize) },
     });
   } catch (err: any) {
@@ -85,31 +94,31 @@ export async function POST(req: Request) {
         },
       });
 
-      const tenantType = role === "CORP" ? "CORPORATION" : "INDIVIDUAL";
-      const tenant = await tx.tenant.create({
+      const orgType = role === "CORP" ? "CORPORATION" : "INDIVIDUAL";
+      const organization = await tx.organization.create({
         data: {
           name: role === "CORP" ? `${name} Corp` : `${name}'s Account`,
-          type: tenantType,
-          parentTenantId: parentTenantId || null,
+          type: orgType,
+          parentOrganizationId: parentTenantId || null,
         },
       });
 
       await tx.membership.create({
         data: {
           userId: user.id,
-          tenantId: tenant.id,
+          organizationId: organization.id,
           role: "OWNER",
         },
       });
 
-      return { user, tenant };
+      return { user, organization };
     });
 
     await createAuditLog({
       actorId: actor.userId,
       action: "USER_CREATED",
-      tenantId: result.tenant.id,
-      details: { email, username, role, tenantId: result.tenant.id },
+      organizationId: result.organization.id,
+      details: { email, username, role, organizationId: result.organization.id },
     });
 
     return NextResponse.json({ success: true, data: { ...result.user, passwordHash: undefined } }, { status: 201 });

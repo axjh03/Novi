@@ -1,6 +1,7 @@
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
@@ -117,103 +118,103 @@ model User {
   updatedAt    DateTime @updatedAt
 }
 
-// ─── Tenant ───────────────────────────────────────────────────────────────────
-model Tenant {
-  id             String       @id @default(cuid())
-  type           String       @default("INDIVIDUAL") // "INDIVIDUAL" | "CORPORATION"
-  name           String
+// ─── Organization ─────────────────────────────────────────────────────────────
+model Organization {
+  id                   String       @id @default(cuid())
+  type                 String       @default("INDIVIDUAL") // "INDIVIDUAL" | "CORPORATION"
+  name                 String
 
-  parentTenantId String?
-  parentTenant   Tenant?      @relation("TenantTree", fields: [parentTenantId], references: [id], onDelete: Cascade)
-  children       Tenant[]     @relation("TenantTree")
+  parentOrganizationId String?
+  parentOrganization   Organization? @relation("OrganizationTree", fields: [parentOrganizationId], references: [id], onDelete: Cascade)
+  children             Organization[] @relation("OrganizationTree")
 
-  memberships    Membership[]
-  licenses       License[]
-  credentials    ApiCredential[]
-  orders         Order[]
-  auditLogs      AuditLog[]   @relation("TenantLogs")
-  devices        Device[]
+  memberships          Membership[]
+  licenses             License[]
+  credentials          ApiCredential[]
+  orders               Order[]
+  auditLogs            AuditLog[]   @relation("OrganizationLogs")
+  devices              Device[]
 
-  status         String       @default("ACTIVE") // "ACTIVE" | "SUSPENDED" | "INACTIVE"
+  status               String       @default("ACTIVE") // "ACTIVE" | "SUSPENDED" | "INACTIVE"
 
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
 }
 
 // ─── Membership ───────────────────────────────────────────────────────────────
 model Membership {
-  id       String @id @default(cuid())
+  id             String       @id @default(cuid())
 
-  userId   String
-  tenantId String
+  userId         String
+  organizationId String
 
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  role     String @default("OWNER") // "OWNER" | "ADMIN" | "MEMBER"
+  role           String       @default("OWNER") // "OWNER" | "ADMIN" | "MEMBER"
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  @@unique([userId, tenantId])
+  @@unique([userId, organizationId])
 }
 
 // ─── License ──────────────────────────────────────────────────────────────────
-// Licenses are created by admin and assigned to a tenant (corp or indv).
+// Licenses are created by admin and assigned to an organization (corp or indv).
 // When a user activates a license, userId is set. A license can only be used by 1 user.
 model License {
-  id              String   @id @default(cuid())
+  id              String       @id @default(cuid())
 
-  // Assigned-to tenant (corp/indv/sub-corp)
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  // Assigned-to organization (corp/indv/sub-corp)
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   // Activated by user (set when first activated)
   userId          String?
-  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user            User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  licenseHash     String   @unique
-  keyMasked       String   // e.g. NVI-7K4M-****-****-DM73
+  licenseHash     String       @unique
+  keyMasked       String       // e.g. NVI-7K4M-****-****-DM73
 
-  status          String   @default("UNACTIVATED") // "UNACTIVATED" | "ACTIVE" | "GRACE" | "EXPIRED" | "SUSPENDED" | "REVOKED"
+  status          String       @default("UNACTIVATED") // "UNACTIVATED" | "ACTIVE" | "GRACE" | "EXPIRED" | "SUSPENDED" | "REVOKED"
 
-  issuedAt        DateTime @default(now())
+  issuedAt        DateTime     @default(now())
   activatedAt     DateTime?
   expiresAt       DateTime
   graceUntil      DateTime?
 
   // For now 1 device per license (1:1 device binding)
-  activationLimit Int      @default(1)
+  activationLimit Int          @default(1)
 
   activations     LicenseActivation[]
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 }
 
 // ─── Device ───────────────────────────────────────────────────────────────────
 model Device {
-  id              String   @id @default(cuid())
+  id              String       @id @default(cuid())
 
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   name            String?
   platform        String?
   appVersion      String?
   fingerprintHash String
 
-  firstSeenAt     DateTime @default(now())
-  lastSeenAt      DateTime @default(now())
+  firstSeenAt     DateTime     @default(now())
+  lastSeenAt      DateTime     @default(now())
 
   // Track which user last used this device
   lastUsedByUserId String?
 
-  status          String   @default("ACTIVE") // "ACTIVE" | "INACTIVE" | "BLOCKED"
+  status          String       @default("ACTIVE") // "ACTIVE" | "INACTIVE" | "BLOCKED"
 
   activations     LicenseActivation[]
 
-  @@unique([tenantId, fingerprintHash])
+  @@unique([organizationId, fingerprintHash])
 }
 
 // ─── LicenseActivation ────────────────────────────────────────────────────────
@@ -239,53 +240,53 @@ model LicenseActivation {
 
 // ─── ApiCredential ────────────────────────────────────────────────────────────
 model ApiCredential {
-  id              String   @id @default(cuid())
+  id              String        @id @default(cuid())
 
-  provider        String   // "OPENAI", "ANTHROPIC", "GEMINI", "DEEPSEEK"
+  provider        String        // "OPENAI", "ANTHROPIC", "GEMINI", "DEEPSEEK"
   label           String
-  scope           String   @default("TENANT") // "PERSONAL" | "TENANT"
+  scope           String        @default("ORGANIZATION") // "PERSONAL" | "ORGANIZATION"
 
   encryptedSecret String
 
-  tenantId        String?
+  organizationId  String?
   userId          String?
 
-  tenant          Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 }
 
 // ─── Order ────────────────────────────────────────────────────────────────────
 model Order {
-  id            String   @id @default(cuid())
+  id             String       @id @default(cuid())
 
-  tenantId      String
-  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  productName   String
-  amount        Float
-  currency      String   @default("USD")
-  paymentMethod String   @default("MANUAL")
-  status        String   @default("COMPLETED")
+  productName    String
+  amount         Float
+  currency       String       @default("USD")
+  paymentMethod  String       @default("MANUAL")
+  status         String       @default("COMPLETED")
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
 
 // ─── AuditLog ────────────────────────────────────────────────────────────────
 model AuditLog {
-  id        String   @id @default(cuid())
+  id             String        @id @default(cuid())
 
-  actorId   String?
-  actor     User?    @relation("ActorLogs", fields: [actorId], references: [id], onDelete: SetNull)
-  tenantId  String?
-  tenant    Tenant?  @relation("TenantLogs", fields: [tenantId], references: [id], onDelete: SetNull)
+  actorId        String?
+  actor          User?         @relation("ActorLogs", fields: [actorId], references: [id], onDelete: SetNull)
+  organizationId String?
+  organization   Organization? @relation("OrganizationLogs", fields: [organizationId], references: [id], onDelete: SetNull)
 
-  action    String
-  details   String?
-  ipAddress String?
+  action         String
+  details        String?
+  ipAddress      String?
 
-  createdAt DateTime @default(now())
+  createdAt      DateTime      @default(now())
 }

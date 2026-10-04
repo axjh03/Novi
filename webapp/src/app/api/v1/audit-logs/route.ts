@@ -12,22 +12,29 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get("limit") || "100");
-    const tenantId = searchParams.get("tenantId");
+    const organizationId = searchParams.get("organizationId") || searchParams.get("tenantId");
 
     const where: any = {};
-    if (tenantId) where.tenantId = tenantId;
+    if (organizationId) where.organizationId = organizationId;
 
     const logs = await prisma.auditLog.findMany({
       where,
       include: {
-        tenant: { select: { name: true } },
+        organization: { select: { name: true } },
         actor: { select: { username: true, email: true } },
       },
       orderBy: { createdAt: "desc" },
       take: limit,
     });
 
-    return NextResponse.json({ success: true, data: logs });
+    return NextResponse.json({
+      success: true,
+      data: logs.map((l: any) => ({
+        ...l,
+        tenant: l.organization,
+        tenantId: l.organizationId,
+      })),
+    });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

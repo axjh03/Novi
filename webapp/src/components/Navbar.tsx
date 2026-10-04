@@ -93,9 +93,9 @@ export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
         </nav>
 
         {/* DB status */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#444", fontFamily: "monospace" }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff", display: "inline-block" }} />
-          <span>SQLite <span style={{ color: "#666" }}>dev.db</span></span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#888", fontFamily: "monospace" }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
+          <span>Supabase <span style={{ color: "#666" }}>PostgreSQL</span></span>
         </div>
       </div>
     </header>

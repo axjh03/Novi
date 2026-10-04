@@ -6,12 +6,12 @@ import { createAuditLog } from "@/lib/audit";
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const tenantId = searchParams.get("tenantId");
+    const organizationId = searchParams.get("organizationId") || searchParams.get("tenantId");
     const userId = searchParams.get("userId");
     const reveal = searchParams.get("reveal") === "true";
 
     const where: any = {};
-    if (tenantId) where.tenantId = tenantId;
+    if (organizationId) where.organizationId = organizationId;
     if (userId) where.userId = userId;
 
     const credentials = await prisma.apiCredential.findMany({
@@ -27,7 +27,8 @@ export async function GET(req: Request) {
         provider: cred.provider,
         label: cred.label,
         scope: cred.scope,
-        tenantId: cred.tenantId,
+        organizationId: cred.organizationId,
+        tenantId: cred.organizationId,
         userId: cred.userId,
         secret: reveal ? decrypted : masked,
         isEncryptedAtRest: true,
@@ -45,7 +46,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { provider, label, secret, scope = "TENANT", tenantId, userId } = body;
+    const { provider, label, secret, scope = "ORGANIZATION", organizationId, tenantId, userId } = body;
+    const targetOrgId = organizationId || tenantId;
 
     if (!provider || !label || !secret) {
       return NextResponse.json(
@@ -60,15 +62,15 @@ export async function POST(req: Request) {
       data: {
         provider: provider.toUpperCase(),
         label,
-        scope,
+        scope: scope === "TENANT" ? "ORGANIZATION" : scope,
         encryptedSecret,
-        tenantId: tenantId || null,
+        organizationId: targetOrgId || null,
         userId: userId || null,
       },
     });
 
     await createAuditLog({
-      tenantId: tenantId || undefined,
+      organizationId: targetOrgId || undefined,
       actorId: userId || undefined,
       action: "API_KEY_CREATED",
       details: { provider, label, scope, credentialId: credential.id },

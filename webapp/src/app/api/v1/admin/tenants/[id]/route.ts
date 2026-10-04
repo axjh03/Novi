@@ -15,19 +15,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (status) updateData.status = status;
     if (name) updateData.name = name;
 
-    const tenant = await prisma.tenant.update({
+    const organization = await prisma.organization.update({
       where: { id: (await params).id },
       data: updateData,
     });
 
     await createAuditLog({
       actorId: actor.userId,
-      action: "TENANT_UPDATED",
-      tenantId: (await params).id,
+      action: "ORGANIZATION_UPDATED",
+      organizationId: (await params).id,
       details: { fields: updateData },
     });
 
-    return NextResponse.json({ success: true, data: tenant });
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...organization,
+        tenantId: organization.id,
+      },
+    });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
@@ -39,23 +45,23 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
   try {
-    const tenant = await prisma.tenant.findUnique({
+    const organization = await prisma.organization.findUnique({
       where: { id: (await params).id },
       include: { _count: { select: { children: true, licenses: true } } },
     });
 
-    if (!tenant) return NextResponse.json({ success: false, error: "Tenant not found" }, { status: 404 });
+    if (!organization) return NextResponse.json({ success: false, error: "Organization not found" }, { status: 404 });
 
-    await prisma.tenant.delete({ where: { id: (await params).id } });
+    await prisma.organization.delete({ where: { id: (await params).id } });
 
     await createAuditLog({
       actorId: actor.userId,
-      action: "TENANT_DELETED",
+      action: "ORGANIZATION_DELETED",
       details: {
-        tenantId: (await params).id,
-        name: tenant.name,
-        childrenDeleted: tenant._count.children,
-        licensesDeleted: tenant._count.licenses,
+        organizationId: (await params).id,
+        name: organization.name,
+        childrenDeleted: organization._count.children,
+        licensesDeleted: organization._count.licenses,
       },
     });
 

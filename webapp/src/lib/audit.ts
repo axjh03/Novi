@@ -2,6 +2,7 @@ import { prisma } from "./db";
 
 interface AuditLogOptions {
   actorId?: string;
+  organizationId?: string;
   tenantId?: string;
   action: string;
   details?: Record<string, any> | string;
@@ -10,6 +11,7 @@ interface AuditLogOptions {
 
 export async function createAuditLog({
   actorId,
+  organizationId,
   tenantId,
   action,
   details,
@@ -24,7 +26,7 @@ export async function createAuditLog({
     return await prisma.auditLog.create({
       data: {
         actorId: validActorId,
-        tenantId,
+        organizationId: organizationId || tenantId,
         action,
         details: detailsStr,
         ipAddress: ipAddress || "127.0.0.1",

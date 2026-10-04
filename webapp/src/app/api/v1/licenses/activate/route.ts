@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     const license = await prisma.license.findUnique({
       where: { licenseHash },
       include: {
-        tenant: {
+        organization: {
           include: {
             memberships: { select: { userId: true } },
           },
@@ -39,9 +39,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Invalid license key" }, { status: 400 });
     }
 
-    // Check if license belongs to user's tenant or if user is a member
-    const tenantMemberIds = license.tenant.memberships.map((m: any) => m.userId);
-    if (!tenantMemberIds.includes(actor.userId) && license.userId !== actor.userId) {
+    // Check if license belongs to user's organization or if user is a member
+    const orgMemberIds = license.organization.memberships.map((m: any) => m.userId);
+    if (!orgMemberIds.includes(actor.userId) && license.userId !== actor.userId) {
       return NextResponse.json({ success: false, error: "This license is not assigned to your account" }, { status: 403 });
     }
 
@@ -63,13 +63,13 @@ export async function POST(req: Request) {
 
     // Find or create device
     let device = await prisma.device.findUnique({
-      where: { tenantId_fingerprintHash: { tenantId: license.tenantId, fingerprintHash: deviceFingerprint } },
+      where: { organizationId_fingerprintHash: { organizationId: license.organizationId, fingerprintHash: deviceFingerprint } },
     });
 
     if (!device) {
       device = await prisma.device.create({
         data: {
-          tenantId: license.tenantId,
+          organizationId: license.organizationId,
           fingerprintHash: deviceFingerprint,
           name: deviceName || "Unknown Device",
           platform: platform || "Unknown",
@@ -152,7 +152,7 @@ export async function POST(req: Request) {
     await createAuditLog({
       actorId: actor.userId,
       action: "LICENSE_ACTIVATED",
-      tenantId: license.tenantId,
+      organizationId: license.organizationId,
       details: { licenseId: license.id, deviceId: device.id, platform },
     });
 

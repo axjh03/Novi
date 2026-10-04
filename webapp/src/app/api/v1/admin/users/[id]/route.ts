@@ -15,7 +15,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       include: {
         memberships: {
           include: {
-            tenant: {
+            organization: {
               include: {
                 children: true,
                 licenses: {
@@ -27,7 +27,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         },
         licenses: {
           include: {
-            tenant: true,
+            organization: true,
             activations: { include: { device: true } },
           },
         },
@@ -36,7 +36,26 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     if (!user) return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
 
-    const { passwordHash: _, ...safeUser } = user as any;
+    const formattedMemberships = user.memberships.map((m: any) => ({
+      ...m,
+      tenant: m.organization ? {
+        ...m.organization,
+        parentTenantId: m.organization.parentOrganizationId,
+      } : null,
+      tenantId: m.organizationId,
+    }));
+
+    const formattedLicenses = user.licenses.map((l: any) => ({
+      ...l,
+      tenant: l.organization,
+      tenantId: l.organizationId,
+    }));
+
+    const { passwordHash: _, ...safeUser } = {
+      ...user,
+      memberships: formattedMemberships,
+      licenses: formattedLicenses,
+    } as any;
     return NextResponse.json({ success: true, data: safeUser });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -86,7 +105,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       where: { id: (await params).id },
       include: {
         licenses: true,
-        memberships: { include: { tenant: true } },
+        memberships: { include: { organization: true } },
       },
     });
 

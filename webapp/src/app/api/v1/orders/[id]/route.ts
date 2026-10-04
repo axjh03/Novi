@@ -20,16 +20,23 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     const updated = await prisma.order.update({
       where: { id },
       data: { status: newStatus },
-      include: { tenant: { select: { id: true, name: true } } },
+      include: { organization: { select: { id: true, name: true } } },
     });
 
     await createAuditLog({
-      tenantId: order.tenantId,
+      organizationId: order.organizationId,
       action: `PAYMENT_${action}`,
       details: { orderId: id, amount: order.amount, newStatus },
     });
 
-    return NextResponse.json({ success: true, data: updated });
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...updated,
+        tenant: (updated as any).organization,
+        tenantId: updated.organizationId,
+      },
+    });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

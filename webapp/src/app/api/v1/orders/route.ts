@@ -15,7 +15,7 @@ export async function GET(req: Request) {
       prisma.order.findMany({
         where,
         include: {
-          tenant: { select: { id: true, name: true, type: true } },
+          organization: { select: { id: true, name: true, type: true } },
         },
         orderBy: { createdAt: "desc" },
         skip,
@@ -36,7 +36,11 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       success: true,
-      data: orders,
+      data: orders.map((o: any) => ({
+        ...o,
+        tenant: o.organization,
+        tenantId: o.organizationId,
+      })),
       meta: {
         total,
         page,
@@ -54,18 +58,19 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { tenantId, productName, amount, paymentMethod = "CRYPTO", status = "PENDING" } = body;
+    const { organizationId, tenantId, productName, amount, paymentMethod = "CRYPTO", status = "PENDING" } = body;
+    const targetOrgId = organizationId || tenantId;
 
-    if (!tenantId || !productName || !amount) {
+    if (!targetOrgId || !productName || !amount) {
       return NextResponse.json(
-        { success: false, error: "tenantId, productName, and amount are required" },
+        { success: false, error: "organizationId, productName, and amount are required" },
         { status: 400 }
       );
     }
 
     const order = await prisma.order.create({
       data: {
-        tenantId,
+        organizationId: targetOrgId,
         productName,
         amount: Number(amount),
         currency: "USD",
@@ -73,11 +78,18 @@ export async function POST(req: Request) {
         status,
       },
       include: {
-        tenant: { select: { id: true, name: true } },
+        organization: { select: { id: true, name: true } },
       },
     });
 
-    return NextResponse.json({ success: true, data: order }, { status: 201 });
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...order,
+        tenant: order.organization,
+        tenantId: order.organizationId,
+      },
+    }, { status: 201 });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

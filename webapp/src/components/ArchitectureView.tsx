@@ -42,17 +42,17 @@ export function ArchitectureView() {
       <div style={{ background: "#111", border: "1px solid #1f1f1f", borderRadius: 6, padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: "#ccc" }}>Current Database</div>
-          <div style={{ fontFamily: "monospace", fontSize: 11, color: "#555", marginTop: 4 }}>
-            SQLite · <span style={{ color: "#888" }}>prisma/dev.db</span> · local file
+          <div style={{ fontFamily: "monospace", fontSize: 11, color: "#888", marginTop: 4 }}>
+            PostgreSQL · <span style={{ color: "#22c55e" }}>Supabase</span> · AWS us-east-2
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "monospace", fontSize: 11, color: "#444" }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff", display: "inline-block" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "monospace", fontSize: 11, color: "#22c55e" }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
           Connected
         </div>
       </div>
 
-      <Section title="UNIFIED TENANT MODEL">
+      <Section title="UNIFIED ORGANIZATION MODEL">
         <div style={{ fontSize: 12, color: "#555", lineHeight: 1.8 }}>
           A single <span style={{ fontFamily: "monospace", color: "#888" }}>Tenant</span> table handles Individuals, Corporations, and nested Sub-Corps via <span style={{ fontFamily: "monospace", color: "#888" }}>parentTenantId</span>.
           No separate tables needed for each level.

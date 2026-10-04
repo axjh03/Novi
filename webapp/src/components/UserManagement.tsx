@@ -177,7 +177,7 @@ export function UserManagement() {
             
             {tenant && (
               <Btn danger={tenant.status === "ACTIVE"} onClick={() => handleToggleTenantStatus(tenant.id, tenant.status)}>
-                {tenant.status === "ACTIVE" ? <><Ban size={14} /> Suspend Tenant</> : "Unsuspend Tenant"}
+                {tenant.status === "ACTIVE" ? <><Ban size={14} /> Suspend Organization</> : "Unsuspend Organization"}
               </Btn>
             )}
           </div>

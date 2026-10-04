@@ -22,7 +22,7 @@ export async function POST(req: Request) {
       },
       include: {
         memberships: {
-          include: { tenant: true },
+          include: { organization: true },
           orderBy: { createdAt: "asc" },
         },
       },
@@ -37,17 +37,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: "Invalid credentials" }, { status: 401 });
     }
 
-    // Get primary tenant
+    // Get primary organization
     const primaryMembership = user.memberships[0];
-    const tenantId = primaryMembership?.tenantId;
-    const tenant = primaryMembership?.tenant;
+    const organizationId = primaryMembership?.organizationId;
+    const organization = primaryMembership?.organization;
 
     const token = signToken({
       userId: user.id,
       username: user.username,
       email: user.email,
       role: user.role as "ADMIN" | "CORP" | "INDIVIDUAL",
-      tenantId,
+      organizationId,
+      tenantId: organizationId,
     });
 
     return NextResponse.json({
@@ -59,9 +60,12 @@ export async function POST(req: Request) {
         email: user.email,
         name: user.name,
         role: user.role,
-        tenantId,
-        tenantName: tenant?.name,
-        tenantType: tenant?.type,
+        organizationId,
+        organizationName: organization?.name,
+        organizationType: organization?.type,
+        tenantId: organizationId,
+        tenantName: organization?.name,
+        tenantType: organization?.type,
       },
     });
   } catch (err: any) {

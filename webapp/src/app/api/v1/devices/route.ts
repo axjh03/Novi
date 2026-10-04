@@ -9,20 +9,21 @@ export async function GET(req: Request) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const tenantId = searchParams.get("tenantId");
+    const organizationId = searchParams.get("organizationId") || searchParams.get("tenantId");
 
-    // Admin can view all, others only their own tenant
+    // Admin can view all, others only their own organization
     const where: any = {};
+    const userOrgId = actor.organizationId || actor.tenantId;
     if (actor.role === "ADMIN") {
-      if (tenantId) where.tenantId = tenantId;
+      if (organizationId) where.organizationId = organizationId;
     } else {
-      where.tenantId = actor.tenantId;
+      where.organizationId = userOrgId;
     }
 
     const devices = await prisma.device.findMany({
       where,
       include: {
-        tenant: { select: { id: true, name: true, type: true } },
+        organization: { select: { id: true, name: true, type: true } },
         activations: {
           where: { deactivatedAt: null },
           include: {
@@ -35,7 +36,14 @@ export async function GET(req: Request) {
       orderBy: { lastSeenAt: "desc" },
     });
 
-    return NextResponse.json({ success: true, data: devices });
+    return NextResponse.json({
+      success: true,
+      data: devices.map((d: any) => ({
+        ...d,
+        tenant: d.organization,
+        tenantId: d.organizationId,
+      })),
+    });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

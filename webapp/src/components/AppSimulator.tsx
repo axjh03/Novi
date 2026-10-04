@@ -177,8 +177,8 @@ export function AppSimulator() {
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 11 }}>
                     <div>
-                      <div style={{ color: "#444" }}>Tenant</div>
-                      <div style={{ color: "#ccc", marginTop: 2 }}>{activation.tenant?.name}</div>
+                      <div style={{ color: "#444" }}>Organization</div>
+                      <div style={{ color: "#ccc", marginTop: 2 }}>{activation.tenant?.name || activation.organization?.name}</div>
                     </div>
                     <div>
                       <div style={{ color: "#444" }}>License</div>

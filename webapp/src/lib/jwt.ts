@@ -8,6 +8,7 @@ export interface JWTPayload {
   username: string;
   email: string;
   role: "ADMIN" | "CORP" | "INDIVIDUAL";
+  organizationId?: string;
   tenantId?: string;
 }
 

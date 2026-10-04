@@ -16,7 +16,7 @@ export async function POST(req: Request) {
       where: { deviceToken },
       include: {
         license: {
-          include: { tenant: true },
+          include: { organization: true },
         },
         device: true,
       },
@@ -83,7 +83,7 @@ export async function POST(req: Request) {
     });
 
     await createAuditLog({
-      tenantId: license.tenantId,
+      organizationId: license.organizationId,
       actorId: activation.deviceId,
       action: "DEVICE_HEARTBEAT",
       details: { status: computedStatus, deviceName: activation.device.name },
@@ -96,9 +96,13 @@ export async function POST(req: Request) {
         expiresAt: license.expiresAt,
         nextCheckIn: 14400, // 4 hours in seconds
         graceRemainingHours,
+        organization: {
+          id: license.organization.id,
+          name: license.organization.name,
+        },
         tenant: {
-          id: license.tenant.id,
-          name: license.tenant.name,
+          id: license.organization.id,
+          name: license.organization.name,
         },
       },
     });
