@@ -16,9 +16,11 @@ const rendererUrl = new URL(devUrl || pathToFileURL(rendererPath).href).href;
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
+  const iconPath = join(__dirname, '../../build/icon.png');
   const window = new BrowserWindow({
     width: 1200, height: 800, minWidth: 850, minHeight: 600,
     title: 'Novi',
+    icon: iconPath,
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -53,6 +55,9 @@ else void app.whenReady().then(async () => {
   });
   const { registerIPC } = await import('./ipc/handlers');
   registerIPC(rendererUrl, join(__dirname, '../preload/preload.js'), () => mainWindow);
+  if (process.platform === 'darwin' && app.dock) {
+    try { app.dock.setIcon(join(__dirname, '../../build/icon.png')); } catch {}
+  }
   createWindow();
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });

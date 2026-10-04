@@ -38,7 +38,7 @@ export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
       }}>
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <ShieldCheck size={16} color="#fff" />
+          <img src="/logo.svg" alt="Novi Logo" width={22} height={22} style={{ borderRadius: 6, objectFit: "contain" }} />
           <span style={{ fontWeight: 700, fontSize: 14, color: "#fff", letterSpacing: "0.05em" }}>
             NOVI
           </span>

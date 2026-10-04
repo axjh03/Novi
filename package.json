@@ -12,7 +12,11 @@
     "web:setup": "npm --prefix webapp run setup",
     "web:dev": "npm --prefix webapp run dev",
     "test": "tsx --test tests/*.test.ts",
-    "test:desktop": "npm run build && tsx scripts/smoke.ts"
+    "test:desktop": "npm run build && tsx scripts/smoke.ts",
+    "package:mac": "npm run build && electron-builder --mac dmg",
+    "package:win": "npm run build && electron-builder --win nsis",
+    "package:linux": "npm run build && electron-builder --linux deb",
+    "package:all": "npm run build && electron-builder -mwl"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",

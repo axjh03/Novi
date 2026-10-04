@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Eye, EyeOff, Minus, Square, Copy, X, Lock, Unlock, ShieldAlert, Sparkles } from 'lucide-react';
 import { useStealth } from '../hooks/useStealth';
 import { unwrap } from '../services/api';
+import logoImg from '../assets/logo.svg';
 
 export function TitleBar() {
   const { transparent, clickThrough, clickThroughShortcut, toggleTransparent } = useStealth();
@@ -43,7 +44,7 @@ export function TitleBar() {
       <header className={`app-titlebar ${transparent ? 'transparent-titlebar' : ''}`}>
         <div className="titlebar-drag-region">
           <div className="titlebar-brand">
-            <span className="titlebar-logo">✦</span>
+            <img src={logoImg} alt="Logo" style={{ width: 16, height: 16, borderRadius: 4, marginRight: 6, objectFit: 'contain' }} />
             <span className="titlebar-name">Novi</span>
           </div>
         </div>

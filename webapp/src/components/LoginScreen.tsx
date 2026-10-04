@@ -64,16 +64,19 @@ export function LoginScreen({ onLogin }: LoginProps) {
       <div style={{ width: "100%", maxWidth: 420 }}>
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <div style={{
-            width: 56, height: 56,
-            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-            borderRadius: 16,
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            marginBottom: 16,
-            boxShadow: "0 0 40px rgba(99,102,241,0.3)",
-          }}>
-            <ShieldCheck size={28} color="#fff" />
-          </div>
+          <img
+            src="/logo.svg"
+            alt="Novi Logo"
+            width={64}
+            height={64}
+            style={{
+              borderRadius: 16,
+              marginBottom: 16,
+              boxShadow: "0 0 35px rgba(255,255,255,0.15)",
+              display: "inline-block",
+              objectFit: "contain",
+            }}
+          />
           <div style={{ fontWeight: 800, fontSize: 22, color: "#fff", letterSpacing: "0.06em" }}>
             NOVI
           </div>
