@@ -116,7 +116,7 @@ export function registerIPC(
     if (!user.managed && !user.settings.connections.length) throw new UserError('Add an AI provider first.');
     get().stealth.setClickThroughShortcut(input.clickThroughShortcut);
     user.name = input.displayName;
-    user.settings = { ...user.settings, displayName: input.displayName, theme: input.theme, clickThroughShortcut: input.clickThroughShortcut, onboardingComplete: true };
+    user.settings = { ...user.settings, displayName: input.displayName, theme: input.theme, clickThroughShortcut: input.clickThroughShortcut, audioPipelineMode: input.audioPipelineMode || 'local_stt', onboardingComplete: true };
     storage.save(); return snapshot();
   });
   handle('save-connection', async (value) => { requireNoContext(); get().chat.assertIdle(); get().connections.save(value); return snapshot(); });

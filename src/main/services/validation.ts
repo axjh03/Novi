@@ -49,6 +49,9 @@ export function settingsInput(value: unknown): SettingsInput {
     theme: input.theme as SettingsInput['theme'],
     clickThroughShortcut: shortcut,
     connection: input.connection === undefined ? undefined : connectionInput(input.connection),
+    audioPipelineMode: ['local_stt', 'live_stream'].includes(String(input.audioPipelineMode))
+      ? (input.audioPipelineMode as SettingsInput['audioPipelineMode'])
+      : 'local_stt',
   };
 }
 export function connectionInput(value: unknown, discovery = false): ConnectionInput {
@@ -62,7 +65,7 @@ export function connectionInput(value: unknown, discovery = false): ConnectionIn
     id: input.id === undefined ? undefined : text(input.id, 'connection ID', 100),
     name: text(input.name, 'connection name', 60),
     ai: {
-      provider, baseUrl: provider === 'compatible' ? baseUrl(ai.baseUrl) : PROVIDERS[provider].baseUrl,
+      provider, baseUrl: PROVIDERS[provider]?.baseUrl || '',
       model, stream: ai.stream,
     },
     apiKey: input.apiKey === undefined ? undefined : text(input.apiKey, 'API key', 4096, true),

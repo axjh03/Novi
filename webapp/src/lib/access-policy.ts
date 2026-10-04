@@ -5,10 +5,6 @@ export const providers = {
   OPENAI: { name: 'OpenAI', kind: 'openai', baseUrl: 'https://api.openai.com/v1' },
   ANTHROPIC: { name: 'Anthropic / Claude', kind: 'anthropic', baseUrl: 'https://api.anthropic.com/v1' },
   GEMINI: { name: 'Google Gemini', kind: 'gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
-  DEEPSEEK: { name: 'DeepSeek', kind: 'compatible', baseUrl: 'https://api.deepseek.com/v1' },
-  GROQ: { name: 'Groq', kind: 'compatible', baseUrl: 'https://api.groq.com/openai/v1' },
-  MISTRAL: { name: 'Mistral', kind: 'compatible', baseUrl: 'https://api.mistral.ai/v1' },
-  XAI: { name: 'xAI', kind: 'compatible', baseUrl: 'https://api.x.ai/v1' },
 } as const;
 export class AccessError extends Error {
   constructor(message: string, public status = 400) { super(message); }

@@ -2,7 +2,7 @@ import type { AIProviderConfig } from '../../shared/types';
 import { PROVIDERS } from '../../shared/providers.ts';
 import { UserError } from './validation.ts';
 
-export const endpoint = (config: AIProviderConfig) => config.provider === 'compatible' ? config.baseUrl : PROVIDERS[config.provider].baseUrl;
+export const endpoint = (config: AIProviderConfig) => PROVIDERS[config.provider]?.baseUrl || config.baseUrl;
 export function authHeaders(config: AIProviderConfig, key: string): Record<string, string> {
   if (config.provider === 'anthropic') return { 'x-api-key': key, 'anthropic-version': '2023-06-01' };
   if (config.provider === 'gemini') return { 'x-goog-api-key': key };

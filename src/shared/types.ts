@@ -1,4 +1,6 @@
-export type ProviderKind = 'openai' | 'anthropic' | 'gemini' | 'compatible';
+export type SupportedProviderKind = 'openai' | 'anthropic' | 'gemini';
+export type ProviderKind = SupportedProviderKind | 'compatible';
+export type AudioPipelineMode = 'local_stt' | 'live_stream';
 export const DEFAULT_CLICK_THROUGH_SHORTCUT = 'Alt+Shift+I';
 export interface User { id: string; name: string; email: string; username?: string; managed?: boolean; licenseKey?: string; licenseExpiresAt?: string }
 export interface AIProviderConfig {
@@ -14,6 +16,7 @@ export interface AppSettings {
   theme: 'system' | 'light' | 'dark';
   clickThroughShortcut: string;
   onboardingComplete: boolean;
+  audioPipelineMode?: AudioPipelineMode;
 }
 export interface ProviderConnection extends AIProviderConfig { id: string; name: string; managed?: boolean; ownerName?: string; enabled?: boolean }
 export interface ConnectionInput { id?: string; name: string; ai: AIProviderConfig; apiKey?: string }
@@ -35,7 +38,7 @@ export interface ContextFolder { id: string; name: string; files: string[]; char
 export interface ContextInput { folderIds: string[]; purpose: string; fields: Array<{ label: string; value: string }> }
 export interface ContextSession { id: string; connection: ProviderConnection; status: 'pending' | 'loading' | 'ready' | 'error' | 'ending'; summaryReady: boolean }
 export interface Snapshot { user: User | null; settings: AppSettings | null; credentialIds: string[]; conversations: Conversation[]; contextSession?: ContextSession | null }
-export interface SettingsInput { displayName: string; theme: AppSettings['theme']; clickThroughShortcut: string; connection?: ConnectionInput }
+export interface SettingsInput { displayName: string; theme: AppSettings['theme']; clickThroughShortcut: string; connection?: ConnectionInput; audioPipelineMode?: AudioPipelineMode }
 export interface SendInput { conversationId: string | null; content: string; imageIds: string[] }
 export type ChatEvent =
   | { type: 'started'; conversation: Conversation }

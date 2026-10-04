@@ -33,6 +33,7 @@ export class Storage {
     if (![1, 2].includes(this.data.version) || !Array.isArray(this.data.accounts)) throw new UserError('Unsupported local data format. Your files have been preserved.');
     for (const user of this.data.accounts) {
       user.settings.clickThroughShortcut ||= DEFAULT_CLICK_THROUGH_SHORTCUT;
+      user.settings.audioPipelineMode ||= 'local_stt';
       if (this.data.version === 1) {
         const old = user.settings as AppSettings & { ai?: AIProviderConfig };
         old.connections = old.ai && old.onboardingComplete ? [{ ...old.ai, id: 'legacy', name: PROVIDERS[old.ai.provider].name }] : [];

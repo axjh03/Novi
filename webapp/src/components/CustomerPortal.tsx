@@ -365,7 +365,7 @@ export function CustomerPortal() {
             <div>
               <div style={{ fontSize: 11, color: "#666", letterSpacing: "0.06em", marginBottom: 6 }}>PROVIDER</div>
               <select value={newProvider} onChange={e => setNewProvider(e.target.value)} style={{ width: "100%", padding: "8px 12px", background: "#fcfcfc", border: "1px solid #ddd", borderRadius: 4, color: "#111", fontSize: 13 }}>
-                {["OPENAI", "ANTHROPIC", "GEMINI", "DEEPSEEK", "GROQ", "MISTRAL"].map(p => (
+                {["OPENAI", "ANTHROPIC", "GEMINI"].map(p => (
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>

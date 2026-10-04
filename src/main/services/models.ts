@@ -21,7 +21,7 @@ export async function listModels(config: AIProviderConfig, key: string): Promise
         const id = config.provider === 'gemini' ? item.name?.replace(/^models\//, '') : item.id;
         if (typeof id !== 'string' || id.length > 200) continue;
         if (config.provider === 'openai' && !/^(gpt-|chat-|chatgpt-|o[1-9])/.test(id)) continue;
-        if (config.provider !== 'compatible' && /embedding|tts|transcrib|realtime|audio|image|live|research|moderation|computer-use/.test(id)) continue;
+        if (config.provider !== 'compatible' && /embedding|tts|transcrib|image|moderation|computer-use/.test(id)) continue;
         const label = item.display_name || item.displayName || id;
         models.set(id, { id, name: typeof label === 'string' ? label.slice(0, 200) : id });
         if (models.size >= 5000) break;
