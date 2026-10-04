@@ -4,6 +4,14 @@ import type { MonitorDisplay, OverlayEvent } from '../../shared/types';
 export class OverlayService {
   private overlayWindow: BrowserWindow | null = null;
   private currentDisplayId: number | null = null;
+  private contentProtectionEnabled = false;
+
+  setContentProtection(enable: boolean): void {
+    this.contentProtectionEnabled = enable;
+    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+      this.overlayWindow.setContentProtection(enable);
+    }
+  }
 
   getDisplays(): MonitorDisplay[] {
     const primary = screen.getPrimaryDisplay();
@@ -58,6 +66,9 @@ export class OverlayService {
 
     this.overlayWindow.setAlwaysOnTop(true, 'screen-saver');
     this.overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    if (this.contentProtectionEnabled) {
+      this.overlayWindow.setContentProtection(true);
+    }
     // Default to click-through so user can click other apps beneath the overlay
     this.overlayWindow.setIgnoreMouseEvents(true, { forward: true });
     this.overlayWindow.showInactive();

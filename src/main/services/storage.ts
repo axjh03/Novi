@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AIProviderConfig, AppSettings, Conversation, User } from '../../shared/types';
+import { DEFAULT_CLICK_THROUGH_SHORTCUT, type AIProviderConfig, type AppSettings, type Conversation, type User } from '../../shared/types';
 import { PROVIDERS } from '../../shared/providers.ts';
 import { UserError } from './validation.ts';
 
@@ -32,6 +32,7 @@ export class Storage {
     this.data = readJSON<Database>(this.file, { version: 2, currentUserId: null, accounts: [] });
     if (![1, 2].includes(this.data.version) || !Array.isArray(this.data.accounts)) throw new UserError('Unsupported local data format. Your files have been preserved.');
     for (const user of this.data.accounts) {
+      user.settings.clickThroughShortcut ||= DEFAULT_CLICK_THROUGH_SHORTCUT;
       if (this.data.version === 1) {
         const old = user.settings as AppSettings & { ai?: AIProviderConfig };
         old.connections = old.ai && old.onboardingComplete ? [{ ...old.ai, id: 'legacy', name: PROVIDERS[old.ai.provider].name }] : [];

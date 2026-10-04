@@ -121,7 +121,7 @@ export function EyeTrackingPanel({
   const handleSendCustomSticky = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const textToSend = stickyInput.trim() || 'Look anywhere to summon this sticky box with your gaze.';
-    onSendSticky(textToSend, 'Astra Screen Sticky');
+    onSendSticky(textToSend, 'Novi Screen Sticky');
     setStickySent(true);
     setTimeout(() => setStickySent(false), 2000);
   };

@@ -13,16 +13,24 @@ const rendererPath = join(__dirname, '../renderer/index.html');
 const devUrl = process.env.ELECTRON_RENDERER_URL;
 const rendererUrl = new URL(devUrl || pathToFileURL(rendererPath).href).href;
 
+let mainWindow: BrowserWindow | null = null;
+
 function createWindow() {
   const window = new BrowserWindow({
     width: 1200, height: 800, minWidth: 850, minHeight: 600,
-    title: 'Novi', backgroundColor: '#161a18', autoHideMenuBar: true,
+    title: 'Novi',
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/preload.js'),
       contextIsolation: true, nodeIntegration: false, sandbox: true,
       webSecurity: true,
     },
   });
+  mainWindow = window;
+  window.on('closed', () => { if (mainWindow === window) mainWindow = null; });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event) => event.preventDefault());
   window.webContents.on('will-attach-webview', (event) => event.preventDefault());
@@ -44,7 +52,7 @@ else void app.whenReady().then(async () => {
     callback({ cancel: !local });
   });
   const { registerIPC } = await import('./ipc/handlers');
-  registerIPC(rendererUrl, join(__dirname, '../preload/preload.js'));
+  registerIPC(rendererUrl, join(__dirname, '../preload/preload.js'), () => mainWindow);
   createWindow();
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });

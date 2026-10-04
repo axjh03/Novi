@@ -1,74 +1,114 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/jwt";
 import { createAuditLog } from "@/lib/audit";
-import crypto from "crypto";
+import bcrypt from "bcryptjs";
 
-export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
+// GET /api/v1/admin/users/[id]
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const actor = requireAdmin(req);
+  if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
   try {
-    const { id } = await context.params;
-
     const user = await prisma.user.findUnique({
-      where: { id },
+      where: { id: (await params).id },
       include: {
         memberships: {
           include: {
             tenant: {
               include: {
-                children: true, // Sub-corps
+                children: true,
                 licenses: {
-                  include: { activations: true }
-                }, // Licenses
-                credentials: true, // API keys
-              }
-            }
-          }
-        }
-      }
+                  include: { activations: { include: { device: true } } },
+                },
+              },
+            },
+          },
+        },
+        licenses: {
+          include: {
+            tenant: true,
+            activations: { include: { device: true } },
+          },
+        },
+      },
     });
 
-    if (!user) {
-      return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
-    }
+    if (!user) return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
 
-    // Fetch devices manually since Tenant model lacks the reverse relation array
-    const rootTenant = user.memberships.find(m => !m.tenant.parentTenantId)?.tenant;
-    if (rootTenant) {
-      const devices = await prisma.device.findMany({ where: { tenantId: rootTenant.id } });
-      (rootTenant as any).devices = devices;
-    }
-
-    return NextResponse.json({ success: true, data: user });
+    const { passwordHash: _, ...safeUser } = user as any;
+    return NextResponse.json({ success: true, data: safeUser });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
 
-export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
+// PATCH /api/v1/admin/users/[id] — reset password or update
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const actor = requireAdmin(req);
+  if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
   try {
-    const { id } = await context.params;
     const body = await req.json();
-    const { password, name } = body;
-
-    const user = await prisma.user.findUnique({ where: { id } });
-    if (!user) return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
-
     const updateData: any = {};
-    if (name) updateData.name = name;
-    if (password) {
-      updateData.passwordHash = crypto.createHash("sha256").update(password).digest("hex");
-    }
 
-    const updated = await prisma.user.update({
-      where: { id },
+    if (body.password) {
+      updateData.passwordHash = await bcrypt.hash(body.password, 12);
+    }
+    if (body.name) updateData.name = body.name;
+    if (body.email) updateData.email = body.email.toLowerCase().trim();
+
+    const user = await prisma.user.update({
+      where: { id: (await params).id },
       data: updateData,
     });
 
     await createAuditLog({
+      actorId: actor.userId,
       action: "USER_UPDATED",
-      details: { userId: id, passwordChanged: !!password, nameChanged: !!name },
+      details: { userId: (await params).id, fields: Object.keys(updateData) },
     });
 
-    return NextResponse.json({ success: true, data: updated });
+    const { passwordHash: _, ...safeUser } = user as any;
+    return NextResponse.json({ success: true, data: safeUser });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
+// DELETE /api/v1/admin/users/[id] — delete user (cascades licenses if unactivated, removes activation links)
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const actor = requireAdmin(req);
+  if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: (await params).id },
+      include: {
+        licenses: true,
+        memberships: { include: { tenant: true } },
+      },
+    });
+
+    if (!user) return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
+
+    // Revoke all licenses bound to this user
+    if (user.licenses.length > 0) {
+      await prisma.license.updateMany({
+        where: { userId: (await params).id },
+        data: { status: "REVOKED", userId: null },
+      });
+    }
+
+    await prisma.user.delete({ where: { id: (await params).id } });
+
+    await createAuditLog({
+      actorId: actor.userId,
+      action: "USER_DELETED",
+      details: { userId: (await params).id, email: user.email, licensesRevoked: user.licenses.length },
+    });
+
+    return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

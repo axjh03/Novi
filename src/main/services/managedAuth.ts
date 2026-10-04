@@ -1,0 +1,109 @@
+import { safeStorage } from 'electron';
+import { randomUUID } from 'node:crypto';
+import { hostname } from 'node:os';
+import { join } from 'node:path';
+import { DEFAULT_CLICK_THROUGH_SHORTCUT, type ProviderConnection, type User } from '../../shared/types';
+import { atomicJSON, readJSON, Storage } from './storage';
+import { CredentialStore } from './credentials';
+import { text, UserError } from './validation';
+
+interface DesktopState {
+  user: { id: string; username: string; name: string };
+  license: { key: string; expiresAt: string };
+  credentials: Array<ProviderConnection & { apiKey: string; ownerName: string }>;
+}
+interface SavedSession { deviceId: string; encryptedToken?: string; server?: string }
+export class ManagedAuthService {
+  private token = '';
+  private current: User | null = null;
+  private file: string;
+  private saved: SavedSession;
+  private lastChecked = 0;
+  private pending: Promise<void> | null = null;
+  private generation = 0;
+  private baseUrl: string;
+  constructor(private storage: Storage, private credentials: CredentialStore, private secureStorage = safeStorage) {
+    this.file = join(storage.directory, 'access-session.json');
+    this.saved = readJSON<SavedSession>(this.file, { deviceId: randomUUID() });
+    const url = new URL(process.env.NOVI_ACCESS_URL || 'http://localhost:3000');
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))) throw new UserError('The access server must use HTTPS.');
+    if (url.username || url.password || url.search || url.hash) throw new UserError('Invalid access server URL.');
+    this.baseUrl = url.href.replace(/\/$/, '') + '/api/control';
+    this.storage.data.currentUserId = null;
+    if (this.saved.encryptedToken && this.saved.server === this.baseUrl) {
+      try { this.assertSecure(); this.token = this.secureStorage.decryptString(Buffer.from(this.saved.encryptedToken, 'base64')); } catch { this.saved.encryptedToken = undefined; }
+    }
+    atomicJSON(this.file, this.saved);
+  }
+  private assertSecure() {
+    if (!this.secureStorage.isEncryptionAvailable() || (process.platform === 'linux' && this.secureStorage.getSelectedStorageBackend() === 'basic_text')) throw new UserError('Unlock your operating system keychain before signing in.');
+  }
+  private async request<T>(path: string, body?: object): Promise<T> {
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/${path}`, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(path === 'logout' ? 3000 : 12_000), redirect: 'error' });
+    } catch { throw new UserError('Cannot reach the access server. Reconnect to continue.'); }
+    const result = await response.json() as { data: T; error?: string };
+    if (!response.ok) {
+      if ([401, 403].includes(response.status) && path !== 'login') this.clear();
+      throw new UserError(result.error || 'Access request failed.');
+    }
+    return result.data;
+  }
+  private clear() {
+    this.generation++; this.token = ''; this.current = null; this.lastChecked = 0;
+    this.credentials.clearManaged(); this.storage.data.currentUserId = null; this.storage.save();
+    delete this.saved.encryptedToken; atomicJSON(this.file, this.saved);
+  }
+  async signIn(username: string, password: string) {
+    if (this.token) throw new UserError('Sign out of the current account first.');
+    this.assertSecure();
+    username = text(username, 'username', 64);
+    if (typeof password !== 'string' || !password || password.length > 128) throw new UserError('Enter your password.');
+    const result = await this.request<{ token: string }>('login', { username, password, audience: 'desktop', deviceId: this.saved.deviceId, deviceName: hostname().slice(0, 100) });
+    this.generation++; this.token = result.token;
+    try {
+      this.saved.encryptedToken = this.secureStorage.encryptString(this.token).toString('base64');
+      this.saved.server = this.baseUrl; atomicJSON(this.file, this.saved);
+      await this.refresh(true);
+      return this.current!;
+    } catch (error) { await this.signOut(); throw error; }
+  }
+  async refresh(force = false) {
+    if (!this.token) throw new UserError('Sign in with your licensed desktop account.');
+    if (!force && this.current && Date.now() - this.lastChecked < 15_000) return;
+    if (this.pending) return this.pending;
+    const generation = this.generation;
+    this.pending = (async () => {
+      const result = await this.request<DesktopState>('desktop');
+      if (generation !== this.generation) throw new UserError('Your account changed. Sign in again.');
+      const user: User = { id: result.user.id, name: result.user.name, email: result.user.username, username: result.user.username, managed: true, licenseKey: result.license.key, licenseExpiresAt: result.license.expiresAt };
+      let account = this.storage.data.accounts.find(a => a.id === user.id);
+      if (!account) {
+        account = { ...user, salt: '', passwordHash: '', conversations: [], settings: { displayName: user.name, theme: 'system', clickThroughShortcut: DEFAULT_CLICK_THROUGH_SHORTCUT, connections: [], activeConnectionId: null, onboardingComplete: true } };
+        this.storage.data.accounts.push(account);
+      }
+      const oldConnections = account.settings.connections;
+      const connections = result.credentials.map(({ apiKey: _secret, ...c }) => ({ ...c, managed: true, enabled: oldConnections.find(old => old.id === c.id)?.enabled !== false }));
+      Object.assign(account, user);
+      account.settings.connections = connections;
+      account.settings.onboardingComplete = true;
+      if (!connections.some(c => c.id === account!.settings.activeConnectionId && c.enabled)) account.settings.activeConnectionId = connections.find(c => c.enabled)?.id || null;
+      this.credentials.setManaged(user.id, result.credentials);
+      this.storage.data.currentUserId = user.id; this.storage.save();
+      this.current = user; this.lastChecked = Date.now();
+    })().finally(() => { this.pending = null; });
+    return this.pending;
+  }
+  async getCurrentUser() {
+    if (!this.token) return null;
+    try { await this.refresh(); return { ...this.current!, name: this.storage.current().settings.displayName }; }
+    catch (error) { if (!this.token) return null; throw error; }
+  }
+  async signOut() {
+    try { if (this.token) await this.request('logout', {}); }
+    catch { /* The server releases an unreachable device's lease after 90 seconds. */ }
+    finally { this.clear(); }
+  }
+  get signedIn() { return Boolean(this.token); }
+}

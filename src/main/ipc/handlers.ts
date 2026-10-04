@@ -1,7 +1,7 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain } from 'electron';
 import type { Snapshot } from '../../shared/types';
 import { Storage } from '../services/storage';
-import { LocalAuthService } from '../services/auth';
+import { ManagedAuthService } from '../services/managedAuth';
 import { CredentialStore } from '../services/credentials';
 import { ImageService } from '../services/images';
 import { ChatService } from '../services/chat';
@@ -10,8 +10,13 @@ import { ConnectionService } from '../services/connections';
 import { listModels } from '../services/models';
 import { OverlayService } from '../services/overlay';
 import { ContextService } from '../services/context';
+import { StealthService } from '../services/stealth';
 
-export function registerIPC(rendererUrl: string, preloadPath = '') {
+export function registerIPC(
+  rendererUrl: string,
+  preloadPath = '',
+  getMainWindow: () => BrowserWindow | null = () => BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().includes('#/overlay')) || null,
+) {
   // Lazy initialization lets the UI explain disk/keychain failures instead of crashing at startup.
   let services: ReturnType<typeof initialize> | undefined;
   function initialize() {
@@ -19,8 +24,9 @@ export function registerIPC(rendererUrl: string, preloadPath = '') {
     const credentials = new CredentialStore(storage.directory);
     const images = new ImageService(storage);
     const overlay = new OverlayService();
+    const stealth = new StealthService(getMainWindow, overlay);
     const context = new ContextService(storage);
-    return { storage, credentials, images, context, connections: new ConnectionService(storage, credentials), auth: new LocalAuthService(storage), chat: new ChatService(storage, credentials, images, context), overlay };
+    return { storage, credentials, images, context, connections: new ConnectionService(storage, credentials), auth: new ManagedAuthService(storage, credentials), chat: new ChatService(storage, credentials, images, context), overlay, stealth };
   }
   const get = () => services ||= initialize();
   const requireNoContext = () => { if (get().context.session) throw new UserError('End this session before changing accounts or AI providers.'); };
@@ -29,6 +35,7 @@ export function registerIPC(rendererUrl: string, preloadPath = '') {
     const user = await auth.getCurrentUser();
     if (!user) return { user: null, settings: null, credentialIds: [], conversations: [] };
     const account = storage.current();
+    get().stealth.setClickThroughShortcut(account.settings.clickThroughShortcut);
     return { user, settings: account.settings, credentialIds: account.settings.connections.filter((c) => credentials.has(user.id, c)).map((c) => c.id), conversations: get().context.session ? get().storage.conversations : [], contextSession: get().context.session };
   }
   const handle = (channel: string, callback: (value: unknown, event: Electron.IpcMainInvokeEvent) => unknown) => {
@@ -39,6 +46,16 @@ export function registerIPC(rendererUrl: string, preloadPath = '') {
         const baseSender = frameUrl.split('#')[0];
         const isTrusted = baseSender === baseTarget;
         if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || !isTrusted) throw new UserError('Untrusted application request.');
+        const publicChannels = ['session', 'sign-in', 'sign-out', 'minimize-window', 'maximize-window', 'close-window', 'is-window-maximized', 'get-stealth-state'];
+        if (!publicChannels.includes(channel)) {
+          try { await get().auth.refresh(['send', 'initialize-context', 'start-context', 'list-models'].includes(channel)); }
+          catch (error) {
+            await endContext().catch(() => {});
+            await get().auth.signOut();
+            for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('session-ended', error instanceof UserError ? error.message : 'Your session has ended.');
+            throw error;
+          }
+        }
         return { ok: true, value: await callback(value, event) };
       } catch (error) {
         if (process.env.NODE_ENV === 'development') console.warn(`[Novi] ${channel}:`, error instanceof Error ? error.name : 'UnknownError');
@@ -47,8 +64,18 @@ export function registerIPC(rendererUrl: string, preloadPath = '') {
     });
   };
   handle('session', snapshot);
-  handle('sign-in', async (value) => { requireNoContext(); get().chat.assertIdle(); const v = object(value); await get().auth.signIn(v.email as string, v.password as string); return snapshot(); });
-  handle('sign-up', async (value) => { requireNoContext(); get().chat.assertIdle(); const v = object(value); await get().auth.signUp(v.name as string, v.email as string, v.password as string); return snapshot(); });
+  handle('sign-in', async (value) => { requireNoContext(); get().chat.assertIdle(); const v = object(value); await get().auth.signIn(v.username as string, v.password as string); return snapshot(); });
+  handle('refresh-managed', async () => { await get().auth.refresh(true); return snapshot(); });
+  handle('enable-connection', async (value) => {
+    requireNoContext(); get().chat.assertIdle();
+    const input = object(value), account = get().storage.current();
+    const connection = account.settings.connections.find(c => c.id === text(input.id, 'connection ID', 100));
+    if (!connection || typeof input.enabled !== 'boolean') throw new UserError('Choose an available API connection.');
+    connection.enabled = input.enabled;
+    if (!input.enabled && account.settings.activeConnectionId === connection.id) account.settings.activeConnectionId = account.settings.connections.find(c => c.enabled !== false)?.id || null;
+    if (input.enabled && !account.settings.activeConnectionId) account.settings.activeConnectionId = connection.id;
+    get().storage.save(); return snapshot();
+  });
   async function endContext() {
     const { chat, context, images, overlay } = get();
     if (context.session) context.session.status = 'ending';
@@ -86,9 +113,10 @@ export function registerIPC(rendererUrl: string, preloadPath = '') {
     const { storage, connections, chat } = get(); chat.assertIdle();
     const input = settingsInput(value), user = storage.current();
     if (input.connection) { requireNoContext(); connections.save(input.connection); }
-    if (!user.settings.connections.length) throw new UserError('Add an AI provider first.');
+    if (!user.managed && !user.settings.connections.length) throw new UserError('Add an AI provider first.');
+    get().stealth.setClickThroughShortcut(input.clickThroughShortcut);
     user.name = input.displayName;
-    user.settings = { ...user.settings, displayName: input.displayName, theme: input.theme, onboardingComplete: true };
+    user.settings = { ...user.settings, displayName: input.displayName, theme: input.theme, clickThroughShortcut: input.clickThroughShortcut, onboardingComplete: true };
     storage.save(); return snapshot();
   });
   handle('save-connection', async (value) => { requireNoContext(); get().chat.assertIdle(); get().connections.save(value); return snapshot(); });
@@ -132,12 +160,60 @@ export function registerIPC(rendererUrl: string, preloadPath = '') {
   handle('send-overlay-event', (value) => {
     get().overlay.forwardToAllWindows(value as any);
   });
-  app.on('before-quit', () => {
+  handle('get-stealth-state', () => get().stealth.getState());
+  handle('toggle-transparent', () => get().stealth.toggleTransparent());
+  handle('set-transparent', (value) => {
+    const v = object(value);
+    return get().stealth.setTransparent(Boolean(v.enabled));
+  });
+  handle('minimize-window', (_value, event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    win?.minimize();
+  });
+  handle('maximize-window', (_value, event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return false;
+    if (win.isMaximized()) {
+      win.unmaximize();
+      return false;
+    } else {
+      win.maximize();
+      return true;
+    }
+  });
+  handle('close-window', (_value, event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    win?.close();
+  });
+  handle('is-window-maximized', (_value, event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return win?.isMaximized() ?? false;
+  });
+  let quitting = false;
+  app.on('before-quit', (event) => {
+    clearInterval(heartbeat);
+    if (services?.auth.signedIn && !quitting) {
+      event.preventDefault(); quitting = true;
+      void services.auth.signOut().finally(() => app.quit());
+    }
     services?.chat.stop();
     services?.context.end();
     services?.images.clearPending();
     services?.overlay.closeOverlay();
+    services?.stealth.cleanup();
   });
+  let checkingSession = false;
+  const heartbeat = setInterval(async () => {
+    if (!services?.auth.signedIn || checkingSession) return;
+    checkingSession = true;
+    try { await services.auth.refresh(true); }
+    catch (error) {
+      await endContext().catch(() => {});
+      await services.auth.signOut();
+      for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('session-ended', error instanceof UserError ? error.message : 'Your session has ended. Sign in again.');
+    } finally { checkingSession = false; }
+  }, 20_000);
+  heartbeat.unref();
   app.on('browser-window-created', (_event, window) => {
     window.on('close', () => {
       if (!window.webContents.getURL().includes('#/overlay')) void endContext().catch(() => {});

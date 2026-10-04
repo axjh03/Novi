@@ -25,7 +25,7 @@ export function EyeTrackingOverlay() {
     y: window.innerHeight / 2,
     visible: true,
     pinned: false,
-    title: 'Astra Screen HUD',
+    title: 'Novi Screen HUD',
     text: 'Look anywhere on this monitor to summon the AI sticky response box.',
     source: 'Eye Tracking Active',
   });

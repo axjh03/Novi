@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, existsSync, rmSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { _electron as electron, type ElectronApplication } from 'playwright';
 
@@ -15,6 +15,17 @@ async function main() {
   writeFileSync(imagePath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1XkAAAAASUVORK5CYII=', 'base64'));
   const requests: Array<{ messages: Array<{ content: unknown }>; model: string }> = [];
   const server = createServer(async (request, response) => {
+    if (request.url?.startsWith('/api/control/')) {
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      const address = server.address();
+      assert(address && typeof address !== 'string');
+      const data = request.url.endsWith('/login') ? { token: 'test-session-token' } : request.url.endsWith('/logout') ? {} : {
+        user: { id: 'managed-smoke-account', username: 'desktop.test', name: 'Aalok' },
+        license: { key: 'TEST-TEST-TEST-TEST', expiresAt: '2099-01-01T00:00:00.000Z' },
+        credentials: [{ id: 'managed-key', name: 'Local test', ownerName: 'Test owner', provider: 'compatible', baseUrl: `http://127.0.0.1:${address.port}/v1`, model: 'test-model', stream: true, apiKey: 'fixture-key' }],
+      };
+      response.end(JSON.stringify({ data })); return;
+    }
     if (request.method === 'GET') {
       response.writeHead(200, { 'Content-Type': 'application/json' });
       response.end(JSON.stringify({ data: [{ id: 'test-model' }] }));
@@ -33,27 +44,24 @@ async function main() {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) if (value !== undefined && key !== 'ELECTRON_RUN_AS_NODE' && key !== 'ELECTRON_RENDERER_URL') env[key] = value;
   env.NOVI_DATA_DIR = join(directory, 'data');
+  env.NOVI_ACCESS_URL = 'http://127.0.0.1:' + address.port;
   let app: ElectronApplication | undefined;
   const launch = () => electron.launch({ args: [resolve('out/main/main.js'), '--disable-gpu'], env, timeout: 15000 });
   try {
     app = await launch();
     let page = await app.firstWindow();
-    await page.getByRole('button', { name: 'Create account', exact: true }).click();
-    await page.getByLabel('Name', { exact: true }).fill('Aalok');
-    await page.getByLabel('Email', { exact: true }).fill('aalok@example.com');
+    assert.equal(await page.getByRole('button', { name: 'Create account', exact: true }).count(), 0);
+    await page.getByLabel('Username', { exact: true }).fill('desktop.test');
     await page.getByLabel('Password', { exact: true }).fill('novi-test-password');
-    await page.getByLabel('Confirm password').fill('novi-test-password');
-    await page.getByRole('button', { name: 'Create account', exact: true }).last().click();
-    await page.getByRole('heading', { name: 'Welcome to Novi.' }).waitFor();
-    await page.getByRole('button', { name: 'Continue', exact: true }).click();
-    await page.getByLabel('Choose provider').selectOption('compatible');
-    await page.getByLabel('Connection name').fill('Local test');
-    await page.getByLabel('API base URL').fill('http://127.0.0.1:' + address.port + '/v1');
-    await page.getByRole('button', { name: 'Continue', exact: true }).click();
-    await page.getByRole('button', { name: 'Continue', exact: true }).click();
-    await page.getByLabel('Model ID').fill('test-model');
-    await page.getByRole('button', { name: 'Start a conversation' }).click();
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await page.getByRole('heading', { name: 'Give Novi the background.' }).waitFor();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('button', { name: 'API management', exact: true }).click();
+    await page.getByText('Shared by Test owner · Key hidden').waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Add provider' }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Edit Local test' }).count(), 0);
+    assert(!JSON.stringify(await page.evaluate(() => window.novi.session())).includes('fixture-key'));
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
     assert.equal(await page.getByLabel('Message Novi').count(), 0);
     await app.evaluate(({ dialog }, source) => {
       dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [source] })) as typeof dialog.showOpenDialog;
@@ -90,13 +98,15 @@ async function main() {
     assert.equal(readdirSync(join(env.NOVI_DATA_DIR, 'images')).length, 0);
     assert.match(readFileSync(join(source, 'brief.txt'), 'utf8'), /SESSION_SOURCE/);
     assert.equal(await page.getByLabel('Message Novi').count(), 0);
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
     await app.close(); app = await launch(); page = await app.firstWindow();
-    await page.getByRole('heading', { name: 'Give Novi the background.' }).waitFor();
+    await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
     console.log('Desktop smoke passed: authentication, Context gate, folder loading, first AI confirmation, temporary summary, inherited context, image chat, session deletion, restart.');
   } finally {
     await app?.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     // Only the unique test directory created above is removed.
+    assert.equal(dirname(resolve(directory)), resolve(tmpdir()));
     rmSync(directory, { recursive: true, force: true });
   }
 }

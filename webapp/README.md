@@ -1,36 +1,111 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Novi web portal and access backend
 
-## Getting Started
+A separate Next.js app containing the monochrome landing page, management portal, and JSON backend used by the Electron app. Prisma 6 and SQLite provide a runnable sample database. No registration endpoint is exposed.
 
-First, run the development server:
+## Local setup
 
-```bash
+From the repository root (use `npm.cmd` if PowerShell blocks npm scripts):
+
+```sh
+npm --prefix webapp install
+npm run web:setup
+npm run web:dev
+# A second terminal, for Electron:
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. Setup creates `webapp/.env.access` with generated secrets and passwords, migrates a separate `prisma/access.db`, and seeds sample accounts. It preserves existing `.env`, `prisma/dev.db`, legacy records, and local desktop history. Running setup again preserves passwords and license assignments.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Identity | Username | Password source |
+| --- | --- | --- |
+| Administrator | `admin` | `ADMIN_PASSWORD` in `.env.access` |
+| Standalone owner | `standalone` | `DEMO_PASSWORD` |
+| Corporation | `corporation` | `DEMO_PASSWORD` |
+| Sub-corporation | `subcorp` | `DEMO_PASSWORD` |
+| Standalone desktop | `standalone.desktop` | `DEMO_PASSWORD` |
+| Sub-corporation desktop | `studio.desktop` | `DEMO_PASSWORD` |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+These passwords are generated locally, never committed or displayed in the sign-in page. Desktop accounts are eligible only in Electron. The other four identities sign in through the portal. Seeded owners have no real provider keys: add your provider credential and a model ID before using AI.
 
-## Learn More
+## Account rules
 
-To learn more about Next.js, take a look at the following resources:
+```text
+Administrator (one)
+├── Standalone owner
+│   └── Licensed desktop accounts → one active device each
+└── Corporation
+    └── Sub-corporations
+        └── Licensed desktop accounts → one active device each
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Role | Creates | Manages API keys | Desktop eligible |
+| --- | --- | --- | --- |
+| Admin | All other account types | No | No |
+| Standalone | Own licensed accounts | Own keys | No |
+| Corporation | Own sub-corporations | Own keys | No |
+| Sub-corporation | Own licensed accounts | Own keys | No |
+| Licensed account | None | Read-only inherited connections | Yes |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The admin can edit usernames/names, suspend/reactivate accounts, reset passwords, and delete account branches. Deletion is permanent soft deletion: descendants and licenses are disabled, sessions revoked, and historical assignments retained. Roles and parent relationships cannot be changed. Search by username, filter by type/parent, or inspect the expandable organization tree with online devices. The admin can end device sessions from the user list.
 
-## Deploy on Vercel
+## Licenses and purchase requests
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Keys are generated with cryptographic randomness in `XXXX-XXXX-XXXX-XXXX` format. A license is issued to a standalone or sub-corporation owner and permanently bound when that owner creates a desktop account. Each licensed account has one license. Database constraints and triggers prevent reassignment, owner changes, key changes, deletion, and revival of terminated licenses. **Use migrations, not `prisma db push`, because the triggers and partial unique admin index are part of the migration.**
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Admin renewal accepts days, calendar months, or calendar years; it extends from the later of now and the current expiry. Month/year extensions clamp to the last valid calendar day. Termination is irreversible. The portal shows expiry, remaining days, assignment, and current status.
+
+Purchases use admin-approved requests with quantity and term. Approval atomically issues the requested licenses; a request cannot be fulfilled twice. This implementation does not charge cards or imply a successful payment. Automated checkout requires a payment provider, pricing, and verified payment webhooks.
+
+## Sessions and JWTs
+
+Passwords use bcrypt with cost 12, a 12-character minimum, and a 72-byte maximum. Usernames are case-insensitive. Failed sign-in attempts are throttled in the database (10 attempts per username per 15 minutes).
+
+JWTs use HS256, an explicit issuer, an 8-hour expiry, and separate `portal` / `desktop` audiences. JWT subjects and session IDs are checked against the database on every authenticated backend request; roles and access are taken from live records. The web token is in an HttpOnly, SameSite=Strict cookie (Secure in production). Mutations require JSON and validate browser Origin. Tokens are never kept in browser localStorage. Desktop JWTs stay in Electron main and use OS encrypted storage for restart recovery.
+
+A unique nullable `activeSlot` in `AccessSession` atomically reserves each desktop account. Password-only login cannot replace a live session, even with the same device identifier. Electron sends a heartbeat every 20 seconds. A session with no heartbeat for 90 seconds loses its lease; its old token cannot reclaim it. Sign-out and normal app exit release it. Admin resets, suspension, deletion, termination, and session revocation invalidate access. Active desktop work stops at the next validation/heartbeat (up to roughly 20 seconds plus network timeout); new sends validate before contacting the provider. Sessions require sign-in again after 8 hours; there is no unlimited refresh-token lifetime or offline license mode.
+
+## API management
+
+Owners can add multiple keys per provider, rename/rotate/remove them, and specify a model. Available providers: OpenAI, Anthropic, Gemini, DeepSeek, Groq, Mistral, and xAI. API secrets use AES-256-GCM with a separate 32-byte server key. Portal responses contain metadata and the last four characters only.
+
+Standalone desktop accounts inherit the standalone owner's keys. Sub-corporation desktop accounts inherit both sub-corporation and parent corporation keys. Credentials are delivered over the authenticated desktop API into Electron main-process memory; the renderer receives only nickname, owner, provider, model, and availability. Settings has separate General and API management tabs. Desktop users can enable/disable connections and select one active connection; they cannot add/edit/delete owner keys or change destinations. Changes sync on heartbeat or Refresh. This is a managed credential distribution design; a server-side inference gateway would be needed if secrets must never reach the user's machine.
+
+## Backend endpoints
+
+All paths use `/api/control/`. Success responses are `{ data: ... }`, failures `{ error: string }` with an appropriate HTTP status.
+
+| Endpoint | Methods | Purpose |
+| --- | --- | --- |
+| `login` | POST | Username/password, portal role or desktop audience/device metadata |
+| `logout` | POST | Revoke current session |
+| `state` | GET | Authorized portal account tree, licenses, devices, requests, masked keys |
+| `desktop` | GET | Validate license, renew heartbeat, return inherited credentials to main |
+| `accounts` | POST | Create authorized account; desktop creation binds license atomically |
+| `accounts/:id` | PATCH, DELETE | Admin edit, password reset, status, permanent branch deletion |
+| `licenses` | POST | Admin issuance |
+| `licenses/:id` | PATCH | Admin renewal or termination |
+| `sessions/:id` | DELETE | Admin force logout |
+| `credentials` | POST | Owner key creation |
+| `credentials/:id` | PATCH, DELETE | Owner key update/removal |
+| `requests` | POST | License purchase request |
+| `requests/:id` | PATCH | Admin approve/fulfill or reject |
+
+Legacy `/api/v1/*` prototype endpoints return 410 through `src/proxy.ts`. Their source and database tables remain for deliberate data migration; old local/legacy accounts are not silently granted new permissions. The new schema uses `AccessAccount`, `AccessLicense`, `AccessSession`, `ManagedCredential`, `LicenseRequest`, `AccessAudit`, and `LoginThrottle`.
+
+## Deployment and checks
+
+For a fresh deployment, copy `.env.example` to `.env.access` or provide environment variables, set unique `ACCESS_JWT_SECRET` and `ACCESS_ENCRYPTION_KEY`, set `ADMIN_PASSWORD`, disable `SEED_DEMO`, and set `PORTAL_ORIGIN` to the external HTTPS origin. Do not run the local demo setup against production. Keep the encryption key backed up with the database; changing it makes existing API credentials unreadable. JWT secret rotation invalidates sessions. The seed does not overwrite existing passwords.
+
+```sh
+npm run db:generate
+npm run db:deploy
+npm run db:seed
+npm run build
+npm start
+npm run typecheck
+npm run test:access
+```
+
+Use persistent storage for SQLite and back up the database. This sample deployment targets one persistent application host. A multi-host deployment needs a shared database and equivalent constraints/migrations for that database. The desktop launch environment must set `NOVI_ACCESS_URL` to the server's HTTPS origin. No live payment processing or paid-provider smoke call is included.
+
+The access integration test uses an isolated temporary database and covers role/tenant isolation, single admin, immutable bindings, concurrent desktop login, crash lease recovery, session revocation, API inheritance, purchase fulfillment, deletion, and calendar renewal.

@@ -17,9 +17,13 @@ export async function createAuditLog({
 }: AuditLogOptions) {
   try {
     const detailsStr = typeof details === "object" ? JSON.stringify(details) : details;
+
+    // Verify actorId is a real user ID if provided (not "SYSTEM")
+    const validActorId = actorId && actorId !== "SYSTEM" ? actorId : null;
+
     return await prisma.auditLog.create({
       data: {
-        actorId: actorId || "SYSTEM",
+        actorId: validActorId,
         tenantId,
         action,
         details: detailsStr,

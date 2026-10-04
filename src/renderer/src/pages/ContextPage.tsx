@@ -35,6 +35,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
       <p>Choose your model, load your reference folders, then start a private local session. Nothing is sent until you start.</p>
       <h2>1. Choose provider & model</h2>
       <ProviderPicker state={state} disabled={busy} onSaved={onSaved} onError={setError} />
+      {!connection && <p className="managed-note">No enabled API connection is available. Open Settings ? API management to enable a shared key, or ask your account owner to add one.</p>}
       <h2>2. Load context</h2>
       <button className="secondary" disabled={busy || !connection} onClick={() => void loadFolders()}><FolderOpen size={16} /> {busy ? 'Working…' : folders.length ? 'Choose folders again' : 'Load context'}</button>
       <p className="context-hint">Select one or more folders. Includes subfolders, UTF-8 TXT, and searchable PDF text. Maximum 30 files / 80,000 text characters. Scans, diagrams, and image-only PDFs need OCR first.</p>

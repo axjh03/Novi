@@ -1,5 +1,6 @@
 export type ProviderKind = 'openai' | 'anthropic' | 'gemini' | 'compatible';
-export interface User { id: string; name: string; email: string }
+export const DEFAULT_CLICK_THROUGH_SHORTCUT = 'Alt+Shift+I';
+export interface User { id: string; name: string; email: string; username?: string; managed?: boolean; licenseKey?: string; licenseExpiresAt?: string }
 export interface AIProviderConfig {
   provider: ProviderKind;
   baseUrl: string;
@@ -11,9 +12,10 @@ export interface AppSettings {
   connections: ProviderConnection[];
   activeConnectionId: string | null;
   theme: 'system' | 'light' | 'dark';
+  clickThroughShortcut: string;
   onboardingComplete: boolean;
 }
-export interface ProviderConnection extends AIProviderConfig { id: string; name: string }
+export interface ProviderConnection extends AIProviderConfig { id: string; name: string; managed?: boolean; ownerName?: string; enabled?: boolean }
 export interface ConnectionInput { id?: string; name: string; ai: AIProviderConfig; apiKey?: string }
 export interface ModelOption { id: string; name: string }
 export interface ImageAttachment { id: string; name: string; mimeType: string; previewUrl?: string }
@@ -33,7 +35,7 @@ export interface ContextFolder { id: string; name: string; files: string[]; char
 export interface ContextInput { folderIds: string[]; purpose: string; fields: Array<{ label: string; value: string }> }
 export interface ContextSession { id: string; connection: ProviderConnection; status: 'pending' | 'loading' | 'ready' | 'error' | 'ending'; summaryReady: boolean }
 export interface Snapshot { user: User | null; settings: AppSettings | null; credentialIds: string[]; conversations: Conversation[]; contextSession?: ContextSession | null }
-export interface SettingsInput { displayName: string; theme: AppSettings['theme']; connection?: ConnectionInput }
+export interface SettingsInput { displayName: string; theme: AppSettings['theme']; clickThroughShortcut: string; connection?: ConnectionInput }
 export interface SendInput { conversationId: string | null; content: string; imageIds: string[] }
 export type ChatEvent =
   | { type: 'started'; conversation: Conversation }
@@ -61,19 +63,28 @@ export type OverlayEvent =
   | { type: 'calibration-sample-collected'; index: number }
   | { type: 'close' };
 
+export interface StealthState {
+  transparent: boolean;
+  numLock: boolean;
+  clickThrough: boolean;
+  clickThroughShortcut: string;
+}
+
 export interface NoviAPI {
   pickContextFolders(): Promise<Result<ContextFolder[]>>;
   startContext(input: ContextInput): Promise<Result<Snapshot>>;
   initializeContext(): Promise<Result<Snapshot>>;
   endContext(): Promise<Result<Snapshot>>;
   session(): Promise<Result<Snapshot>>;
-  signIn(email: string, password: string): Promise<Result<Snapshot>>;
-  signUp(name: string, email: string, password: string): Promise<Result<Snapshot>>;
+  signIn(username: string, password: string): Promise<Result<Snapshot>>;
   signOut(): Promise<Result<void>>;
   saveSettings(input: SettingsInput): Promise<Result<Snapshot>>;
   saveConnection(input: ConnectionInput): Promise<Result<Snapshot>>;
   removeConnection(id: string): Promise<Result<Snapshot>>;
   selectConnection(id: string, model?: string): Promise<Result<Snapshot>>;
+  enableConnection(id: string, enabled: boolean): Promise<Result<Snapshot>>;
+  refreshManaged(): Promise<Result<Snapshot>>;
+  onSessionEnded(callback: (message: string) => void): () => void;
   listModels(input: ConnectionInput): Promise<Result<ModelOption[]>>;
   deleteConversation(id: string): Promise<Result<void>>;
   clearHistory(): Promise<Result<void>>;
@@ -90,4 +101,12 @@ export interface NoviAPI {
   setOverlayIgnoreMouse(ignore: boolean): Promise<Result<void>>;
   sendOverlayEvent(event: OverlayEvent): Promise<Result<void>>;
   onOverlayEvent(callback: (event: OverlayEvent) => void): () => void;
+  getStealthState(): Promise<Result<StealthState>>;
+  toggleTransparent(): Promise<Result<StealthState>>;
+  setTransparent(enabled: boolean): Promise<Result<StealthState>>;
+  onStealthState(callback: (state: StealthState) => void): () => void;
+  minimizeWindow(): Promise<Result<void>>;
+  maximizeWindow(): Promise<Result<boolean>>;
+  closeWindow(): Promise<Result<void>>;
+  isWindowMaximized(): Promise<Result<boolean>>;
 }

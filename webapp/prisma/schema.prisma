@@ -7,19 +7,116 @@ generator client {
   provider = "prisma-client-js"
 }
 
-model User {
-  id           String       @id @default(cuid())
-  email        String       @unique
-  passwordHash String?
+// Access control v2. Legacy tables below remain intact for explicit data migration.
+model AccessAccount {
+  id           String @id @default(cuid())
+  username     String @unique
   name         String
-
-  memberships Membership[]
-  credentials ApiCredential[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  passwordHash String
+  role         String // ADMIN | STANDALONE | CORP | SUBCORP | LICENSE
+  status       String @default("ACTIVE") // ACTIVE | SUSPENDED | DELETED
+  parentId     String?
+  parent       AccessAccount? @relation("AccountTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children     AccessAccount[] @relation("AccountTree")
+  ownedLicenses AccessLicense[] @relation("LicenseOwner")
+  license      AccessLicense? @relation("LicenseAccount")
+  credentials  ManagedCredential[]
+  sessions     AccessSession[]
+  requests     LicenseRequest[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  @@index([parentId])
 }
 
+model AccessLicense {
+  id        String @id @default(cuid())
+  key       String @unique
+  ownerId   String
+  owner     AccessAccount @relation("LicenseOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  accountId String? @unique
+  account   AccessAccount? @relation("LicenseAccount", fields: [accountId], references: [id], onDelete: Restrict)
+  status    String @default("ACTIVE") // ACTIVE | TERMINATED
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([ownerId])
+}
+
+model AccessSession {
+  id          String @id @default(cuid())
+  accountId   String
+  account     AccessAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  audience    String // portal | desktop
+  // Unique nullable slot is acquired atomically for desktop sessions only.
+  activeSlot  String? @unique
+  deviceId    String?
+  deviceName  String?
+  expiresAt   DateTime
+  lastSeenAt  DateTime @default(now())
+  revokedAt   DateTime?
+  createdAt   DateTime @default(now())
+  @@index([accountId])
+}
+
+model ManagedCredential {
+  id              String @id @default(cuid())
+  ownerId         String
+  owner           AccessAccount @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  provider        String
+  nickname        String
+  model           String
+  encryptedSecret String
+  lastFour        String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  @@index([ownerId])
+}
+
+model LicenseRequest {
+  id        String @id @default(cuid())
+  ownerId   String
+  owner     AccessAccount @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  quantity  Int
+  duration  Int
+  unit      String
+  status    String @default("PENDING") // PENDING | APPROVED | REJECTED
+  createdAt DateTime @default(now())
+}
+
+model AccessAudit {
+  id        String @id @default(cuid())
+  actorId   String
+  action    String
+  targetId  String
+  createdAt DateTime @default(now())
+}
+
+model LoginThrottle {
+  key       String @id
+  count     Int @default(1)
+  expiresAt DateTime
+}
+
+// ─── User ────────────────────────────────────────────────────────────────────
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  name         String
+
+  // role: ADMIN = platform superadmin, CORP = corporation/sub-corp owner, INDIVIDUAL
+  role         String   @default("INDIVIDUAL") // "ADMIN" | "CORP" | "INDIVIDUAL"
+
+  memberships  Membership[]
+  licenses     License[]    // licenses assigned to this user
+  credentials  ApiCredential[]
+  auditLogs    AuditLog[]   @relation("ActorLogs")
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ─── Tenant ───────────────────────────────────────────────────────────────────
 model Tenant {
   id             String       @id @default(cuid())
   type           String       @default("INDIVIDUAL") // "INDIVIDUAL" | "CORPORATION"
@@ -33,7 +130,8 @@ model Tenant {
   licenses       License[]
   credentials    ApiCredential[]
   orders         Order[]
-  auditLogs      AuditLog[]
+  auditLogs      AuditLog[]   @relation("TenantLogs")
+  devices        Device[]
 
   status         String       @default("ACTIVE") // "ACTIVE" | "SUSPENDED" | "INACTIVE"
 
@@ -41,6 +139,7 @@ model Tenant {
   updatedAt      DateTime     @updatedAt
 }
 
+// ─── Membership ───────────────────────────────────────────────────────────────
 model Membership {
   id       String @id @default(cuid())
 
@@ -50,7 +149,7 @@ model Membership {
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  role     String @default("MEMBER") // "OWNER" | "ADMIN" | "BILLING" | "MEMBER" | "VIEWER"
+  role     String @default("OWNER") // "OWNER" | "ADMIN" | "MEMBER"
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -58,22 +157,31 @@ model Membership {
   @@unique([userId, tenantId])
 }
 
+// ─── License ──────────────────────────────────────────────────────────────────
+// Licenses are created by admin and assigned to a tenant (corp or indv).
+// When a user activates a license, userId is set. A license can only be used by 1 user.
 model License {
   id              String   @id @default(cuid())
 
+  // Assigned-to tenant (corp/indv/sub-corp)
   tenantId        String
   tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // Activated by user (set when first activated)
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   licenseHash     String   @unique
   keyMasked       String   // e.g. NVI-7K4M-****-****-DM73
 
-  status          String   @default("ACTIVE") // "CREATED" | "ACTIVE" | "GRACE" | "EXPIRED" | "SUSPENDED" | "REVOKED"
+  status          String   @default("UNACTIVATED") // "UNACTIVATED" | "ACTIVE" | "GRACE" | "EXPIRED" | "SUSPENDED" | "REVOKED"
 
   issuedAt        DateTime @default(now())
   activatedAt     DateTime?
   expiresAt       DateTime
   graceUntil      DateTime?
 
+  // For now 1 device per license (1:1 device binding)
   activationLimit Int      @default(1)
 
   activations     LicenseActivation[]
@@ -82,19 +190,23 @@ model License {
   updatedAt       DateTime @updatedAt
 }
 
+// ─── Device ───────────────────────────────────────────────────────────────────
 model Device {
   id              String   @id @default(cuid())
 
   tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   name            String?
   platform        String?
   appVersion      String?
   fingerprintHash String
-  publicKey       String?
 
   firstSeenAt     DateTime @default(now())
   lastSeenAt      DateTime @default(now())
+
+  // Track which user last used this device
+  lastUsedByUserId String?
 
   status          String   @default("ACTIVE") // "ACTIVE" | "INACTIVE" | "BLOCKED"
 
@@ -103,6 +215,8 @@ model Device {
   @@unique([tenantId, fingerprintHash])
 }
 
+// ─── LicenseActivation ────────────────────────────────────────────────────────
+// 1 active activation per license (1 device at a time)
 model LicenseActivation {
   id            String    @id @default(cuid())
 
@@ -112,6 +226,8 @@ model LicenseActivation {
   license       License   @relation(fields: [licenseId], references: [id], onDelete: Cascade)
   device        Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
+  userId        String?   // which user is currently active on this activation
+
   deviceToken   String    @unique
   activatedAt   DateTime  @default(now())
   lastHeartbeat DateTime?
@@ -120,6 +236,7 @@ model LicenseActivation {
   @@unique([licenseId, deviceId])
 }
 
+// ─── ApiCredential ────────────────────────────────────────────────────────────
 model ApiCredential {
   id              String   @id @default(cuid())
 
@@ -139,6 +256,7 @@ model ApiCredential {
   updatedAt       DateTime @updatedAt
 }
 
+// ─── Order ────────────────────────────────────────────────────────────────────
 model Order {
   id            String   @id @default(cuid())
 
@@ -148,19 +266,21 @@ model Order {
   productName   String
   amount        Float
   currency      String   @default("USD")
-  paymentMethod String   @default("CRYPTO")
+  paymentMethod String   @default("MANUAL")
   status        String   @default("COMPLETED")
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
 
+// ─── AuditLog ────────────────────────────────────────────────────────────────
 model AuditLog {
   id        String   @id @default(cuid())
 
   actorId   String?
+  actor     User?    @relation("ActorLogs", fields: [actorId], references: [id], onDelete: SetNull)
   tenantId  String?
-  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  tenant    Tenant?  @relation("TenantLogs", fields: [tenantId], references: [id], onDelete: SetNull)
 
   action    String
   details   String?

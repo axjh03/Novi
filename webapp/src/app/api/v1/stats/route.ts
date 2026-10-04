@@ -1,46 +1,56 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin, requireAuth } from "@/lib/jwt";
 
-export async function GET() {
+// GET /api/v1/stats — overview stats for admin dashboard
+export async function GET(req: Request) {
+  const actor = requireAuth(req);
+  if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
   try {
-    const totalTenants = await prisma.tenant.count();
-    const corporationCount = await prisma.tenant.count({ where: { type: "CORPORATION", parentTenantId: null } });
-    const subCorpCount = await prisma.tenant.count({ where: { type: "CORPORATION", parentTenantId: { not: null } } });
-    const individualCount = await prisma.tenant.count({ where: { type: "INDIVIDUAL" } });
-
-    const totalLicenses = await prisma.license.count();
-    const activeLicenses = await prisma.license.count({ where: { status: "ACTIVE" } });
-    const graceLicenses = await prisma.license.count({ where: { status: "GRACE" } });
-    const expiredLicenses = await prisma.license.count({ where: { status: "EXPIRED" } });
-
-    const totalDevices = await prisma.device.count();
-    const activeDevices = await prisma.device.count({ where: { status: "ACTIVE" } });
-
-    const totalRevenue = await prisma.order.aggregate({
-      _sum: { amount: true },
-      where: { status: "COMPLETED" },
-    });
+    const [
+      totalUsers,
+      corpUsers,
+      indvUsers,
+      totalTenants,
+      corporations,
+      individuals,
+      activeLicenses,
+      unactivatedLicenses,
+      suspendedLicenses,
+      revokedLicenses,
+      expiredLicenses,
+      activeDevices,
+      totalDevices,
+    ] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { role: "CORP" } }),
+      prisma.user.count({ where: { role: "INDIVIDUAL" } }),
+      prisma.tenant.count(),
+      prisma.tenant.count({ where: { type: "CORPORATION", parentTenantId: null } }),
+      prisma.tenant.count({ where: { type: "INDIVIDUAL" } }),
+      prisma.license.count({ where: { status: "ACTIVE" } }),
+      prisma.license.count({ where: { status: "UNACTIVATED" } }),
+      prisma.license.count({ where: { status: "SUSPENDED" } }),
+      prisma.license.count({ where: { status: "REVOKED" } }),
+      prisma.license.count({ where: { status: "EXPIRED" } }),
+      prisma.device.count({ where: { status: "ACTIVE" } }),
+      prisma.device.count(),
+    ]);
 
     return NextResponse.json({
       success: true,
       data: {
-        tenants: {
-          total: totalTenants,
-          corporations: corporationCount,
-          subCorps: subCorpCount,
-          individuals: individualCount,
-        },
+        users: { total: totalUsers, corp: corpUsers, individual: indvUsers },
+        tenants: { total: totalTenants, corporations, individuals },
         licenses: {
-          total: totalLicenses,
           active: activeLicenses,
-          grace: graceLicenses,
+          unactivated: unactivatedLicenses,
+          suspended: suspendedLicenses,
+          revoked: revokedLicenses,
           expired: expiredLicenses,
         },
-        devices: {
-          total: totalDevices,
-          active: activeDevices,
-        },
-        revenue: totalRevenue._sum.amount || 0,
+        devices: { active: activeDevices, total: totalDevices },
       },
     });
   } catch (err: any) {

@@ -9,11 +9,14 @@
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && electron-vite build",
     "start": "electron-vite preview",
-    "test": "node --experimental-transform-types --test tests/*.test.ts",
+    "web:setup": "npm --prefix webapp run setup",
+    "web:dev": "npm --prefix webapp run dev",
+    "test": "tsx --test tests/*.test.ts",
     "test:desktop": "npm run build && tsx scripts/smoke.ts"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
+    "koffi": "^3.3.2",
     "lucide-react": "^0.468.0",
     "pdfjs-dist": "^5.4.149",
     "react": "^19.0.0",

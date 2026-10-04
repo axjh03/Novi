@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { ArrowLeft, ArrowRight, Check, ShieldCheck } from 'lucide-react';
-import type { SettingsInput, Snapshot } from '../../../shared/types';
+import { DEFAULT_CLICK_THROUGH_SHORTCUT, type SettingsInput, type Snapshot } from '../../../shared/types';
 import { newConnection } from '../../../shared/providers';
 import { Brand } from '../components/Brand';
 import { ProviderFields } from '../components/ProviderFields';
@@ -10,7 +10,7 @@ const titles = ['Welcome to Novi.', 'Your AI, your choice.', 'Bring your own key
 const descriptions = ['First things first. What should Novi call you?', 'Connect to a provider you love, or a model running on your device.', 'A direct connection between you and your AI provider.', 'Pick a model to start. You can always change it in Settings.'];
 export function OnboardingPage({ state, onComplete, onSignOut }: { state: Snapshot; onComplete: (state: Snapshot) => void; onSignOut: () => void }) {
   const [step, setStep] = useState(0), [busy, setBusy] = useState(false), [error, setError] = useState('');
-  const [value, setValue] = useState<SettingsInput>({ displayName: state.settings!.displayName, theme: state.settings!.theme, connection: newConnection() });
+  const [value, setValue] = useState<SettingsInput>({ displayName: state.settings!.displayName, theme: state.settings!.theme, clickThroughShortcut: state.settings!.clickThroughShortcut || DEFAULT_CLICK_THROUGH_SHORTCUT, connection: newConnection() });
   async function submit(event: FormEvent) {
     event.preventDefault(); setError('');
     if (step < 3) { setStep(step + 1); return; }

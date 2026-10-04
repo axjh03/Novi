@@ -103,7 +103,7 @@ export class EyeTrackingService {
       void window.novi.sendOverlayEvent({
         type: 'set-content',
         text,
-        title: title || 'Astra Sticky Note',
+        title: title || 'Novi Sticky Note',
       });
     }
   }

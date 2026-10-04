@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
-import type { User } from '../../shared/types';
+import { DEFAULT_CLICK_THROUGH_SHORTCUT, type User } from '../../shared/types';
 import { Storage } from './storage.ts';
 import { emailAddress, passwordValue, text, UserError } from './validation.ts';
 
@@ -28,7 +28,7 @@ export class LocalAuthService implements AuthService {
     const account = {
       id: randomUUID(), name, email, salt, passwordHash: scryptSync(password, salt, 64).toString('hex'),
       settings: {
-        displayName: name, theme: 'system' as const, onboardingComplete: false,
+        displayName: name, theme: 'system' as const, clickThroughShortcut: DEFAULT_CLICK_THROUGH_SHORTCUT, onboardingComplete: false,
         connections: [], activeConnectionId: null,
       },
       conversations: [],

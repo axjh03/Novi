@@ -1,6 +1,6 @@
 # Novi
 
-A standalone Electron AI chat application. Bring your own API key, choose your model, and keep your conversations on your device.
+A managed Electron AI workspace with a separate Novi web portal for accounts, licenses, and provider keys. Desktop access uses a username and password assigned to a licensed account. There is no public sign-up.
 
 ## Run
 
@@ -8,10 +8,26 @@ Requires Node.js **22.18+** (Node 24 recommended), npm, and a desktop session.
 
 ```sh
 npm install
+npm --prefix webapp install
+npm run web:setup
+npm run web:dev
+# In a second terminal:
 npm run dev
 ```
 
 On Windows, if PowerShell blocks `npm.ps1`, use `npm.cmd install` and `npm.cmd run dev`.
+
+After the one-time dependency installation and `npm run web:setup`, use the combined launchers from any directory:
+
+| Action | Windows | macOS / Linux / Git Bash |
+| --- | --- | --- |
+| Develop web frontend/backend + Electron | `scripts\dev.bat` | `sh scripts/dev.sh` |
+| Build both apps | `scripts\build.bat` | `sh scripts/build.sh` |
+| Build, then run both production apps | `scripts\build-and-run.bat` | `sh scripts/build-and-run.sh` |
+
+Each launcher opens two independent terminal windows: **Web frontend + backend** (Next.js) and **Electron**. Build output and errors stay in their respective terminals. Electron waits for the web server before starting. Use Ctrl+C in each terminal to stop that app; stopping one does not close the other. Default portal URL: `http://localhost:3000`. Set `NOVI_PORT` (or `ASTRA_PORT`) to change the port; the launcher configures the matching desktop URL and portal origin automatically. It fails if another server already occupies the port. Building does not migrate or reset a database. Interrupted desktop processes release their server lease after 90 seconds.
+
+Windows uses PowerShell windows; macOS uses Terminal; Linux uses an installed terminal emulator (x-terminal-emulator, GNOME Terminal, Konsole, XFCE Terminal, or xterm). On a headless system, open two shells manually and run `node scripts/run.mjs dev --app web` and `node scripts/run.mjs dev --app electron`. Replace `dev` with `build` or `build-and-run` as needed. `node scripts/run.mjs dev` retains the combined single-terminal workflow.
 
 ```sh
 npm run build       # Type-check and produce out/main, out/preload, out/renderer
@@ -34,15 +50,19 @@ Conversations stay in memory for the session. New conversations inherit the load
 
 PDF support requires `npm install` to install `pdfjs-dist` and its platform dependencies. If it is missing, TXT sessions still work and PDF loading explains the install requirement. If a context request fails or is stopped, end the session and retry with smaller/different files or another model. Calibration is independent of context: enabling Eye Track starts the 25-target calibration; ending a context session also stops its tracking/HUD.
 
-1. Create a local account, or sign in to an account previously created on this device.
-2. Set your display name.
-3. Choose OpenAI or an OpenAI-compatible endpoint.
-4. Enter your API key. Compatible servers may use an empty key.
-5. Choose or type a model ID and start chatting.
+1. Open the web portal at `http://localhost:3000`. Local setup writes generated passwords to the ignored `webapp/.env.access` file.
+2. Sign in as `admin` with `ADMIN_PASSWORD`. Create a standalone account or corporation; corporations can create sub-corporations.
+3. Issue a license to a standalone or sub-corporation owner. That owner creates a desktop account and permanently binds the license.
+4. As the owner, add provider keys and model IDs in **API management**.
+5. In Electron, sign in with the licensed desktop username and password. Open **Settings → API management** to enable and select inherited connections.
 
-For a local compatible server, an example base URL is `http://localhost:1234/v1`. Start the server and load an appropriate model separately. Novi appends `/chat/completions` to the base URL. Remote servers must use HTTPS; HTTP is allowed only for loopback hosts. Redirects are rejected so keys and conversations cannot follow a redirect to another host. Use the server's final endpoint URL.
+Optional seeded desktop accounts are `standalone.desktop` and `studio.desktop`, using `DEMO_PASSWORD`. Portal sample owners are `standalone`, `corporation`, and `subcorp`. See [webapp/README.md](webapp/README.md) for the role matrix, schema, API, and deployment instructions.
 
-Model examples are editable suggestions, not guarantees of account access. Image messages require a vision-capable chat model. If a compatible server does not support streaming, turn off **Stream responses as they arrive** in setup or Settings.
+The desktop reads `NOVI_ACCESS_URL` from its launch environment (defaults to `http://localhost:3000`). On PowerShell: `$env:NOVI_ACCESS_URL='https://your-access-server.example'`. Production servers require HTTPS. Normal sign-out releases the account immediately; crashed devices lose their lease after 90 seconds. The server must be reachable while using the app.
+
+The managed provider catalog supports OpenAI, Anthropic, Gemini, DeepSeek, Groq, Mistral, and xAI. Owners supply a model ID available to their provider account. Compatible providers use the existing Chat Completions transport; provider destinations are fixed by the server. Redirects are rejected.
+
+Image messages require a vision-capable model. Desktop accounts can select and disable connections; editing keys, destinations, and model IDs is restricted to the web owner portal.
 
 ## Architecture
 
@@ -53,7 +73,8 @@ src/
     preload.ts              Typed, allowlisted IPC bridge
     ipc/handlers.ts         Sender validation, input validation, session scoping
     services/
-      auth.ts               AuthService + replaceable local implementation
+      managedAuth.ts        JWT login, secure session storage, license heartbeat
+      auth.ts               Legacy local implementation, no desktop IPC exposure
       storage.ts            Atomic local JSON persistence
       credentials.ts        OS-backed encrypted credentials, bound to endpoint
       providers.ts          AIProvider, factory, OpenAI and compatible providers
@@ -88,15 +109,16 @@ Novi uses Electron's `app.getPath('userData')`, typically:
 
 The exact directory follows Electron's platform conventions. `NOVI_DATA_DIR` can override it for isolated testing; do not point it at an unrelated application's directory.
 
-- `data.json`: accounts with salted scrypt password hashes, current session, display names, onboarding state, provider/base URL/model, theme, conversations, image IDs. This file is **not encrypted**.
-- `credentials.json`: API keys encrypted with Electron `safeStorage`, in a separate file. Each encrypted key is associated with its selected provider and endpoint. Keys never appear in preference/history JSON and are never returned to React after saving.
+- `data.json`: local account caches, display preferences, provider metadata, selection, theme, and existing history. Managed passwords and API secrets are never written here. This file is **not encrypted**.
+- `access-session.json`: OS-encrypted JWT and a generated installation identifier. Its server binding prevents reuse against a different access server.
+- Managed provider secrets stay in main-process memory and are cleared on sign-out. The renderer receives metadata only. Legacy `credentials.json` files remain preserved but do not supply managed connections.
 - `images/`: app-owned local copies of attached images, addressed by generated IDs rather than renderer-provided filesystem paths. Copies preserve history if an original file moves. Deleting conversations or clearing history removes unreferenced copies. Unsent copies are pruned on sign-out or next startup.
 
-Credential encryption uses the OS mechanism available to Electron (Windows DPAPI, macOS Keychain, or Linux's supported secret store). Novi refuses to store a nonempty API key if encryption is unavailable, including Linux's insecure `basic_text` fallback. Unlock/configure the OS keychain and restart. Keyless local servers still work without secure key storage. Encrypted key files are generally not portable between OS users or machines.
+Session encryption uses Electron's OS storage (Windows DPAPI, macOS Keychain, or Linux's supported secret store). Sign-in requires secure storage and rejects Linux's insecure `basic_text` fallback. Unlock/configure the OS keychain and restart. Encrypted sessions are not portable between OS users or machines.
 
-Changing provider or base URL clears the association with the old key. Enter the destination's key explicitly; a saved key is never silently reused at a new endpoint. During entry, the key necessarily exists in the password input; after saving, the UI only receives a `hasApiKey` flag.
+The backend encrypts managed API keys with AES-256-GCM. Desktop credentials are bound to the provider endpoint and cannot be redirected through renderer IPC.
 
-Local authentication is a convenience gate, **not protection against someone with access to your OS account or local files**. There is no email verification, password recovery, or cloud account. Use OS account security and full-disk encryption to protect local history. Back up the data directory if the history matters.
+The backend checks account hierarchy, account status, license expiry, and the current device session on authenticated requests. Admin password resets revoke sessions. Local file edits cannot grant a server session. Local history still depends on OS account security and disk encryption.
 
 ## Add another AI provider
 
@@ -106,7 +128,7 @@ Local authentication is a convenience gate, **not protection against someone wit
 4. Extend `settingsInput()` validation and `ProviderFields` for that provider's configuration.
 5. Add a protocol test in `tests/core.test.ts`.
 
-The chat UI and conversation storage do not need to change. To replace authentication, provide another `AuthService` implementation, wire it in `ipc/handlers.ts`, and adapt local account provisioning/session ownership there; the auth form's IPC contract stays unchanged.
+To add a managed provider, extend the web catalog in `webapp/src/lib/access-policy.ts` and map it to a desktop transport in `src/shared/providers.ts` if a new protocol is needed.
 
 ## Security and privacy
 
@@ -121,11 +143,11 @@ The chat UI and conversation storage do not need to change. To replace authentic
 
 ## Verification and current limits
 
-Core checks run without installing dependencies and cover URL/input validation, password hashing, session persistence, account separation, corrupted-file preservation, split UTF-8 SSE parsing, multimodal payloads, JSON responses, abort propagation, incomplete streams, and provider errors.
+Core checks use the installed `tsx` runner and cover URL/input validation, session persistence, account separation, SSE, provider errors, and the managed auth/credential boundary. `npm --prefix webapp run test:access` creates an isolated temporary SQLite database and checks permissions, license immutability, inheritance, revocation, and device exclusivity.
 
-The desktop smoke script runs the built Electron application against a local fixture, exercises signup → onboarding → image chat → settings → restart → history clearing → sign-out, and leaves screenshots in `.test-data/`. It does not call a real AI provider.
+The desktop smoke script exercises managed sign-in, read-only provider selection, context loading, image chat, cleanup, and sign-out against a local fixture. It does not call a real AI provider.
 
-In the implementation environment, **the core checks passed**, but package downloads were blocked with `EACCES`. Consequently, TypeScript compilation, Electron launch, visual review, the desktop smoke test, and the production build could not be verified there. Run the commands above after dependency installation. No live API key was supplied, so a real paid-provider request has not been verified.
+Both production builds and the portal browser checks were verified. The native Electron smoke launch crashes in this environment (`Target crashed`, GPU process exit `-1073741515`), so native UI verification requires rerunning `npm run test:desktop` on a working desktop runtime. No live paid-provider request was made.
 
 Other deliberate version-one limits:
 

@@ -1,4 +1,4 @@
-import type { ConnectionInput, ProviderKind, SettingsInput, SendInput } from '../../shared/types';
+import { DEFAULT_CLICK_THROUGH_SHORTCUT, type ConnectionInput, type ProviderKind, type SettingsInput, type SendInput } from '../../shared/types';
 import { PROVIDERS } from '../../shared/providers.ts';
 
 export class UserError extends Error {}
@@ -36,9 +36,18 @@ export function baseUrl(value: unknown): string {
 export function settingsInput(value: unknown): SettingsInput {
   const input = object(value);
   if (!['system', 'light', 'dark'].includes(String(input.theme))) throw new UserError('Choose a valid theme.');
+  const shortcut = input.clickThroughShortcut === undefined ? DEFAULT_CLICK_THROUGH_SHORTCUT : text(input.clickThroughShortcut, 'click-through shortcut', 60);
+  const parts = shortcut.split('+');
+  const modifiers = parts.slice(0, -1);
+  const key = parts.at(-1) || '';
+  if (!modifiers.length || modifiers.some((part) => !['Control', 'Alt', 'Shift', 'Super'].includes(part)) || new Set(modifiers).size !== modifiers.length || !/^(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4])|Space|Tab|Backspace|Delete|Insert|Return|Esc|Up|Down|Left|Right|Home|End|PageUp|PageDown|NumLock)$/.test(key)) {
+    throw new UserError('Use a supported key combination with at least one modifier.');
+  }
+  if (shortcut === 'Control+Shift+T' || shortcut === 'Super+Shift+T') throw new UserError('That shortcut is already used to toggle transparent mode.');
   return {
     displayName: text(input.displayName, 'display name', 60),
     theme: input.theme as SettingsInput['theme'],
+    clickThroughShortcut: shortcut,
     connection: input.connection === undefined ? undefined : connectionInput(input.connection),
   };
 }

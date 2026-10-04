@@ -20,8 +20,9 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   useEffect(() => { if (deleting) deleteDialog.current?.showModal(); }, [deleting]);
   const config = state.settings!;
   const connection = state.contextSession?.connection ?? activeConnection(config);
-  const contextBusy = state.contextSession?.status !== 'ready';
+  const contextBusy = Boolean(state.contextSession && state.contextSession.status !== 'ready');
   const [ending, setEnding] = useState(false);
+  const sidebarBusy = chat.busy || ending || (contextBusy && state.contextSession?.status !== 'error');
   const [confirmEnd, setConfirmEnd] = useState(false);
   const sessionId = state.contextSession?.id;
   useEffect(() => {
@@ -64,7 +65,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
         conversations={chat.conversations}
         selectedId={chat.selectedId}
         displayName={config.displayName}
-        busy={chat.busy || contextBusy || ending}
+        busy={sidebarBusy}
         onNew={() => { chat.setSelectedId(null); setSettings(false); chat.setError(''); }}
         onSelect={(id) => { chat.setSelectedId(id); setSettings(false); chat.setError(''); }}
         onDelete={setDeleting}

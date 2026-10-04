@@ -40,7 +40,7 @@ export function Navbar({ activeTab, setActiveTab }: NavbarProps) {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <ShieldCheck size={16} color="#fff" />
           <span style={{ fontWeight: 700, fontSize: 14, color: "#fff", letterSpacing: "0.05em" }}>
-            ASTRA
+            NOVI
           </span>
           <span style={{
             fontSize: 10,

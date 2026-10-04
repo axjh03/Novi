@@ -14,6 +14,7 @@ export function ProviderPicker({ state, disabled, onSaved, onError }: { state: S
     catch (error) { onError(errorText(error)); }
     finally { setBusy(false); }
   }
+  if (state.user?.managed) return <div className="chat-provider-picker"><select aria-label="Choose managed API connection" disabled={disabled || busy} value={connection.id} onChange={e => void select(e.target.value)}>{state.settings!.connections.filter(c => c.enabled !== false).map(c => <option key={c.id} value={c.id}>{c.name} · {c.model}</option>)}</select><span className="muted">Managed by {connection.ownerName}</span></div>;
   return <div className="chat-provider-picker"><select aria-label="Choose provider" disabled={disabled || busy} value={connection.id} onChange={(e) => void select(e.target.value)}>{state.settings!.connections.map((c) => <option value={c.id} key={c.id}>{c.name}</option>)}</select>
     <select aria-label="Choose model" disabled={disabled || busy} value={custom ? '__custom' : connection.model} onChange={(e) => { if (e.target.value === '__custom') { setCustom(true); setModel(connection.model); } else void select(connection.id, e.target.value); }}>
       {!options.some((m) => m.id === connection.model) && <option value={connection.model}>{connection.model}</option>}{options.map((m) => <option value={m.id} key={m.id}>{m.name}</option>)}<option value="__custom">Custom model…</option>

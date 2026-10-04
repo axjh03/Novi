@@ -1,40 +1,50 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/jwt";
 import { createAuditLog } from "@/lib/audit";
 
-export async function DELETE(req: Request, context: { params: Promise<{ id: string }> }) {
+// DELETE /api/v1/devices/[id] — reset device activation slot
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const actor = requireAdmin(req);
+  if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
   try {
-    const { id } = await context.params;
-
-    const device = await prisma.device.findUnique({ where: { id } });
-    if (!device) {
-      return NextResponse.json({ success: false, error: "Device not found" }, { status: 404 });
-    }
-
-    // Mark all activations as deactivated
+    // Deactivate all activations for this device
     await prisma.licenseActivation.updateMany({
-      where: { deviceId: id, deactivatedAt: null },
+      where: { deviceId: (await params).id, deactivatedAt: null },
       data: { deactivatedAt: new Date() },
     });
 
-    // Update device status to INACTIVE
-    const updated = await prisma.device.update({
-      where: { id },
+    await prisma.device.update({
+      where: { id: (await params).id },
       data: { status: "INACTIVE" },
     });
 
     await createAuditLog({
-      tenantId: device.tenantId,
-      actorId: id,
+      actorId: actor.userId,
       action: "DEVICE_RESET",
-      details: { deviceName: device.name, fingerprintHash: device.fingerprintHash },
+      details: { deviceId: (await params).id },
     });
 
-    return NextResponse.json({
-      success: true,
-      message: `Device "${device.name}" deactivated successfully and slot freed.`,
-      data: updated,
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
+// PATCH /api/v1/devices/[id] — update device status
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const actor = requireAdmin(req);
+  if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
+  try {
+    const body = await req.json();
+    const device = await prisma.device.update({
+      where: { id: (await params).id },
+      data: { status: body.status },
     });
+
+    return NextResponse.json({ success: true, data: device });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

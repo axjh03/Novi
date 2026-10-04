@@ -1,342 +1,185 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import crypto from "crypto";
 
 const prisma = new PrismaClient();
 
 const SERVER_SECRET = process.env.LICENSE_SERVER_SECRET || "novi_super_secret_hmac_key_2026";
-const MASTER_KEY_HEX = process.env.ENCRYPTION_MASTER_KEY || "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
-function hashLicenseKey(licenseKey: string): string {
-  const cleanKey = licenseKey.trim().toUpperCase();
-  return crypto.createHmac("sha256", SERVER_SECRET).update(cleanKey).digest("hex");
+function generateLicenseKey(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let key = "NVI";
+  for (let i = 0; i < 4; i++) {
+    key += "-";
+    for (let j = 0; j < 4; j++) {
+      key += chars[Math.floor(Math.random() * chars.length)];
+    }
+  }
+  return key;
 }
 
-function encryptSecret(plaintext: string): string {
-  const key = Buffer.from(MASTER_KEY_HEX.slice(0, 64), "hex");
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-  let encrypted = cipher.update(plaintext, "utf8", "hex");
-  encrypted += cipher.final("hex");
-  const authTag = cipher.getAuthTag().toString("hex");
-  return `${iv.toString("hex")}:${authTag}:${encrypted}`;
+function hashLicenseKey(licenseKey: string): string {
+  return crypto.createHmac("sha256", SERVER_SECRET).update(licenseKey.trim().toUpperCase()).digest("hex");
+}
+
+function maskLicenseKey(licenseKey: string): string {
+  const parts = licenseKey.trim().split("-");
+  if (parts.length === 5) {
+    return `${parts[0]}-${parts[1]}-****-****-${parts[4]}`;
+  }
+  return `${licenseKey.slice(0, 8)}****${licenseKey.slice(-4)}`;
 }
 
 async function main() {
-  console.log("🌱 Seeding local database...");
+  console.log("🌱 Seeding database...");
 
-  // Clear existing
-  await prisma.auditLog.deleteMany();
-  await prisma.order.deleteMany();
-  await prisma.apiCredential.deleteMany();
-  await prisma.licenseActivation.deleteMany();
-  await prisma.device.deleteMany();
-  await prisma.license.deleteMany();
-  await prisma.membership.deleteMany();
-  await prisma.tenant.deleteMany();
-  await prisma.user.deleteMany();
-
-  // 1. Create Users
-  const adminUser = await prisma.user.create({
-    data: {
-      email: "admin@novi.com",
-      name: "Platform SuperAdmin",
-      passwordHash: "pbkdf2_hashed_password",
+  // ── Admin ─────────────────────────────────────────────────────────
+  const adminHash = await bcrypt.hash("admin123", 12);
+  const admin = await prisma.user.upsert({
+    where: { username: "admin" },
+    update: {},
+    create: {
+      username: "admin",
+      email: "admin@astra.local",
+      name: "Platform Admin",
+      passwordHash: adminHash,
+      role: "ADMIN",
     },
   });
+  console.log("✅ Admin:", admin.username, "/ admin123");
 
-  const aalokUser = await prisma.user.create({
-    data: {
-      email: "aalok@example.com",
-      name: "Aalok Bhagat",
-      passwordHash: "pbkdf2_hashed_password",
-    },
-  });
-
-  const corpAdminUser = await prisma.user.create({
-    data: {
-      email: "cto@acme.com",
-      name: "Sarah Connor (CTO)",
-      passwordHash: "pbkdf2_hashed_password",
-    },
-  });
-
-  // 2. Tenants: Individual
-  const aalokTenant = await prisma.tenant.create({
-    data: {
-      name: "Aalok Bhagat (Personal)",
-      type: "INDIVIDUAL",
-      status: "ACTIVE",
-    },
-  });
-
-  await prisma.membership.create({
-    data: {
-      userId: aalokUser.id,
-      tenantId: aalokTenant.id,
-      role: "OWNER",
-    },
-  });
-
-  // 3. Tenants: Corporation & Sub-Corps
-  const acmeCorp = await prisma.tenant.create({
-    data: {
+  // ── Corporation: AcmeCorp ─────────────────────────────────────────
+  const corpHash = await bcrypt.hash("corp123", 12);
+  const corpUser = await prisma.user.upsert({
+    where: { username: "acmecorp" },
+    update: {},
+    create: {
+      username: "acmecorp",
+      email: "admin@acmecorp.com",
       name: "Acme Corporation",
+      passwordHash: corpHash,
+      role: "CORP",
+    },
+  });
+
+  const acmeTenant = await prisma.tenant.upsert({
+    where: { id: "tenant_acme_corp_001" },
+    update: {},
+    create: {
+      id: "tenant_acme_corp_001",
+      name: "Acme Corp",
       type: "CORPORATION",
-      status: "ACTIVE",
     },
   });
 
-  await prisma.membership.create({
-    data: {
-      userId: corpAdminUser.id,
-      tenantId: acmeCorp.id,
-      role: "OWNER",
+  await prisma.membership.upsert({
+    where: { userId_tenantId: { userId: corpUser.id, tenantId: acmeTenant.id } },
+    update: {},
+    create: { userId: corpUser.id, tenantId: acmeTenant.id, role: "OWNER" },
+  });
+  console.log("✅ Corp:", corpUser.username, "/ corp123");
+
+  // ── Sub-Corp under Acme ────────────────────────────────────────────
+  const subCorpHash = await bcrypt.hash("subcorp123", 12);
+  const subCorpUser = await prisma.user.upsert({
+    where: { username: "acme_west" },
+    update: {},
+    create: {
+      username: "acme_west",
+      email: "admin@acme-west.com",
+      name: "Acme West Division",
+      passwordHash: subCorpHash,
+      role: "CORP",
     },
   });
 
-  const dallasSubCorp = await prisma.tenant.create({
-    data: {
-      name: "Dallas Division",
+  const acmeWestTenant = await prisma.tenant.upsert({
+    where: { id: "tenant_acme_west_001" },
+    update: {},
+    create: {
+      id: "tenant_acme_west_001",
+      name: "Acme West",
       type: "CORPORATION",
-      parentTenantId: acmeCorp.id,
-      status: "ACTIVE",
+      parentTenantId: acmeTenant.id,
     },
   });
 
-  const austinSubCorp = await prisma.tenant.create({
-    data: {
-      name: "Austin Division",
-      type: "CORPORATION",
-      parentTenantId: acmeCorp.id,
-      status: "ACTIVE",
+  await prisma.membership.upsert({
+    where: { userId_tenantId: { userId: subCorpUser.id, tenantId: acmeWestTenant.id } },
+    update: {},
+    create: { userId: subCorpUser.id, tenantId: acmeWestTenant.id, role: "OWNER" },
+  });
+  console.log("✅ Sub-Corp:", subCorpUser.username, "/ subcorp123");
+
+  // ── Individual User ────────────────────────────────────────────────
+  const indvHash = await bcrypt.hash("indv123", 12);
+  const indvUser = await prisma.user.upsert({
+    where: { username: "johndoe" },
+    update: {},
+    create: {
+      username: "johndoe",
+      email: "john@example.com",
+      name: "John Doe",
+      passwordHash: indvHash,
+      role: "INDIVIDUAL",
     },
   });
 
-  // 4. Create Licenses
-  const key1 = "NVI-7K4M-PX29-QRT8-DM73";
-  const license1 = await prisma.license.create({
-    data: {
-      tenantId: aalokTenant.id,
-      licenseHash: hashLicenseKey(key1),
-      keyMasked: "NVI-7K4M-****-****-DM73",
-      status: "ACTIVE",
-      issuedAt: new Date(Date.now() - 30 * 24 * 3600 * 1000),
-      activatedAt: new Date(Date.now() - 29 * 24 * 3600 * 1000),
-      expiresAt: new Date(Date.now() + 335 * 24 * 3600 * 1000),
-      activationLimit: 2,
+  const indvTenant = await prisma.tenant.upsert({
+    where: { id: "tenant_john_001" },
+    update: {},
+    create: {
+      id: "tenant_john_001",
+      name: "John Doe's Account",
+      type: "INDIVIDUAL",
     },
   });
 
-  const key2 = "NVI-9X82-WPL4-MN10-ACME";
-  const license2 = await prisma.license.create({
-    data: {
-      tenantId: dallasSubCorp.id,
-      licenseHash: hashLicenseKey(key2),
-      keyMasked: "NVI-9X82-****-****-ACME",
-      status: "ACTIVE",
-      issuedAt: new Date(Date.now() - 60 * 24 * 3600 * 1000),
-      activatedAt: new Date(Date.now() - 58 * 24 * 3600 * 1000),
-      expiresAt: new Date(Date.now() + 300 * 24 * 3600 * 1000),
-      activationLimit: 5,
-    },
+  await prisma.membership.upsert({
+    where: { userId_tenantId: { userId: indvUser.id, tenantId: indvTenant.id } },
+    update: {},
+    create: { userId: indvUser.id, tenantId: indvTenant.id, role: "OWNER" },
   });
+  console.log("✅ Individual:", indvUser.username, "/ indv123");
 
-  const key3 = "NVI-11AA-22BB-33CC-AUST";
-  const license3 = await prisma.license.create({
-    data: {
-      tenantId: austinSubCorp.id,
-      licenseHash: hashLicenseKey(key3),
-      keyMasked: "NVI-11AA-****-****-AUST",
-      status: "GRACE",
-      issuedAt: new Date(Date.now() - 370 * 24 * 3600 * 1000),
-      activatedAt: new Date(Date.now() - 365 * 24 * 3600 * 1000),
-      expiresAt: new Date(Date.now() - 1 * 24 * 3600 * 1000), // expired yesterday
-      graceUntil: new Date(Date.now() + 2 * 24 * 3600 * 1000), // 2 days grace remaining
-      activationLimit: 3,
-    },
-  });
-
-  const key4 = "NVI-44DD-55EE-66FF-EXPR";
+  // ── Issue sample licenses ──────────────────────────────────────────
+  // License for Acme Corp (UNACTIVATED — waiting for user to enter key)
+  const corpLicKey = generateLicenseKey();
+  console.log("\n📋 Sample license keys (save these!):");
+  console.log("  Acme Corp license:", corpLicKey);
   await prisma.license.create({
     data: {
-      tenantId: austinSubCorp.id,
-      licenseHash: hashLicenseKey(key4),
-      keyMasked: "NVI-44DD-****-****-EXPR",
-      status: "EXPIRED",
-      issuedAt: new Date(Date.now() - 400 * 24 * 3600 * 1000),
-      expiresAt: new Date(Date.now() - 35 * 24 * 3600 * 1000),
+      tenantId: acmeTenant.id,
+      licenseHash: hashLicenseKey(corpLicKey),
+      keyMasked: maskLicenseKey(corpLicKey),
+      status: "UNACTIVATED",
+      expiresAt: new Date(Date.now() + 365 * 24 * 3600 * 1000),
       activationLimit: 1,
     },
-  });
+  }).catch(() => {}); // ignore duplicate
 
-  // 5. Create Devices & Activations
-  const dev1 = await prisma.device.create({
+  // License for individual (UNACTIVATED)
+  const indvLicKey = generateLicenseKey();
+  console.log("  John Doe license:", indvLicKey);
+  await prisma.license.create({
     data: {
-      tenantId: aalokTenant.id,
-      name: "Aalok-PC Workstation",
-      platform: "win32",
-      appVersion: "1.4.0",
-      fingerprintHash: "fp_win_aalok_pc_99812",
-      status: "ACTIVE",
-      firstSeenAt: new Date(Date.now() - 29 * 24 * 3600 * 1000),
-      lastSeenAt: new Date(Date.now() - 15 * 60 * 1000), // 15 min ago
+      tenantId: indvTenant.id,
+      licenseHash: hashLicenseKey(indvLicKey),
+      keyMasked: maskLicenseKey(indvLicKey),
+      status: "UNACTIVATED",
+      expiresAt: new Date(Date.now() + 365 * 24 * 3600 * 1000),
+      activationLimit: 1,
     },
-  });
+  }).catch(() => {}); // ignore duplicate
 
-  await prisma.licenseActivation.create({
-    data: {
-      licenseId: license1.id,
-      deviceId: dev1.id,
-      deviceToken: "devtok_aalok_pc_token_12345",
-      activatedAt: new Date(Date.now() - 29 * 24 * 3600 * 1000),
-      lastHeartbeat: new Date(Date.now() - 15 * 60 * 1000),
-    },
-  });
-
-  const dev2 = await prisma.device.create({
-    data: {
-      tenantId: aalokTenant.id,
-      name: "Aalok-MacBook-Pro",
-      platform: "darwin",
-      appVersion: "1.4.0",
-      fingerprintHash: "fp_mac_aalok_mbp_44211",
-      status: "ACTIVE",
-      firstSeenAt: new Date(Date.now() - 10 * 24 * 3600 * 1000),
-      lastSeenAt: new Date(Date.now() - 2 * 3600 * 1000), // 2 hours ago
-    },
-  });
-
-  await prisma.licenseActivation.create({
-    data: {
-      licenseId: license1.id,
-      deviceId: dev2.id,
-      deviceToken: "devtok_aalok_mac_token_67890",
-      activatedAt: new Date(Date.now() - 10 * 24 * 3600 * 1000),
-      lastHeartbeat: new Date(Date.now() - 2 * 3600 * 1000),
-    },
-  });
-
-  const devDallas1 = await prisma.device.create({
-    data: {
-      tenantId: dallasSubCorp.id,
-      name: "DALLAS-DESKTOP-01",
-      platform: "win32",
-      appVersion: "1.4.0",
-      fingerprintHash: "fp_dallas_desktop_01",
-      status: "ACTIVE",
-      firstSeenAt: new Date(Date.now() - 50 * 24 * 3600 * 1000),
-      lastSeenAt: new Date(Date.now() - 30 * 60 * 1000),
-    },
-  });
-
-  await prisma.licenseActivation.create({
-    data: {
-      licenseId: license2.id,
-      deviceId: devDallas1.id,
-      deviceToken: "devtok_dallas_01_token",
-      activatedAt: new Date(Date.now() - 50 * 24 * 3600 * 1000),
-      lastHeartbeat: new Date(Date.now() - 30 * 60 * 1000),
-    },
-  });
-
-  // 6. Encrypted API Credentials
-  await prisma.apiCredential.create({
-    data: {
-      provider: "OPENAI",
-      label: "Main OpenAI Key",
-      scope: "PERSONAL",
-      encryptedSecret: encryptSecret("sk-proj-99281726384910284719284710"),
-      tenantId: aalokTenant.id,
-      userId: aalokUser.id,
-    },
-  });
-
-  await prisma.apiCredential.create({
-    data: {
-      provider: "ANTHROPIC",
-      label: "Claude Pro Key",
-      scope: "PERSONAL",
-      encryptedSecret: encryptSecret("sk-ant-api03-8829102938471-prod-AA"),
-      tenantId: aalokTenant.id,
-      userId: aalokUser.id,
-    },
-  });
-
-  await prisma.apiCredential.create({
-    data: {
-      provider: "OPENAI",
-      label: "Acme Corp Shared GPT-4",
-      scope: "TENANT",
-      encryptedSecret: encryptSecret("sk-proj-acme-corp-enterprise-master-key"),
-      tenantId: acmeCorp.id,
-      userId: corpAdminUser.id,
-    },
-  });
-
-  // 7. Orders & Billing
-  await prisma.order.create({
-    data: {
-      tenantId: aalokTenant.id,
-      productName: "Novi Pro Individual (1 Year)",
-      amount: 199.0,
-      currency: "USD",
-      paymentMethod: "CRYPTO",
-      status: "COMPLETED",
-    },
-  });
-
-  await prisma.order.create({
-    data: {
-      tenantId: acmeCorp.id,
-      productName: "Novi Enterprise License (10 Seats)",
-      amount: 2990.0,
-      currency: "USD",
-      paymentMethod: "CRYPTO",
-      status: "COMPLETED",
-    },
-  });
-
-  // 8. Audit Logs
-  await prisma.auditLog.create({
-    data: {
-      actorId: adminUser.id,
-      tenantId: acmeCorp.id,
-      action: "TENANT_CREATED",
-      details: JSON.stringify({ name: "Acme Corporation", type: "CORPORATION" }),
-    },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      actorId: aalokUser.id,
-      tenantId: aalokTenant.id,
-      action: "LICENSE_ACTIVATED",
-      details: JSON.stringify({ device: "Aalok-PC Workstation", licenseMasked: "NVI-7K4M-****-****-DM73" }),
-    },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      actorId: dev1.id,
-      tenantId: aalokTenant.id,
-      action: "DEVICE_HEARTBEAT",
-      details: JSON.stringify({ status: "ACTIVE", nextCheckIn: 14400 }),
-    },
-  });
-
-  console.log("✅ Seed database finished successfully!");
-  console.log("🔑 Demo License Keys generated:");
-  console.log(`  - Aalok Personal: ${key1}`);
-  console.log(`  - Dallas Division: ${key2}`);
-  console.log(`  - Austin Division (Grace): ${key3}`);
-  console.log(`  - Austin Division (Expired): ${key4}`);
+  console.log("\n✅ Seed complete!\n");
+  console.log("Login credentials:");
+  console.log("  Admin:    username=admin       password=admin123");
+  console.log("  Corp:     username=acmecorp    password=corp123");
+  console.log("  Sub-Corp: username=acme_west   password=subcorp123");
+  console.log("  Indv:     username=johndoe     password=indv123");
 }
 
 main()
-  .catch((e) => {
-    console.error("Error seeding database:", e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .catch(console.error)
+  .finally(() => prisma.$disconnect());

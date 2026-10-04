@@ -9,6 +9,10 @@ export class ConnectionService {
   resolveKey(input: ConnectionInput): string {
     const user = this.storage.current();
     const existing = user.settings.connections.find((item) => item.id === input.id);
+    if (user.managed) {
+      if (!existing?.managed || input.apiKey !== undefined || existing.provider !== input.ai.provider || existing.baseUrl !== input.ai.baseUrl || existing.model !== input.ai.model) throw new UserError('Use an API connection provided by your account owner.');
+      return this.credentials.get(user.id, existing);
+    }
     if (input.id && !existing) throw new UserError('This provider connection could not be found.');
     const sameDestination = existing?.provider === input.ai.provider && existing.baseUrl === input.ai.baseUrl;
     const key = input.apiKey ?? (existing && sameDestination ? this.credentials.get(user.id, existing) : '');
@@ -17,6 +21,7 @@ export class ConnectionService {
   }
   save(value: unknown): ProviderConnection {
     const input = connectionInput(value), user = this.storage.current();
+    if (user.managed) throw new UserError('API connections are read-only. Contact your account owner.');
     const key = this.resolveKey(input);
     if (!input.id && user.settings.connections.length >= 20) throw new UserError('You can save up to 20 provider connections.');
     const connection: ProviderConnection = { ...input.ai, id: input.id || randomUUID(), name: input.name };
@@ -30,12 +35,15 @@ export class ConnectionService {
     const user = this.storage.current();
     const connection = user.settings.connections.find((item) => item.id === text(id, 'connection ID', 100));
     if (!connection) throw new UserError('Choose a saved provider connection.');
+    if (connection.enabled === false) throw new UserError('Enable this connection in API management first.');
+    if (user.managed && model !== undefined && model !== connection.model) throw new UserError('The model is managed by your account owner.');
     if (model !== undefined) connection.model = connectionInput({ id: connection.id, name: connection.name, ai: { ...connection, model } }).ai.model;
     user.settings.activeConnectionId = connection.id;
     this.storage.save();
   }
   remove(id: unknown) {
     const user = this.storage.current(), connection = user.settings.connections.find((item) => item.id === text(id, 'connection ID', 100));
+    if (user.managed) throw new UserError('API connections are read-only. Contact your account owner.');
     if (!connection) throw new UserError('This provider connection could not be found.');
     if (user.settings.connections.length === 1) throw new UserError('Add another provider before removing your last connection.');
     user.settings.connections = user.settings.connections.filter((item) => item.id !== connection.id);

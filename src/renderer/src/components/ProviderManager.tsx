@@ -4,6 +4,7 @@ import type { ConnectionInput, Snapshot } from '../../../shared/types';
 import { newConnection, PROVIDERS } from '../../../shared/providers';
 import { ProviderFields } from './ProviderFields';
 import { errorText, unwrap } from '../services/api';
+import { ManagedProviders } from './ManagedProviders';
 
 export function ProviderManager({ state, onSaved }: { state: Snapshot; onSaved: (state: Snapshot) => void }) {
   const [editing, setEditing] = useState<ConnectionInput | null>(null), [removing, setRemoving] = useState<string | null>(null);
@@ -15,6 +16,7 @@ export function ProviderManager({ state, onSaved }: { state: Snapshot; onSaved: 
     finally { setBusy(false); }
   }
   function save(event: FormEvent) { event.preventDefault(); if (editing) void action(() => unwrap(window.novi.saveConnection(editing))); }
+  if (state.user?.managed) return <ManagedProviders state={state} onSaved={onSaved} />;
   return <section className="provider-manager"><div className="section-title"><div><h2>AI providers</h2><p className="muted">Save your connections, then choose one in chat.</p></div><button className="text-button" disabled={busy} onClick={() => { setEditing(newConnection()); setError(''); }}><Plus size={16} />Add provider</button></div>
     <div className="connection-list">{state.settings!.connections.map((connection) => <div className="connection-row" key={connection.id}>
       <div><strong>{connection.name}</strong><small>{PROVIDERS[connection.provider].name} · {connection.model}</small><small>{state.credentialIds.includes(connection.id) ? 'Key saved securely' : 'No saved key'}</small></div>
