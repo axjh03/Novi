@@ -1,4 +1,4 @@
-import { safeStorage } from 'electron';
+import { app, safeStorage } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
@@ -6,6 +6,22 @@ import { DEFAULT_CLICK_THROUGH_SHORTCUT, type ProviderConnection, type User } fr
 import { atomicJSON, readJSON, Storage } from './storage';
 import { CredentialStore } from './credentials';
 import { text, UserError } from './validation';
+
+// Default production URL for packaged desktop releases.
+// You can override this at runtime with the NOVI_ACCESS_URL environment variable.
+export const PRODUCTION_ACCESS_URL = process.env.NOVI_PRODUCTION_ACCESS_URL || 'https://astra-webapp.vercel.app';
+
+export function getEffectiveAccessUrl(): string {
+  if (process.env.NOVI_ACCESS_URL) {
+    return process.env.NOVI_ACCESS_URL;
+  }
+  // When running as a packaged desktop application for end-users, use the hosted production backend
+  if (typeof app !== 'undefined' && app?.isPackaged) {
+    return PRODUCTION_ACCESS_URL;
+  }
+  // In local development or automated tests, default to local dev server
+  return 'http://localhost:3000';
+}
 
 interface DesktopState {
   user: { id: string; username: string; name: string };
@@ -25,7 +41,7 @@ export class ManagedAuthService {
   constructor(private storage: Storage, private credentials: CredentialStore, private secureStorage = safeStorage) {
     this.file = join(storage.directory, 'access-session.json');
     this.saved = readJSON<SavedSession>(this.file, { deviceId: randomUUID() });
-    const url = new URL(process.env.NOVI_ACCESS_URL || 'http://localhost:3000');
+    const url = new URL(getEffectiveAccessUrl());
     if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))) throw new UserError('The access server must use HTTPS.');
     if (url.username || url.password || url.search || url.hash) throw new UserError('Invalid access server URL.');
     this.baseUrl = url.href.replace(/\/$/, '') + '/api/control';

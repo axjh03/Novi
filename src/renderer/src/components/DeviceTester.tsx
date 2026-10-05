@@ -1,5 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, CameraOff, Mic, Play, Square, RotateCcw, Radio, ShieldCheck, AlertCircle, Sliders } from 'lucide-react';
+import { Camera, CameraOff, Mic, Play, Square, RotateCcw, Radio, ShieldCheck, AlertCircle, Sliders, FileText, Sparkles, Copy, Check, Loader2, Volume2 } from 'lucide-react';
+import { errorText, unwrap } from '../services/api';
+
+async function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('Could not read the audio recording.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function runTranscription(blob: Blob, mimeType: string): Promise<string> {
+  const base64 = await blobToBase64(blob);
+  const result = await unwrap(window.novi.transcribeAudio({ base64, mimeType }));
+  return result.text ? result.text.trim() : '';
+}
 
 export function DeviceTester() {
   // Device enumeration state
@@ -15,6 +31,9 @@ export function DeviceTester() {
   const [micVolumeLevel, setMicVolumeLevel] = useState(0);
   const [micAudioUrl, setMicAudioUrl] = useState<string | null>(null);
   const [micError, setMicError] = useState('');
+  const [micTranscript, setMicTranscript] = useState<string | null>(null);
+  const [micTranscribing, setMicTranscribing] = useState(false);
+  const [micTranscriptError, setMicTranscriptError] = useState('');
 
   const micRecorderRef = useRef<MediaRecorder | null>(null);
   const micChunksRef = useRef<Blob[]>([]);
@@ -32,6 +51,9 @@ export function DeviceTester() {
   const [sysVolumeLevel, setSysVolumeLevel] = useState(0);
   const [sysAudioUrl, setSysAudioUrl] = useState<string | null>(null);
   const [sysError, setSysError] = useState('');
+  const [sysTranscript, setSysTranscript] = useState<string | null>(null);
+  const [sysTranscribing, setSysTranscribing] = useState(false);
+  const [sysTranscriptError, setSysTranscriptError] = useState('');
 
   const sysRecorderRef = useRef<MediaRecorder | null>(null);
   const sysChunksRef = useRef<Blob[]>([]);
@@ -49,6 +71,30 @@ export function DeviceTester() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const videoStreamRef = useRef<MediaStream | null>(null);
 
+  // 4. Dedicated Audio Transcript Test state
+  const [transSource, setTransSource] = useState<'mic' | 'system'>('mic');
+  const [transMicId, setTransMicId] = useState<string>('');
+  const [transDuration, setTransDuration] = useState<number>(10);
+  const [transTimeLeft, setTransTimeLeft] = useState<number>(10);
+  const [transState, setTransState] = useState<'idle' | 'recording' | 'recorded'>('idle');
+  const [transVolumeLevel, setTransVolumeLevel] = useState(0);
+  const [transAudioUrl, setTransAudioUrl] = useState<string | null>(null);
+  const [transBlob, setTransBlob] = useState<Blob | null>(null);
+  const [transText, setTransText] = useState<string | null>(null);
+  const [transLoading, setTransLoading] = useState(false);
+  const [transError, setTransError] = useState('');
+  const [transPlaying, setTransPlaying] = useState(false);
+  const [transCopied, setTransCopied] = useState(false);
+
+  const transRecorderRef = useRef<MediaRecorder | null>(null);
+  const transChunksRef = useRef<Blob[]>([]);
+  const transStreamRef = useRef<MediaStream | null>(null);
+  const transAudioCtxRef = useRef<AudioContext | null>(null);
+  const transAnalyserRef = useRef<AnalyserNode | null>(null);
+  const transAnimRef = useRef<number | null>(null);
+  const transTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const transAudioElemRef = useRef<HTMLAudioElement | null>(null);
+
   // Enumerate devices
   const refreshDevices = async () => {
     try {
@@ -60,6 +106,7 @@ export function DeviceTester() {
       setCams(videoInputs);
 
       if (audioInputs.length > 0 && !selectedMicId) setSelectedMicId(audioInputs[0].deviceId);
+      if (audioInputs.length > 0 && !transMicId) setTransMicId(audioInputs[0].deviceId);
       if (videoInputs.length > 0 && !selectedCamId) setSelectedCamId(videoInputs[0].deviceId);
     } catch (err) {
       console.warn('Device enumeration failed:', err);
@@ -81,10 +128,12 @@ export function DeviceTester() {
       stopMicStreams();
       stopSysStreams();
       stopCameraStreams();
+      stopTransStreams();
       if (micAudioUrl) URL.revokeObjectURL(micAudioUrl);
       if (sysAudioUrl) URL.revokeObjectURL(sysAudioUrl);
+      if (transAudioUrl) URL.revokeObjectURL(transAudioUrl);
     };
-  }, [micAudioUrl, sysAudioUrl]);
+  }, [micAudioUrl, sysAudioUrl, transAudioUrl]);
 
   function stopMicStreams() {
     if (micTimerRef.current) { clearInterval(micTimerRef.current); micTimerRef.current = null; }
@@ -232,6 +281,26 @@ export function DeviceTester() {
     setMicState('idle');
     setMicTimeLeft(micDuration);
     setMicVolumeLevel(0);
+    setMicTranscript(null);
+    setMicTranscriptError('');
+    setMicTranscribing(false);
+  }
+
+  async function transcribeMicAudio() {
+    if (micChunksRef.current.length === 0) return;
+    setMicTranscribing(true);
+    setMicTranscriptError('');
+    setMicTranscript(null);
+    try {
+      const mimeType = (micRecorderRef.current?.mimeType || 'audio/webm').split(';')[0];
+      const blob = new Blob(micChunksRef.current, { type: micRecorderRef.current?.mimeType || mimeType });
+      const text = await runTranscription(blob, mimeType);
+      setMicTranscript(text || '(No speech detected in recording)');
+    } catch (err) {
+      setMicTranscriptError(errorText(err));
+    } finally {
+      setMicTranscribing(false);
+    }
   }
 
   // --- 2. SYSTEM AUDIO IN (DESKTOP / CALL AUDIO CAPTURE) TEST ---
@@ -357,6 +426,26 @@ export function DeviceTester() {
     setSysState('idle');
     setSysTimeLeft(sysDuration);
     setSysVolumeLevel(0);
+    setSysTranscript(null);
+    setSysTranscriptError('');
+    setSysTranscribing(false);
+  }
+
+  async function transcribeSysAudio() {
+    if (sysChunksRef.current.length === 0) return;
+    setSysTranscribing(true);
+    setSysTranscriptError('');
+    setSysTranscript(null);
+    try {
+      const mimeType = (sysRecorderRef.current?.mimeType || 'audio/webm').split(';')[0];
+      const blob = new Blob(sysChunksRef.current, { type: sysRecorderRef.current?.mimeType || mimeType });
+      const text = await runTranscription(blob, mimeType);
+      setSysTranscript(text || '(No speech detected in recording)');
+    } catch (err) {
+      setSysTranscriptError(errorText(err));
+    } finally {
+      setSysTranscribing(false);
+    }
   }
 
   // --- 3. CAMERA TEST ---
@@ -411,6 +500,192 @@ export function DeviceTester() {
         setCameraActive(false);
       }
     }
+  }
+
+  // --- 4. DEDICATED AUDIO TRANSCRIPT TEST ---
+  function stopTransStreams() {
+    if (transTimerRef.current) { clearInterval(transTimerRef.current); transTimerRef.current = null; }
+    if (transAnimRef.current) { cancelAnimationFrame(transAnimRef.current); transAnimRef.current = null; }
+    if (transRecorderRef.current && transRecorderRef.current.state === 'recording') {
+      try { transRecorderRef.current.stop(); } catch { /* ignore */ }
+    }
+    if (transStreamRef.current) {
+      transStreamRef.current.getTracks().forEach((t) => t.stop());
+      transStreamRef.current = null;
+    }
+    if (transAudioCtxRef.current && transAudioCtxRef.current.state !== 'closed') {
+      try { transAudioCtxRef.current.close(); } catch { /* ignore */ }
+      transAudioCtxRef.current = null;
+    }
+    if (transAudioElemRef.current) transAudioElemRef.current.pause();
+  }
+
+  async function startTransTest() {
+    setTransError('');
+    setTransText(null);
+    if (transAudioUrl) { URL.revokeObjectURL(transAudioUrl); setTransAudioUrl(null); }
+    setTransBlob(null);
+    transChunksRef.current = [];
+    setTransTimeLeft(transDuration);
+
+    try {
+      let stream: MediaStream;
+      if (transSource === 'mic') {
+        const micId = transMicId || selectedMicId;
+        const constraints: MediaStreamConstraints = {
+          audio: micId ? { deviceId: { exact: micId } } : true,
+        };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } else {
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
+        });
+        const audioTracks = displayStream.getAudioTracks();
+        if (audioTracks.length === 0) {
+          displayStream.getTracks().forEach((t) => t.stop());
+          throw new Error('System audio capture was not enabled. Please check "Share system audio" when prompted.');
+        }
+        displayStream.getVideoTracks().forEach((t) => t.stop());
+        stream = new MediaStream([audioTracks[0]]);
+      }
+
+      transStreamRef.current = stream;
+
+      try {
+        const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        transAudioCtxRef.current = audioCtx;
+        const source = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+        source.connect(analyser);
+        transAnalyserRef.current = analyser;
+
+        const pcmData = new Uint8Array(analyser.frequencyBinCount);
+        const updateMeter = () => {
+          if (!transAnalyserRef.current) return;
+          transAnalyserRef.current.getByteFrequencyData(pcmData);
+          let sum = 0;
+          for (let i = 0; i < pcmData.length; i++) sum += pcmData[i];
+          const avg = sum / pcmData.length;
+          setTransVolumeLevel(Math.min(100, Math.round((avg / 128) * 100)));
+          transAnimRef.current = requestAnimationFrame(updateMeter);
+        };
+        transAnimRef.current = requestAnimationFrame(updateMeter);
+      } catch (e) {
+        console.warn('Trans audio meter warning:', e);
+      }
+
+      const recorder = new MediaRecorder(stream);
+      transRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) transChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        const mimeType = (recorder.mimeType || 'audio/webm').split(';')[0];
+        const blob = new Blob(transChunksRef.current, { type: recorder.mimeType || mimeType });
+        const url = URL.createObjectURL(blob);
+        setTransAudioUrl(url);
+        setTransBlob(blob);
+        setTransState('recorded');
+        setTransVolumeLevel(0);
+        if (transAnimRef.current) cancelAnimationFrame(transAnimRef.current);
+
+        setTransLoading(true);
+        setTransError('');
+        try {
+          const text = await runTranscription(blob, mimeType);
+          setTransText(text || '(No speech detected in recorded audio)');
+        } catch (err) {
+          setTransError(errorText(err));
+        } finally {
+          setTransLoading(false);
+        }
+      };
+
+      recorder.start();
+      setTransState('recording');
+
+      let remaining = transDuration;
+      transTimerRef.current = setInterval(() => {
+        remaining -= 1;
+        setTransTimeLeft(remaining);
+        if (remaining <= 0) stopTransRecording();
+      }, 1000);
+    } catch (err) {
+      setTransError((err as Error).message || 'Failed to start audio recording.');
+      setTransState('idle');
+    }
+  }
+
+  function stopTransRecording() {
+    if (transTimerRef.current) { clearInterval(transTimerRef.current); transTimerRef.current = null; }
+    if (transRecorderRef.current && transRecorderRef.current.state === 'recording') transRecorderRef.current.stop();
+    if (transStreamRef.current) { transStreamRef.current.getTracks().forEach((t) => t.stop()); transStreamRef.current = null; }
+    if (transAudioCtxRef.current && transAudioCtxRef.current.state !== 'closed') {
+      try { transAudioCtxRef.current.close(); } catch { /* ignore */ }
+    }
+  }
+
+  function playTransAudio() {
+    if (!transAudioUrl) return;
+    if (!transAudioElemRef.current) {
+      transAudioElemRef.current = new Audio(transAudioUrl);
+      transAudioElemRef.current.onended = () => setTransPlaying(false);
+    } else {
+      transAudioElemRef.current.src = transAudioUrl;
+    }
+    transAudioElemRef.current.play();
+    setTransPlaying(true);
+  }
+
+  function stopTransPlayback() {
+    if (transAudioElemRef.current) {
+      transAudioElemRef.current.pause();
+      transAudioElemRef.current.currentTime = 0;
+    }
+    setTransPlaying(false);
+  }
+
+  function discardTransAudio() {
+    stopTransStreams();
+    if (transAudioUrl) { URL.revokeObjectURL(transAudioUrl); setTransAudioUrl(null); }
+    setTransBlob(null);
+    setTransState('idle');
+    setTransText(null);
+    setTransError('');
+    setTransPlaying(false);
+    setTransTimeLeft(transDuration);
+    setTransVolumeLevel(0);
+  }
+
+  async function retranscribeAudio() {
+    if (!transBlob) return;
+    setTransLoading(true);
+    setTransError('');
+    try {
+      const mimeType = (transRecorderRef.current?.mimeType || 'audio/webm').split(';')[0];
+      const text = await runTranscription(transBlob, mimeType);
+      setTransText(text || '(No speech detected in recorded audio)');
+    } catch (err) {
+      setTransError(errorText(err));
+    } finally {
+      setTransLoading(false);
+    }
+  }
+
+  function copyTranscriptText() {
+    if (!transText) return;
+    navigator.clipboard.writeText(transText).then(() => {
+      setTransCopied(true);
+      setTimeout(() => setTransCopied(false), 2000);
+    });
   }
 
   return (
@@ -540,12 +815,30 @@ export function DeviceTester() {
                       <Play size={15} /> Play Back Sound
                     </button>
                   )}
+                  <button type="button" className="text-button" onClick={() => void transcribeMicAudio()} disabled={micTranscribing} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    {micTranscribing ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} {micTranscribing ? 'Transcribing…' : 'Transcribe Audio'}
+                  </button>
                   <button type="button" className="text-button" onClick={discardMicAudio} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                     <RotateCcw size={14} /> Test Again
                   </button>
                 </>
               )}
             </div>
+
+            {micTranscript && (
+              <div style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', fontSize: 13 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, color: 'var(--accent)', marginBottom: 6 }}>
+                  <Sparkles size={14} /> Transcript Result:
+                </div>
+                <div style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>"{micTranscript}"</div>
+              </div>
+            )}
+
+            {micTranscriptError && (
+              <div className="error" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertCircle size={15} /> {micTranscriptError}
+              </div>
+            )}
 
             {micError && (
               <div className="error" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -663,12 +956,30 @@ export function DeviceTester() {
                       <Play size={15} /> Play Back System Sound
                     </button>
                   )}
+                  <button type="button" className="text-button" onClick={() => void transcribeSysAudio()} disabled={sysTranscribing} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    {sysTranscribing ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} {sysTranscribing ? 'Transcribing…' : 'Transcribe Audio'}
+                  </button>
                   <button type="button" className="text-button" onClick={discardSysAudio} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                     <RotateCcw size={14} /> Test Again
                   </button>
                 </>
               )}
             </div>
+
+            {sysTranscript && (
+              <div style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', fontSize: 13 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, color: 'var(--accent)', marginBottom: 6 }}>
+                  <Sparkles size={14} /> Transcript Result:
+                </div>
+                <div style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>"{sysTranscript}"</div>
+              </div>
+            )}
+
+            {sysTranscriptError && (
+              <div className="error" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertCircle size={15} /> {sysTranscriptError}
+              </div>
+            )}
 
             {sysError && (
               <div className="error" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -799,6 +1110,244 @@ export function DeviceTester() {
             <small style={{ color: 'var(--muted)' }}>
               Hardware indicator LED will automatically turn off as soon as the test stops or when leaving Settings.
             </small>
+          </div>
+        </div>
+      </section>
+
+      {/* 4. Audio Transcription Live Test */}
+      <section className="settings-section">
+        <div>
+          <h2>Audio transcription test</h2>
+          <p>Test if speech can be captured and converted to text via your selected microphone or system audio.</p>
+        </div>
+        <div className="settings-fields" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="device-card">
+            {/* Audio Source Mode Selection */}
+            <div className="device-select-row">
+              <label>
+                <Sliders size={14} /> Audio Input Mode
+              </label>
+              <div className="duration-pill-group">
+                <button
+                  type="button"
+                  className={`duration-pill-btn ${transSource === 'mic' ? 'active' : ''}`}
+                  disabled={transState === 'recording'}
+                  onClick={() => { setTransSource('mic'); discardTransAudio(); }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Mic size={13} /> Microphone (Voice)
+                </button>
+                <button
+                  type="button"
+                  className={`duration-pill-btn ${transSource === 'system' ? 'active' : ''}`}
+                  disabled={transState === 'recording'}
+                  onClick={() => { setTransSource('system'); discardTransAudio(); }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Radio size={13} /> System Audio IN (PC Sound)
+                </button>
+              </div>
+            </div>
+
+            {/* If Microphone: Device Picker Dropdown */}
+            {transSource === 'mic' && (
+              <div className="device-select-row">
+                <label htmlFor="trans-mic-select-dropdown">
+                  <Mic size={14} /> Select Microphone Device
+                </label>
+                <select
+                  id="trans-mic-select-dropdown"
+                  className="device-select-control"
+                  value={transMicId || selectedMicId}
+                  disabled={transState === 'recording'}
+                  onChange={(e) => setTransMicId(e.target.value)}
+                >
+                  {mics.length === 0 ? (
+                    <option value="">Default Microphone</option>
+                  ) : (
+                    mics.map((mic, idx) => (
+                      <option key={mic.deviceId || idx} value={mic.deviceId}>
+                        {mic.label || `Microphone ${idx + 1}`}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+            )}
+
+            {/* Header info & Timer */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: 10,
+                  background: transState === 'recording' ? 'var(--error-bg)' : 'var(--panel)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: transState === 'recording' ? 'var(--danger)' : 'var(--accent)'
+                }}>
+                  <Sparkles size={18} />
+                </div>
+                <div>
+                  <strong style={{ fontSize: 14 }}>
+                    {transSource === 'mic' ? 'Microphone Voice Transcription Test' : 'System Audio Loopback Transcription Test'}
+                  </strong>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    {transState === 'idle' && (transSource === 'mic' ? 'Speak a sentence to test speech recognition.' : 'Play a video or podcast to test system audio transcription.')}
+                    {transState === 'recording' && `Recording sound... (${transTimeLeft}s remaining)`}
+                    {transState === 'recorded' && (transLoading ? 'Transcribing speech to text...' : 'Transcription test finished.')}
+                  </div>
+                </div>
+              </div>
+
+              {transState === 'recording' && (
+                <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'monospace', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--danger)', animation: 'pulse 1s infinite' }} />
+                  0:{transTimeLeft < 10 ? `0${transTimeLeft}` : transTimeLeft}
+                </div>
+              )}
+            </div>
+
+            {/* Volume Meter */}
+            {transState === 'recording' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)' }}>
+                  <span>Input sound level</span>
+                  <span>{transVolumeLevel}%</span>
+                </div>
+                <div style={{ height: 8, background: 'var(--panel)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${Math.max(5, transVolumeLevel)}%`,
+                    background: transVolumeLevel > 60 ? 'var(--accent)' : 'var(--button)',
+                    borderRadius: 4,
+                    transition: 'width 80ms ease-out'
+                  }} />
+                </div>
+              </div>
+            )}
+
+            {/* Controls */}
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              {transState === 'idle' && (
+                <>
+                  <button type="button" className="primary" onClick={() => void startTransTest()} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <Sparkles size={15} /> Start {transDuration}s Transcript Test
+                  </button>
+
+                  <div className="duration-pill-group">
+                    <button
+                      type="button"
+                      className={`duration-pill-btn ${transDuration === 5 ? 'active' : ''}`}
+                      onClick={() => { setTransDuration(5); setTransTimeLeft(5); }}
+                    >
+                      5s
+                    </button>
+                    <button
+                      type="button"
+                      className={`duration-pill-btn ${transDuration === 10 ? 'active' : ''}`}
+                      onClick={() => { setTransDuration(10); setTransTimeLeft(10); }}
+                    >
+                      10s
+                    </button>
+                    <button
+                      type="button"
+                      className={`duration-pill-btn ${transDuration === 20 ? 'active' : ''}`}
+                      onClick={() => { setTransDuration(20); setTransTimeLeft(20); }}
+                    >
+                      20s
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {transState === 'recording' && (
+                <button type="button" className="danger-button" onClick={stopTransRecording} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <Square size={14} /> Stop & Transcribe Early
+                </button>
+              )}
+
+              {transState === 'recorded' && (
+                <>
+                  {transPlaying ? (
+                    <button type="button" className="primary" onClick={stopTransPlayback} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <Square size={14} /> Stop Audio Playback
+                    </button>
+                  ) : (
+                    <button type="button" className="primary" onClick={playTransAudio} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <Play size={15} /> Play Recorded Audio
+                    </button>
+                  )}
+                  <button type="button" className="text-button" onClick={() => void retranscribeAudio()} disabled={transLoading} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    {transLoading ? <Loader2 size={14} className="spin" /> : <RotateCcw size={14} />} {transLoading ? 'Transcribing…' : 'Re-transcribe'}
+                  </button>
+                  <button type="button" className="text-button" onClick={discardTransAudio} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <RotateCcw size={14} /> Test New Audio
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Transcript Result Box */}
+            {transLoading && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', background: 'var(--panel)', borderRadius: 10, border: '1px solid var(--border)', fontSize: 13 }}>
+                <Loader2 size={16} className="spin" color="var(--accent)" />
+                <span>Transcribing audio with configured AI connection...</span>
+              </div>
+            )}
+
+            {transText && !transLoading && (
+              <div style={{
+                background: 'var(--panel)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                padding: '16px 18px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>
+                    <Check size={14} /> TRANSCRIPTION RESULT ({transSource === 'mic' ? 'Microphone' : 'System Audio'})
+                  </div>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={copyTranscriptText}
+                    style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 8px' }}
+                  >
+                    {transCopied ? <><Check size={12} color="var(--accent)" /> Copied</> : <><Copy size={12} /> Copy</>}
+                  </button>
+                </div>
+                <div style={{
+                  fontSize: 14,
+                  lineHeight: 1.6,
+                  color: 'var(--text)',
+                  whiteSpace: 'pre-wrap',
+                  background: 'var(--surface)',
+                  padding: '12px 14px',
+                  borderRadius: 8,
+                  border: '1px solid var(--border)'
+                }}>
+                  {transText}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', gap: 16 }}>
+                  <span>Words: {transText.split(/\s+/).filter(Boolean).length}</span>
+                  <span>Characters: {transText.length}</span>
+                </div>
+              </div>
+            )}
+
+            {transError && (
+              <div className="error" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertCircle size={15} /> {transError}
+              </div>
+            )}
+
+            <div className="device-info-badge">
+              <ShieldCheck size={16} color="var(--accent)" style={{ flexShrink: 0, marginTop: 1 }} />
+              <div>
+                <strong>Audio Transcript Pipeline:</strong> Audio is processed using your configured Gemini or OpenAI transcription connection (or OpenAI-compatible whisper server) set in the <b>API Management</b> tab.
+              </div>
+            </div>
           </div>
         </div>
       </section>

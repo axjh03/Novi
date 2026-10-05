@@ -5,6 +5,7 @@ export const providers = {
   OPENAI: { name: 'OpenAI', kind: 'openai', baseUrl: 'https://api.openai.com/v1' },
   ANTHROPIC: { name: 'Anthropic / Claude', kind: 'anthropic', baseUrl: 'https://api.anthropic.com/v1' },
   GEMINI: { name: 'Google Gemini', kind: 'gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
+  KIMI: { name: 'Kimi (Moonshot AI)', kind: 'compatible', baseUrl: 'https://api.moonshot.cn/v1' },
 } as const;
 export class AccessError extends Error {
   constructor(message: string, public status = 400) { super(message); }

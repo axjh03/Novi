@@ -7,3 +7,4 @@ dist/
 *.log
 .npm-cache/
 .next/
+.DS_Store

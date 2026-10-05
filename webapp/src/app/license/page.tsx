@@ -1,11 +1,20 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowUpRight, Check, Copy, KeyRound, Lock, Mail, Shield, Sparkles, Building2, UserCheck } from 'lucide-react';
+import PublicNavbar from '@/components/PublicNavbar';
 
 export const metadata: Metadata = {
   title: 'Private License — Novi',
-  description: 'Novi is available exclusively via private license. Contact getnoviapp@outlook.com to request access.',
+  description: 'Novi is available exclusively via private license. Contact getnoviapp@outlook.com or DM @getnoviapp on Instagram to request access.',
 };
+
+const InstagramIcon = ({ size = 18 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+  </svg>
+);
 
 export default function LicensePage() {
   return (
@@ -18,41 +27,7 @@ export default function LicensePage() {
       flexDirection: 'column',
     }}>
       {/* Top Navigation */}
-      <header style={{
-        maxWidth: 1240,
-        width: '100%',
-        margin: '0 auto',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '24px 32px',
-        borderBottom: '1px solid #e5e5e5',
-      }}>
-        <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'inherit' }}>
-          <img src="/logo.svg" alt="Novi" width={32} height={32} style={{ borderRadius: 8 }} />
-          <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.8px' }}>novi<span style={{ color: '#888' }}>.</span></span>
-        </Link>
-
-        <nav style={{ display: 'flex', alignItems: 'center', gap: 24, fontSize: 13 }}>
-          <Link href="/" style={{ color: '#666', textDecoration: 'none' }}>Home</Link>
-          <Link href="/download" style={{ color: '#666', textDecoration: 'none' }}>Download</Link>
-          <Link href="/license" style={{ color: '#111', fontWeight: 600, textDecoration: 'none' }}>License</Link>
-          <Link href="/#signin" style={{
-            background: '#242424',
-            color: '#fff',
-            padding: '8px 16px',
-            borderRadius: 7,
-            textDecoration: 'none',
-            fontWeight: 500,
-            fontSize: 12,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-          }}>
-            Sign In <ArrowUpRight size={14} />
-          </Link>
-        </nav>
-      </header>
+      <PublicNavbar active="license" />
 
       {/* Main Content */}
       <main style={{ maxWidth: 840, width: '100%', margin: '0 auto', padding: '60px 24px 90px', flex: 1 }}>
@@ -107,46 +82,101 @@ export default function LicensePage() {
           </div>
 
           <h2 style={{ fontSize: 24, fontWeight: 600, margin: '0 0 10px' }}>Request a Private License</h2>
-          <p style={{ fontSize: 14, color: '#666', lineHeight: 1.6, maxWidth: 520, margin: '0 auto 24px' }}>
-            We provision licenses directly for individual professionals and engineering organizations. Send us an email with your organization or intended use case:
+          <p style={{ fontSize: 14, color: '#666', lineHeight: 1.6, maxWidth: 540, margin: '0 auto 28px' }}>
+            We provision licenses directly for individual professionals and engineering organizations. Reach out via email or direct message on Instagram:
           </p>
 
+          {/* Two Channel Cards: Email & Instagram */}
           <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 12,
-            background: '#f5f5f5',
-            border: '1px solid #e2e2e2',
-            borderRadius: 10,
-            padding: '12px 20px',
-            marginBottom: 24,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: 16,
+            maxWidth: 640,
+            margin: '0 auto 24px',
+            textAlign: 'left',
           }}>
-            <span style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 600, color: '#111' }}>
-              getnoviapp@outlook.com
-            </span>
+            {/* Email Channel */}
+            <div style={{
+              background: '#fafafa',
+              border: '1px solid #e2e2e2',
+              borderRadius: 12,
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600, color: '#666', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                  <Mail size={14} color="#111" /> Official Email
+                </div>
+                <div style={{ fontFamily: 'monospace', fontSize: 15, fontWeight: 700, color: '#111', marginBottom: 14 }}>
+                  getnoviapp@outlook.com
+                </div>
+              </div>
+              <a
+                href="mailto:getnoviapp@outlook.com?subject=Novi%20Private%20License%20Inquiry"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  background: '#1c1c1c',
+                  color: '#fff',
+                  padding: '11px 20px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                }}
+              >
+                Send Email <ArrowUpRight size={15} />
+              </a>
+            </div>
+
+            {/* Instagram Channel */}
+            <div style={{
+              background: '#fafafa',
+              border: '1px solid #e2e2e2',
+              borderRadius: 12,
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600, color: '#666', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                  <InstagramIcon size={14} /> Official Instagram
+                </div>
+                <div style={{ fontFamily: 'monospace', fontSize: 15, fontWeight: 700, color: '#111', marginBottom: 14 }}>
+                  @getnoviapp
+                </div>
+              </div>
+              <a
+                href="https://instagram.com/getnoviapp"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)',
+                  color: '#fff',
+                  padding: '11px 20px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  boxShadow: '0 2px 10px rgba(220, 39, 67, 0.25)',
+                }}
+              >
+                Message @getnoviapp <ArrowUpRight size={15} />
+              </a>
+            </div>
           </div>
 
-          <div>
-            <a
-              href="mailto:getnoviapp@outlook.com?subject=Novi%20Private%20License%20Inquiry"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                background: '#1c1c1c',
-                color: '#fff',
-                padding: '13px 28px',
-                borderRadius: 8,
-                fontSize: 14,
-                fontWeight: 600,
-                textDecoration: 'none',
-              }}
-            >
-              Email Us to Request Access <ArrowUpRight size={16} />
-            </a>
-          </div>
-          <div style={{ fontSize: 12, color: '#999', marginTop: 14 }}>
-            Inquiries are typically reviewed and fulfilled within 24 hours.
+          <div style={{ fontSize: 12, color: '#888' }}>
+            Inquiries received via email or Instagram are reviewed and fulfilled within 24 hours.
           </div>
         </div>
 
@@ -228,19 +258,30 @@ export default function LicensePage() {
               </div>
             </div>
           </div>
+
+          <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <span style={{ fontSize: 13, color: '#666' }}>Want to see the complete guide with interactive email templates and offline grace details?</span>
+            <Link
+              href="/how-it-works"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#111',
+                textDecoration: 'none',
+                background: '#f4f4f5',
+                padding: '6px 14px',
+                borderRadius: 6,
+              }}
+            >
+              Read Full Licensing Guide <ArrowUpRight size={14} />
+            </Link>
+          </div>
         </div>
       </main>
 
-      {/* Footer */}
-      <footer style={{
-        borderTop: '1px solid #e5e5e5',
-        padding: '28px 32px',
-        textAlign: 'center',
-        fontSize: 12,
-        color: '#888',
-      }}>
-        Novi — Private, bring-your-own-key AI desktop companion. Inquiries: <a href="mailto:getnoviapp@outlook.com" style={{ color: '#555', textDecoration: 'underline' }}>getnoviapp@outlook.com</a>
-      </footer>
     </div>
   );
 }

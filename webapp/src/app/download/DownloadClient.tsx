@@ -2,10 +2,14 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import PublicNavbar from '@/components/PublicNavbar';
+import TuxPenguinLogo from '@/components/TuxPenguinLogo';
 import {
   ArrowUpRight,
   Calendar,
+  Check,
   CheckCircle2,
+  Copy,
   Download,
   ExternalLink,
   ShieldCheck,
@@ -73,6 +77,29 @@ function timeAgo(dateStr: string): string {
 export default function DownloadClient({ initialRelease }: { initialRelease: ReleaseData }) {
   const [release, setRelease] = useState<ReleaseData>(initialRelease);
   const [isLiveFromGitHub, setIsLiveFromGitHub] = useState(false);
+  const [detectedOS, setDetectedOS] = useState<'mac' | 'windows' | 'linux'>('mac');
+  const [hoveredOS, setHoveredOS] = useState<'mac' | 'windows' | 'linux' | null>(null);
+  const [copiedMirror, setCopiedMirror] = useState<string | null>(null);
+
+  const copyMirrorUrl = (url: string, id: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedMirror(id);
+    setTimeout(() => setCopiedMirror(null), 2000);
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const ua = window.navigator.userAgent.toLowerCase();
+      if (ua.includes('win')) setDetectedOS('windows');
+      else if (ua.includes('linux') || ua.includes('x11')) setDetectedOS('linux');
+      else setDetectedOS('mac');
+    }
+  }, []);
+
+  const isDark = (p: 'mac' | 'windows' | 'linux') => {
+    if (hoveredOS) return hoveredOS === p;
+    return detectedOS === p;
+  };
 
   useEffect(() => {
     // Attempt to sync latest live release directly from GitHub Releases API
@@ -152,41 +179,7 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
       flexDirection: 'column',
     }}>
       {/* Top Navigation */}
-      <header style={{
-        maxWidth: 1240,
-        width: '100%',
-        margin: '0 auto',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '24px 32px',
-        borderBottom: '1px solid #e5e5e5',
-      }}>
-        <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'inherit' }}>
-          <img src="/logo.svg" alt="Novi" width={32} height={32} style={{ borderRadius: 8 }} />
-          <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.8px' }}>novi<span style={{ color: '#888' }}>.</span></span>
-        </Link>
-
-        <nav style={{ display: 'flex', alignItems: 'center', gap: 24, fontSize: 13 }}>
-          <Link href="/" style={{ color: '#666', textDecoration: 'none' }}>Home</Link>
-          <Link href="/download" style={{ color: '#111', fontWeight: 600, textDecoration: 'none' }}>Download</Link>
-          <Link href="/license" style={{ color: '#666', textDecoration: 'none' }}>License</Link>
-          <Link href="/#signin" style={{
-            background: '#242424',
-            color: '#fff',
-            padding: '8px 16px',
-            borderRadius: 7,
-            textDecoration: 'none',
-            fontWeight: 500,
-            fontSize: 12,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-          }}>
-            Sign In <ArrowUpRight size={14} />
-          </Link>
-        </nav>
-      </header>
+      <PublicNavbar active="download" />
 
       {/* Main Content */}
       <main style={{ maxWidth: 1100, width: '100%', margin: '0 auto', padding: '60px 24px 80px', flex: 1 }}>
@@ -261,300 +254,549 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
         {/* Platform Cards Grid */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))',
-          gap: 24,
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: 28,
           marginBottom: 50,
         }}>
           {/* macOS Card */}
-          <div id="mac" style={{
-            background: '#fff',
-            border: '1px solid #e2e2e2',
-            borderRadius: 14,
-            padding: '36px 28px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
-            position: 'relative',
-          }}>
-            <div style={{
-              position: 'absolute',
-              top: 20,
-              right: 20,
-              background: '#f2f2f2',
-              color: '#555',
-              fontSize: 10,
-              fontWeight: 600,
-              padding: '3px 8px',
-              borderRadius: 5,
-            }}>
-              RECOMMENDED
-            </div>
-            <div>
-              {/* Apple SVG Logo */}
-              <div style={{
-                width: 48,
-                height: 48,
-                borderRadius: 12,
-                background: '#181818',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 20,
-                color: '#fff',
-              }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.84c.64-.78 1.08-1.86.96-2.95-1 .04-2.13.67-2.79 1.45-.58.67-1.1 1.77-.96 2.84 1.12.09 2.15-.56 2.79-1.34z"/>
-                </svg>
-              </div>
-
-              <h2 style={{ fontSize: 21, fontWeight: 600, margin: '0 0 8px' }}>macOS</h2>
-              <p style={{ fontSize: 13, color: '#777', margin: '0 0 20px', lineHeight: 1.5 }}>
-                Native build for Apple Silicon (M1/M2/M3/M4) and Intel Macs.
-              </p>
-
-              <div style={{ fontSize: 12, color: '#555', marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div>• Format: <b>.dmg</b> installer</div>
-                <div>• Version: <b>{release.version}</b></div>
-                <div>• macOS 11.0 (Big Sur) or later</div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <a
-                href={release.downloads.macArm64}
-                download
+          {(() => {
+            const dark = isDark('mac');
+            return (
+              <div
+                id="mac"
+                onMouseEnter={() => setHoveredOS('mac')}
+                onMouseLeave={() => setHoveredOS(null)}
+                onClick={() => setDetectedOS('mac')}
                 style={{
+                  background: dark ? '#0d0d10' : '#fafafc',
+                  border: dark ? '1px solid #27272a' : '1px solid #e4e4e7',
+                  borderRadius: 18,
+                  padding: '38px 30px',
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  background: '#1a1a1a',
-                  color: '#fff',
-                  padding: '12px 18px',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  textDecoration: 'none',
-                  textAlign: 'center',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  boxShadow: dark ? '0 20px 48px -12px rgba(0,0,0,0.35)' : '0 2px 10px rgba(0,0,0,0.02)',
+                  transform: dark ? 'translateY(-4px)' : 'translateY(0)',
+                  transition: 'all 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+                  position: 'relative',
+                  cursor: 'pointer',
+                  opacity: dark ? 1 : 0.88,
                 }}
               >
-                <Download size={16} /> Download .dmg (Apple Silicon)
-              </a>
+                {detectedOS === 'mac' && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 18,
+                    right: 20,
+                    background: dark ? '#27272a' : '#f0f0f2',
+                    color: dark ? '#f4f4f5' : '#52525b',
+                    border: dark ? '1px solid #3f3f46' : '1px solid #e4e4e7',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    padding: '4px 10px',
+                    borderRadius: 20,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
+                    YOUR SYSTEM
+                  </div>
+                )}
 
-              <a
-                href={release.downloads.macX64}
-                download
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  background: '#f4f4f4',
-                  color: '#333',
-                  border: '1px solid #ddd',
-                  padding: '9px 14px',
-                  borderRadius: 7,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  textDecoration: 'none',
-                  textAlign: 'center',
-                }}
-              >
-                Download for Intel Mac (.dmg)
-              </a>
+                <div>
+                  {/* Big Apple SVG Logo */}
+                  <div style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 20,
+                    background: dark ? '#18181b' : '#f4f4f5',
+                    border: dark ? '1px solid #27272a' : '1px solid #e4e4e7',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 24,
+                    color: dark ? '#ffffff' : '#52525b',
+                    transition: 'all 0.28s ease',
+                  }}>
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.84c.64-.78 1.08-1.86.96-2.95-1 .04-2.13.67-2.79 1.45-.58.67-1.1 1.77-.96 2.84 1.12.09 2.15-.56 2.79-1.34z" />
+                    </svg>
+                  </div>
 
-              <div style={{ fontSize: 11, color: '#999', textAlign: 'center', marginTop: 4 }}>
-                Build: {release.fileNames.macArm64}
+                  <h2 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 6px', color: dark ? '#ffffff' : '#18181b', transition: 'color 0.28s ease' }}>
+                    macOS
+                  </h2>
+                  <p style={{ fontSize: 13, color: dark ? '#a1a1aa' : '#71717a', margin: '0 0 26px', transition: 'color 0.28s ease' }}>
+                    Apple Silicon (M1/M2/M3/M4) & Intel
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <a
+                    href={release.downloads.macArm64}
+                    download
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      background: dark ? '#ffffff' : '#18181b',
+                      color: dark ? '#09090b' : '#ffffff',
+                      padding: '13px 20px',
+                      borderRadius: 10,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      textDecoration: 'none',
+                      textAlign: 'center',
+                      boxShadow: dark ? '0 4px 16px rgba(255,255,255,0.18)' : 'none',
+                      transition: 'all 0.28s ease',
+                    }}
+                  >
+                    <Download size={16} /> Download .dmg (Apple Silicon)
+                  </a>
+
+                  <a
+                    href={release.downloads.macX64}
+                    download
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      background: dark ? '#18181b' : 'transparent',
+                      color: dark ? '#d4d4d8' : '#71717a',
+                      border: dark ? '1px solid #27272a' : '1px solid #e4e4e7',
+                      padding: '10px 16px',
+                      borderRadius: 9,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      textDecoration: 'none',
+                      textAlign: 'center',
+                      transition: 'all 0.28s ease',
+                    }}
+                  >
+                    Download for Intel Mac (.dmg)
+                  </a>
+                </div>
               </div>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Windows Card */}
-          <div id="windows" style={{
-            background: '#fff',
-            border: '1px solid #e2e2e2',
-            borderRadius: 14,
-            padding: '36px 28px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
-          }}>
-            <div>
-              {/* Windows SVG Logo */}
-              <div style={{
-                width: 48,
-                height: 48,
-                borderRadius: 12,
-                background: '#0078d4',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 20,
-                color: '#fff',
-              }}>
-                <svg width="22" height="22" viewBox="0 0 88 88" fill="currentColor">
-                  <path d="M0 12.402l35.689-4.86.016 34.423-35.67.203zm35.67 33.529l.028 34.453L.028 75.48.016 45.728zm4.326-39.027L87.914 0v41.525l-47.918.275zm47.918 43.665L87.914 88l-47.918-6.766V46.068z"/>
-                </svg>
-              </div>
-
-              <h2 style={{ fontSize: 21, fontWeight: 600, margin: '0 0 8px' }}>Windows</h2>
-              <p style={{ fontSize: 13, color: '#777', margin: '0 0 20px', lineHeight: 1.5 }}>
-                Standard NSIS executable installer with desktop shortcut and start menu integration.
-              </p>
-
-              <div style={{ fontSize: 12, color: '#555', marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div>• Format: <b>.exe</b> (NSIS installer)</div>
-                <div>• Architecture: <b>64-bit (x64)</b></div>
-                <div>• Windows 10 / Windows 11</div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <a
-                href={release.downloads.windows}
-                download
+          {(() => {
+            const dark = isDark('windows');
+            return (
+              <div
+                id="windows"
+                onMouseEnter={() => setHoveredOS('windows')}
+                onMouseLeave={() => setHoveredOS(null)}
+                onClick={() => setDetectedOS('windows')}
                 style={{
+                  background: dark ? '#0d0d10' : '#fafafc',
+                  border: dark ? '1px solid #27272a' : '1px solid #e4e4e7',
+                  borderRadius: 18,
+                  padding: '38px 30px',
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  background: '#1a1a1a',
-                  color: '#fff',
-                  padding: '12px 18px',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  textDecoration: 'none',
-                  textAlign: 'center',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  boxShadow: dark ? '0 20px 48px -12px rgba(0,0,0,0.35)' : '0 2px 10px rgba(0,0,0,0.02)',
+                  transform: dark ? 'translateY(-4px)' : 'translateY(0)',
+                  transition: 'all 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+                  position: 'relative',
+                  cursor: 'pointer',
+                  opacity: dark ? 1 : 0.88,
                 }}
               >
-                <Download size={16} /> Download .exe (Installer)
-              </a>
+                {detectedOS === 'windows' && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 18,
+                    right: 20,
+                    background: dark ? '#27272a' : '#f0f0f2',
+                    color: dark ? '#f4f4f5' : '#52525b',
+                    border: dark ? '1px solid #3f3f46' : '1px solid #e4e4e7',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    padding: '4px 10px',
+                    borderRadius: 20,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
+                    YOUR SYSTEM
+                  </div>
+                )}
 
-              <div style={{ fontSize: 11, color: '#999', textAlign: 'center', marginTop: 12 }}>
-                Build: {release.fileNames.windows}
+                <div>
+                  {/* Big Windows SVG Logo */}
+                  <div style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 20,
+                    background: dark ? '#0078d4' : '#edf5fd',
+                    border: dark ? '1px solid #0078d4' : '1px solid #d0e5fb',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 24,
+                    color: dark ? '#ffffff' : '#0078d4',
+                    transition: 'all 0.28s ease',
+                  }}>
+                    <svg width="36" height="36" viewBox="0 0 88 88" fill="currentColor">
+                      <path d="M0 12.402l35.689-4.86.016 34.423-35.67.203zm35.67 33.529l.028 34.453L.028 75.48.016 45.728zm4.326-39.027L87.914 0v41.525l-47.918.275zm47.918 43.665L87.914 88l-47.918-6.766V46.068z" />
+                    </svg>
+                  </div>
+
+                  <h2 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 6px', color: dark ? '#ffffff' : '#18181b', transition: 'color 0.28s ease' }}>
+                    Windows
+                  </h2>
+                  <p style={{ fontSize: 13, color: dark ? '#a1a1aa' : '#71717a', margin: '0 0 26px', transition: 'color 0.28s ease' }}>
+                    Windows 10 / Windows 11 (64-bit)
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <a
+                    href={release.downloads.windows}
+                    download
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      background: dark ? '#ffffff' : '#18181b',
+                      color: dark ? '#09090b' : '#ffffff',
+                      padding: '13px 20px',
+                      borderRadius: 10,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      textDecoration: 'none',
+                      textAlign: 'center',
+                      boxShadow: dark ? '0 4px 16px rgba(255,255,255,0.18)' : 'none',
+                      transition: 'all 0.28s ease',
+                    }}
+                  >
+                    <Download size={16} /> Download .exe (Installer)
+                  </a>
+                </div>
               </div>
-            </div>
-          </div>
+            );
+          })()}
 
-          {/* Debian / Linux Card */}
-          <div id="debian" style={{
-            background: '#fff',
-            border: '1px solid #e2e2e2',
-            borderRadius: 14,
-            padding: '36px 28px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
-          }}>
-            <div>
-              {/* Debian SVG Logo */}
-              <div style={{
-                width: 48,
-                height: 48,
-                borderRadius: 12,
-                background: '#d70a53',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 20,
-                color: '#fff',
-              }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M13.88 12.685c-.4 0 .08.2.601.28.14-.1.27-.22.39-.33a3.001 3.001 0 01-.99.05m2.14-.53c.23-.33.4-.69.47-1.06-.06.27-.2.5-.33.73-.75.47-.07-.27 0-.56-.8 1.01-.11.6-.14.89m.781-2.05c.05-.721-.14-.501-.2-.221.07.04.13.5.2.22M12.38.31c.2.04.45.07.42.12.23-.05.28-.1-.43-.12m.43.12l-.15.03.14-.01V.43m6.633 9.944c.02.64-.2.95-.38 1.5l-.35.181c-.28.54.03.35-.17.78-.44.39-1.34 1.22-1.62 1.301-.201 0 .14-.25.19-.34-.591.4-.481.6-1.371.85l-.03-.06c-2.221 1.04-5.303-1.02-5.253-3.842-.03.17-.07.13-.12.2a3.551 3.552 0 012.001-3.501 3.361 3.362 0 013.732.48 3.341 3.342 0 00-2.721-1.3c-1.18.01-2.281.76-2.651 1.57-.6.38-.67 1.47-.93 1.661-.361 2.601.66 3.722 2.38 5.042.27.19.08.21.12.35a4.702 4.702 0 01-1.53-1.16c.23.33.47.66.8.91-.55-.18-1.27-1.3-1.48-1.35.93 1.66 3.78 2.921 5.261 2.3a6.203 6.203 0 01-2.33-.28c-.33-.16-.77-.51-.7-.57a5.802 5.803 0 005.902-.84c.44-.35.93-.94 1.07-.95-.2.32.04.16-.12.44.44-.72-.2-.3.46-1.24l.24.33c-.09-.6.74-1.321.66-2.262.19-.3.2.3 0 .97.29-.74.08-.85.15-1.46.08.2.18.42.23.63-.18-.7.2-1.2.28-1.6-.09-.05-.28.3-.32-.53 0-.37.1-.2.14-.28-.08-.05-.26-.32-.38-.861.08-.13.22.33.34.34-.08-.42-.2-.75-.2-1.08-.34-.68-.12.1-.4-.3-.34-1.091.3-.25.34-.74.54.77.84 1.96.981 2.46-.1-.6-.28-1.2-.49-1.76.16.07-.26-1.241.21-.37A7.823 7.824 0 0017.702 1.6c.18.17.42.39.33.42-.75-.45"/>
-                </svg>
-              </div>
-
-              <h2 style={{ fontSize: 21, fontWeight: 600, margin: '0 0 8px' }}>Debian / Ubuntu</h2>
-              <p style={{ fontSize: 13, color: '#777', margin: '0 0 20px', lineHeight: 1.5 }}>
-                Native Debian package for Ubuntu, Linux Mint, Debian, and derivatives.
-              </p>
-
-              <div style={{ fontSize: 12, color: '#555', marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div>• Format: <b>.deb</b> (and portable .AppImage)</div>
-                <div>• Architecture: <b>64-bit (x64)</b></div>
-                <div>• Debian 11+ / Ubuntu 20.04 LTS+</div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <a
-                href={release.downloads.linuxDeb}
-                download
+          {/* Linux Card */}
+          {(() => {
+            const dark = isDark('linux');
+            return (
+              <div
+                id="linux"
+                onMouseEnter={() => setHoveredOS('linux')}
+                onMouseLeave={() => setHoveredOS(null)}
+                onClick={() => setDetectedOS('linux')}
                 style={{
+                  background: dark ? '#0d0d10' : '#fafafc',
+                  border: dark ? '1px solid #27272a' : '1px solid #e4e4e7',
+                  borderRadius: 18,
+                  padding: '38px 30px',
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  background: '#1a1a1a',
-                  color: '#fff',
-                  padding: '12px 18px',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  textDecoration: 'none',
-                  textAlign: 'center',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  boxShadow: dark ? '0 20px 48px -12px rgba(0,0,0,0.35)' : '0 2px 10px rgba(0,0,0,0.02)',
+                  transform: dark ? 'translateY(-4px)' : 'translateY(0)',
+                  transition: 'all 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+                  position: 'relative',
+                  cursor: 'pointer',
+                  opacity: dark ? 1 : 0.88,
                 }}
               >
-                <Download size={16} /> Download .deb
-              </a>
+                {detectedOS === 'linux' && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 18,
+                    right: 20,
+                    background: dark ? '#27272a' : '#f0f0f2',
+                    color: dark ? '#f4f4f5' : '#52525b',
+                    border: dark ? '1px solid #3f3f46' : '1px solid #e4e4e7',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    padding: '4px 10px',
+                    borderRadius: 20,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
+                    YOUR SYSTEM
+                  </div>
+                )}
 
-              <a
-                href={release.downloads.linuxAppImage}
-                download
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  background: '#f4f4f4',
-                  color: '#333',
-                  border: '1px solid #ddd',
-                  padding: '9px 14px',
-                  borderRadius: 7,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  textDecoration: 'none',
-                  textAlign: 'center',
-                }}
-              >
-                Download .AppImage
-              </a>
+                <div>
+                  {/* Big Linux Tux Penguin SVG Logo */}
+                  <div style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 20,
+                    background: dark ? '#f59e0b' : '#fffbeb',
+                    border: dark ? '1px solid #f59e0b' : '1px solid #fef3c7',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 24,
+                    color: dark ? '#09090b' : '#d97706',
+                    transition: 'all 0.28s ease',
+                  }}>
+                    <TuxPenguinLogo size={42} />
+                  </div>
 
-              <div style={{ fontSize: 11, color: '#999', textAlign: 'center', marginTop: 4 }}>
-                Build: {release.fileNames.linuxDeb}
+                  <h2 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 6px', color: dark ? '#ffffff' : '#18181b', transition: 'color 0.28s ease' }}>
+                    Linux
+                  </h2>
+                  <p style={{ fontSize: 13, color: dark ? '#a1a1aa' : '#71717a', margin: '0 0 26px', transition: 'color 0.28s ease' }}>
+                    Ubuntu, Debian, Mint & AppImage
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <a
+                    href={release.downloads.linuxDeb}
+                    download
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      background: dark ? '#ffffff' : '#18181b',
+                      color: dark ? '#09090b' : '#ffffff',
+                      padding: '13px 20px',
+                      borderRadius: 10,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      textDecoration: 'none',
+                      textAlign: 'center',
+                      boxShadow: dark ? '0 4px 16px rgba(255,255,255,0.18)' : 'none',
+                      transition: 'all 0.28s ease',
+                    }}
+                  >
+                    <Download size={16} /> Download .deb (Debian / Ubuntu)
+                  </a>
+
+                  <a
+                    href={release.downloads.linuxAppImage}
+                    download
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      background: dark ? '#18181b' : 'transparent',
+                      color: dark ? '#d4d4d8' : '#71717a',
+                      border: dark ? '1px solid #27272a' : '1px solid #e4e4e7',
+                      padding: '10px 16px',
+                      borderRadius: 9,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      textDecoration: 'none',
+                      textAlign: 'center',
+                      transition: 'all 0.28s ease',
+                    }}
+                  >
+                    Download .AppImage (Universal)
+                  </a>
+                </div>
               </div>
-            </div>
-          </div>
+            );
+          })()}
         </div>
 
-        {/* GitHub Releases Link Card */}
+        {/* Direct Download Mirrors & GitHub CDN Assets */}
         <div style={{
-          textAlign: 'center',
-          marginBottom: 40,
+          background: '#ffffff',
+          border: '1px solid #e2e2e2',
+          borderRadius: 14,
+          padding: '28px 28px',
+          marginBottom: 36,
+          boxShadow: '0 2px 12px rgba(0,0,0,0.02)',
         }}>
-          <a
-            href={githubReleasesUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: 13,
-              color: '#555',
-              textDecoration: 'none',
-              fontWeight: 500,
-              padding: '6px 14px',
-              borderRadius: 6,
-              background: '#f0f0f0',
-            }}
-          >
-            <Tag size={14} /> View all releases, tags & full changelog on GitHub <ExternalLink size={13} />
-          </a>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 14,
+            marginBottom: 20,
+            paddingBottom: 16,
+            borderBottom: '1px solid #f0f0f0',
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 17, fontWeight: 700, color: '#111' }}>
+                <ExternalLink size={18} color="#0078d4" /> Direct GitHub Release Mirrors
+              </div>
+              <p style={{ fontSize: 13, color: '#666', margin: '4px 0 0' }}>
+                Direct binary download links hosted on GitHub Releases CDN. Fast, resumable, and zero rate-limits.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <a
+                href={`https://github.com/${repoSlug}/releases/tag/${release.releaseTag}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#111',
+                  background: '#f4f4f5',
+                  border: '1px solid #e4e4e7',
+                  padding: '7px 14px',
+                  borderRadius: 8,
+                  textDecoration: 'none',
+                }}
+              >
+                Release {release.releaseTag} <ArrowUpRight size={13} />
+              </a>
+              <a
+                href={githubReleasesUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#666',
+                  textDecoration: 'none',
+                }}
+              >
+                All Releases <ExternalLink size={13} />
+              </a>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              {
+                platform: 'macOS Apple Silicon',
+                arch: 'arm64',
+                filename: release.fileNames.macArm64,
+                url: release.downloads.macArm64,
+                badge: '.dmg installer',
+              },
+              {
+                platform: 'macOS Intel',
+                arch: 'x64',
+                filename: release.fileNames.macX64,
+                url: release.downloads.macX64,
+                badge: '.dmg installer',
+              },
+              {
+                platform: 'Windows 10 / 11',
+                arch: 'x64',
+                filename: release.fileNames.windows,
+                url: release.downloads.windows,
+                badge: 'NSIS .exe',
+              },
+              {
+                platform: 'Linux (Ubuntu / Debian / Mint)',
+                arch: 'amd64',
+                filename: release.fileNames.linuxDeb,
+                url: release.downloads.linuxDeb,
+                badge: '.deb package',
+              },
+              {
+                platform: 'Linux Universal',
+                arch: 'x64',
+                filename: release.fileNames.linuxAppImage,
+                url: release.downloads.linuxAppImage,
+                badge: '.AppImage binary',
+              },
+            ].map((mirror) => (
+              <div
+                key={mirror.filename}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  background: '#fafafa',
+                  border: '1px solid #eaeaea',
+                  borderRadius: 8,
+                  gap: 12,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 260 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{mirror.platform}</span>
+                  <span style={{ fontSize: 11, background: '#eee', padding: '2px 8px', borderRadius: 4, color: '#555', fontFamily: 'monospace' }}>
+                    {mirror.badge}
+                  </span>
+                </div>
+
+                <div style={{
+                  flex: 1,
+                  minWidth: 200,
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: '#555',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {mirror.filename}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => copyMirrorUrl(mirror.url, mirror.filename)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      background: copiedMirror === mirror.filename ? '#15803d' : '#ffffff',
+                      color: copiedMirror === mirror.filename ? '#ffffff' : '#444444',
+                      border: '1px solid #d4d4d8',
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {copiedMirror === mirror.filename ? <Check size={12} /> : <Copy size={12} />}
+                    {copiedMirror === mirror.filename ? 'Copied' : 'Copy Mirror URL'}
+                  </button>
+
+                  <a
+                    href={mirror.url}
+                    download
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      background: '#18181b',
+                      color: '#ffffff',
+                      padding: '6px 14px',
+                      borderRadius: 6,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <Download size={12} /> Direct Download
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Private License Notice Banner */}
@@ -588,7 +830,7 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
                 Desktop Access Requires a Private License Key
               </div>
               <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
-                Novi is currently in private release. You will be prompted to enter your license key on first launch.
+                Novi is only in private release. You will be prompted to enter your license key on first launch.
               </div>
             </div>
           </div>
@@ -614,16 +856,6 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
         </div>
       </main>
 
-      {/* Footer */}
-      <footer style={{
-        borderTop: '1px solid #e5e5e5',
-        padding: '28px 32px',
-        textAlign: 'center',
-        fontSize: 12,
-        color: '#888',
-      }}>
-        Novi — Private, bring-your-own-key AI desktop companion.
-      </footer>
     </div>
   );
 }
