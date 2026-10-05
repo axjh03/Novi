@@ -102,61 +102,26 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
   };
 
   useEffect(() => {
-    // Attempt to sync latest live release directly from GitHub Releases API
-    const repoSlug = initialRelease.repo || 'axjh03/Astra';
-    fetch(`https://api.github.com/repos/${repoSlug}/releases/latest`, {
-      headers: { Accept: 'application/vnd.github.v3+json' }
-    })
+    // Attempt to sync latest live release dynamically from our backend API
+    fetch('/api/releases/latest')
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
-      .then((data) => {
-        if (!data || !data.tag_name) return;
-
-        const tagName = String(data.tag_name);
-        const version = tagName.replace(/^v/, '');
-        const publishedDate = data.published_at ? formatDate(data.published_at) : initialRelease.releaseDate;
-        const updatedAt = data.published_at || initialRelease.updatedAt;
-
-        // Map live assets if available
-        const downloads: ReleaseAssetInfo = { ...initialRelease.downloads };
-        const fileNames = { ...initialRelease.fileNames };
-
-        if (Array.isArray(data.assets)) {
-          for (const asset of data.assets) {
-            const name = String(asset.name || '');
-            const downloadUrl = asset.browser_download_url;
-
-            if (name.endsWith('.dmg')) {
-              if (name.includes('arm64')) {
-                downloads.macArm64 = downloadUrl;
-                fileNames.macArm64 = name;
-              } else {
-                downloads.macX64 = downloadUrl;
-                fileNames.macX64 = name;
-              }
-            } else if (name.endsWith('.exe')) {
-              downloads.windows = downloadUrl;
-              fileNames.windows = name;
-            } else if (name.endsWith('.deb')) {
-              downloads.linuxDeb = downloadUrl;
-              fileNames.linuxDeb = name;
-            } else if (name.endsWith('.AppImage')) {
-              downloads.linuxAppImage = downloadUrl;
-              fileNames.linuxAppImage = name;
-            }
-          }
-        }
+      .then((json) => {
+        if (!json || !json.data || !json.data.releaseTag) return;
+        const d = json.data;
 
         setRelease((prev) => ({
           ...prev,
-          version,
-          releaseTag: tagName,
-          releaseDate: publishedDate,
-          updatedAt,
-          downloads,
-          fileNames
+          version: d.version,
+          releaseTag: d.releaseTag,
+          releaseDate: d.releaseDate,
+          updatedAt: d.updatedAt,
+          repo: d.repo || 'axjh03/Novi',
+          releaseNotes: d.releaseNotes,
+          downloads: d.downloads || prev.downloads,
+          fileNames: d.fileNames || prev.fileNames,
         }));
         setIsLiveFromGitHub(true);
       })
@@ -166,7 +131,7 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
   }, [initialRelease]);
 
   const relativeTime = timeAgo(release.updatedAt);
-  const repoSlug = release.repo || 'axjh03/Astra';
+  const repoSlug = release.repo || 'axjh03/Novi';
   const githubReleasesUrl = `https://github.com/${repoSlug}/releases`;
 
   return (

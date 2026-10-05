@@ -1,23 +1,23 @@
 {
-  "version": "0.1.1",
-  "buildNumber": 2,
-  "releaseTag": "v0.1.1",
+  "version": "0.1.2",
+  "buildNumber": 3,
+  "releaseTag": "v0.1.2",
   "releaseDate": "October 5, 2026",
-  "updatedAt": "2026-10-05T22:04:29.132Z",
+  "updatedAt": "2026-10-05T22:33:42.000Z",
   "repo": "axjh03/Novi",
-  "releaseNotes": "Hello World",
+  "releaseNotes": "Release v0.1.2 — Automated multi-platform build (macOS Apple Silicon/Intel, Windows x64, Linux Debian/Ubuntu/AppImage).",
   "downloads": {
-    "macArm64": "https://github.com/axjh03/Novi/releases/download/v0.1.1/Novi-0.1.1-arm64.dmg",
-    "macX64": "https://github.com/axjh03/Novi/releases/download/v0.1.1/Novi-0.1.1-x64.dmg",
-    "windows": "https://github.com/axjh03/Novi/releases/download/v0.1.1/Novi-Setup-0.1.1.exe",
-    "linuxDeb": "https://github.com/axjh03/Novi/releases/download/v0.1.1/novi_0.1.1_amd64.deb",
-    "linuxAppImage": "https://github.com/axjh03/Novi/releases/download/v0.1.1/Novi-0.1.1.AppImage"
+    "macArm64": "/api/download?asset=mac-arm64",
+    "macX64": "/api/download?asset=mac-x64",
+    "windows": "/api/download?asset=windows",
+    "linuxDeb": "/api/download?asset=linux-deb",
+    "linuxAppImage": "/api/download?asset=linux-appimage"
   },
   "fileNames": {
     "macArm64": "Novi-0.1.1-arm64.dmg",
     "macX64": "Novi-0.1.1-x64.dmg",
     "windows": "Novi-Setup-0.1.1.exe",
     "linuxDeb": "novi_0.1.1_amd64.deb",
-    "linuxAppImage": "Novi-0.1.1.AppImage"
+    "linuxAppImage": "novi_0.1.1_x86_64.AppImage"
   }
 }
