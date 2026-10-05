@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { activity, credentialModels, desktop, login, mutate, state } from '@/lib/access';
 import { AccessError } from '@/lib/access-policy';
+import { getReleaseStatus, triggerRelease } from '@/lib/release-manager';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,6 +53,8 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
     if (path.join('/') === 'state' && req.method === 'GET') data = await state(req);
     else if (path.join('/') === 'activity' && req.method === 'GET') data = await activity(req);
     else if (path.join('/') === 'desktop' && req.method === 'GET') data = await desktop(req);
+    else if (path.join('/') === 'release' && req.method === 'GET') data = await getReleaseStatus(req);
+    else if (path.join('/') === 'release' && req.method === 'POST') data = await triggerRelease(req, body);
     else if (path.length === 3 && path[0] === 'credentials' && path[2] === 'models' && req.method === 'GET') data = await credentialModels(req, path[1]);
     else if (['POST', 'PATCH', 'DELETE'].includes(req.method) && path.length <= 2) data = await mutate(req, path[0], path[1], body);
     else throw new AccessError('Not found.', 404);
