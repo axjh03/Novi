@@ -2,6 +2,15 @@ name: Build and Release Executables (.dmg, .exe, .deb)
 
 on:
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag Name (e.g. v0.1.2)'
+        required: false
+        default: ''
+      release_notes:
+        description: 'Release Notes'
+        required: false
+        default: 'Automated Release'
   push:
     tags:
       - 'v*'
@@ -12,6 +21,7 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
@@ -44,8 +54,10 @@ jobs:
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag_name != '')
         with:
+          tag_name: ${{ inputs.tag_name }}
+          body: ${{ inputs.release_notes }}
           files: |
             dist/*.dmg
             dist/*.exe

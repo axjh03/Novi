@@ -33,6 +33,7 @@ nsis:
 
 linux:
   category: Utility
+  maintainer: 'Novi <getnoviapp@outlook.com>'
   artifactName: '${name}_${version}_${arch}.${ext}'
   target:
     - target: deb

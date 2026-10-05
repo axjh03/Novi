@@ -3,6 +3,10 @@
   "version": "0.1.1",
   "private": true,
   "description": "A quiet space to think. A local, bring-your-own-key AI desktop companion.",
+  "author": {
+    "name": "Novi",
+    "email": "getnoviapp@outlook.com"
+  },
   "main": "out/main/main.js",
   "scripts": {
     "fix": "node scripts/fix.mjs",
