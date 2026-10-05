@@ -14,6 +14,7 @@ import { StealthService } from '../services/stealth';
 import { AudioService, decodeAudio } from '../services/audio';
 import { captureScreenBuffer } from '../services/screenCapture';
 import { AudioTranscriptionService } from '../services/audioTranscription';
+import { AppUpdater } from '../services/updater';
 
 export function registerIPC(
   rendererUrl: string,
@@ -57,7 +58,7 @@ export function registerIPC(
         const baseSender = frameUrl.split('#')[0];
         const isTrusted = baseSender === baseTarget;
         if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || !isTrusted) throw new UserError('Untrusted application request.');
-        const publicChannels = ['session', 'sign-in', 'sign-out', 'minimize-window', 'maximize-window', 'close-window', 'is-window-maximized', 'get-stealth-state'];
+        const publicChannels = ['session', 'sign-in', 'sign-out', 'minimize-window', 'maximize-window', 'close-window', 'is-window-maximized', 'get-stealth-state', 'check-for-updates', 'install-update'];
         if (!publicChannels.includes(channel)) {
           try { await get().auth.refresh(['send', 'initialize-context', 'start-context', 'list-models', 'test-connection'].includes(channel)); }
           catch (error) {
@@ -358,6 +359,18 @@ export function registerIPC(
   handle('transcribe-audio', async (value) => {
     const input = object(value);
     return await get().transcription.transcribe(input.base64 as string, input.mimeType as string | undefined);
+  });
+  const updater = new AppUpdater();
+  handle('check-for-updates', async () => {
+    return await updater.checkForUpdates();
+  });
+  handle('install-update', async () => {
+    return await updater.installUpdate((progress) => {
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('update-progress', progress);
+      }
+    });
   });
   let quitting = false;
   app.on('before-quit', (event) => {

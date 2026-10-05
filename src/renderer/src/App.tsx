@@ -6,6 +6,7 @@ import { ChatPage } from './pages/ChatPage';
 import { ContextPage } from './pages/ContextPage';
 import { Brand } from './components/Brand';
 import { TitleBar } from './components/TitleBar';
+import { UpdateBanner } from './components/UpdateBanner';
 import { AppModeProvider } from './context/AppModeContext';
 import { errorText, unwrap } from './services/api';
 
@@ -48,6 +49,7 @@ function Application() {
     <AppModeProvider snapshot={state} onSnapshotUpdated={setState}>
       <div className="app-shell">
         <TitleBar sessionActive={Boolean(state.user && state.settings?.onboardingComplete && state.contextSession)} />
+        <UpdateBanner />
         <div className="app-content">
           {error && <div className="global-error" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
           {!state.user ? (

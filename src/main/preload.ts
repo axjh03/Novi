@@ -81,5 +81,12 @@ const api: NoviAPI = {
     ipcRenderer.on('global-action', listener);
     return () => { ipcRenderer.removeListener('global-action', listener); };
   },
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  onUpdateProgress: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, progress: any) => callback(progress);
+    ipcRenderer.on('update-progress', listener);
+    return () => { ipcRenderer.removeListener('update-progress', listener); };
+  },
 };
 contextBridge.exposeInMainWorld('novi', api);

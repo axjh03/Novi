@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import PublicNavbar from '@/components/PublicNavbar';
 import TuxPenguinLogo from '@/components/TuxPenguinLogo';
+import { PlatformFlipGrid } from './PlatformFlipGrid';
 import {
   ArrowUpRight,
   Calendar,
@@ -79,7 +80,9 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
   const [isLiveFromGitHub, setIsLiveFromGitHub] = useState(false);
   const [detectedOS, setDetectedOS] = useState<'mac' | 'windows' | 'linux'>('mac');
   const [hoveredOS, setHoveredOS] = useState<'mac' | 'windows' | 'linux' | null>(null);
+  const [flippedCard, setFlippedCard] = useState<string | null>(null);
   const [copiedMirror, setCopiedMirror] = useState<string | null>(null);
+  const [siteOrigin, setSiteOrigin] = useState('https://novi-virid.vercel.app');
 
   const copyMirrorUrl = (url: string, id: string) => {
     navigator.clipboard.writeText(url);
@@ -89,6 +92,7 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      if (window.location.origin) setSiteOrigin(window.location.origin);
       const ua = window.navigator.userAgent.toLowerCase();
       if (ua.includes('win')) setDetectedOS('windows');
       else if (ua.includes('linux') || ua.includes('x11')) setDetectedOS('linux');
@@ -216,366 +220,17 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
           </div>
         </div>
 
-        {/* Platform Cards Grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: 28,
-          marginBottom: 50,
-        }}>
-          {/* macOS Card */}
-          {(() => {
-            const dark = isDark('mac');
-            return (
-              <div
-                id="mac"
-                onMouseEnter={() => setHoveredOS('mac')}
-                onMouseLeave={() => setHoveredOS(null)}
-                onClick={() => setDetectedOS('mac')}
-                style={{
-                  background: dark ? '#0d0d10' : '#fafafc',
-                  border: dark ? '1px solid #27272a' : '1px solid #e4e4e7',
-                  borderRadius: 18,
-                  padding: '38px 30px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  boxShadow: dark ? '0 20px 48px -12px rgba(0,0,0,0.35)' : '0 2px 10px rgba(0,0,0,0.02)',
-                  transform: dark ? 'translateY(-4px)' : 'translateY(0)',
-                  transition: 'all 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
-                  position: 'relative',
-                  cursor: 'pointer',
-                  opacity: dark ? 1 : 0.88,
-                }}
-              >
-                {detectedOS === 'mac' && (
-                  <div style={{
-                    position: 'absolute',
-                    top: 18,
-                    right: 20,
-                    background: dark ? '#27272a' : '#f0f0f2',
-                    color: dark ? '#f4f4f5' : '#52525b',
-                    border: dark ? '1px solid #3f3f46' : '1px solid #e4e4e7',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    letterSpacing: '0.04em',
-                    padding: '4px 10px',
-                    borderRadius: 20,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 5,
-                  }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
-                    YOUR SYSTEM
-                  </div>
-                )}
-
-                <div>
-                  {/* Big Apple SVG Logo */}
-                  <div style={{
-                    width: 72,
-                    height: 72,
-                    borderRadius: 20,
-                    background: dark ? '#18181b' : '#f4f4f5',
-                    border: dark ? '1px solid #27272a' : '1px solid #e4e4e7',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: 24,
-                    color: dark ? '#ffffff' : '#52525b',
-                    transition: 'all 0.28s ease',
-                  }}>
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.84c.64-.78 1.08-1.86.96-2.95-1 .04-2.13.67-2.79 1.45-.58.67-1.1 1.77-.96 2.84 1.12.09 2.15-.56 2.79-1.34z" />
-                    </svg>
-                  </div>
-
-                  <h2 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 6px', color: dark ? '#ffffff' : '#18181b', transition: 'color 0.28s ease' }}>
-                    macOS
-                  </h2>
-                  <p style={{ fontSize: 13, color: dark ? '#a1a1aa' : '#71717a', margin: '0 0 26px', transition: 'color 0.28s ease' }}>
-                    Apple Silicon (M1/M2/M3/M4) & Intel
-                  </p>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <a
-                    href={release.downloads.macArm64}
-                    download
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                      background: dark ? '#ffffff' : '#18181b',
-                      color: dark ? '#09090b' : '#ffffff',
-                      padding: '13px 20px',
-                      borderRadius: 10,
-                      fontSize: 13,
-                      fontWeight: 700,
-                      textDecoration: 'none',
-                      textAlign: 'center',
-                      boxShadow: dark ? '0 4px 16px rgba(255,255,255,0.18)' : 'none',
-                      transition: 'all 0.28s ease',
-                    }}
-                  >
-                    <Download size={16} /> Download .dmg (Apple Silicon)
-                  </a>
-
-                  <a
-                    href={release.downloads.macX64}
-                    download
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 6,
-                      background: dark ? '#18181b' : 'transparent',
-                      color: dark ? '#d4d4d8' : '#71717a',
-                      border: dark ? '1px solid #27272a' : '1px solid #e4e4e7',
-                      padding: '10px 16px',
-                      borderRadius: 9,
-                      fontSize: 12,
-                      fontWeight: 500,
-                      textDecoration: 'none',
-                      textAlign: 'center',
-                      transition: 'all 0.28s ease',
-                    }}
-                  >
-                    Download for Intel Mac (.dmg)
-                  </a>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Windows Card */}
-          {(() => {
-            const dark = isDark('windows');
-            return (
-              <div
-                id="windows"
-                onMouseEnter={() => setHoveredOS('windows')}
-                onMouseLeave={() => setHoveredOS(null)}
-                onClick={() => setDetectedOS('windows')}
-                style={{
-                  background: dark ? '#0d0d10' : '#fafafc',
-                  border: dark ? '1px solid #27272a' : '1px solid #e4e4e7',
-                  borderRadius: 18,
-                  padding: '38px 30px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  boxShadow: dark ? '0 20px 48px -12px rgba(0,0,0,0.35)' : '0 2px 10px rgba(0,0,0,0.02)',
-                  transform: dark ? 'translateY(-4px)' : 'translateY(0)',
-                  transition: 'all 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
-                  position: 'relative',
-                  cursor: 'pointer',
-                  opacity: dark ? 1 : 0.88,
-                }}
-              >
-                {detectedOS === 'windows' && (
-                  <div style={{
-                    position: 'absolute',
-                    top: 18,
-                    right: 20,
-                    background: dark ? '#27272a' : '#f0f0f2',
-                    color: dark ? '#f4f4f5' : '#52525b',
-                    border: dark ? '1px solid #3f3f46' : '1px solid #e4e4e7',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    letterSpacing: '0.04em',
-                    padding: '4px 10px',
-                    borderRadius: 20,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 5,
-                  }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
-                    YOUR SYSTEM
-                  </div>
-                )}
-
-                <div>
-                  {/* Big Windows SVG Logo */}
-                  <div style={{
-                    width: 72,
-                    height: 72,
-                    borderRadius: 20,
-                    background: dark ? '#0078d4' : '#edf5fd',
-                    border: dark ? '1px solid #0078d4' : '1px solid #d0e5fb',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: 24,
-                    color: dark ? '#ffffff' : '#0078d4',
-                    transition: 'all 0.28s ease',
-                  }}>
-                    <svg width="36" height="36" viewBox="0 0 88 88" fill="currentColor">
-                      <path d="M0 12.402l35.689-4.86.016 34.423-35.67.203zm35.67 33.529l.028 34.453L.028 75.48.016 45.728zm4.326-39.027L87.914 0v41.525l-47.918.275zm47.918 43.665L87.914 88l-47.918-6.766V46.068z" />
-                    </svg>
-                  </div>
-
-                  <h2 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 6px', color: dark ? '#ffffff' : '#18181b', transition: 'color 0.28s ease' }}>
-                    Windows
-                  </h2>
-                  <p style={{ fontSize: 13, color: dark ? '#a1a1aa' : '#71717a', margin: '0 0 26px', transition: 'color 0.28s ease' }}>
-                    Windows 10 / Windows 11 (64-bit)
-                  </p>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <a
-                    href={release.downloads.windows}
-                    download
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                      background: dark ? '#ffffff' : '#18181b',
-                      color: dark ? '#09090b' : '#ffffff',
-                      padding: '13px 20px',
-                      borderRadius: 10,
-                      fontSize: 13,
-                      fontWeight: 700,
-                      textDecoration: 'none',
-                      textAlign: 'center',
-                      boxShadow: dark ? '0 4px 16px rgba(255,255,255,0.18)' : 'none',
-                      transition: 'all 0.28s ease',
-                    }}
-                  >
-                    <Download size={16} /> Download .exe (Installer)
-                  </a>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Linux Card */}
-          {(() => {
-            const dark = isDark('linux');
-            return (
-              <div
-                id="linux"
-                onMouseEnter={() => setHoveredOS('linux')}
-                onMouseLeave={() => setHoveredOS(null)}
-                onClick={() => setDetectedOS('linux')}
-                style={{
-                  background: dark ? '#0d0d10' : '#fafafc',
-                  border: dark ? '1px solid #27272a' : '1px solid #e4e4e7',
-                  borderRadius: 18,
-                  padding: '38px 30px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  boxShadow: dark ? '0 20px 48px -12px rgba(0,0,0,0.35)' : '0 2px 10px rgba(0,0,0,0.02)',
-                  transform: dark ? 'translateY(-4px)' : 'translateY(0)',
-                  transition: 'all 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
-                  position: 'relative',
-                  cursor: 'pointer',
-                  opacity: dark ? 1 : 0.88,
-                }}
-              >
-                {detectedOS === 'linux' && (
-                  <div style={{
-                    position: 'absolute',
-                    top: 18,
-                    right: 20,
-                    background: dark ? '#27272a' : '#f0f0f2',
-                    color: dark ? '#f4f4f5' : '#52525b',
-                    border: dark ? '1px solid #3f3f46' : '1px solid #e4e4e7',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    letterSpacing: '0.04em',
-                    padding: '4px 10px',
-                    borderRadius: 20,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 5,
-                  }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
-                    YOUR SYSTEM
-                  </div>
-                )}
-
-                <div>
-                  {/* Big Linux Tux Penguin SVG Logo */}
-                  <div style={{
-                    width: 72,
-                    height: 72,
-                    borderRadius: 20,
-                    background: dark ? '#f59e0b' : '#fffbeb',
-                    border: dark ? '1px solid #f59e0b' : '1px solid #fef3c7',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: 24,
-                    color: dark ? '#09090b' : '#d97706',
-                    transition: 'all 0.28s ease',
-                  }}>
-                    <TuxPenguinLogo size={42} />
-                  </div>
-
-                  <h2 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 6px', color: dark ? '#ffffff' : '#18181b', transition: 'color 0.28s ease' }}>
-                    Linux
-                  </h2>
-                  <p style={{ fontSize: 13, color: dark ? '#a1a1aa' : '#71717a', margin: '0 0 26px', transition: 'color 0.28s ease' }}>
-                    Ubuntu, Debian, Mint & AppImage
-                  </p>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <a
-                    href={release.downloads.linuxDeb}
-                    download
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                      background: dark ? '#ffffff' : '#18181b',
-                      color: dark ? '#09090b' : '#ffffff',
-                      padding: '13px 20px',
-                      borderRadius: 10,
-                      fontSize: 13,
-                      fontWeight: 700,
-                      textDecoration: 'none',
-                      textAlign: 'center',
-                      boxShadow: dark ? '0 4px 16px rgba(255,255,255,0.18)' : 'none',
-                      transition: 'all 0.28s ease',
-                    }}
-                  >
-                    <Download size={16} /> Download .deb (Debian / Ubuntu)
-                  </a>
-
-                  <a
-                    href={release.downloads.linuxAppImage}
-                    download
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 6,
-                      background: dark ? '#18181b' : 'transparent',
-                      color: dark ? '#d4d4d8' : '#71717a',
-                      border: dark ? '1px solid #27272a' : '1px solid #e4e4e7',
-                      padding: '10px 16px',
-                      borderRadius: 9,
-                      fontSize: 12,
-                      fontWeight: 500,
-                      textDecoration: 'none',
-                      textAlign: 'center',
-                      transition: 'all 0.28s ease',
-                    }}
-                  >
-                    Download .AppImage (Universal)
-                  </a>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
+        {/* Platform Flip Cards Grid (Compact, KISS, 3D hover flip with centered logos) */}
+        <PlatformFlipGrid
+          release={release}
+          siteOrigin={siteOrigin}
+          detectedOS={detectedOS}
+          setDetectedOS={setDetectedOS}
+          copiedMirror={copiedMirror}
+          copyMirrorUrl={copyMirrorUrl}
+          isDark={isDark}
+          setHoveredOS={setHoveredOS}
+        />
 
         {/* Direct Download Mirrors & GitHub CDN Assets */}
         <div style={{

@@ -158,5 +158,17 @@ export interface NoviAPI {
   onCodeViewerBlocks(callback: (blocks: CodeViewerBlock[]) => void): () => void;
   onCodeViewerClosed(callback: () => void): () => void;
   onGlobalAction(callback: (action: { type: string; payload?: any }) => void): () => void;
+  checkForUpdates(): Promise<Result<UpdateCheckResult>>;
+  installUpdate(): Promise<Result<void>>;
+  onUpdateProgress(callback: (progress: UpdateProgress) => void): () => void;
 }
 export interface CodeViewerBlock { id: string; label: string; code: string; language?: string }
+export interface UpdateProgress { percent: number; status: string }
+export interface UpdateCheckResult {
+  hasUpdate: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  releaseNotes?: string;
+  releaseDate?: string;
+}
+

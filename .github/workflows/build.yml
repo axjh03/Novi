@@ -41,17 +41,7 @@ jobs:
         run: npm ci
 
       - name: Sync package version with tag
-        run: node -e "
-          const fs = require('fs');
-          const tag = process.env.GITHUB_REF_NAME || '';
-          const clean = tag.replace(/^v/, '').trim();
-          if (/^\d+\.\d+\.\d+/.test(clean)) {
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            pkg.version = clean;
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-            console.log('Synchronized package.json version to', clean);
-          }
-        "
+        run: node scripts/sync-version.mjs
 
       - name: Build and Package
         run: |

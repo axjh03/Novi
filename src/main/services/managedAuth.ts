@@ -8,8 +8,7 @@ import { CredentialStore } from './credentials';
 import { text, UserError } from './validation';
 
 // Default production URL for packaged desktop releases.
-// You can override this at runtime with the NOVI_ACCESS_URL environment variable.
-export const PRODUCTION_ACCESS_URL = process.env.NOVI_PRODUCTION_ACCESS_URL || 'https://astra-webapp.vercel.app';
+export const PRODUCTION_ACCESS_URL = process.env.NOVI_PRODUCTION_ACCESS_URL || 'https://novi-virid.vercel.app';
 
 export function getEffectiveAccessUrl(): string {
   if (process.env.NOVI_ACCESS_URL) {
