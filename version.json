@@ -1,8 +1,9 @@
 {
-  "version": "0.1.0",
-  "buildNumber": 1,
-  "releaseTag": "v0.1.0",
-  "updatedAt": "2026-10-05T18:00:00.000Z",
+  "version": "0.1.1",
+  "buildNumber": 2,
+  "releaseTag": "v0.1.1",
   "releaseDate": "October 5, 2026",
-  "releaseNotes": "Initial release"
+  "updatedAt": "2026-10-05T22:04:29.132Z",
+  "repo": "axjh03/Novi",
+  "releaseNotes": "Hello World"
 }

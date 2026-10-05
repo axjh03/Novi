@@ -1,23 +1,23 @@
 {
-  "version": "0.1.0",
-  "buildNumber": 1,
-  "releaseTag": "v0.1.0",
+  "version": "0.1.1",
+  "buildNumber": 2,
+  "releaseTag": "v0.1.1",
   "releaseDate": "October 5, 2026",
-  "updatedAt": "2026-10-05T18:00:00.000Z",
+  "updatedAt": "2026-10-05T22:04:29.132Z",
   "repo": "axjh03/Novi",
-  "releaseNotes": "Initial release",
+  "releaseNotes": "Hello World",
   "downloads": {
-    "macArm64": "https://github.com/axjh03/Novi/releases/download/v0.1.0/Novi-0.1.0-arm64.dmg",
-    "macX64": "https://github.com/axjh03/Novi/releases/download/v0.1.0/Novi-0.1.0-x64.dmg",
-    "windows": "https://github.com/axjh03/Novi/releases/download/v0.1.0/Novi-Setup-0.1.0.exe",
-    "linuxDeb": "https://github.com/axjh03/Novi/releases/download/v0.1.0/novi_0.1.0_amd64.deb",
-    "linuxAppImage": "https://github.com/axjh03/Novi/releases/download/v0.1.0/Novi-0.1.0.AppImage"
+    "macArm64": "https://github.com/axjh03/Novi/releases/download/v0.1.1/Novi-0.1.1-arm64.dmg",
+    "macX64": "https://github.com/axjh03/Novi/releases/download/v0.1.1/Novi-0.1.1-x64.dmg",
+    "windows": "https://github.com/axjh03/Novi/releases/download/v0.1.1/Novi-Setup-0.1.1.exe",
+    "linuxDeb": "https://github.com/axjh03/Novi/releases/download/v0.1.1/novi_0.1.1_amd64.deb",
+    "linuxAppImage": "https://github.com/axjh03/Novi/releases/download/v0.1.1/Novi-0.1.1.AppImage"
   },
   "fileNames": {
-    "macArm64": "Novi-0.1.0-arm64.dmg",
-    "macX64": "Novi-0.1.0-x64.dmg",
-    "windows": "Novi-Setup-0.1.0.exe",
-    "linuxDeb": "novi_0.1.0_amd64.deb",
-    "linuxAppImage": "Novi-0.1.0.AppImage"
+    "macArm64": "Novi-0.1.1-arm64.dmg",
+    "macX64": "Novi-0.1.1-x64.dmg",
+    "windows": "Novi-Setup-0.1.1.exe",
+    "linuxDeb": "novi_0.1.1_amd64.deb",
+    "linuxAppImage": "Novi-0.1.1.AppImage"
   }
 }

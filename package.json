@@ -1,6 +1,6 @@
 {
   "name": "novi",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "A quiet space to think. A local, bring-your-own-key AI desktop companion.",
   "main": "out/main/main.js",
