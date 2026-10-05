@@ -61,8 +61,16 @@ export class EyeTrackingService {
       if (res.ok) {
         this._monitors = res.value;
         if (!this._selectedDisplayId && res.value.length > 0) {
-          const primary = res.value.find((m) => m.isPrimary) || res.value[0];
-          this._selectedDisplayId = primary.id;
+          try {
+            const wm = await window.novi.getWorkingMonitor();
+            if (wm.ok && wm.value.workingMonitorId) {
+              this._selectedDisplayId = wm.value.workingMonitorId;
+            }
+          } catch {}
+          if (!this._selectedDisplayId) {
+            const primary = res.value.find((m) => m.isPrimary) || res.value[0];
+            this._selectedDisplayId = primary.id;
+          }
         }
       }
     } catch {
@@ -95,6 +103,7 @@ export class EyeTrackingService {
     const changed = this._selectedDisplayId !== displayId;
     this._selectedDisplayId = displayId;
     if (changed && this.estimator) this.recalibrate();
+    void window.novi.setWorkingMonitor(displayId);
   }
 
   /** Send a sticky note or response message to the screen overlay. */

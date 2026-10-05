@@ -24,7 +24,7 @@ interface Props {
   onListMonitors: () => Promise<MonitorDisplay[]>;
   onOpenOverlay: (displayId?: number) => Promise<void>;
   onCloseOverlay: () => Promise<void>;
-  onSetMonitor: (displayId: number) => void;
+  onSetMonitor: (displayId: number) => Promise<void> | void;
   onSendSticky: (text: string, title?: string) => void;
 }
 
@@ -144,7 +144,7 @@ export function EyeTrackingPanel({
   };
 
   const handleSelectMonitor = async (displayId: number) => {
-    onSetMonitor(displayId);
+    await onSetMonitor(displayId);
     if (overlayActive) {
       await onOpenOverlay(displayId);
     }
@@ -174,7 +174,7 @@ export function EyeTrackingPanel({
       {/* 1. Main Eye Tracking Toggle */}
       <button
         className={`eye-tracking-toggle ${isOn ? 'eye-tracking-toggle--on' : ''}`}
-        onClick={state === 'error' ? undefined : onToggle}
+        onClick={onToggle}
         aria-pressed={isOn}
         title={isOn ? 'Disable eye tracking' : 'Enable eye tracking'}
         disabled={isLoading}
@@ -193,7 +193,7 @@ export function EyeTrackingPanel({
       </button>
 
       {/* 2. Camera Picker Dropdown */}
-      <div className="et-camera-picker" ref={cameraPickerRef}>
+      {(isOn || state === 'error') && <div className="et-camera-picker" ref={cameraPickerRef}>
         <button
           className={`et-camera-btn ${cameraPickerOpen ? 'et-camera-btn--open' : ''}`}
           onClick={() => void handleOpenCameras()}
@@ -252,14 +252,14 @@ export function EyeTrackingPanel({
             )}
           </div>
         )}
-      </div>
+      </div>}
 
       {/* 3. Multi-Monitor Overlay Picker & Controls */}
       <div className="et-camera-picker" ref={monitorPickerRef}>
         <button
           className={`et-camera-btn ${overlayActive ? 'et-camera-btn--active' : ''} ${monitorPickerOpen ? 'et-camera-btn--open' : ''}`}
           onClick={() => void handleOpenMonitors()}
-          title="Choose monitor for transparent screen overlay"
+          title="Choose Working Monitor: eye tracking, screenshots, and window placement target this screen"
         >
           <Monitor size={13} />
           <span className="et-camera-label">
@@ -275,12 +275,12 @@ export function EyeTrackingPanel({
         {monitorPickerOpen && (
           <div className="et-camera-dropdown et-monitor-dropdown">
             <div className="et-camera-dropdown-header">
-              <span>Monitor Screen Overlay</span>
+              <span>Working Monitor & Screen Overlay</span>
               <span className="overlay-desc-tag">Sticky HUD</span>
             </div>
 
             {/* Overlay toggle switch inside dropdown */}
-            <div className="et-overlay-switch-row">
+            {isOn && <div className="et-overlay-switch-row">
               <div className="et-overlay-switch-info">
                 <strong>Floating Screen HUD</strong>
                 <small>Transparent sticky note anywhere on your monitor</small>
@@ -293,10 +293,10 @@ export function EyeTrackingPanel({
               >
                 {overlayActive ? 'Enabled' : 'Disabled'}
               </button>
-            </div>
+            </div>}
 
             <div className="et-dropdown-divider" />
-            <div className="et-dropdown-section-title">Select Target Monitor:</div>
+            <div className="et-dropdown-section-title">Select Working Monitor (Moves App & Tracks Here):</div>
 
             {loadingMonitors ? (
               <div className="et-camera-loading">

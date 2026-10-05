@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import type { ChatEvent, NoviAPI } from '../shared/types';
+import type { ChatEvent, CodeViewerBlock, NoviAPI } from '../shared/types';
 
 const api: NoviAPI = {
   pickContextFolders: () => ipcRenderer.invoke('pick-context-folders'),
@@ -57,5 +57,29 @@ const api: NoviAPI = {
   maximizeWindow: () => ipcRenderer.invoke('maximize-window'),
   closeWindow: () => ipcRenderer.invoke('close-window'),
   isWindowMaximized: () => ipcRenderer.invoke('is-window-maximized'),
+  captureScreen: () => ipcRenderer.invoke('capture-screen'),
+  saveAudioRecording: (input: any) => ipcRenderer.invoke('save-audio-recording', input),
+  attachAudioRecording: (input: any) => ipcRenderer.invoke('attach-audio-recording', input),
+  transcribeAudio: (input: any) => ipcRenderer.invoke('transcribe-audio', input),
+  setWorkingMonitor: (displayId: number) => ipcRenderer.invoke('set-working-monitor', { displayId }),
+  getWorkingMonitor: () => ipcRenderer.invoke('get-working-monitor'),
+  setCodeViewerVisible: (visible) => ipcRenderer.invoke('set-code-viewer-visible', { visible }),
+  updateCodeViewer: (blocks) => ipcRenderer.invoke('update-code-viewer', blocks),
+  getCodeViewerBlocks: () => ipcRenderer.invoke('get-code-viewer-blocks'),
+  onCodeViewerBlocks: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, blocks: CodeViewerBlock[]) => callback(blocks);
+    ipcRenderer.on('code-viewer-blocks', listener);
+    return () => ipcRenderer.removeListener('code-viewer-blocks', listener);
+  },
+  onCodeViewerClosed: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on('code-viewer-closed', listener);
+    return () => ipcRenderer.removeListener('code-viewer-closed', listener);
+  },
+  onGlobalAction: (callback: any) => {
+    const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('global-action', listener);
+    return () => { ipcRenderer.removeListener('global-action', listener); };
+  },
 };
 contextBridge.exposeInMainWorld('novi', api);

@@ -6,12 +6,13 @@ import { ChatPage } from './pages/ChatPage';
 import { ContextPage } from './pages/ContextPage';
 import { Brand } from './components/Brand';
 import { TitleBar } from './components/TitleBar';
+import { AppModeProvider } from './context/AppModeContext';
 import { errorText, unwrap } from './services/api';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
-  render() { return this.state.failed ? <div className="app-shell"><TitleBar /><div className="startup"><Brand /><h2>Novi couldn’t display this screen.</h2><p>Your saved conversations are still on this device.</p><button className="primary" onClick={() => location.reload()}>Reload Novi</button></div></div> : this.props.children; }
+  render() { return this.state.failed ? <AppModeProvider snapshot={null}><div className="app-shell"><TitleBar /><div className="startup"><Brand /><h2>Novi couldn’t display this screen.</h2><p>Your saved conversations are still on this device.</p><button className="primary" onClick={() => location.reload()}>Reload Novi</button></div></div></AppModeProvider> : this.props.children; }
 }
 function Application() {
   const [state, setState] = useState<Snapshot | null>(null), [error, setError] = useState('');
@@ -31,32 +32,36 @@ function Application() {
   }
   if (!state) {
     return (
-      <div className="app-shell">
-        <TitleBar />
-        <div className="app-content startup">
-          <Brand />
-          <p role="status">{error || 'Making room for your next idea…'}</p>
-          {error && <button className="primary" onClick={() => void load()}>Try again</button>}
+      <AppModeProvider snapshot={null}>
+        <div className="app-shell">
+          <TitleBar />
+          <div className="app-content startup">
+            <Brand />
+            <p role="status">{error || 'Making room for your next idea…'}</p>
+            {error && <button className="primary" onClick={() => void load()}>Try again</button>}
+          </div>
         </div>
-      </div>
+      </AppModeProvider>
     );
   }
   return (
-    <div className="app-shell">
-      <TitleBar />
-      <div className="app-content">
-        {error && <div className="global-error" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
-        {!state.user ? (
-          <AuthPage onAuthenticated={setState} />
-        ) : !state.settings?.onboardingComplete ? (
-          <OnboardingPage state={state} onComplete={setState} onSignOut={() => void signOut()} />
-        ) : state.contextSession ? (
-          <ChatPage key={state.contextSession.id} state={state} onSaved={setState} onSignOut={() => void signOut()} />
-        ) : (
-          <ContextPage key={state.user.id} state={state} onSaved={setState} onSignOut={() => void signOut()} />
-        )}
+    <AppModeProvider snapshot={state} onSnapshotUpdated={setState}>
+      <div className="app-shell">
+        <TitleBar sessionActive={Boolean(state.user && state.settings?.onboardingComplete && state.contextSession)} />
+        <div className="app-content">
+          {error && <div className="global-error" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
+          {!state.user ? (
+            <AuthPage onAuthenticated={setState} />
+          ) : !state.settings?.onboardingComplete ? (
+            <OnboardingPage state={state} onComplete={setState} onSignOut={() => void signOut()} />
+          ) : state.contextSession ? (
+            <ChatPage key={state.contextSession.id} state={state} onSaved={setState} onSignOut={() => void signOut()} />
+          ) : (
+            <ContextPage key={state.user.id} state={state} onSaved={setState} onSignOut={() => void signOut()} />
+          )}
+        </div>
       </div>
-    </div>
+    </AppModeProvider>
   );
 }
 export function App() { return <ErrorBoundary><Application /></ErrorBoundary>; }

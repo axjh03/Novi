@@ -11,6 +11,7 @@ files:
 mac:
   icon: build/icon.icns
   category: public.app-category.productivity
+  artifactName: 'Novi-${version}-${arch}.${ext}'
   target:
     - target: dmg
       arch:
@@ -18,6 +19,7 @@ mac:
         - x64
 
 win:
+  artifactName: 'Novi-Setup-${version}.${ext}'
   target:
     - target: nsis
       arch:
@@ -31,6 +33,7 @@ nsis:
 
 linux:
   category: Utility
+  artifactName: '${name}_${version}_${arch}.${ext}'
   target:
     - target: deb
       arch:

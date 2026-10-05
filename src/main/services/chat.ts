@@ -27,6 +27,8 @@ export class ChatService {
     let conversation = this.storage.conversations.find((item) => item.id === input.conversationId);
     if (input.conversationId && !conversation) throw new UserError('This conversation could not be found.');
     const images = input.imageIds.map((id) => this.images.resolve(id));
+    if (connection.provider !== 'gemini' && images.some((image) => image.mimeType.startsWith('audio/')))
+      throw new UserError('Audio attachments require a Gemini connection. Use speech to text with this model.');
     const now = Date.now();
     if (!conversation) {
       conversation = { id: randomUUID(), title: conversationTitle(input.content), createdAt: now, updatedAt: now, messages: [] };

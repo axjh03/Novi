@@ -1,0 +1,23 @@
+{
+  "version": "0.1.0",
+  "buildNumber": 1,
+  "releaseTag": "v0.1.0",
+  "releaseDate": "October 5, 2026",
+  "updatedAt": "2026-10-05T18:00:00.000Z",
+  "repo": "axjh03/Astra",
+  "releaseNotes": "Initial release",
+  "downloads": {
+    "macArm64": "https://github.com/axjh03/Astra/releases/download/v0.1.0/Novi-0.1.0-arm64.dmg",
+    "macX64": "https://github.com/axjh03/Astra/releases/download/v0.1.0/Novi-0.1.0-x64.dmg",
+    "windows": "https://github.com/axjh03/Astra/releases/download/v0.1.0/Novi-Setup-0.1.0.exe",
+    "linuxDeb": "https://github.com/axjh03/Astra/releases/download/v0.1.0/novi_0.1.0_amd64.deb",
+    "linuxAppImage": "https://github.com/axjh03/Astra/releases/download/v0.1.0/Novi-0.1.0.AppImage"
+  },
+  "fileNames": {
+    "macArm64": "Novi-0.1.0-arm64.dmg",
+    "macX64": "Novi-0.1.0-x64.dmg",
+    "windows": "Novi-Setup-0.1.0.exe",
+    "linuxDeb": "novi_0.1.0_amd64.deb",
+    "linuxAppImage": "Novi-0.1.0.AppImage"
+  }
+}

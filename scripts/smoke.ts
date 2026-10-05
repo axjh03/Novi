@@ -66,11 +66,13 @@ async function main() {
   try {
     app = await launch();
     let page = await app.firstWindow();
+    assert.equal(await page.getByRole('button', { name: 'Transparency' }).count(), 0);
+    assert.equal(await page.getByRole('navigation', { name: 'Conversation mode' }).count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Create account', exact: true }).count(), 0);
     await page.getByLabel('Username', { exact: true }).fill('desktop.test');
     await page.getByLabel('Password', { exact: true }).fill('novi-test-password');
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-    await page.getByRole('heading', { name: 'Give Novi the background.' }).waitFor();
+    await page.getByRole('heading', { name: 'Temporary session' }).waitFor();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'API management', exact: true }).click();
     await page.getByText('Shared by Test owner · Key hidden').waitFor();
@@ -84,26 +86,31 @@ async function main() {
     await app.evaluate(({ dialog }, source) => {
       dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [source] })) as typeof dialog.showOpenDialog;
     }, source);
-    await page.getByRole('button', { name: 'Load context', exact: true }).click();
-    await page.getByLabel('Session purpose (required)').fill('Review the Cedar interface.');
-    await page.getByLabel('Custom field 1 instructions').fill('Keep the answer concise.');
+    await page.getByRole('button', { name: 'Sources' }).click();
+    await page.getByRole('button', { name: 'Choose folders' }).click();
+    await page.getByRole('button', { name: 'Instructions' }).click();
+    await page.getByLabel('Purpose').fill('Review the Cedar interface.');
+    await page.getByText('Additional instructions').click();
+    await page.getByLabel('Role / perspective details').fill('Keep the answer concise.');
     rejectPing = true;
     await page.getByRole('button', { name: 'Start session', exact: true }).click();
     await page.getByRole('alert').filter({ hasText: 'Your API key was rejected' }).waitFor();
     assert.equal(requests.length, 0, 'failed ping sends no context');
-    assert.equal(await page.getByRole('button', { name: 'Cancel start' }).count(), 0);
     rejectPing = false;
     await page.getByRole('button', { name: 'Start session', exact: true }).click();
-    await page.getByText('Connection confirmed. Starting session in 5 seconds.', { exact: true }).waitFor();
-    assert.equal(requests.length, 0, 'context waits for the countdown');
-    await page.getByRole('button', { name: 'Cancel start', exact: true }).click();
-    await new Promise(resolve => setTimeout(resolve, 5200));
-    assert.equal(requests.length, 0, 'cancelling prevents the session from starting');
-    await page.getByRole('button', { name: 'Start session', exact: true }).click();
-    for (const seconds of [5, 4, 3, 2, 1]) await page.getByText(`Connection confirmed. Starting session in ${seconds} seconds.`, { exact: true }).waitFor();
     await page.getByText('Understood the loaded context. Cedar uses blue buttons.', { exact: true }).waitFor();
-    assert.equal(pings, 3);
-    assert(contextSentAt - confirmedAt >= 5000, 'waits at least five seconds after confirmation');
+    assert.equal(await page.getByRole('navigation', { name: 'Conversation mode' }).getByRole('button').count(), 3);
+    assert.equal(await page.getByRole('button', { name: 'Whiteboard' }).count(), 0);
+    const viewerEvent = app.waitForEvent('window');
+    await page.getByRole('button', { name: 'Code', exact: true }).click();
+    const viewer = await viewerEvent;
+    await viewer.getByRole('region', { name: 'Code viewer' }).waitFor();
+    assert.equal(await viewer.locator('textarea').count(), 0);
+    await viewer.getByRole('button', { name: 'Close code viewer' }).click();
+    assert.equal(await page.getByRole('button', { name: 'Transparency' }).count(), 1);
+    assert.equal(await page.getByRole('button', { name: 'Camera', exact: true }).count(), 0);
+    assert.equal(pings, 2);
+    assert(contextSentAt >= confirmedAt, 'context follows a successful connection check');
     assert.equal(requests.length, 1);
     assert.match(JSON.stringify(requests[0]), /SESSION_SOURCE/);
     assert.match(JSON.stringify(requests[0]), /Keep the answer concise/);
@@ -126,7 +133,7 @@ async function main() {
     assert.match(JSON.stringify(requests[1]), /data:image\/png;base64/);
     await page.getByRole('button', { name: 'End session', exact: true }).click();
     await page.getByRole('button', { name: 'End & delete session', exact: true }).click();
-    await page.getByRole('heading', { name: 'Give Novi the background.' }).waitFor();
+    await page.getByRole('heading', { name: 'Temporary session' }).waitFor();
     assert(!existsSync(summary));
     assert.equal(readdirSync(join(env.NOVI_DATA_DIR, 'images')).length, 0);
     assert.match(readFileSync(join(source, 'brief.txt'), 'utf8'), /SESSION_SOURCE/);
@@ -134,7 +141,7 @@ async function main() {
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
     await app.close(); app = await launch(); page = await app.firstWindow();
     await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
-    console.log('Desktop smoke passed: model discovery and selection, rejected ping, countdown cancellation, five-second countdown, context session, image chat, session deletion, restart.');
+    console.log('Desktop smoke passed: session setup, model check, detached code viewer, context chat, session deletion, restart.');
   } finally {
     await app?.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));

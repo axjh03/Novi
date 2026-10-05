@@ -1,6 +1,6 @@
 import { useEffect, useState, type ComponentPropsWithoutRef } from 'react';
 import Markdown from 'react-markdown';
-import { Check, Copy, UserRound } from 'lucide-react';
+import { Check, Copy, Mic, UserRound } from 'lucide-react';
 import type { ChatMessage, ImageAttachment } from '../../../../shared/types';
 import { Brand } from '../Brand';
 import { unwrap } from '../../services/api';
@@ -8,11 +8,21 @@ import { unwrap } from '../../services/api';
 export function ImagePreview({ image }: { image: ImageAttachment }) {
   const [url, setUrl] = useState(image.previewUrl), [failed, setFailed] = useState(false);
   useEffect(() => {
-    if (image.previewUrl) return;
+    if (image.previewUrl || image.mimeType.startsWith('audio/')) return;
     let alive = true;
     unwrap(window.novi.previewImage(image.id)).then((url) => { if (alive) setUrl(url); }).catch(() => { if (alive) setFailed(true); });
     return () => { alive = false; };
-  }, [image.id, image.previewUrl]);
+  }, [image.id, image.previewUrl, image.mimeType]);
+
+  if (image.mimeType.startsWith('audio/')) {
+    return (
+      <div className="audio-attachment-pill" title={image.name}>
+        <Mic size={14} className="audio-pill-icon" />
+        <span className="audio-pill-name">{image.name || 'Audio recording'}</span>
+      </div>
+    );
+  }
+
   return url ? <img src={url} alt={image.name} title={image.name} /> : <span className="image-placeholder">{failed ? 'Image unavailable' : 'Loading image…'}</span>;
 }
 function CodeBlock({ children, className, ...props }: ComponentPropsWithoutRef<'code'>) {

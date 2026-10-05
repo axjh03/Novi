@@ -3,6 +3,12 @@ export type ProviderKind = SupportedProviderKind | 'compatible';
 export type AudioPipelineMode = 'local_stt' | 'live_stream';
 const isMacPlatform = typeof process !== 'undefined' && process.platform ? process.platform === 'darwin' : (typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform));
 export const DEFAULT_CLICK_THROUGH_SHORTCUT = isMacPlatform ? 'Option+Control+I' : 'Shift+Home';
+export type AppMode = 'normal' | 'coding' | 'behavioral';
+export type BehavioralFramework = 'smart' | 'star' | 'car' | 'par' | 'soar';
+export const DEFAULT_CODING_SHORTCUT = 'Alt+C';
+export const DEFAULT_BEHAVIORAL_SHORTCUT = 'Alt+B';
+export const DEFAULT_SCREENSHOT_SHORTCUT = 'Alt+3';
+export const DEFAULT_AUDIO_RECORD_SHORTCUT = 'Alt+A';
 export interface User { id: string; name: string; email: string; username?: string; managed?: boolean; licenseKey?: string; licenseExpiresAt?: string }
 export interface AIProviderConfig {
   provider: ProviderKind;
@@ -18,6 +24,16 @@ export interface AppSettings {
   clickThroughShortcut: string;
   onboardingComplete: boolean;
   audioPipelineMode?: AudioPipelineMode;
+  codingModeShortcut?: string;
+  behavioralModeShortcut?: string;
+  screenshotShortcut?: string;
+  audioRecordShortcut?: string;
+  autoSendOnAudioStop?: boolean;
+  fastInterviewModel?: boolean;
+  transparentOpacity?: number;
+  transparentBg?: string;
+  workingMonitorId?: number | null;
+  behavioralFramework?: BehavioralFramework;
 }
 export interface ProviderConnection extends AIProviderConfig { id: string; name: string; managed?: boolean; ownerName?: string; enabled?: boolean }
 export interface ConnectionInput { id?: string; name: string; ai: AIProviderConfig; apiKey?: string }
@@ -39,7 +55,23 @@ export interface ContextFolder { id: string; name: string; files: string[]; char
 export interface ContextInput { folderIds: string[]; purpose: string; fields: Array<{ label: string; value: string }> }
 export interface ContextSession { id: string; connection: ProviderConnection; status: 'pending' | 'loading' | 'ready' | 'error' | 'ending'; summaryReady: boolean }
 export interface Snapshot { user: User | null; settings: AppSettings | null; credentialIds: string[]; conversations: Conversation[]; contextSession?: ContextSession | null }
-export interface SettingsInput { displayName: string; theme: AppSettings['theme']; clickThroughShortcut: string; connection?: ConnectionInput; audioPipelineMode?: AudioPipelineMode }
+export interface SettingsInput {
+  displayName: string;
+  theme: AppSettings['theme'];
+  clickThroughShortcut: string;
+  connection?: ConnectionInput;
+  audioPipelineMode?: AudioPipelineMode;
+  codingModeShortcut?: string;
+  behavioralModeShortcut?: string;
+  screenshotShortcut?: string;
+  audioRecordShortcut?: string;
+  autoSendOnAudioStop?: boolean;
+  fastInterviewModel?: boolean;
+  transparentOpacity?: number;
+  transparentBg?: string;
+  workingMonitorId?: number | null;
+  behavioralFramework?: BehavioralFramework;
+}
 export interface SendInput { conversationId: string | null; content: string; imageIds: string[] }
 export type ChatEvent =
   | { type: 'started'; conversation: Conversation }
@@ -114,4 +146,17 @@ export interface NoviAPI {
   maximizeWindow(): Promise<Result<boolean>>;
   closeWindow(): Promise<Result<void>>;
   isWindowMaximized(): Promise<Result<boolean>>;
+  captureScreen(): Promise<Result<ImageAttachment>>;
+  saveAudioRecording(input: { base64: string; mimeType?: string; filename?: string }): Promise<Result<{ id: string; path: string; name: string }>>;
+  attachAudioRecording(input: { base64: string; mimeType?: string; filename?: string }): Promise<Result<ImageAttachment>>;
+  transcribeAudio(input: { base64: string; mimeType?: string }): Promise<Result<{ text: string }>>;
+  setWorkingMonitor(displayId: number): Promise<Result<{ workingMonitorId: number }>>;
+  getWorkingMonitor(): Promise<Result<{ workingMonitorId: number | null }>>;
+  setCodeViewerVisible(visible: boolean): Promise<Result<void>>;
+  updateCodeViewer(blocks: CodeViewerBlock[]): Promise<Result<void>>;
+  getCodeViewerBlocks(): Promise<Result<CodeViewerBlock[]>>;
+  onCodeViewerBlocks(callback: (blocks: CodeViewerBlock[]) => void): () => void;
+  onCodeViewerClosed(callback: () => void): () => void;
+  onGlobalAction(callback: (action: { type: string; payload?: any }) => void): () => void;
 }
+export interface CodeViewerBlock { id: string; label: string; code: string; language?: string }

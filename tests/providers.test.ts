@@ -82,6 +82,21 @@ test('native providers send correct auth, images and history; streaming and JSON
   } finally { globalThis.fetch = original; }
 });
 
+test('Gemini sends a recorded audio attachment as audio data', async t => {
+  let payload: any;
+    t.mock.method(globalThis, 'fetch', async (_url: RequestInfo | URL, options?: RequestInit) => {
+    payload = JSON.parse(String(options?.body));
+    return Response.json({ candidates: [{ content: { parts: [{ text: 'Audio received' }] }, finishReason: 'STOP' }] });
+  });
+  const config = { ...newConnection('gemini').ai, stream: false };
+  const audio = { id: 'recording', name: 'recording.webm', mimeType: 'audio/webm' };
+  await AIProviderFactory.create(config, 'key').sendMessage({
+    messages: [{ id: 'one', role: 'user', content: 'Describe this', createdAt: 0, images: [audio] }],
+    imageData: () => 'data:audio/webm;base64,QUJD', signal: new AbortController().signal, onDelta: () => {},
+  });
+  assert.deepEqual(payload.contents[0].parts[1].inlineData, { mimeType: 'audio/webm', data: 'QUJD' });
+});
+
 test('discovery uses native pagination, excludes unsupported modalities, and preserves custom IDs', async () => {
   const original = globalThis.fetch;
   try {

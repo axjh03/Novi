@@ -1,5 +1,5 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain } from 'electron';
-import type { Snapshot } from '../../shared/types';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, screen } from 'electron';
+import type { CodeViewerBlock, Snapshot } from '../../shared/types';
 import { Storage } from '../services/storage';
 import { ManagedAuthService } from '../services/managedAuth';
 import { CredentialStore } from '../services/credentials';
@@ -11,6 +11,9 @@ import { listModels, testConnection } from '../services/models';
 import { OverlayService } from '../services/overlay';
 import { ContextService } from '../services/context';
 import { StealthService } from '../services/stealth';
+import { AudioService, decodeAudio } from '../services/audio';
+import { captureScreenBuffer } from '../services/screenCapture';
+import { AudioTranscriptionService } from '../services/audioTranscription';
 
 export function registerIPC(
   rendererUrl: string,
@@ -26,7 +29,9 @@ export function registerIPC(
     const overlay = new OverlayService();
     const stealth = new StealthService(getMainWindow, overlay);
     const context = new ContextService(storage);
-    return { storage, credentials, images, context, connections: new ConnectionService(storage, credentials), auth: new ManagedAuthService(storage, credentials), chat: new ChatService(storage, credentials, images, context), overlay, stealth };
+    const audio = new AudioService(storage.directory);
+    const transcription = new AudioTranscriptionService(storage, credentials);
+    return { storage, credentials, images, context, audio, transcription, connections: new ConnectionService(storage, credentials), auth: new ManagedAuthService(storage, credentials), chat: new ChatService(storage, credentials, images, context), overlay, stealth };
   }
   const get = () => services ||= initialize();
   const requireNoContext = () => { if (get().context.session) throw new UserError('End this session before changing accounts or AI providers.'); };
@@ -36,6 +41,12 @@ export function registerIPC(
     if (!user) return { user: null, settings: null, credentialIds: [], conversations: [] };
     const account = storage.current();
     get().stealth.setClickThroughShortcut(account.settings.clickThroughShortcut);
+    get().stealth.setShortcuts({
+      coding: account.settings.codingModeShortcut,
+      behavioral: account.settings.behavioralModeShortcut,
+      screenshot: account.settings.screenshotShortcut,
+      audio: account.settings.audioRecordShortcut
+    });
     return { user, settings: account.settings, credentialIds: account.settings.connections.filter((c) => credentials.has(user.id, c)).map((c) => c.id), conversations: get().context.session ? get().storage.conversations : [], contextSession: get().context.session };
   }
   const handle = (channel: string, callback: (value: unknown, event: Electron.IpcMainInvokeEvent) => unknown) => {
@@ -135,8 +146,14 @@ export function registerIPC(
     if (input.connection) { requireNoContext(); connections.save(input.connection); }
     if (!user.managed && !user.settings.connections.length) throw new UserError('Add an AI provider first.');
     get().stealth.setClickThroughShortcut(input.clickThroughShortcut);
+    get().stealth.setShortcuts({
+      coding: input.codingModeShortcut,
+      behavioral: input.behavioralModeShortcut,
+      screenshot: input.screenshotShortcut,
+      audio: input.audioRecordShortcut
+    });
     user.name = input.displayName;
-    user.settings = { ...user.settings, displayName: input.displayName, theme: input.theme, clickThroughShortcut: input.clickThroughShortcut, audioPipelineMode: input.audioPipelineMode || 'local_stt', onboardingComplete: true };
+    user.settings = { ...user.settings, ...input, onboardingComplete: true };
     storage.save(); return snapshot();
   });
   handle('save-connection', async (value) => { requireNoContext(); get().chat.assertIdle(); get().connections.save(value); return snapshot(); });
@@ -208,6 +225,139 @@ export function registerIPC(
   handle('is-window-maximized', (_value, event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     return win?.isMaximized() ?? false;
+  });
+  let codeViewerWindow: BrowserWindow | null = null;
+  let codeViewerBlocks: CodeViewerBlock[] = [];
+  let codeViewerVisible = false;
+  handle('set-code-viewer-visible', (value, event) => {
+    if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can open the code viewer.');
+    const visible = object(value).visible === true;
+    codeViewerVisible = visible;
+    if (!visible) { codeViewerBlocks = []; codeViewerWindow?.hide(); return; }
+    if (codeViewerWindow && !codeViewerWindow.isDestroyed()) { codeViewerWindow.show(); codeViewerWindow.focus(); return; }
+    const main = getMainWindow();
+    if (!main) return;
+    const area = screen.getDisplayMatching(main.getBounds()).workArea;
+    const width = Math.min(430, area.width);
+    const height = Math.min(700, area.height);
+    const viewer = new BrowserWindow({
+      parent: main,
+      x: area.x, y: area.y + Math.round((area.height - height) / 2), width, height,
+      minWidth: 300, minHeight: 240, show: false, frame: false, resizable: true, title: 'Novi Code Viewer',
+      backgroundColor: '#11151b', autoHideMenuBar: true,
+      webPreferences: { preload: preloadPath, contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true },
+    });
+    codeViewerWindow = viewer;
+    viewer.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    viewer.webContents.on('will-navigate', (navigation) => navigation.preventDefault());
+    viewer.once('ready-to-show', () => { if (codeViewerVisible) viewer.show(); });
+    viewer.on('closed', () => {
+      codeViewerWindow = null;
+      codeViewerVisible = false;
+      codeViewerBlocks = [];
+      const currentMain = getMainWindow();
+      if (currentMain && !currentMain.isDestroyed()) currentMain.webContents.send('code-viewer-closed');
+    });
+    main.once('closed', () => { if (!viewer.isDestroyed()) viewer.close(); });
+    const url = new URL(rendererUrl);
+    url.hash = '/code-viewer';
+    void viewer.loadURL(url.href);
+  });
+  handle('update-code-viewer', (value, event) => {
+    if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can update the code viewer.');
+    if (!Array.isArray(value) || value.length > 500 || value.some((block) => !block || typeof block.id !== 'string' || typeof block.label !== 'string' || typeof block.code !== 'string') || JSON.stringify(value).length > 8_000_000) throw new UserError('Code viewer output is too large.');
+    codeViewerBlocks = value;
+    if (codeViewerWindow && !codeViewerWindow.isDestroyed()) codeViewerWindow.webContents.send('code-viewer-blocks', codeViewerBlocks);
+  });
+  handle('get-code-viewer-blocks', () => codeViewerBlocks);
+  let workingMonitorId: number | null = null;
+  handle('capture-screen', async () => {
+    if (workingMonitorId === null) {
+      try {
+        const user = get().storage.current();
+        if (typeof user?.settings?.workingMonitorId === 'number') {
+          workingMonitorId = user.settings.workingMonitorId;
+        }
+      } catch {}
+    }
+    const pngBuffer = await captureScreenBuffer(getMainWindow, workingMonitorId);
+    const attachment = get().images.importBuffer(pngBuffer, `Screen-${new Date().toISOString().replace(/[:.]/g, '-')}.png`);
+    return attachment;
+  });
+  handle('set-working-monitor', (value) => {
+    const input = object(value);
+    const displayId = Number(input.displayId);
+    workingMonitorId = displayId;
+
+    try {
+      const user = get().storage.current();
+      if (user?.settings) {
+        user.settings.workingMonitorId = displayId;
+        get().storage.save();
+      }
+    } catch {}
+
+    const win = getMainWindow();
+    const allDisplays = screen.getAllDisplays();
+    const targetDisplay = allDisplays.find((d) => d.id === displayId);
+    if (win && !win.isDestroyed() && targetDisplay) {
+      if (win.isMinimized()) win.restore();
+      const wasMaximized = win.isMaximized();
+      if (wasMaximized) win.unmaximize();
+      const currentBounds = win.getBounds();
+      const area = targetDisplay.workArea;
+      const width = Math.min(currentBounds.width, area.width);
+      const height = Math.min(currentBounds.height, area.height);
+      const x = Math.round(area.x + (area.width - width) / 2);
+      const y = Math.round(area.y + (area.height - height) / 2);
+      win.setBounds({ x, y, width, height });
+      if (wasMaximized) win.maximize();
+      win.show();
+      win.focus();
+    }
+
+    // If overlay is open, relocate overlay to the new working monitor as well
+    if (get().overlay.activeDisplayId !== null) {
+      get().overlay.openOverlay(displayId, rendererUrl, preloadPath);
+    }
+
+    return { workingMonitorId: displayId };
+  });
+  handle('get-working-monitor', () => {
+    if (workingMonitorId === null) {
+      try {
+        const user = get().storage.current();
+        if (typeof user?.settings?.workingMonitorId === 'number') {
+          workingMonitorId = user.settings.workingMonitorId;
+        }
+      } catch {}
+    }
+    if (workingMonitorId === null) {
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        const display = screen.getDisplayMatching(win.getBounds());
+        if (display) workingMonitorId = display.id;
+      }
+      if (workingMonitorId === null) {
+        workingMonitorId = screen.getPrimaryDisplay().id;
+      }
+    }
+    return { workingMonitorId };
+  });
+  handle('save-audio-recording', (value) => {
+    const input = object(value);
+    return get().audio.saveRecording(input.base64 as string, (input.mimeType as string) || 'audio/webm', input.filename as string | undefined);
+  });
+  handle('attach-audio-recording', (value) => {
+    const input = object(value);
+    const buffer = decodeAudio(input.base64 as string);
+    const mimeType = (input.mimeType as string) || 'audio/webm';
+    const filename = (input.filename as string) || `Audio-${new Date().toISOString().replace(/[:.]/g, '-')}.webm`;
+    return get().images.importAudioBuffer(buffer, filename, mimeType);
+  });
+  handle('transcribe-audio', async (value) => {
+    const input = object(value);
+    return await get().transcription.transcribe(input.base64 as string, input.mimeType as string | undefined);
   });
   let quitting = false;
   app.on('before-quit', (event) => {

@@ -27,6 +27,10 @@ export class StealthService {
   private clickThrough = false;
   private clickThroughShortcut = DEFAULT_CLICK_THROUGH_SHORTCUT;
   private registeredClickThroughShortcut: string | null = null;
+  private codingModeShortcut = 'Alt+C';
+  private behavioralModeShortcut = 'Alt+B';
+  private screenshotShortcut = 'Alt+3';
+  private audioRecordShortcut = 'Alt+A';
   private pollInterval: NodeJS.Timeout | null = null;
   private getKeyStateFn: ((vk: number) => number) | null = null;
   private overlayService: OverlayService | null = null;
@@ -39,6 +43,13 @@ export class StealthService {
     // Initial check of NumLock state
     this.numLock = this.readNumLock();
     this.registerGlobalHotkeys();
+  }
+
+  private sendAction(type: string, payload?: any) {
+    const win = this.getWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('global-action', { type, payload });
+    }
   }
 
   private registerGlobalHotkeys() {
@@ -64,6 +75,30 @@ export class StealthService {
         });
       } catch { /* ignore */ }
     }
+
+    try {
+      shortcut.register(this.codingModeShortcut, () => {
+        this.sendAction('toggle-coding-mode');
+      });
+    } catch { /* ignore */ }
+
+    try {
+      shortcut.register(this.behavioralModeShortcut, () => {
+        this.sendAction('toggle-behavioral-mode');
+      });
+    } catch { /* ignore */ }
+
+    try {
+      shortcut.register(this.screenshotShortcut, () => {
+        this.sendAction('capture-screen');
+      });
+    } catch { /* ignore */ }
+
+    try {
+      shortcut.register(this.audioRecordShortcut, () => {
+        this.sendAction('toggle-audio-record');
+      });
+    } catch { /* ignore */ }
   }
 
   setOverlayService(overlay: OverlayService) {
@@ -259,6 +294,44 @@ export class StealthService {
     }
   }
 
+  setShortcuts(shortcuts: { coding?: string; behavioral?: string; screenshot?: string; audio?: string }) {
+    const globalShortcuts = getGlobalShortcut();
+    if (!globalShortcuts) return;
+
+    if (shortcuts.coding && shortcuts.coding !== this.codingModeShortcut) {
+      try { globalShortcuts.unregister(this.codingModeShortcut); } catch {}
+      try {
+        if (globalShortcuts.register(shortcuts.coding, () => this.sendAction('toggle-coding-mode'))) {
+          this.codingModeShortcut = shortcuts.coding;
+        }
+      } catch {}
+    }
+    if (shortcuts.behavioral && shortcuts.behavioral !== this.behavioralModeShortcut) {
+      try { globalShortcuts.unregister(this.behavioralModeShortcut); } catch {}
+      try {
+        if (globalShortcuts.register(shortcuts.behavioral, () => this.sendAction('toggle-behavioral-mode'))) {
+          this.behavioralModeShortcut = shortcuts.behavioral;
+        }
+      } catch {}
+    }
+    if (shortcuts.screenshot && shortcuts.screenshot !== this.screenshotShortcut) {
+      try { globalShortcuts.unregister(this.screenshotShortcut); } catch {}
+      try {
+        if (globalShortcuts.register(shortcuts.screenshot, () => this.sendAction('capture-screen'))) {
+          this.screenshotShortcut = shortcuts.screenshot;
+        }
+      } catch {}
+    }
+    if (shortcuts.audio && shortcuts.audio !== this.audioRecordShortcut) {
+      try { globalShortcuts.unregister(this.audioRecordShortcut); } catch {}
+      try {
+        if (globalShortcuts.register(shortcuts.audio, () => this.sendAction('toggle-audio-record'))) {
+          this.audioRecordShortcut = shortcuts.audio;
+        }
+      } catch {}
+    }
+  }
+
   cleanup() {
     this.stopMonitoring();
     const shortcut = getGlobalShortcut();
@@ -266,6 +339,10 @@ export class StealthService {
       try { shortcut.unregister('Option+Control+T'); } catch { /* ignore */ }
       try { shortcut.unregister('Home+PageUp'); } catch { /* ignore */ }
       try { shortcut.unregister('Shift+PageDown'); } catch { /* ignore */ }
+      try { shortcut.unregister(this.codingModeShortcut); } catch { /* ignore */ }
+      try { shortcut.unregister(this.behavioralModeShortcut); } catch { /* ignore */ }
+      try { shortcut.unregister(this.screenshotShortcut); } catch { /* ignore */ }
+      try { shortcut.unregister(this.audioRecordShortcut); } catch { /* ignore */ }
     }
   }
 }

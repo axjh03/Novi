@@ -13,6 +13,12 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
     ...state.settings!,
     clickThroughShortcut: state.settings!.clickThroughShortcut || DEFAULT_CLICK_THROUGH_SHORTCUT,
     audioPipelineMode: state.settings!.audioPipelineMode || 'local_stt',
+    codingModeShortcut: state.settings!.codingModeShortcut || 'Alt+C',
+    behavioralModeShortcut: state.settings!.behavioralModeShortcut || 'Alt+B',
+    screenshotShortcut: state.settings!.screenshotShortcut || 'Alt+3',
+    audioRecordShortcut: state.settings!.audioRecordShortcut || 'Alt+A',
+    autoSendOnAudioStop: state.settings!.autoSendOnAudioStop ?? false,
+    fastInterviewModel: state.settings!.fastInterviewModel ?? false,
   });
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(false), [confirm, setConfirm] = useState(false);
   const [recordingShortcut, setRecordingShortcut] = useState(false), [shortcutHint, setShortcutHint] = useState('');
@@ -188,6 +194,80 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                         {shortcutHint || 'Press once to enable click-through, then press it again to restore interaction. Works while transparent mode is on. Save changes to apply.'}
                       </small>
                     </label>
+
+                    <label>
+                      Coding Mode hotkey
+                      <input
+                        className="shortcut-input"
+                        value={value.codingModeShortcut || 'Alt+C'}
+                        onChange={(e) => change({ ...value, codingModeShortcut: e.target.value })}
+                        placeholder="e.g. Alt+C"
+                      />
+                      <small>Opens the movable code viewer. Default: Alt+C (Option+C on Mac).</small>
+                    </label>
+
+                    <label>
+                      Behavioral Interview Mode hotkey
+                      <input
+                        className="shortcut-input"
+                        value={value.behavioralModeShortcut || 'Alt+B'}
+                        onChange={(e) => change({ ...value, behavioralModeShortcut: e.target.value })}
+                        placeholder="e.g. Alt+B"
+                      />
+                      <small>Activates Behavioral Interview Studio with STAR framework guides and candidate story bank. Default: Alt+B (Option+B on Mac).</small>
+                    </label>
+
+                    <label>
+                      Full-screen capture hotkey
+                      <input
+                        className="shortcut-input"
+                        value={value.screenshotShortcut || 'Alt+3'}
+                        onChange={(e) => change({ ...value, screenshotShortcut: e.target.value })}
+                        placeholder="e.g. Alt+3"
+                      />
+                      <small>Takes a full-screen screenshot and attaches it to the chat composer. Default: Alt+3 (Option+3 on Mac).</small>
+                    </label>
+
+                    <label>
+                      System audio capture hotkey
+                      <input
+                        className="shortcut-input"
+                        value={value.audioRecordShortcut || 'Alt+A'}
+                        onChange={(e) => change({ ...value, audioRecordShortcut: e.target.value })}
+                        placeholder="e.g. Alt+A"
+                      />
+                      <small>Captures desktop playback without opening your microphone. Saves locally and then transcribes or attaches it. Default: Alt+A (Option+A on Mac).</small>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 4 }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(value.autoSendOnAudioStop)}
+                        onChange={(e) => change({ ...value, autoSendOnAudioStop: e.target.checked })}
+                        style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
+                      />
+                      <div>
+                        <strong>Send transcript automatically</strong>
+                        <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
+                          When transcription finishes, send the text as a new message.
+                        </div>
+                      </div>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 4 }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(value.fastInterviewModel)}
+                        onChange={(e) => change({ ...value, fastInterviewModel: e.target.checked })}
+                        style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
+                      />
+                      <div>
+                        <strong>Use a faster interview model</strong>
+                        <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
+                          Choose a smaller model when Interview mode is active.
+                        </div>
+                      </div>
+                    </label>
                   </div>
                 </section>
 
@@ -256,98 +336,17 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
             <fieldset disabled={busy}>
               <section className="settings-section">
                 <div>
-                  <h2>Audio & AI Pipeline</h2>
-                  <p>Choose how spoken audio is processed and sent to your models.</p>
+                  <h2>Recording output</h2>
+                  <p>Choose how captured system audio is processed and sent to your models.</p>
                 </div>
-                <div className="settings-fields" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {/* Mode 1: Local STT -> Text Stream (Recommended) */}
-                  <label
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 14,
-                      background: value.audioPipelineMode === 'local_stt' ? 'var(--selected)' : 'var(--surface)',
-                      border: value.audioPipelineMode === 'local_stt' ? '1px solid var(--accent)' : '1px solid var(--border, #e5e5e5)',
-                      borderRadius: 12,
-                      padding: '18px 20px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease-in-out',
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="pipelineMode"
-                      checked={value.audioPipelineMode === 'local_stt'}
-                      onChange={() => change({ ...value, audioPipelineMode: 'local_stt' })}
-                      style={{ marginTop: 4, width: 18, height: 18, accentColor: 'var(--button)', minHeight: 18, flexShrink: 0 }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                        <strong style={{ fontSize: 15 }}>Local Audio STT → Stream Text</strong>
-                        <span style={{
-                          background: 'var(--selected)', color: 'var(--accent)', fontSize: 10, fontWeight: 700,
-                          padding: '2px 8px', borderRadius: 4, letterSpacing: '0.04em'
-                        }}>
-                          ⚡ FASTEST (~400ms)
-                        </span>
-                        <span style={{
-                          background: 'var(--panel)', color: 'var(--muted)', fontSize: 10, fontWeight: 600,
-                          padding: '2px 8px', borderRadius: 4
-                        }}>
-                          🔒 100% PRIVATE AUDIO
-                        </span>
-                      </div>
-                      <p style={{ fontSize: 13, color: 'var(--muted, #666)', margin: '0 0 10px', lineHeight: 1.5 }}>
-                        Converts spoken system audio to text locally using on-device Whisper. Only the transcription text is sent to your configured OpenAI, Claude, or Gemini model, returning streaming text answers almost instantaneously.
-                      </p>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <div>• <b>Zero Audio Upload Lag:</b> No heavy WAV audio transferred across the internet.</div>
-                        <div>• <b>Zero Audio API Surcharges:</b> Transcription is 100% free; only pay standard text tokens.</div>
-                        <div>• Compatible with all <b>OpenAI, Claude, and Gemini</b> chat models.</div>
-                      </div>
-                    </div>
+                <div className="settings-fields">
+                  <label className="audio-mode-option">
+                    <input type="radio" name="pipelineMode" checked={value.audioPipelineMode === 'local_stt'} onChange={() => change({ ...value, audioPipelineMode: 'local_stt' })} />
+                    <span><strong>Transcribe to text</strong><small>Save the recording on this device, then use a configured OpenAI or Gemini connection to transcribe it into the composer.</small></span>
                   </label>
-
-                  {/* Mode 2: Live Audio Streaming */}
-                  <label
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 14,
-                      background: value.audioPipelineMode === 'live_stream' ? 'var(--selected)' : 'var(--surface)',
-                      border: value.audioPipelineMode === 'live_stream' ? '1px solid var(--accent)' : '1px solid var(--border, #e5e5e5)',
-                      borderRadius: 12,
-                      padding: '18px 20px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease-in-out',
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="pipelineMode"
-                      checked={value.audioPipelineMode === 'live_stream'}
-                      onChange={() => change({ ...value, audioPipelineMode: 'live_stream' })}
-                      style={{ marginTop: 4, width: 18, height: 18, accentColor: 'var(--button)', minHeight: 18, flexShrink: 0 }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                        <strong style={{ fontSize: 15 }}>Live Audio Streaming (Realtime Multimodal)</strong>
-                        <span style={{
-                          background: 'var(--selected)', color: 'var(--accent)', fontSize: 10, fontWeight: 700,
-                          padding: '2px 8px', borderRadius: 4, letterSpacing: '0.04em'
-                        }}>
-                          🎙️ REALTIME WEBSOCKET
-                        </span>
-                      </div>
-                      <p style={{ fontSize: 13, color: 'var(--muted, #666)', margin: '0 0 10px', lineHeight: 1.5 }}>
-                        Streams system audio continuously via WebSockets directly to multimodal realtime endpoints (OpenAI Realtime API or Gemini 2.0 Live) to evaluate live inflection, natural speaking cadence, and stream text answers back.
-                      </p>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <div>• <b>Speech-to-Text streaming:</b> Natural voice interruption support.</div>
-                        <div>• Best paired with <b>OpenAI Realtime (gpt-4o-realtime-preview)</b> and <b>Gemini 2.0 Flash</b>.</div>
-                        <div>• Requires higher network bandwidth and standard provider audio-in minute rates.</div>
-                      </div>
-                    </div>
+                  <label className="audio-mode-option">
+                    <input type="radio" name="pipelineMode" checked={value.audioPipelineMode === 'live_stream'} onChange={() => change({ ...value, audioPipelineMode: 'live_stream' })} />
+                    <span><strong>Attach recording</strong><small>Attach the finished recording with Gemini. Other connections transcribe it into text.</small></span>
                   </label>
                 </div>
               </section>

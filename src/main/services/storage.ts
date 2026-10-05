@@ -34,6 +34,12 @@ export class Storage {
     for (const user of this.data.accounts) {
       user.settings.clickThroughShortcut ||= DEFAULT_CLICK_THROUGH_SHORTCUT;
       user.settings.audioPipelineMode ||= 'local_stt';
+      user.settings.codingModeShortcut ||= 'Alt+C';
+      user.settings.behavioralModeShortcut ||= 'Alt+B';
+      user.settings.screenshotShortcut ||= 'Alt+3';
+      user.settings.audioRecordShortcut ||= 'Alt+A';
+      user.settings.transparentOpacity ||= 85;
+      user.settings.transparentBg ||= '#0f172a';
       if (this.data.version === 1) {
         const old = user.settings as AppSettings & { ai?: AIProviderConfig };
         old.connections = old.ai && old.onboardingComplete ? [{ ...old.ai, id: 'legacy', name: PROVIDERS[old.ai.provider].name }] : [];

@@ -1,20 +1,38 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowUpRight, Leaf, X } from 'lucide-react';
+import { Award, Code2, MessageSquare, X } from 'lucide-react';
 import type { Snapshot } from '../../../shared/types';
 import { Sidebar } from '../components/chat/Sidebar';
 import { Composer } from '../components/chat/Composer';
 import { Message } from '../components/chat/Message';
 import { Brand } from '../components/Brand';
 import { useChat } from '../hooks/useChat';
-import { activeConnection } from '../../../shared/providers';
+import { activeConnection, getFastInterviewModel } from '../../../shared/providers';
 import { SettingsPage } from './SettingsPage';
 import { useEyeTracking } from '../hooks/useEyeTracking';
 import { EyeTrackingPanel } from '../components/EyeTrackingPanel';
 import { GazeCalibration } from '../components/GazeCalibration';
 import { unwrap, errorText } from '../services/api';
+import { useAppMode } from '../context/AppModeContext';
+import { codeFromMessages } from '../components/CodingModeHUD';
+import { BehavioralModeHUD } from '../components/BehavioralModeHUD';
 
 export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSaved: (state: Snapshot) => void; onSignOut: () => void }) {
   const chat = useChat(state.conversations), [settings, setSettings] = useState(false), [deleting, setDeleting] = useState<string | null>(null);
+  const {
+    appMode,
+    setAppMode,
+    isRecordingAudio,
+    audioLevel,
+    isAudioStarting,
+    isAudioProcessing,
+    recordingSeconds,
+    toggleAudioRecording,
+    fastInterviewModel,
+    toggleFastInterviewModel,
+    behavioralFramework,
+    setBehavioralFramework,
+    setWorkingMonitor,
+  } = useAppMode();
   const scroll = useRef<HTMLDivElement>(null), atBottom = useRef(true);
   const deleteDialog = useRef<HTMLDialogElement>(null);
   useEffect(() => { if (deleting) deleteDialog.current?.showModal(); }, [deleting]);
@@ -42,6 +60,10 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   }
   useEffect(() => { if (atBottom.current && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight; }, [chat.selected?.messages]);
   useEffect(() => { atBottom.current = true; if (scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight; }, [chat.selectedId]);
+  useEffect(() => {
+    if (appMode !== 'coding') return;
+    void unwrap(window.novi.updateCodeViewer(codeFromMessages(chat.selected?.messages || []))).catch(console.error);
+  }, [appMode, chat.selected?.messages, chat.selectedId]);
 
   // ── Eye tracking ──────────────────────────────────────────────────────────
   const et = useEyeTracking();
@@ -106,7 +128,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
       ) : (
         <main className={`chat-main ${!chat.selected ? 'empty' : ''}`}>
           <header className="chat-header">
-            <div className="session-controls"><span>{state.contextSession?.summaryReady ? 'Context ready · temporary session' : state.contextSession?.status === 'error' ? 'Context loading failed' : 'Reading your context…'}</span><button className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button></div>
             <div className="header-title-area">
               <span className="header-title">{chat.selected?.title || 'A new conversation'}</span>
               <div className="header-model-select-wrapper">
@@ -126,6 +147,19 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
                 </select>
               </div>
             </div>
+            <nav className="chat-mode-tabs" aria-label="Conversation mode">
+              {([
+                ['normal', 'Chat', MessageSquare],
+                ['coding', 'Code', Code2],
+                ['behavioral', 'Interview', Award],
+              ] as const).map(([mode, label, Icon]) => (
+                <button key={mode} type="button" className={`mode-tab-btn ${appMode === mode ? 'active' : ''}`}
+                  aria-label={label} title={label} aria-pressed={appMode === mode} onClick={() => setAppMode(mode)}>
+                  <Icon size={14} /><span>{label}</span>
+                </button>
+              ))}
+            </nav>
+            <div className="session-controls"><span>{state.contextSession?.summaryReady ? 'Context ready · temporary session' : state.contextSession?.status === 'error' ? 'Context loading failed' : 'Reading your context…'}</span><button className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button></div>
             {/* Eye tracking controls in header */}
             <EyeTrackingPanel
               state={et.state}
@@ -144,11 +178,35 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
               onListMonitors={et.listMonitors}
               onOpenOverlay={et.openOverlay}
               onCloseOverlay={et.closeOverlay}
-              onSetMonitor={(id) => et.setMonitor(id)}
+              onSetMonitor={setWorkingMonitor}
               onSendSticky={et.sendStickyToOverlay}
             />
-            <span className="local-badge"><Leaf size={14} />Made for your own pace</span>
           </header>
+
+          {/* Integrated Behavioral Mode Copilot Bar (All in One Right Side - No Left Tab) */}
+          {appMode === 'behavioral' && (
+            <BehavioralModeHUD
+              framework={behavioralFramework}
+              onSelectFramework={setBehavioralFramework}
+              isRecordingAudio={isRecordingAudio}
+              audioLevel={audioLevel}
+              isAudioStarting={isAudioStarting}
+              isAudioProcessing={isAudioProcessing}
+              recordingSeconds={recordingSeconds}
+              onToggleRecording={toggleAudioRecording}
+              fastModelActive={fastInterviewModel}
+              onToggleFastModel={async () => {
+                const willBeActive = !fastInterviewModel;
+                toggleFastInterviewModel();
+                if (willBeActive && connection) {
+                  const fastM = getFastInterviewModel(connection.provider, connection.model);
+                  await handleModelChange(connection.id, fastM);
+                }
+              }}
+              fastModelName={connection ? getFastInterviewModel(connection.provider, connection.model) : 'Fast Flash'}
+              busy={sidebarBusy || syncingModel}
+            />
+          )}
 
           {chat.selected ? (
             <div className="conversation-scroll" ref={scroll} onScroll={() => { const el = scroll.current!; atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }}>
@@ -161,31 +219,26 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             </div>
           ) : (
             <div className="empty-state">
-              <div className="greeting-mark"><Brand compact /><span className="greeting-spark">✦</span></div>
-              <span className="eyebrow">A LITTLE CLARITY STARTS HERE</span>
-              <h1>Hey {config.displayName},<br /><span>what's on your mind?</span></h1>
-              <p>Big ideas, small questions. Let's think it through.</p>
-              <div className="empty-cues">
-                <span>Find a fresh perspective <ArrowUpRight size={13} /></span>
-                <i />
-                <span>Make something good <ArrowUpRight size={13} /></span>
-              </div>
+              <Brand compact />
+              <h1>What would you like to work on?</h1>
+              <p>Ask a question, share an image, or choose a focused mode above.</p>
             </div>
           )}
 
           <div className="composer-area">
             {syncingModel && <div className="model-sync-badge">Ingesting context with {connection?.name} / {connection?.model}… (takes a moment)</div>}
             {syncedModel && !syncingModel && <div className="model-sync-confirmed">✓ {syncedModel} ingested context (UNDERSTOOD)</div>}
-            <p className="context-hint">Session model: {connection?.name} / {connection?.model}. You can switch models anytime in the header dropdown.</p>
-            {chat.selected && <small className="routing-note">Your next message and this conversation will go to {connection?.name}.</small>}
             {chat.error && (
               <div className="error dismissible" role="alert">
                 {chat.error}
                 <button className="icon-button" onClick={() => chat.setError('')} aria-label="Dismiss error"><X size={14} /></button>
               </div>
             )}
-            <Composer key={chat.selectedId || 'new'} busy={chat.busy || contextBusy || ending || syncingModel} model={connection?.model || 'Choose a provider'}
-              onSend={(content, images) => chat.send({ content, imageIds: images.map((image) => image.id) })} />
+            <Composer
+              key={chat.selectedId || 'new'}
+              busy={chat.busy || contextBusy || ending || syncingModel}
+              onSend={(content, images) => chat.send({ content, imageIds: images.map((image) => image.id) })}
+            />
           </div>
         </main>
       )}

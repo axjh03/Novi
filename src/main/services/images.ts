@@ -46,6 +46,36 @@ export class ImageService {
       return image;
     });
   }
+  importBuffer(bytes: Buffer, name = 'Screenshot.png'): ImageAttachment {
+    const user = this.storage.current();
+    if (this.pending.size >= 60) throw new UserError('Too many unused attachments. Sign out and back in to clear them.');
+    const mimeType = imageMime(bytes) || 'image/png';
+    const image = nativeImage.createFromBuffer(bytes);
+    if (image.isEmpty()) throw new UserError('That image could not be opened.');
+    const size = image.getSize();
+    const attachment: ImageAttachment = {
+      id: randomUUID(),
+      name,
+      mimeType,
+      previewUrl: image.resize({ width: Math.min(size.width, 320) }).toDataURL()
+    };
+    writeFileSync(join(this.directory, attachment.id), bytes, { mode: 0o600 });
+    this.pending.set(attachment.id, { userId: user.id, image: attachment });
+    return attachment;
+  }
+  importAudioBuffer(bytes: Buffer, name = 'audio-recording.webm', mimeType = 'audio/webm'): ImageAttachment {
+    const user = this.storage.current();
+    if (this.pending.size >= 60) throw new UserError('Too many unused attachments. Sign out and back in to clear them.');
+    const attachment: ImageAttachment = {
+      id: randomUUID(),
+      name,
+      mimeType,
+      previewUrl: '',
+    };
+    writeFileSync(join(this.directory, attachment.id), bytes, { mode: 0o600 });
+    this.pending.set(attachment.id, { userId: user.id, image: attachment });
+    return attachment;
+  }
   resolve(id: string): ImageAttachment {
     const user = this.storage.current();
     const pending = this.pending.get(id);
@@ -59,8 +89,10 @@ export class ImageService {
     catch { throw new UserError('A saved image is missing. Start a new chat and attach it again.'); }
   }
   preview(id: string): string {
-    const image = nativeImage.createFromDataURL(this.dataUrl(id));
-    return image.resize({ width: Math.min(image.getSize().width, 320) }).toDataURL();
+    const image = this.resolve(id);
+    if (image.mimeType.startsWith('audio/')) return '';
+    const img = nativeImage.createFromDataURL(this.dataUrl(id));
+    return img.resize({ width: Math.min(img.getSize().width, 320) }).toDataURL();
   }
   clearPending() { this.pending.clear(); this.prune(); }
   commit(ids: string[]) { for (const id of ids) this.pending.delete(id); }

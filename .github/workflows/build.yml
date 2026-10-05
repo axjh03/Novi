@@ -1,10 +1,13 @@
-name: Build Executables (.dmg, .exe, .deb)
+name: Build and Release Executables (.dmg, .exe, .deb)
 
 on:
   workflow_dispatch:
   push:
     tags:
       - 'v*'
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -38,3 +41,21 @@ jobs:
         with:
           name: executables-${{ matrix.os }}
           path: dist/*.*
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          files: |
+            dist/*.dmg
+            dist/*.exe
+            dist/*.deb
+            dist/*.AppImage
+            dist/*.zip
+            dist/latest*.yml
+          fail_on_unmatched_files: false
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

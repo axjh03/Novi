@@ -52,6 +52,18 @@ export function settingsInput(value: unknown): SettingsInput {
     audioPipelineMode: ['local_stt', 'live_stream'].includes(String(input.audioPipelineMode))
       ? (input.audioPipelineMode as SettingsInput['audioPipelineMode'])
       : 'local_stt',
+    codingModeShortcut: typeof input.codingModeShortcut === 'string' && input.codingModeShortcut.trim() ? input.codingModeShortcut.trim() : 'Alt+C',
+    behavioralModeShortcut: typeof input.behavioralModeShortcut === 'string' && input.behavioralModeShortcut.trim() ? input.behavioralModeShortcut.trim() : 'Alt+B',
+    screenshotShortcut: typeof input.screenshotShortcut === 'string' && input.screenshotShortcut.trim() ? input.screenshotShortcut.trim() : 'Alt+3',
+    audioRecordShortcut: typeof input.audioRecordShortcut === 'string' && input.audioRecordShortcut.trim() ? input.audioRecordShortcut.trim() : 'Alt+A',
+    autoSendOnAudioStop: typeof input.autoSendOnAudioStop === 'boolean' ? input.autoSendOnAudioStop : false,
+    fastInterviewModel: typeof input.fastInterviewModel === 'boolean' ? input.fastInterviewModel : false,
+    transparentOpacity: typeof input.transparentOpacity === 'number' ? Math.max(20, Math.min(100, input.transparentOpacity)) : 85,
+    transparentBg: typeof input.transparentBg === 'string' && input.transparentBg.trim() ? input.transparentBg.trim() : '#0f172a',
+    workingMonitorId: typeof input.workingMonitorId === 'number' ? input.workingMonitorId : null,
+    behavioralFramework: ['smart', 'star', 'car', 'par', 'soar'].includes(String(input.behavioralFramework))
+      ? (input.behavioralFramework as any)
+      : 'smart',
   };
 }
 export function connectionInput(value: unknown): ConnectionInput {
