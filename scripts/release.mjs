@@ -73,7 +73,7 @@ function getRepoSlug() {
   } catch {
     // fallback
   }
-  return 'axjh03/Astra';
+  return 'axjh03/Novi';
 }
 
 function getGitBranch() {
