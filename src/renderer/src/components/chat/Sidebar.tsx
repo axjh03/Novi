@@ -1,8 +1,54 @@
-import { MessageSquare, Plus, Settings, Trash2 } from 'lucide-react';
+import { MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, Settings, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { Conversation } from '../../../../shared/types';
 import { Brand } from '../Brand';
 
 interface Props { conversations: Conversation[]; selectedId: string | null; displayName: string; busy: boolean; onNew: () => void; onSelect: (id: string) => void; onDelete: (id: string) => void; onSettings: () => void }
 export function Sidebar({ conversations, selectedId, displayName, busy, onNew, onSelect, onDelete, onSettings }: Props) {
-  return <aside className="sidebar"><div className="sidebar-brand"><Brand /><span className="desktop-label">DESKTOP</span></div><button className="new-chat" onClick={onNew} disabled={busy}><Plus size={17} />New conversation<span>↗</span></button><div className="history-heading">YOUR CONVERSATIONS<span>{conversations.length || ''}</span></div><nav className="history" aria-label="Conversation history">{!conversations.length && <p className="history-empty">A clean slate.<br />Your conversations will live here.</p>}{conversations.map((conversation) => <div key={conversation.id} className={`history-item ${selectedId === conversation.id ? 'selected' : ''}`}><button className="history-open" disabled={busy} aria-current={selectedId === conversation.id ? 'page' : undefined} onClick={() => onSelect(conversation.id)}><MessageSquare size={14} /><span>{conversation.title}</span></button><button className="history-delete icon-button" disabled={busy} onClick={() => onDelete(conversation.id)} aria-label={`Delete ${conversation.title}`}><Trash2 size={13} /></button></div>)}</nav><div className="sidebar-bottom"><button className="settings-link" onClick={onSettings} disabled={busy}><Settings size={17} />Settings</button><div className="profile"><span className="profile-avatar">{displayName.slice(0, 1).toUpperCase()}</span><div><strong>{displayName}</strong><small><span className="status-dot" />Your personal space</small></div></div></div></aside>;
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('novi_sidebar_collapsed') === 'true');
+  useEffect(() => {
+    localStorage.setItem('novi_sidebar_collapsed', String(collapsed));
+    document.querySelector('.chat-layout')?.classList.toggle('sidebar-collapsed', collapsed);
+  }, [collapsed]);
+
+  return <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+    <div className="sidebar-brand">
+      <Brand compact={collapsed} />
+      {!collapsed && <span className="desktop-label">DESKTOP</span>}
+      <button className="icon-button sidebar-toggle" onClick={() => setCollapsed(!collapsed)} title={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
+        {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+      </button>
+    </div>
+
+    <button className="new-chat" onClick={onNew} disabled={busy} title="New conversation">
+      <Plus size={17} className="new-icon" />
+      {!collapsed && <><span>New conversation</span><span className="new-arrow">↗</span></>}
+    </button>
+
+    {!collapsed && <div className="history-heading">YOUR CONVERSATIONS<span>{conversations.length || ''}</span></div>}
+
+    <nav className="history" aria-label="Conversation history">
+      {!conversations.length && !collapsed && <p className="history-empty">A clean slate.<br />Your conversations will live here.</p>}
+      {conversations.map((conversation) => (
+        <div key={conversation.id} className={`history-item ${selectedId === conversation.id ? 'selected' : ''}`}>
+          <button className="history-open" disabled={busy} title={conversation.title} aria-current={selectedId === conversation.id ? 'page' : undefined} onClick={() => onSelect(conversation.id)}>
+            <MessageSquare size={14} />
+            {!collapsed && <span>{conversation.title}</span>}
+          </button>
+          {!collapsed && <button className="history-delete icon-button" disabled={busy} onClick={() => onDelete(conversation.id)} aria-label={`Delete ${conversation.title}`}><Trash2 size={13} /></button>}
+        </div>
+      ))}
+    </nav>
+
+    <div className="sidebar-bottom">
+      <button className="settings-link" onClick={onSettings} disabled={busy} title="Settings">
+        <Settings size={17} />
+        {!collapsed && <span>Settings</span>}
+      </button>
+      <div className="profile" title={displayName}>
+        <span className="profile-avatar">{displayName.slice(0, 1).toUpperCase()}</span>
+        {!collapsed && <div><strong>{displayName}</strong><small><span className="status-dot" />Your personal space</small></div>}
+      </div>
+    </div>
+  </aside>;
 }

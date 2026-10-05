@@ -54,9 +54,52 @@ export function EyeTrackingPanel({
   const [errorExpanded, setErrorExpanded] = useState(false);
   const [stickyInput, setStickyInput] = useState('');
   const [stickySent, setStickySent] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   const cameraPickerRef = useRef<HTMLDivElement>(null);
   const monitorPickerRef = useRef<HTMLDivElement>(null);
+  const previewVideoRef = useRef<HTMLVideoElement | null>(null);
+  const previewStreamRef = useRef<MediaStream | null>(null);
+
+  // Manage live camera preview inside dropdown
+  useEffect(() => {
+    if (!showPreview || !cameraPickerOpen) {
+      if (previewStreamRef.current) {
+        previewStreamRef.current.getTracks().forEach((t) => t.stop());
+        previewStreamRef.current = null;
+      }
+      return;
+    }
+    let active = true;
+    async function loadPreview() {
+      try {
+        const constraints: MediaStreamConstraints = {
+          video: selectedCameraId ? { deviceId: { ideal: selectedCameraId } } : true,
+          audio: false,
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (!active) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        previewStreamRef.current = stream;
+        if (previewVideoRef.current) {
+          previewVideoRef.current.srcObject = stream;
+          previewVideoRef.current.play().catch(() => {});
+        }
+      } catch (err) {
+        console.warn('Camera dropdown preview error:', err);
+      }
+    }
+    void loadPreview();
+    return () => {
+      active = false;
+      if (previewStreamRef.current) {
+        previewStreamRef.current.getTracks().forEach((t) => t.stop());
+        previewStreamRef.current = null;
+      }
+    };
+  }, [showPreview, cameraPickerOpen, selectedCameraId]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -97,17 +140,14 @@ export function EyeTrackingPanel({
   };
 
   const handleSelectCamera = async (deviceId: string) => {
-    setCameraPickerOpen(false);
     await onSwitchCamera(deviceId);
   };
 
   const handleSelectMonitor = async (displayId: number) => {
     onSetMonitor(displayId);
     if (overlayActive) {
-      // Hot switch overlay to new monitor
       await onOpenOverlay(displayId);
     }
-    // We don't close the picker here, because it's nice to see the checkmark move.
   };
 
   const handleToggleOverlay = async () => {
@@ -194,6 +234,21 @@ export function EyeTrackingPanel({
                   )}
                 </button>
               ))
+            )}
+
+            <div className="et-dropdown-divider" />
+            <button
+              type="button"
+              className="et-preview-toggle-btn"
+              onClick={() => setShowPreview(!showPreview)}
+            >
+              <Eye size={11} /> {showPreview ? 'Hide Camera Preview' : 'Show Live Camera Preview'}
+            </button>
+            {showPreview && (
+              <div className="et-camera-preview-box">
+                <video ref={previewVideoRef} autoPlay playsInline muted className="et-camera-preview-video" />
+                <div className="et-camera-preview-tag">LIVE PREVIEW</div>
+              </div>
             )}
           </div>
         )}

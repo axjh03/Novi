@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session } from 'electron';
+import { app, BrowserWindow, session, desktopCapturer } from 'electron';
 import { join, resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -42,9 +42,24 @@ function createWindow() {
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else void app.whenReady().then(async () => {
-  // Allow camera access for eye-tracking; deny everything else.
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(permission === 'media'));
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media');
+  // Allow camera, microphone, and display-capture for eye-tracking and system audio loopback; deny everything else.
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(permission === 'media' || (permission as string) === 'display-capture'));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media' || (permission as string) === 'display-capture');
+
+  // Handle getDisplayMedia for System Audio IN loopback capture
+  session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
+    desktopCapturer.getSources({ types: ['screen'] })
+      .then((sources) => {
+        if (sources.length > 0) {
+          callback({ video: sources[0], audio: 'loopback' });
+        } else {
+          callback({});
+        }
+      })
+      .catch(() => {
+        callback({});
+      });
+  });
   // The renderer never needs external networking; all provider traffic lives in main.
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
     const url = new URL(details.url);

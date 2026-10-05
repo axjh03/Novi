@@ -65,14 +65,22 @@ export class CameraService {
       height: { ideal: 480 },
       frameRate: { ideal: 30 },
     };
-    if (deviceId) videoConstraint.deviceId = { exact: deviceId };
+    if (deviceId) videoConstraint.deviceId = { ideal: deviceId };
 
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      video: videoConstraint,
-      audio: false,
-    });
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        video: videoConstraint,
+        audio: false,
+      });
+    } catch {
+      // Fallback if specific constraint fails
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false,
+      });
+    }
     this.video.srcObject = this.stream;
-    await this.video.play();
+    await this.video.play().catch(() => {});
   }
 
   stop(): void {

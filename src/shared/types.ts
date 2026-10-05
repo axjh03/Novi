@@ -1,7 +1,8 @@
 export type SupportedProviderKind = 'openai' | 'anthropic' | 'gemini';
 export type ProviderKind = SupportedProviderKind | 'compatible';
 export type AudioPipelineMode = 'local_stt' | 'live_stream';
-export const DEFAULT_CLICK_THROUGH_SHORTCUT = 'Alt+Shift+I';
+const isMacPlatform = typeof process !== 'undefined' && process.platform ? process.platform === 'darwin' : (typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform));
+export const DEFAULT_CLICK_THROUGH_SHORTCUT = isMacPlatform ? 'Option+Control+I' : 'Shift+Home';
 export interface User { id: string; name: string; email: string; username?: string; managed?: boolean; licenseKey?: string; licenseExpiresAt?: string }
 export interface AIProviderConfig {
   provider: ProviderKind;
@@ -89,6 +90,7 @@ export interface NoviAPI {
   refreshManaged(): Promise<Result<Snapshot>>;
   onSessionEnded(callback: (message: string) => void): () => void;
   listModels(input: ConnectionInput): Promise<Result<ModelOption[]>>;
+  testConnection(): Promise<Result<void>>;
   deleteConversation(id: string): Promise<Result<void>>;
   clearHistory(): Promise<Result<void>>;
   pickImages(): Promise<Result<ImageAttachment[]>>;

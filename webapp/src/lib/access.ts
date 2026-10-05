@@ -5,6 +5,8 @@ import { canResetPassword } from './access-permissions';
 import { activityEvents } from './activity-events';
 import { AccessError, durationDate, licenseKey, password, providers, roles, string, validParent } from './access-policy';
 import { readToken, seal, tokenFor, unseal } from './access-security';
+import { listModels } from '../../../src/main/services/models';
+import { UserError } from '../../../src/main/services/validation';
 
 type DB = Prisma.TransactionClient;
 export const LEASE_MS = 90_000;
@@ -102,10 +104,25 @@ export async function state(req: Request) {
     prisma.accessAccount.findMany({ where: { id: { in: ids } }, select: publicAccount, orderBy: { createdAt: 'asc' } }),
     prisma.accessLicense.findMany({ where: { ownerId: { in: ids } }, orderBy: { createdAt: 'desc' } }),
     prisma.accessSession.findMany({ where: { accountId: { in: ids }, audience: 'desktop', revokedAt: null, expiresAt: { gt: new Date() }, lastSeenAt: { gt: new Date(Date.now() - LEASE_MS) } }, select: { id: true, accountId: true, deviceName: true, ipAddress: true, lastSeenAt: true } }),
-    prisma.managedCredential.findMany({ where: { ownerId: account.id }, select: credentialFields }),
+    prisma.managedCredential.findMany({ where: { ownerId: account.role === 'ADMIN' ? { in: ids } : account.id }, select: credentialFields }),
     prisma.licenseRequest.findMany({ where: { ownerId: { in: ids } }, orderBy: { createdAt: 'desc' } }),
   ]);
   return { user: { id: account.id, name: account.name, username: account.username, role: account.role }, accounts, licenses, sessions, credentials, requests, providers };
+}
+export async function credentialModels(req: Request, id: string) {
+  const { account, session } = await authenticate(req);
+  if (session.audience !== 'portal') throw new AccessError('Use the management portal.', 403);
+  const credential = await prisma.managedCredential.findFirst({ where: { id, ...(account.role === 'ADMIN' ? {} : { ownerId: account.id }) } });
+  if (!credential) throw new AccessError('Credential not found.', 404);
+  const provider = providers[credential.provider as keyof typeof providers];
+  if (!provider) throw new AccessError('Choose a supported provider.');
+  try {
+    const models = await listModels({ provider: provider.kind, baseUrl: provider.baseUrl, model: '', stream: true }, unseal(credential.encryptedSecret));
+    return { models, checkedAt: new Date().toISOString() };
+  } catch (error) {
+    if (error instanceof UserError) throw new AccessError(error.message, 502);
+    throw error;
+  }
 }
 export async function activity(req: Request) {
   const { account, session } = await authenticate(req);
@@ -242,8 +259,9 @@ export async function mutate(req: Request, resource: string, id: string | undefi
       if (req.method === 'POST' || (req.method === 'PATCH' && id)) {
         const provider = string(body.provider, 'provider');
         if (!Object.hasOwn(providers, provider)) throw new AccessError('Choose a supported provider.');
-        const data = { provider, nickname: string(body.nickname, 'nickname', 60), model: string(body.model, 'model ID', 200) };
-        const secret = body.secret ? string(body.secret, 'API key', 4096) : undefined;
+        const data = { provider, nickname: string(body.nickname, 'nickname', 60), model: '' };
+        const rawSecret = body.secret ? string(body.secret, 'API key', 4096).trim() : undefined;
+        const secret = rawSecret || undefined;
         if (existing && existing.provider !== provider && !secret) throw new AccessError('Enter a new API key when changing providers.');
         if (!id && !secret) throw new AccessError('Enter an API key.');
         const encrypted = secret ? { encryptedSecret: seal(secret), lastFour: secret.slice(-4) } : {};

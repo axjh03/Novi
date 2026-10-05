@@ -14,6 +14,7 @@ async function main() {
   const imagePath = join(directory, 'sample.png');
   writeFileSync(imagePath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1XkAAAAASUVORK5CYII=', 'base64'));
   const requests: Array<{ messages: Array<{ content: unknown }>; model: string }> = [];
+  let rejectPing = false, pings = 0, confirmedAt = 0, contextSentAt = 0;
   const server = createServer(async (request, response) => {
     if (request.url?.startsWith('/api/control/')) {
       response.writeHead(200, { 'Content-Type': 'application/json' });
@@ -22,7 +23,7 @@ async function main() {
       const data = request.url.endsWith('/login') ? { token: 'test-session-token' } : request.url.endsWith('/logout') ? {} : {
         user: { id: 'managed-smoke-account', username: 'desktop.test', name: 'Aalok' },
         license: { key: 'TEST-TEST-TEST-TEST', expiresAt: '2099-01-01T00:00:00.000Z' },
-        credentials: [{ id: 'managed-key', name: 'Local test', ownerName: 'Test owner', provider: 'compatible', baseUrl: `http://127.0.0.1:${address.port}/v1`, model: 'test-model', stream: true, apiKey: 'fixture-key' }],
+        credentials: [{ id: 'managed-key', name: 'Local test', ownerName: 'Test owner', provider: 'compatible', baseUrl: `http://127.0.0.1:${address.port}/v1`, model: '', stream: true, apiKey: 'fixture-key' }],
       };
       response.end(JSON.stringify({ data })); return;
     }
@@ -33,7 +34,22 @@ async function main() {
     }
     let body = '';
     for await (const chunk of request) body += chunk;
-    requests.push(JSON.parse(body));
+    const payload = JSON.parse(body);
+    if (payload.messages?.[0]?.content === 'Connection check. Reply only OK.') {
+      pings++;
+      assert.equal(payload.model, 'test-model');
+      assert.equal(payload.messages.length, 1);
+      if (rejectPing) {
+        response.writeHead(401, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: {} })); return;
+      }
+      confirmedAt = Date.now();
+      response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      response.end('data: ' + JSON.stringify({ choices: [{ delta: { content: 'OK' }, finish_reason: 'stop' }] }) + '\n\ndata: [DONE]\n\n');
+      return;
+    }
+    if (!requests.length) contextSentAt = Date.now();
+    requests.push(payload);
     response.writeHead(200, { 'Content-Type': 'text/event-stream' });
     const content = requests.length === 1 ? 'Understood the loaded context. Cedar uses blue buttons.' : 'Your button should be blue.';
     response.end('data: ' + JSON.stringify({ choices: [{ delta: { content }, finish_reason: 'stop' }] }) + '\n\ndata: [DONE]\n\n');
@@ -62,6 +78,8 @@ async function main() {
     assert.equal(await page.getByRole('button', { name: 'Edit Local test' }).count(), 0);
     assert(!JSON.stringify(await page.evaluate(() => window.novi.session())).includes('fixture-key'));
     await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.getByLabel('Choose model', { exact: true }).selectOption('test-model');
+    assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), 'test-model');
     assert.equal(await page.getByLabel('Message Novi').count(), 0);
     await app.evaluate(({ dialog }, source) => {
       dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [source] })) as typeof dialog.showOpenDialog;
@@ -69,8 +87,23 @@ async function main() {
     await page.getByRole('button', { name: 'Load context', exact: true }).click();
     await page.getByLabel('Session purpose (required)').fill('Review the Cedar interface.');
     await page.getByLabel('Custom field 1 instructions').fill('Keep the answer concise.');
+    rejectPing = true;
     await page.getByRole('button', { name: 'Start session', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'Your API key was rejected' }).waitFor();
+    assert.equal(requests.length, 0, 'failed ping sends no context');
+    assert.equal(await page.getByRole('button', { name: 'Cancel start' }).count(), 0);
+    rejectPing = false;
+    await page.getByRole('button', { name: 'Start session', exact: true }).click();
+    await page.getByText('Connection confirmed. Starting session in 5 seconds.', { exact: true }).waitFor();
+    assert.equal(requests.length, 0, 'context waits for the countdown');
+    await page.getByRole('button', { name: 'Cancel start', exact: true }).click();
+    await new Promise(resolve => setTimeout(resolve, 5200));
+    assert.equal(requests.length, 0, 'cancelling prevents the session from starting');
+    await page.getByRole('button', { name: 'Start session', exact: true }).click();
+    for (const seconds of [5, 4, 3, 2, 1]) await page.getByText(`Connection confirmed. Starting session in ${seconds} seconds.`, { exact: true }).waitFor();
     await page.getByText('Understood the loaded context. Cedar uses blue buttons.', { exact: true }).waitFor();
+    assert.equal(pings, 3);
+    assert(contextSentAt - confirmedAt >= 5000, 'waits at least five seconds after confirmation');
     assert.equal(requests.length, 1);
     assert.match(JSON.stringify(requests[0]), /SESSION_SOURCE/);
     assert.match(JSON.stringify(requests[0]), /Keep the answer concise/);
@@ -101,7 +134,7 @@ async function main() {
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
     await app.close(); app = await launch(); page = await app.firstWindow();
     await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
-    console.log('Desktop smoke passed: authentication, Context gate, folder loading, first AI confirmation, temporary summary, inherited context, image chat, session deletion, restart.');
+    console.log('Desktop smoke passed: model discovery and selection, rejected ping, countdown cancellation, five-second countdown, context session, image chat, session deletion, restart.');
   } finally {
     await app?.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));

@@ -6,6 +6,9 @@ import { spawnSync } from 'node:child_process';
 if (existsSync('.env')) loadEnvFile('.env');
 if (existsSync('.env.access')) loadEnvFile('.env.access');
 const [command, ...args] = process.argv.slice(2);
+if (command === 'next' && args.includes('build')) {
+  spawnSync(process.execPath, ['node_modules/prisma/build/index.js', 'generate'], { stdio: 'inherit', env: process.env });
+}
 const entry = command === 'next' ? ['node_modules/next/dist/bin/next'] : command === 'prisma' ? ['node_modules/prisma/build/index.js'] : command === 'seed' ? ['--import', 'tsx', 'prisma/seed-access.ts'] : null;
 if (!entry) throw new Error('Expected next, prisma, or seed.');
 const result = spawnSync(process.execPath, [...entry, ...args], { stdio: 'inherit', env: process.env });

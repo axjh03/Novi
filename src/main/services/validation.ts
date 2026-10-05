@@ -54,18 +54,18 @@ export function settingsInput(value: unknown): SettingsInput {
       : 'local_stt',
   };
 }
-export function connectionInput(value: unknown, discovery = false): ConnectionInput {
+export function connectionInput(value: unknown): ConnectionInput {
   const input = object(value), ai = object(input.ai);
   if (typeof ai.provider !== 'string' || !Object.hasOwn(PROVIDERS, ai.provider)) throw new UserError('Choose a supported provider.');
   const provider = ai.provider as ProviderKind;
   if (typeof ai.stream !== 'boolean') throw new UserError('Invalid streaming setting.');
-  const model = text(ai.model, 'model ID', 200, discovery);
+  const model = text(ai.model ?? '', 'model selection', 200, true);
   if (/[\r\n\x00]/.test(model)) throw new UserError('Enter a valid model ID.');
   return {
     id: input.id === undefined ? undefined : text(input.id, 'connection ID', 100),
     name: text(input.name, 'connection name', 60),
     ai: {
-      provider, baseUrl: PROVIDERS[provider]?.baseUrl || '',
+      provider, baseUrl: provider === 'compatible' ? baseUrl(ai.baseUrl) : PROVIDERS[provider].baseUrl,
       model, stream: ai.stream,
     },
     apiKey: input.apiKey === undefined ? undefined : text(input.apiKey, 'API key', 4096, true),

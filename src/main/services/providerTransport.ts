@@ -2,14 +2,20 @@ import type { AIProviderConfig } from '../../shared/types';
 import { PROVIDERS } from '../../shared/providers.ts';
 import { UserError } from './validation.ts';
 
-export const endpoint = (config: AIProviderConfig) => PROVIDERS[config.provider]?.baseUrl || config.baseUrl;
+export const endpoint = (config: AIProviderConfig) => config.provider === 'compatible' ? config.baseUrl : PROVIDERS[config.provider].baseUrl;
 export function authHeaders(config: AIProviderConfig, key: string): Record<string, string> {
   if (config.provider === 'anthropic') return { 'x-api-key': key, 'anthropic-version': '2023-06-01' };
   if (config.provider === 'gemini') return { 'x-goog-api-key': key };
   return key ? { Authorization: `Bearer ${key}` } : {};
 }
 export function providerError(status: number, code = ''): UserError {
-  if (status === 401 || status === 403 || ['API_KEY_INVALID', 'authentication_error'].includes(code)) return new UserError('Your API key was rejected. Check it in Settings.');
+  if (status === 401 || ['API_KEY_INVALID', 'API_KEY_EXPIRED', 'invalid_api_key', 'authentication_error'].includes(code)) return new UserError('Your API key was rejected. Check or replace the saved key in API management.');
+  if (code === 'SERVICE_DISABLED') return new UserError('The API is disabled for this key’s project. Enable the provider API in the project settings.');
+  if (code === 'BILLING_DISABLED') return new UserError('Billing is disabled for this key’s project. Check billing with the provider.');
+  if (code === 'API_KEY_HTTP_REFERRER_BLOCKED') return new UserError('This key’s website restrictions block this request. Ask the key owner to configure a key that permits this app.');
+  if (code === 'API_KEY_IP_ADDRESS_BLOCKED') return new UserError('This key’s IP restrictions block this request. Ask the key owner to allow the requesting device or server.');
+  if (code === 'API_KEY_SERVICE_BLOCKED') return new UserError('This key’s API restrictions block the selected provider API. Check its allowed APIs with the key owner.');
+  if (status === 403 || ['PERMISSION_DENIED', 'permission_error'].includes(code)) return new UserError('The provider denied access. This does not necessarily mean the key is invalid. Check the key’s restrictions, project access, and model permissions.');
   if (status === 429 || code === 'rate_limit_error') return new UserError("You've reached the provider's rate limit. Try again shortly.");
   if (['model_not_found', 'invalid_model'].includes(code)) return new UserError('The selected model could not be found.');
   if (status === 404 || code === 'not_found_error') return new UserError('The selected model or API endpoint could not be found. Check Settings.');
@@ -20,7 +26,7 @@ export async function providerFetch(url: string, config: AIProviderConfig, key: 
   let response: Response;
   try {
     response = await fetch(url, {
-      method: body === undefined ? 'GET' : 'POST', redirect: 'error',
+      method: body === undefined ? 'GET' : 'POST', redirect: 'error', cache: 'no-store',
       headers: { 'Content-Type': 'application/json', ...authHeaders(config, key) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal,
     });
@@ -30,7 +36,11 @@ export async function providerFetch(url: string, config: AIProviderConfig, key: 
   }
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw providerError(response.status, data.error?.details?.[0]?.reason || data.error?.code || data.error?.type);
+    const details = Array.isArray(data.error?.details) ? data.error.details : [];
+    const code = [...details.map((detail: any) => detail?.reason), data.error?.status, data.error?.type, data.error?.code].find(value => typeof value === 'string' && value) || '';
+    const error = providerError(response.status, code);
+    const operation = body === undefined ? 'model list' : 'model request';
+    throw new UserError(`${PROVIDERS[config.provider].name} ${operation} failed (HTTP ${response.status}): ${error.message}`);
   }
   return response;
 }

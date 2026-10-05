@@ -84,7 +84,10 @@ export class ManagedAuthService {
         this.storage.data.accounts.push(account);
       }
       const oldConnections = account.settings.connections;
-      const connections = result.credentials.map(({ apiKey: _secret, ...c }) => ({ ...c, managed: true, enabled: oldConnections.find(old => old.id === c.id)?.enabled !== false }));
+      const connections = result.credentials.map(({ apiKey: _secret, ...c }) => {
+        const old = oldConnections.find(old => old.id === c.id && old.provider === c.provider && old.baseUrl === c.baseUrl);
+        return { ...c, model: old?.model ?? c.model, managed: true, enabled: old?.enabled !== false };
+      });
       Object.assign(account, user);
       account.settings.connections = connections;
       account.settings.onboardingComplete = true;

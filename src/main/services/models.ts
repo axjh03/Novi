@@ -1,6 +1,22 @@
 import type { AIProviderConfig, ModelOption } from '../../shared/types';
 import { endpoint, providerFetch } from './providerTransport.ts';
 import { UserError } from './validation.ts';
+import { AIProviderFactory } from './providers.ts';
+
+export async function testConnection(config: AIProviderConfig, key: string): Promise<void> {
+  if (!config.model) throw new UserError('Choose a model before testing the connection.');
+  const models = await listModels(config, key);
+  if (!models.some(m => m.id === config.model)) throw new UserError('This model is no longer available. Refresh the model list and choose another model.');
+  try {
+    await AIProviderFactory.create(config, key).sendMessage({
+      messages: [{ id: 'connection-check', role: 'user', content: 'Connection check. Reply only OK.', createdAt: Date.now() }],
+      signal: AbortSignal.timeout(30_000), imageData: () => '', onDelta: () => {},
+    });
+  } catch (error) {
+    if (error instanceof UserError) throw error;
+    throw new UserError('The connection test timed out or failed. Try again before starting the session.');
+  }
+}
 
 export async function listModels(config: AIProviderConfig, key: string): Promise<ModelOption[]> {
   const models = new Map<string, ModelOption>();
@@ -15,13 +31,13 @@ export async function listModels(config: AIProviderConfig, key: string): Promise
       const response = await providerFetch(url.href, config, key, signal);
       const data = await response.json();
       const items = config.provider === 'gemini' ? data.models : data.data;
-      if (!Array.isArray(items)) throw new UserError('This endpoint does not return a model list. Enter the model ID manually.');
+      if (!Array.isArray(items)) throw new UserError('This endpoint does not return a model list. Check the provider connection and try again.');
       for (const item of items) {
         if (config.provider === 'gemini' && !item.supportedGenerationMethods?.includes('generateContent')) continue;
         const id = config.provider === 'gemini' ? item.name?.replace(/^models\//, '') : item.id;
-        if (typeof id !== 'string' || id.length > 200) continue;
-        if (config.provider === 'openai' && !/^(gpt-|chat-|chatgpt-|o[1-9])/.test(id)) continue;
-        if (config.provider !== 'compatible' && /embedding|tts|transcrib|image|moderation|computer-use/.test(id)) continue;
+        if (typeof id !== 'string' || !id.trim() || id.length > 200 || /[\r\n\x00]/.test(id)) continue;
+        if (config.provider === 'openai' && !/^(gpt-|chat-|chatgpt-|o[1-9]|ft:)/.test(id)) continue;
+        if (config.provider !== 'compatible' && /embedding|tts|transcrib|image|moderation|computer-use|realtime|audio|instruct/.test(id)) continue;
         const label = item.display_name || item.displayName || id;
         models.set(id, { id, name: typeof label === 'string' ? label.slice(0, 200) : id });
         if (models.size >= 5000) break;
@@ -33,8 +49,8 @@ export async function listModels(config: AIProviderConfig, key: string): Promise
     }
   } catch (error) {
     if (error instanceof UserError) throw error;
-    throw new UserError('Unable to fetch models. Check your connection, or enter a model ID manually.');
+    throw new UserError('Unable to fetch models. Check your connection and try again.');
   }
-  if (!models.size) throw new UserError('No chat models were returned. Enter your model ID manually.');
+  if (!models.size) throw new UserError('No compatible chat models were returned for this API key. Check the provider account and try again.');
   return [...models.values()].sort((a, b) => a.id.localeCompare(b.id));
 }

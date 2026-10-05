@@ -1,24 +1,49 @@
-import { useState } from 'react';
-import type { ModelOption, Snapshot } from '../../../../shared/types';
-import { activeConnection, PROVIDERS } from '../../../../shared/providers';
+﻿import { useEffect, useState } from 'react';
+import type { ModelOption, ProviderConnection, Snapshot } from '../../../../shared/types';
+import { activeConnection } from '../../../../shared/providers';
 import { unwrap, errorText } from '../../services/api';
 
-export function ProviderPicker({ state, disabled, onSaved, onError }: { state: Snapshot; disabled: boolean; onSaved: (state: Snapshot) => void; onError: (error: string) => void }) {
-  const [busy, setBusy] = useState(false), [custom, setCustom] = useState(false), [model, setModel] = useState('');
-  const connection = activeConnection(state.settings!);
-  if (!connection) return null;
-  const options = (PROVIDERS[connection.provider] || PROVIDERS.openai).models;
+interface Props { state: Snapshot; disabled: boolean; onSaved: (state: Snapshot) => void; onError: (error: string) => void; onReady: (ready: boolean) => void }
+export function ProviderPicker(props: Props) {
+  const connection = activeConnection(props.state.settings!);
+  return connection ? <ConnectionPicker key={`${connection.id}:${connection.provider}:${connection.baseUrl}`} {...props} connection={connection} /> : null;
+}
+
+function ConnectionPicker({ state, disabled, onSaved, onError, onReady, connection }: Props & { connection: ProviderConnection }) {
+  const [busy, setBusy] = useState(false), [models, setModels] = useState<ModelOption[]>([]);
+  const [loading, setLoading] = useState(true), [error, setError] = useState(''), [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setModels([]); setError('');
+    void unwrap(window.novi.listModels({ id: connection.id, name: connection.name, ai: connection }))
+      .then(found => { if (!cancelled) setModels(found); })
+      .catch(err => { if (!cancelled) setError(errorText(err)); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  // The keyed component resets discovery when the provider connection changes.
+  }, [refresh]);
+  const available = models.some(m => m.id === connection.model);
+  useEffect(() => {
+    onReady(!loading && !busy && available);
+    return () => onReady(false);
+  }, [loading, busy, available, onReady]);
   async function select(id: string, model?: string) {
-    setBusy(true);
-    try { onSaved(await unwrap(window.novi.selectConnection(id, model))); setCustom(false); }
-    catch (error) { onError(errorText(error)); }
+    setBusy(true); onReady(false); onError('');
+    try { onSaved(await unwrap(window.novi.selectConnection(id, model))); }
+    catch (err) { onError(errorText(err)); }
     finally { setBusy(false); }
   }
-  if (state.user?.managed) return <div className="chat-provider-picker"><select aria-label="Choose managed API connection" disabled={disabled || busy} value={connection.id} onChange={e => void select(e.target.value)}>{state.settings!.connections.filter(c => c.enabled !== false).map(c => <option key={c.id} value={c.id}>{c.name} · {c.model}</option>)}</select><span className="muted">Managed by {connection.ownerName}</span></div>;
-  return <div className="chat-provider-picker"><select aria-label="Choose provider" disabled={disabled || busy} value={connection.id} onChange={(e) => void select(e.target.value)}>{state.settings!.connections.map((c) => <option value={c.id} key={c.id}>{c.name}</option>)}</select>
-    <select aria-label="Choose model" disabled={disabled || busy} value={custom ? '__custom' : connection.model} onChange={(e) => { if (e.target.value === '__custom') { setCustom(true); setModel(connection.model); } else void select(connection.id, e.target.value); }}>
-      {!options.some((m: ModelOption) => m.id === connection.model) && <option value={connection.model}>{connection.model}</option>}{options.map((m: ModelOption) => <option value={m.id} key={m.id}>{m.name}</option>)}<option value="__custom">Custom model…</option>
+  return <div className="chat-provider-picker">
+    <select aria-label={state.user?.managed ? 'Choose managed API connection' : 'Choose provider'} disabled={disabled || busy} value={connection.id} onChange={e => void select(e.target.value)}>
+      {state.settings!.connections.filter(c => c.enabled !== false).map(c => <option value={c.id} key={c.id}>{c.name}</option>)}
     </select>
-    {custom && <form onSubmit={(e) => { e.preventDefault(); void select(connection.id, model); }}><input aria-label="Custom model ID" value={model} onChange={(e) => setModel(e.target.value)} required maxLength={200} disabled={disabled || busy} /><button className="text-button" disabled={disabled || busy}>Use model</button><button type="button" className="text-button" onClick={() => setCustom(false)}>Cancel</button></form>}
+    <select aria-label="Choose model" disabled={disabled || busy || loading || !models.length} value={available ? connection.model : ''} onChange={e => void select(connection.id, e.target.value)}>
+      <option value="" disabled>{loading ? 'Loading models…' : 'Choose a model'}</option>
+      {models.map(m => <option value={m.id} key={m.id}>{m.name === m.id ? m.id : `${m.name} (${m.id})`}</option>)}
+    </select>
+    <button type="button" className="text-button" disabled={disabled || busy || loading} onClick={() => { onReady(false); setRefresh(n => n + 1); }}>Refresh models</button>
+    {state.user?.managed && <span className="muted">Key shared by {connection.ownerName}</span>}
+    {!loading && !error && connection.model && !available && <span role="status">The previous model is unavailable. Choose a model from the list.</span>}
+    {error && <span className="error" role="alert">{error}</span>}
   </div>;
 }

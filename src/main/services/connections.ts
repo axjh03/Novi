@@ -10,12 +10,13 @@ export class ConnectionService {
     const user = this.storage.current();
     const existing = user.settings.connections.find((item) => item.id === input.id);
     if (user.managed) {
-      if (!existing?.managed || input.apiKey !== undefined || existing.provider !== input.ai.provider || existing.baseUrl !== input.ai.baseUrl || existing.model !== input.ai.model) throw new UserError('Use an API connection provided by your account owner.');
+      if (!existing?.managed || existing.enabled === false || input.apiKey !== undefined || existing.provider !== input.ai.provider || existing.baseUrl !== input.ai.baseUrl) throw new UserError('Use an API connection provided by your account owner.');
       return this.credentials.get(user.id, existing);
     }
     if (input.id && !existing) throw new UserError('This provider connection could not be found.');
     const sameDestination = existing?.provider === input.ai.provider && existing.baseUrl === input.ai.baseUrl;
-    const key = input.apiKey ?? (existing && sameDestination ? this.credentials.get(user.id, existing) : '');
+    const providedKey = typeof input.apiKey === 'string' ? input.apiKey.trim() : undefined;
+    const key = providedKey || (existing && sameDestination ? this.credentials.get(user.id, existing) : '');
     if (input.ai.provider !== 'compatible' && !key) throw new UserError('Enter an API key for this provider.');
     return key;
   }
@@ -36,8 +37,7 @@ export class ConnectionService {
     const connection = user.settings.connections.find((item) => item.id === text(id, 'connection ID', 100));
     if (!connection) throw new UserError('Choose a saved provider connection.');
     if (connection.enabled === false) throw new UserError('Enable this connection in API management first.');
-    if (user.managed && model !== undefined && model !== connection.model) throw new UserError('The model is managed by your account owner.');
-    if (model !== undefined) connection.model = connectionInput({ id: connection.id, name: connection.name, ai: { ...connection, model } }).ai.model;
+    if (model !== undefined) connection.model = connectionInput({ id: connection.id, name: connection.name, ai: { ...connection, model: text(model, 'model selection', 200) } }).ai.model;
     user.settings.activeConnectionId = connection.id;
     this.storage.save();
   }

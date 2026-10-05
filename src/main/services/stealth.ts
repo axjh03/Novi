@@ -38,6 +38,32 @@ export class StealthService {
     this.initNativeKeyReader();
     // Initial check of NumLock state
     this.numLock = this.readNumLock();
+    this.registerGlobalHotkeys();
+  }
+
+  private registerGlobalHotkeys() {
+    const shortcut = getGlobalShortcut();
+    if (!shortcut) return;
+
+    if (process.platform === 'darwin') {
+      try {
+        shortcut.register('Option+Control+T', () => {
+          this.toggleTransparent();
+        });
+      } catch { /* ignore */ }
+    } else {
+      // Windows & Linux
+      try {
+        shortcut.register('Home+PageUp', () => {
+          this.setTransparent(true);
+        });
+      } catch { /* ignore */ }
+      try {
+        shortcut.register('Shift+PageDown', () => {
+          this.setTransparent(false);
+        });
+      } catch { /* ignore */ }
+    }
   }
 
   setOverlayService(overlay: OverlayService) {
@@ -237,11 +263,9 @@ export class StealthService {
     this.stopMonitoring();
     const shortcut = getGlobalShortcut();
     if (shortcut) {
-      try {
-        shortcut.unregister('CommandOrControl+Shift+T');
-      } catch {
-        // Ignore
-      }
+      try { shortcut.unregister('Option+Control+T'); } catch { /* ignore */ }
+      try { shortcut.unregister('Home+PageUp'); } catch { /* ignore */ }
+      try { shortcut.unregister('Shift+PageDown'); } catch { /* ignore */ }
     }
   }
 }

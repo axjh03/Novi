@@ -4,16 +4,44 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AIProviderFactory } from '../src/main/services/providers.ts';
-import { listModels } from '../src/main/services/models.ts';
+import { listModels, testConnection } from '../src/main/services/models.ts';
 import { ConnectionService } from '../src/main/services/connections.ts';
 import { LocalAuthService } from '../src/main/services/auth.ts';
 import { Storage } from '../src/main/services/storage.ts';
 import { newConnection, PROVIDERS } from '../src/shared/providers.ts';
 import type { ProviderConnection, ProviderKind } from '../src/shared/types';
+import { providerFetch } from '../src/main/services/providerTransport.ts';
 
 const messages = [{ id: 'm1', role: 'user' as const, content: 'Describe', createdAt: 1, images: [{ id: 'i1', name: 'image.png', mimeType: 'image/png' }] }, { id: 'm2', role: 'assistant' as const, content: 'Earlier reply', createdAt: 2 }, { id: 'm3', role: 'user' as const, content: 'Continue', createdAt: 3 }];
 const request = { messages, signal: new AbortController().signal, imageData: () => 'data:image/png;base64,TEST', onDelta: (_text: string) => {} };
 const sse = (...events: unknown[]) => new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), { headers: { 'content-type': 'text/event-stream' } });
+
+test('provider errors distinguish invalid keys from permission failures without exposing response secrets', async t => {
+  let status = 403, reason = '';
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ error: {
+    code: status, status: 'PERMISSION_DENIED', message: 'private-provider-secret',
+    details: [{ '@type': 'unrelated' }, { reason }],
+  } }, { status }));
+  const config = newConnection('gemini').ai;
+  const fetchModels = () => providerFetch(`${config.baseUrl}/models`, config, 'private-key', new AbortController().signal);
+  await assert.rejects(fetchModels, error => {
+    assert(error instanceof Error);
+    assert.match(error.message, /Google \(Gemini\) model list failed \(HTTP 403\)/);
+    assert.match(error.message, /denied access/);
+    assert.doesNotMatch(error.message, /key was rejected|private-provider-secret|private-key/);
+    return true;
+  });
+  reason = 'API_KEY_HTTP_REFERRER_BLOCKED';
+  await assert.rejects(fetchModels, /website restrictions/);
+  reason = 'API_KEY_SERVICE_BLOCKED';
+  await assert.rejects(fetchModels, /API restrictions/);
+  reason = 'SERVICE_DISABLED';
+  await assert.rejects(fetchModels, /API is disabled/);
+  reason = 'API_KEY_INVALID'; status = 400;
+  await assert.rejects(fetchModels, /key was rejected/);
+  reason = ''; status = 401;
+  await assert.rejects(() => providerFetch(`${config.baseUrl}/models/chat:generateContent`, config, 'private-key', new AbortController().signal, {}), /model request failed \(HTTP 401\).*key was rejected/);
+});
 
 test('native providers send correct auth, images and history; streaming and JSON agree', async () => {
   const original = globalThis.fetch;
@@ -70,13 +98,37 @@ test('discovery uses native pagination, excludes unsupported modalities, and pre
       return Response.json(count === 1 ? { data: [{ id: 'claude-first', display_name: 'First' }], has_more: true, last_id: 'claude-first' } : { data: [{ id: 'claude-second' }], has_more: false });
     };
     assert.equal((await listModels(newConnection('anthropic').ai, 'key')).length, 2);
-    globalThis.fetch = async () => Response.json({ data: [{ id: 'gpt-6-astra' }, { id: 'gpt-image-2' }, { id: 'text-embedding-3' }] });
-    assert.deepEqual((await listModels(newConnection().ai, 'key')).map((m) => m.id), ['gpt-6-astra']);
+    globalThis.fetch = async () => Response.json({ data: ['gpt-chat', 'ft:gpt-chat:custom', 'gpt-image-2', 'text-embedding-3', 'gpt-realtime', 'gpt-audio', 'gpt-chat-instruct', '', 'gpt-bad\n'].map(id => ({ id })) });
+    assert.deepEqual((await listModels(newConnection().ai, 'key')).map((m) => m.id), ['ft:gpt-chat:custom', 'gpt-chat']);
     globalThis.fetch = async () => Response.json({ data: [{ id: 'vendor/my-model' }] });
     assert.equal((await listModels(newConnection('compatible').ai, '') )[0].id, 'vendor/my-model');
     globalThis.fetch = async () => Response.json({ error: { code: 'invalid_api_key' } }, { status: 401 });
     await assert.rejects(() => listModels(newConnection().ai, 'bad'), /key was rejected/);
   } finally { globalThis.fetch = original; }
+});
+
+test('connection check requires a listed model and a successful reply without sending context', async t => {
+  const config = { ...newConnection('gemini').ai, model: 'gemini-chat' };
+  let status = 200, listed = true, calls = 0;
+  t.mock.method(globalThis, 'fetch', async (url: string, options: RequestInit) => {
+    assert.equal((options.headers as Record<string, string>)['x-goog-api-key'], 'test-key');
+    if (url.includes('/models?')) return Response.json({ models: [{ name: `models/${listed ? config.model : 'other'}`, supportedGenerationMethods: ['generateContent'] }] });
+    calls++;
+    assert.match(url, /gemini-chat:streamGenerateContent/);
+    assert.deepEqual(JSON.parse(String(options.body)), { contents: [{ role: 'user', parts: [{ text: 'Connection check. Reply only OK.' }] }] });
+    if (status !== 200) return Response.json({ error: {} }, { status });
+    return sse({ candidates: [{ content: { parts: [{ text: 'OK' }] }, finishReason: 'STOP' }] });
+  });
+  await testConnection(config, 'test-key');
+  assert.equal(calls, 1);
+  status = 401;
+  await assert.rejects(() => testConnection(config, 'test-key'), /key was rejected/);
+  status = 429;
+  await assert.rejects(() => testConnection(config, 'test-key'), /rate limit/);
+  listed = false;
+  await assert.rejects(() => testConnection(config, 'test-key'), /no longer available/);
+  assert.equal(calls, 3, 'an unlisted model is never called');
+  await assert.rejects(() => testConnection({ ...config, model: '' }, 'test-key'), /Choose a model/);
 });
 
 test('multiple connections preserve keys, enforce account ownership, and clear keys on endpoint changes', async () => {

@@ -7,7 +7,7 @@ import { ImageService } from '../services/images';
 import { ChatService } from '../services/chat';
 import { connectionInput, object, settingsInput, text, UserError } from '../services/validation';
 import { ConnectionService } from '../services/connections';
-import { listModels } from '../services/models';
+import { listModels, testConnection } from '../services/models';
 import { OverlayService } from '../services/overlay';
 import { ContextService } from '../services/context';
 import { StealthService } from '../services/stealth';
@@ -48,7 +48,7 @@ export function registerIPC(
         if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || !isTrusted) throw new UserError('Untrusted application request.');
         const publicChannels = ['session', 'sign-in', 'sign-out', 'minimize-window', 'maximize-window', 'close-window', 'is-window-maximized', 'get-stealth-state'];
         if (!publicChannels.includes(channel)) {
-          try { await get().auth.refresh(['send', 'initialize-context', 'start-context', 'list-models'].includes(channel)); }
+          try { await get().auth.refresh(['send', 'initialize-context', 'start-context', 'list-models', 'test-connection'].includes(channel)); }
           catch (error) {
             await endContext().catch(() => {});
             await get().auth.signOut();
@@ -92,7 +92,19 @@ export function registerIPC(
     const result = await dialog.showOpenDialog(window, { title: 'Load context folders', properties: ['openDirectory', 'multiSelections'] });
     return result.canceled ? [] : get().context.loadFolders(result.filePaths);
   });
-  handle('start-context', async (value) => { get().chat.assertIdle(); get().context.begin(value); return snapshot(); });
+  handle('start-context', async (value) => {
+    const { chat, storage, connections, context } = get();
+    chat.assertIdle();
+    const account = storage.current();
+    const connection = account.settings.connections.find(c => c.id === account.settings.activeConnectionId);
+    if (!connection?.model) throw new UserError('Choose a provider and model before starting a session.');
+    const input = { id: connection.id, name: connection.name, ai: { ...connection } };
+    const models = await listModels(input.ai, connections.resolveKey(input));
+    if (!models.some(m => m.id === input.ai.model)) throw new UserError('This model is no longer available. Refresh the model list and choose another model.');
+    const selected = account.settings.connections.find(c => c.id === input.id);
+    if (storage.current() !== account || account.settings.activeConnectionId !== input.id || selected?.model !== input.ai.model || selected.provider !== input.ai.provider || selected.baseUrl !== input.ai.baseUrl || selected.enabled === false) throw new UserError('Your selection changed. Start the session again.');
+    chat.assertIdle(); context.begin(value); return snapshot();
+  });
   handle('initialize-context', async (_value, event) => {
     const { context, chat } = get();
     const session = context.assertActive();
@@ -109,6 +121,14 @@ export function registerIPC(
     return snapshot();
   });
   handle('end-context', async () => { get().storage.current(); await endContext(); return snapshot(); });
+  handle('test-connection', async () => {
+    requireNoContext(); get().chat.assertIdle();
+    const { storage, connections } = get();
+    const settings = storage.current().settings;
+    const connection = settings.connections.find(c => c.id === settings.activeConnectionId);
+    if (!connection) throw new UserError('Choose a provider and model first.');
+    await testConnection({ ...connection }, connections.resolveKey({ id: connection.id, name: connection.name, ai: connection }));
+  });
   handle('settings', async (value) => {
     const { storage, connections, chat } = get(); chat.assertIdle();
     const input = settingsInput(value), user = storage.current();
@@ -122,7 +142,7 @@ export function registerIPC(
   handle('save-connection', async (value) => { requireNoContext(); get().chat.assertIdle(); get().connections.save(value); return snapshot(); });
   handle('remove-connection', async (value) => { requireNoContext(); get().chat.assertIdle(); get().connections.remove(value); return snapshot(); });
   handle('select-connection', async (value) => { requireNoContext(); get().chat.assertIdle(); const input = object(value); get().connections.select(input.id, input.model); return snapshot(); });
-  handle('list-models', (value) => { const input = connectionInput(value, true); return listModels(input.ai, get().connections.resolveKey(input)); });
+  handle('list-models', (value) => { const input = connectionInput(value); return listModels(input.ai, get().connections.resolveKey(input)); });
   handle('delete-conversation', (value) => {
     const { storage, images, chat } = get(); chat.assertIdle();
     const id = text(value, 'conversation ID', 100); get().context.assertActive();

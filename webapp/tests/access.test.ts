@@ -48,9 +48,12 @@ test('access lifecycle: hierarchy, isolation, permanent licenses and exclusive d
     await assert.rejects(sign('desktop'), /Desktop accounts must sign in|not eligible/);
     assert.equal((await state(req(s, 'GET'))).accounts.some(x => x.id === other.id), false);
     await assert.rejects(mutate(req(s, 'PATCH'), 'accounts', other.id, { name: 'hacked' }), /Administrator/);
-    await mutate(req(s), 'credentials', undefined, { provider: 'OPENAI', nickname: 'Owner primary', model: 'test-model', secret: 'private-key-one' });
+    await mutate(req(s), 'credentials', undefined, { provider: 'OPENAI', nickname: 'Owner primary', secret: 'private-key-one' });
     const key = await db.managedCredential.findFirstOrThrow({ where: { ownerId: standalone.id } });
     assert.equal(key.encryptedSecret.includes('private-key-one'), false);
+    assert.equal(key.model, '', 'API key setup does not require a model');
+    await mutate(req(s, 'PATCH'), 'credentials', key.id, { provider: 'OPENAI', nickname: 'Renamed primary' });
+    assert.equal((await db.managedCredential.findUniqueOrThrow({ where: { id: key.id } })).encryptedSecret, key.encryptedSecret);
     assert.equal(JSON.stringify(await state(req(s, 'GET'))).includes('private-key-one'), false);
     await assert.rejects(mutate(req(sub, 'DELETE'), 'credentials', key.id, {}), /not found/);
     const d = (await sign('desktop', 'desktop')).token;

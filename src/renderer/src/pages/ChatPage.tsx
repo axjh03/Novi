@@ -59,13 +59,42 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
 
   // ──────────────────────────────────────────────────────────────────────────
 
+  const [syncingModel, setSyncingModel] = useState(false);
+  const [syncedModel, setSyncedModel] = useState<string | null>(null);
+
+  async function handleModelChange(connId: string, modelName?: string) {
+    if (sidebarBusy || syncingModel) return;
+    setSyncingModel(true);
+    setSyncedModel(null);
+    chat.setError('');
+    try {
+      const updatedState = await unwrap(window.novi.selectConnection(connId, modelName));
+      onSaved(updatedState);
+      const newConn = activeConnection(updatedState.settings!);
+      const targetModel = newConn?.model || modelName || 'new model';
+      
+      // If inside an active conversation or context session, send context sync prompt to the new model
+      if (chat.selectedId || state.contextSession) {
+        await chat.send({
+          content: `[System Notice: The session model has been changed to ${newConn?.name} / ${targetModel}. Read and verify the conversation history and context above. Reply ONLY with the single word UNDERSTOOD once you have ingested the context and are ready.]`,
+          imageIds: []
+        });
+      }
+      setSyncedModel(`${newConn?.name} / ${targetModel}`);
+    } catch (err) {
+      chat.setError(errorText(err));
+    } finally {
+      setSyncingModel(false);
+    }
+  }
+
   return (
     <div className="chat-layout">
       <Sidebar
         conversations={chat.conversations}
         selectedId={chat.selectedId}
         displayName={config.displayName}
-        busy={sidebarBusy}
+        busy={sidebarBusy || syncingModel}
         onNew={() => { chat.setSelectedId(null); setSettings(false); chat.setError(''); }}
         onSelect={(id) => { chat.setSelectedId(id); setSettings(false); chat.setError(''); }}
         onDelete={setDeleting}
@@ -78,12 +107,24 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
         <main className={`chat-main ${!chat.selected ? 'empty' : ''}`}>
           <header className="chat-header">
             <div className="session-controls"><span>{state.contextSession?.summaryReady ? 'Context ready · temporary session' : state.contextSession?.status === 'error' ? 'Context loading failed' : 'Reading your context…'}</span><button className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button></div>
-            <div>
+            <div className="header-title-area">
               <span className="header-title">{chat.selected?.title || 'A new conversation'}</span>
-              <span className="provider-badge">
+              <div className="header-model-select-wrapper">
                 <span className="status-dot" />
-                {connection?.name}<span> / </span>{connection?.model}
-              </span>
+                <select
+                  aria-label="Change session model"
+                  className="header-model-picker"
+                  disabled={sidebarBusy || syncingModel}
+                  value={connection?.id || ''}
+                  onChange={(e) => void handleModelChange(e.target.value)}
+                >
+                  {config.connections.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.model})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             {/* Eye tracking controls in header */}
             <EyeTrackingPanel
@@ -133,7 +174,9 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
           )}
 
           <div className="composer-area">
-            <p className="context-hint">Session model: {connection?.name} / {connection?.model}. End this session to choose another model.</p>
+            {syncingModel && <div className="model-sync-badge">Ingesting context with {connection?.name} / {connection?.model}… (takes a moment)</div>}
+            {syncedModel && !syncingModel && <div className="model-sync-confirmed">✓ {syncedModel} ingested context (UNDERSTOOD)</div>}
+            <p className="context-hint">Session model: {connection?.name} / {connection?.model}. You can switch models anytime in the header dropdown.</p>
             {chat.selected && <small className="routing-note">Your next message and this conversation will go to {connection?.name}.</small>}
             {chat.error && (
               <div className="error dismissible" role="alert">
@@ -141,7 +184,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
                 <button className="icon-button" onClick={() => chat.setError('')} aria-label="Dismiss error"><X size={14} /></button>
               </div>
             )}
-            <Composer key={chat.selectedId || 'new'} busy={chat.busy || contextBusy || ending} model={connection?.model || 'Choose a provider'}
+            <Composer key={chat.selectedId || 'new'} busy={chat.busy || contextBusy || ending || syncingModel} model={connection?.model || 'Choose a provider'}
               onSend={(content, images) => chat.send({ content, imageIds: images.map((image) => image.id) })} />
           </div>
         </main>

@@ -21,6 +21,7 @@ const api: NoviAPI = {
   removeConnection: (id) => ipcRenderer.invoke('remove-connection', id),
   selectConnection: (id, model) => ipcRenderer.invoke('select-connection', { id, model }),
   listModels: (input) => ipcRenderer.invoke('list-models', input),
+  testConnection: () => ipcRenderer.invoke('test-connection'),
   deleteConversation: (id) => ipcRenderer.invoke('delete-conversation', id),
   clearHistory: () => ipcRenderer.invoke('clear-history'),
   pickImages: () => ipcRenderer.invoke('pick-images'),

@@ -266,8 +266,8 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                       display: 'flex',
                       alignItems: 'flex-start',
                       gap: 14,
-                      background: value.audioPipelineMode === 'local_stt' ? 'var(--subtle, #f5f5f5)' : 'var(--card, #fff)',
-                      border: value.audioPipelineMode === 'local_stt' ? '2px solid #222' : '1px solid var(--border, #e5e5e5)',
+                      background: value.audioPipelineMode === 'local_stt' ? 'var(--selected)' : 'var(--surface)',
+                      border: value.audioPipelineMode === 'local_stt' ? '1px solid var(--accent)' : '1px solid var(--border, #e5e5e5)',
                       borderRadius: 12,
                       padding: '18px 20px',
                       cursor: 'pointer',
@@ -279,19 +279,19 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                       name="pipelineMode"
                       checked={value.audioPipelineMode === 'local_stt'}
                       onChange={() => change({ ...value, audioPipelineMode: 'local_stt' })}
-                      style={{ marginTop: 4, width: 18, height: 18, accentColor: '#222' }}
+                      style={{ marginTop: 4, width: 18, height: 18, accentColor: 'var(--button)', minHeight: 18, flexShrink: 0 }}
                     />
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
                         <strong style={{ fontSize: 15 }}>Local Audio STT → Stream Text</strong>
                         <span style={{
-                          background: '#dcfce7', color: '#166534', fontSize: 10, fontWeight: 700,
+                          background: 'var(--selected)', color: 'var(--accent)', fontSize: 10, fontWeight: 700,
                           padding: '2px 8px', borderRadius: 4, letterSpacing: '0.04em'
                         }}>
                           ⚡ FASTEST (~400ms)
                         </span>
                         <span style={{
-                          background: '#f1f5f9', color: '#475569', fontSize: 10, fontWeight: 600,
+                          background: 'var(--panel)', color: 'var(--muted)', fontSize: 10, fontWeight: 600,
                           padding: '2px 8px', borderRadius: 4
                         }}>
                           🔒 100% PRIVATE AUDIO
@@ -300,7 +300,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                       <p style={{ fontSize: 13, color: 'var(--muted, #666)', margin: '0 0 10px', lineHeight: 1.5 }}>
                         Converts spoken system audio to text locally using on-device Whisper. Only the transcription text is sent to your configured OpenAI, Claude, or Gemini model, returning streaming text answers almost instantaneously.
                       </p>
-                      <div style={{ fontSize: 11, color: '#555', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: 3 }}>
                         <div>• <b>Zero Audio Upload Lag:</b> No heavy WAV audio transferred across the internet.</div>
                         <div>• <b>Zero Audio API Surcharges:</b> Transcription is 100% free; only pay standard text tokens.</div>
                         <div>• Compatible with all <b>OpenAI, Claude, and Gemini</b> chat models.</div>
@@ -314,8 +314,8 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                       display: 'flex',
                       alignItems: 'flex-start',
                       gap: 14,
-                      background: value.audioPipelineMode === 'live_stream' ? 'var(--subtle, #f5f5f5)' : 'var(--card, #fff)',
-                      border: value.audioPipelineMode === 'live_stream' ? '2px solid #222' : '1px solid var(--border, #e5e5e5)',
+                      background: value.audioPipelineMode === 'live_stream' ? 'var(--selected)' : 'var(--surface)',
+                      border: value.audioPipelineMode === 'live_stream' ? '1px solid var(--accent)' : '1px solid var(--border, #e5e5e5)',
                       borderRadius: 12,
                       padding: '18px 20px',
                       cursor: 'pointer',
@@ -327,13 +327,13 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                       name="pipelineMode"
                       checked={value.audioPipelineMode === 'live_stream'}
                       onChange={() => change({ ...value, audioPipelineMode: 'live_stream' })}
-                      style={{ marginTop: 4, width: 18, height: 18, accentColor: '#222' }}
+                      style={{ marginTop: 4, width: 18, height: 18, accentColor: 'var(--button)', minHeight: 18, flexShrink: 0 }}
                     />
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
                         <strong style={{ fontSize: 15 }}>Live Audio Streaming (Realtime Multimodal)</strong>
                         <span style={{
-                          background: '#e0e7ff', color: '#3730a3', fontSize: 10, fontWeight: 700,
+                          background: 'var(--selected)', color: 'var(--accent)', fontSize: 10, fontWeight: 700,
                           padding: '2px 8px', borderRadius: 4, letterSpacing: '0.04em'
                         }}>
                           🎙️ REALTIME WEBSOCKET
@@ -342,7 +342,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                       <p style={{ fontSize: 13, color: 'var(--muted, #666)', margin: '0 0 10px', lineHeight: 1.5 }}>
                         Streams system audio continuously via WebSockets directly to multimodal realtime endpoints (OpenAI Realtime API or Gemini 2.0 Live) to evaluate live inflection, natural speaking cadence, and stream text answers back.
                       </p>
-                      <div style={{ fontSize: 11, color: '#555', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: 3 }}>
                         <div>• <b>Speech-to-Text streaming:</b> Natural voice interruption support.</div>
                         <div>• Best paired with <b>OpenAI Realtime (gpt-4o-realtime-preview)</b> and <b>Gemini 2.0 Flash</b>.</div>
                         <div>• Requires higher network bandwidth and standard provider audio-in minute rates.</div>
@@ -369,7 +369,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
         {tab === 'api' && (
           <div>
             <div style={{
-              background: 'var(--subtle, #f6f6f6)',
+              background: 'var(--panel)',
               border: '1px solid var(--border, #e5e5e5)',
               borderRadius: 10,
               padding: '14px 18px',
@@ -379,7 +379,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
               alignItems: 'center',
               gap: 10,
             }}>
-              <ShieldCheck size={18} color="#16a34a" />
+              <ShieldCheck size={18} color="var(--accent)" />
               <div>
                 <strong>Supported Providers:</strong> Novi exclusively supports <b>OpenAI</b>, <b>Anthropic (Claude)</b>, and <b>Google (Gemini)</b>. Add your keys below.
               </div>
