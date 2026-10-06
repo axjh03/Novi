@@ -2,7 +2,7 @@ import { app } from 'electron';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { deflateRawSync } from 'node:zlib';
-import type { FileCommand, FileItem, FileResponse } from '../../../webapp/src/lib/remote-file-explorer';
+import type { FileCommand, FileItem, FileResponse } from '../../shared/types';
 
 // Pure Node.js CRC32 calculation
 const crcTable = new Uint32Array(256);

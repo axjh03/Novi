@@ -184,3 +184,30 @@ export interface UpdateCheckResult {
   releaseDate?: string;
 }
 
+export interface FileItem {
+  name: string;
+  isDir: boolean;
+  size: number;
+  modifiedAt: number;
+  path: string;
+}
+
+export interface FileCommand {
+  id: string;
+  sessionId: string;
+  action: 'list_dir' | 'read_file' | 'zip_folder';
+  path?: string;
+  createdAt: number;
+}
+
+export interface FileResponse {
+  commandId: string;
+  error?: string;
+  items?: FileItem[];
+  currentPath?: string;
+  base64Data?: string;
+  filename?: string;
+  mimeType?: string;
+}
+
+
