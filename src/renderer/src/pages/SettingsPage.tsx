@@ -3,6 +3,7 @@ import { ArrowLeft, Check, LogOut, Trash2, Mic, Video, Cpu, Zap, Radio, ShieldCh
 import { DEFAULT_CLICK_THROUGH_SHORTCUT, type SettingsInput, type Snapshot, type AudioPipelineMode } from '../../../shared/types';
 import { ProviderManager } from '../components/ProviderManager';
 import { DeviceTester } from '../components/DeviceTester';
+import { SettingsAppUpdater } from '../components/SettingsAppUpdater';
 import { errorText, unwrap } from '../services/api';
 
 interface Props { state: Snapshot; onSaved: (state: Snapshot) => void; onBack: () => void; onSignOut: () => void; onCleared: () => void }
@@ -19,6 +20,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
     audioRecordShortcut: state.settings!.audioRecordShortcut || 'Alt+A',
     autoSendOnAudioStop: state.settings!.autoSendOnAudioStop ?? false,
     fastInterviewModel: state.settings!.fastInterviewModel ?? false,
+    checkUpdatesAtStartup: state.settings!.checkUpdatesAtStartup ?? true,
   });
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(false), [confirm, setConfirm] = useState(false);
   const [recordingShortcut, setRecordingShortcut] = useState(false), [shortcutHint, setShortcutHint] = useState('');
@@ -288,6 +290,20 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                         <option value="dark">Dark</option>
                       </select>
                     </label>
+                  </div>
+                </section>
+
+                <section className="settings-section">
+                  <div>
+                    <h2>Application updates</h2>
+                    <p>Manage app version and updates.</p>
+                  </div>
+                  <div className="settings-fields">
+                    <SettingsAppUpdater
+                      value={value}
+                      onChange={change}
+                      disabled={busy}
+                    />
                   </div>
                 </section>
 

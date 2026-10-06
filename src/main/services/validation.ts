@@ -64,6 +64,7 @@ export function settingsInput(value: unknown): SettingsInput {
     behavioralFramework: ['smart', 'star', 'car', 'par', 'soar'].includes(String(input.behavioralFramework))
       ? (input.behavioralFramework as any)
       : 'smart',
+    checkUpdatesAtStartup: typeof input.checkUpdatesAtStartup === 'boolean' ? input.checkUpdatesAtStartup : true,
   };
 }
 export function connectionInput(value: unknown): ConnectionInput {

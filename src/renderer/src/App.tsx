@@ -6,8 +6,8 @@ import { ChatPage } from './pages/ChatPage';
 import { ContextPage } from './pages/ContextPage';
 import { Brand } from './components/Brand';
 import { TitleBar } from './components/TitleBar';
-import { UpdateBanner } from './components/UpdateBanner';
 import { AppModeProvider } from './context/AppModeContext';
+import { updaterService } from './services/updaterService';
 import { errorText, unwrap } from './services/api';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -20,6 +20,11 @@ function Application() {
   async function load() { setError(''); try { setState(await unwrap(window.novi.session())); } catch (error) { setError(errorText(error)); } }
   useEffect(() => { void load(); }, []);
   useEffect(() => window.novi.onSessionEnded((message) => { setState({ user: null, settings: null, credentialIds: [], conversations: [] }); setError(message); }), []);
+  useEffect(() => {
+    if (state?.settings?.checkUpdatesAtStartup !== false) {
+      void updaterService.initStartupCheck(true);
+    }
+  }, [state?.settings?.checkUpdatesAtStartup]);
   useEffect(() => {
     const theme = state?.settings?.theme || 'system';
     const media = matchMedia('(prefers-color-scheme: dark)');
@@ -49,7 +54,6 @@ function Application() {
     <AppModeProvider snapshot={state} onSnapshotUpdated={setState}>
       <div className="app-shell">
         <TitleBar sessionActive={Boolean(state.user && state.settings?.onboardingComplete && state.contextSession)} />
-        <UpdateBanner />
         <div className="app-content">
           {error && <div className="global-error" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
           {!state.user ? (

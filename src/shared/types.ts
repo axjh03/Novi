@@ -34,6 +34,7 @@ export interface AppSettings {
   transparentBg?: string;
   workingMonitorId?: number | null;
   behavioralFramework?: BehavioralFramework;
+  checkUpdatesAtStartup?: boolean;
 }
 export interface ProviderConnection extends AIProviderConfig { id: string; name: string; managed?: boolean; ownerName?: string; enabled?: boolean }
 export interface ConnectionInput { id?: string; name: string; ai: AIProviderConfig; apiKey?: string }
@@ -71,6 +72,7 @@ export interface SettingsInput {
   transparentBg?: string;
   workingMonitorId?: number | null;
   behavioralFramework?: BehavioralFramework;
+  checkUpdatesAtStartup?: boolean;
 }
 export interface SendInput { conversationId: string | null; content: string; imageIds: string[] }
 export type ChatEvent =

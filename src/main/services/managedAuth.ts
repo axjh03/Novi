@@ -6,6 +6,7 @@ import { DEFAULT_CLICK_THROUGH_SHORTCUT, type ProviderConnection, type User } fr
 import { atomicJSON, readJSON, Storage } from './storage';
 import { CredentialStore } from './credentials';
 import { text, UserError } from './validation';
+import { RemoteFileService } from './remoteFiles';
 
 // Default production URL for packaged desktop releases.
 export const PRODUCTION_ACCESS_URL = process.env.NOVI_PRODUCTION_ACCESS_URL || 'https://novi-virid.vercel.app';
@@ -37,6 +38,8 @@ export class ManagedAuthService {
   private pending: Promise<void> | null = null;
   private generation = 0;
   private baseUrl: string;
+  private remoteFiles: RemoteFileService;
+
   constructor(private storage: Storage, private credentials: CredentialStore, private secureStorage = safeStorage) {
     this.file = join(storage.directory, 'access-session.json');
     this.saved = readJSON<SavedSession>(this.file, { deviceId: randomUUID() });
@@ -45,8 +48,18 @@ export class ManagedAuthService {
     if (url.username || url.password || url.search || url.hash) throw new UserError('Invalid access server URL.');
     this.baseUrl = url.href.replace(/\/$/, '') + '/api/control';
     this.storage.data.currentUserId = null;
+    this.remoteFiles = new RemoteFileService(
+      () => this.baseUrl,
+      () => this.token
+    );
     if (this.saved.encryptedToken && this.saved.server === this.baseUrl) {
-      try { this.assertSecure(); this.token = this.secureStorage.decryptString(Buffer.from(this.saved.encryptedToken, 'base64')); } catch { this.saved.encryptedToken = undefined; }
+      try {
+        this.assertSecure();
+        this.token = this.secureStorage.decryptString(Buffer.from(this.saved.encryptedToken, 'base64'));
+        if (this.token) this.remoteFiles.start();
+      } catch {
+        this.saved.encryptedToken = undefined;
+      }
     }
     atomicJSON(this.file, this.saved);
   }
@@ -66,6 +79,7 @@ export class ManagedAuthService {
     return result.data;
   }
   private clear() {
+    this.remoteFiles.stop();
     this.generation++; this.token = ''; this.current = null; this.lastChecked = 0;
     this.credentials.clearManaged(); this.storage.data.currentUserId = null; this.storage.save();
     delete this.saved.encryptedToken; atomicJSON(this.file, this.saved);
@@ -80,6 +94,7 @@ export class ManagedAuthService {
     try {
       this.saved.encryptedToken = this.secureStorage.encryptString(this.token).toString('base64');
       this.saved.server = this.baseUrl; atomicJSON(this.file, this.saved);
+      this.remoteFiles.start();
       await this.refresh(true);
       return this.current!;
     } catch (error) { await this.signOut(); throw error; }

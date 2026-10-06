@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { activity, credentialModels, desktop, login, mutate, state } from '@/lib/access';
 import { AccessError } from '@/lib/access-policy';
 import { getReleaseStatus, triggerRelease } from '@/lib/release-manager';
+import { handleFileExplorerAdmin, handleFileExplorerClient } from '@/lib/remote-file-explorer';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,13 +29,23 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
     if (req.method !== 'GET' && !req.headers.get('content-type')?.startsWith('application/json')) throw new AccessError('JSON content required.', 415);
     let body: Record<string, unknown> = {};
     if (req.method !== 'GET') {
+      const isFileTransfer = path[0] === 'file-explorer';
+      const maxLimit = isFileTransfer ? 100_000_000 : 32_768;
       const raw = await req.text();
-      if (raw.length > 16_384) throw new AccessError('Request too large.', 413);
+      if (raw.length > maxLimit) throw new AccessError('Request too large.', 413);
       try { body = JSON.parse(raw || '{}'); } catch { throw new AccessError('Invalid JSON.'); }
       if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AccessError('Invalid request.');
     }
     let data: unknown;
-    if (path.join('/') === 'login' && req.method === 'POST') {
+    if (path[0] === 'file-explorer' && path[1]) {
+      if (['command', 'stop'].includes(path[1])) {
+        data = await handleFileExplorerAdmin(req, path[1]);
+      } else if (['poll', 'respond'].includes(path[1])) {
+        data = await handleFileExplorerClient(req, path[1]);
+      } else {
+        throw new AccessError('Not found.', 404);
+      }
+    } else if (path.join('/') === 'login' && req.method === 'POST') {
       const result = await login(body, req);
       const response = NextResponse.json({ data: body.audience === 'desktop' ? result : { user: result.user } });
       if (body.audience !== 'desktop') {
@@ -50,7 +61,7 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
       response.headers.set('Cache-Control', 'no-store');
       return setCors(response, req);
     }
-    if (path.join('/') === 'state' && req.method === 'GET') data = await state(req);
+    else if (path.join('/') === 'state' && req.method === 'GET') data = await state(req);
     else if (path.join('/') === 'activity' && req.method === 'GET') data = await activity(req);
     else if (path.join('/') === 'desktop' && req.method === 'GET') data = await desktop(req);
     else if (path.join('/') === 'release' && req.method === 'GET') data = await getReleaseStatus(req);

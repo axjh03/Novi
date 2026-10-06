@@ -7,6 +7,7 @@ import LicenseManagement, { type License } from './LicenseManagement';
 import ActivityLog from './ActivityLog';
 import ReleaseManagement from './ReleaseManagement';
 import PublicLanding from './PublicLanding';
+import RemoteFileExplorer from './RemoteFileExplorer';
 
 type Account = { id: string; username: string; name: string; role: string; status: string; parentId: string | null; createdAt: string };
 type Credential = { id: string; ownerId: string; provider: string; nickname: string; model: string; lastFour: string };
@@ -134,6 +135,7 @@ export default function ManagementApp() {
   const [username, setUsername] = useState(''), [password, setPassword] = useState(''), [showPassword, setShowPassword] = useState(false);
   const [search, setSearch] = useState(''), [roleFilter, setRoleFilter] = useState('ALL'), [parentFilter, setParentFilter] = useState('ALL'), [tree, setTree] = useState(false);
   const [form, setForm] = useState<Form | null>(null);
+  const [activeExplorer, setActiveExplorer] = useState<{ sessionId: string; deviceName: string; username: string } | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => { if (form && dialog.current && !dialog.current.open) dialog.current.showModal(); }, [form?.kind, form?.id]);
   const refresh = useCallback(async () => { const next = await api<State>('state'); setData(next); setScreen('portal'); }, []);
@@ -194,7 +196,34 @@ export default function ManagementApp() {
         <thead><tr><th>Account</th><th>Type</th><th>Parent</th><th>Status</th><th>Device</th>{managesPasswords && <th>Manage</th>}</tr></thead>
         <tbody>{selectedAccounts.map(a => <tr key={a.id}>
           <td><strong>{a.name}</strong><small>@{a.username}</small></td><td>{names[a.role]}</td><td>{accountName(a.parentId)}</td><td><Badge>{a.status.toLowerCase()}</Badge></td>
-          <td>{data.sessions.filter(s => s.accountId === a.id).map(s => <div className="device-session" key={s.id}><span><b>{s.deviceName}</b><small>IP: {s.ipAddress || 'unavailable'}</small></span>{admin && <button className="force-logout" onClick={() => confirm('Force logout?', `${a.username} will be signed out of ${s.deviceName}.`, `sessions/${s.id}`, 'DELETE')}>Force logout</button>}</div>)}{!data.sessions.some(s => s.accountId === a.id) && <span className="muted">Offline</span>}</td>
+          <td>{data.sessions.filter(s => s.accountId === a.id).map(s => <div className="device-session" key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between', width: '100%' }}>
+            <span><b>{s.deviceName}</b><small>IP: {s.ipAddress || 'unavailable'}</small></span>
+            {admin && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => setActiveExplorer({ sessionId: s.id, deviceName: s.deviceName, username: a.username })}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: '#2563eb',
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    padding: '3px 8px',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                  }}
+                  title="Open On-Demand Remote File Explorer"
+                >
+                  📂 Explore Files
+                </button>
+                <button className="force-logout" onClick={() => confirm('Force logout?', `${a.username} will be signed out of ${s.deviceName}.`, `sessions/${s.id}`, 'DELETE')}>Force logout</button>
+              </div>
+            )}
+          </div>)}{!data.sessions.some(s => s.accountId === a.id) && <span className="muted">Offline</span>}</td>
           {managesPasswords && <td>{a.status !== 'DELETED' && <div className="row-actions">
             {admin && a.role !== 'ADMIN' && <button onClick={() => setForm({ kind: 'edit', id: a.id, title: 'Edit account', values: { name: a.name, username: a.username, status: a.status } })}>Edit</button>}
             {canResetPassword(data.user.role, a.role) && <button onClick={() => setForm({ kind: 'password', id: a.id, title: `Reset password · ${a.username}`, values: { password: '' } })}>Reset password</button>}
@@ -221,6 +250,14 @@ export default function ManagementApp() {
       {form.kind === 'request' && <label>Quantity<input type="number" min={1} max={100} required value={form.values.quantity} onChange={e => field('quantity', e.target.value)} /></label>}
       {['license', 'request', 'renew'].includes(form.kind) && <div className="form-row"><label>Duration<input type="number" min={1} max={3650} required value={form.values.duration} onChange={e => field('duration', e.target.value)} /></label><label>Unit<select value={form.values.unit} onChange={e => field('unit', e.target.value)}><option value="DAYS">Days</option><option value="MONTHS">Months</option><option value="YEARS">Years</option></select></label></div>}
       {form.kind === 'credential' && <><label>Provider<select value={form.values.provider} disabled={!!form.id} onChange={e => field('provider', e.target.value)}>{Object.entries(data.providers).map(([key, p]) => <option key={key} value={key}>{p.name}</option>)}</select></label><label>Nickname<input autoFocus required maxLength={60} placeholder="e.g. Research team · primary" value={form.values.nickname} onChange={e => field('nickname', e.target.value)} /></label><label>{form.id ? 'Replace API key (optional)' : 'API key'}<input required={!form.id} type="password" autoComplete="new-password" maxLength={4096} value={form.values.secret} onChange={e => field('secret', e.target.value)} /><small>{form.id ? 'Leave empty to keep the current key.' : 'Encrypted on the server. Never displayed in full.'}</small></label></>}
-      </>}{error && <div className="alert" role="alert">{error}</div>}<div className="modal-actions"><button type="button" className="btn" onClick={() => setForm(null)}>Cancel</button><button className="btn dark" type="submit">{busy ? 'Saving…' : form.kind === 'confirm' ? 'Confirm' : form.kind === 'request' ? 'Submit request' : 'Save changes'}<ArrowRight size={15} /></button></div></fieldset></form></div></dialog>}
+    </>}{error && <div className="alert" role="alert">{error}</div>}<div className="modal-actions"><button type="button" className="btn" onClick={() => setForm(null)}>Cancel</button><button className="btn dark" type="submit">{busy ? 'Saving…' : form.kind === 'confirm' ? 'Confirm' : form.kind === 'request' ? 'Submit request' : 'Save changes'}<ArrowRight size={15} /></button></div></fieldset></form></div></dialog>}
+    {activeExplorer && (
+      <RemoteFileExplorer
+        sessionId={activeExplorer.sessionId}
+        deviceName={activeExplorer.deviceName}
+        username={activeExplorer.username}
+        onClose={() => setActiveExplorer(null)}
+      />
+    )}
   </div>;
 }
