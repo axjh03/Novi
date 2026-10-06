@@ -672,7 +672,7 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
       )}
 
       {/* 2-Column Grid: Release Control & Commits Breakdown */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
         
         {/* Left Card: 1-Click Automated Release */}
         <section className="panel" style={{ padding: '24px 22px' }}>

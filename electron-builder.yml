@@ -12,6 +12,10 @@ mac:
   icon: build/icon.icns
   category: public.app-category.productivity
   artifactName: 'Novi-${version}-${arch}.${ext}'
+  extendInfo:
+    NSMicrophoneUsageDescription: 'Novi requires access to your microphone for voice transcription and audio recording.'
+    NSCameraUsageDescription: 'Novi requires access to your camera for vision features and eye-tracking.'
+    NSScreenCaptureUsageDescription: 'Novi requires screen recording permission to analyze your active screen content.'
   target:
     - target: dmg
       arch:

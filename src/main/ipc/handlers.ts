@@ -15,12 +15,14 @@ import { AudioService, decodeAudio } from '../services/audio';
 import { captureScreenBuffer } from '../services/screenCapture';
 import { AudioTranscriptionService } from '../services/audioTranscription';
 import { AppUpdater } from '../services/updater';
+import { PermissionService } from '../services/permissions';
 
 export function registerIPC(
   rendererUrl: string,
   preloadPath = '',
   getMainWindow: () => BrowserWindow | null = () => BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().includes('#/overlay')) || null,
 ) {
+  const permissionsService = new PermissionService();
   // Lazy initialization lets the UI explain disk/keychain failures instead of crashing at startup.
   let services: ReturnType<typeof initialize> | undefined;
   function initialize() {
@@ -58,25 +60,47 @@ export function registerIPC(
         const baseSender = frameUrl.split('#')[0];
         const isTrusted = baseSender === baseTarget;
         if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || !isTrusted) throw new UserError('Untrusted application request.');
-        const publicChannels = ['session', 'sign-in', 'sign-out', 'minimize-window', 'maximize-window', 'close-window', 'is-window-maximized', 'get-stealth-state', 'check-for-updates', 'install-update'];
+        const publicChannels = [
+          'session', 'sign-in', 'sign-out', 'minimize-window', 'maximize-window',
+          'close-window', 'is-window-maximized', 'get-stealth-state', 'check-for-updates',
+          'install-update', 'check-permissions', 'request-permissions'
+        ];
         if (!publicChannels.includes(channel)) {
           try { await get().auth.refresh(['send', 'initialize-context', 'start-context', 'list-models', 'test-connection'].includes(channel)); }
           catch (error) {
-            await endContext().catch(() => {});
+            await endContext().catch(() => { });
             await get().auth.signOut();
             for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('session-ended', error instanceof UserError ? error.message : 'Your session has ended.');
             throw error;
           }
         }
         return { ok: true, value: await callback(value, event) };
-      } catch (error) {
-        if (process.env.NODE_ENV === 'development') console.warn(`[Novi] ${channel}:`, error instanceof Error ? error.name : 'UnknownError');
-        return { ok: false, error: error instanceof UserError ? error.message : 'Novi could not complete that action. Check file access and available disk space, then try again.' };
+      } catch (error: any) {
+        console.warn(`[Novi Error] ${channel}:`, error?.message || error);
+        const userMsg = error instanceof UserError
+          ? error.message
+          : (error?.message || 'Novi could not complete that action. Check file access and available disk space, then try again.');
+        return { ok: false, error: userMsg };
       }
     });
   };
+  handle('check-permissions', () => permissionsService.checkPermissions());
+  handle('request-permissions', (value) => permissionsService.requestPermissions(Array.isArray(value) ? value as any : undefined));
   handle('session', snapshot);
-  handle('sign-in', async (value) => { requireNoContext(); get().chat.assertIdle(); const v = object(value); await get().auth.signIn(v.username as string, v.password as string); return snapshot(); });
+  handle('sign-in', async (value) => {
+    requireNoContext();
+    get().chat.assertIdle();
+    const permStatus = await permissionsService.checkPermissions();
+    if (!permStatus.storage) {
+      const granted = await permissionsService.requestPermissions(['storage']);
+      if (!granted.storage) {
+        throw new UserError('Storage write access is required to sign in and save your app settings.');
+      }
+    }
+    const v = object(value);
+    await get().auth.signIn(v.username as string, v.password as string);
+    return snapshot();
+  });
   handle('refresh-managed', async () => { await get().auth.refresh(true); return snapshot(); });
   handle('enable-connection', async (value) => {
     requireNoContext(); get().chat.assertIdle();
@@ -92,7 +116,7 @@ export function registerIPC(
     const { chat, context, images, overlay } = get();
     if (context.session) context.session.status = 'ending';
     await chat.stopAndWait();
-    await context.initialization?.catch(() => {});
+    await context.initialization?.catch(() => { });
     context.end(); images.clearPending(); overlay.closeOverlay();
   }
   handle('sign-out', async () => { await endContext(); await get().auth.signOut(); });
@@ -279,7 +303,7 @@ export function registerIPC(
         if (typeof user?.settings?.workingMonitorId === 'number') {
           workingMonitorId = user.settings.workingMonitorId;
         }
-      } catch {}
+      } catch { }
     }
     const pngBuffer = await captureScreenBuffer(getMainWindow, workingMonitorId);
     const attachment = get().images.importBuffer(pngBuffer, `Screen-${new Date().toISOString().replace(/[:.]/g, '-')}.png`);
@@ -296,7 +320,7 @@ export function registerIPC(
         user.settings.workingMonitorId = displayId;
         get().storage.save();
       }
-    } catch {}
+    } catch { }
 
     const win = getMainWindow();
     const allDisplays = screen.getAllDisplays();
@@ -331,7 +355,7 @@ export function registerIPC(
         if (typeof user?.settings?.workingMonitorId === 'number') {
           workingMonitorId = user.settings.workingMonitorId;
         }
-      } catch {}
+      } catch { }
     }
     if (workingMonitorId === null) {
       const win = getMainWindow();
@@ -391,7 +415,7 @@ export function registerIPC(
     checkingSession = true;
     try { await services.auth.refresh(true); }
     catch (error) {
-      await endContext().catch(() => {});
+      await endContext().catch(() => { });
       await services.auth.signOut();
       for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('session-ended', error instanceof UserError ? error.message : 'Your session has ended. Sign in again.');
     } finally { checkingSession = false; }
@@ -399,7 +423,7 @@ export function registerIPC(
   heartbeat.unref();
   app.on('browser-window-created', (_event, window) => {
     window.on('close', () => {
-      if (!window.webContents.getURL().includes('#/overlay')) void endContext().catch(() => {});
+      if (!window.webContents.getURL().includes('#/overlay')) void endContext().catch(() => { });
     });
   });
 }

@@ -29,8 +29,47 @@ export default function LicensePage() {
       {/* Top Navigation */}
       <PublicNavbar active="license" />
 
+      <style dangerouslySetInnerHTML={{ __html: `
+        .license-page-main {
+          max-width: 840px;
+          width: 100%;
+          margin: 0 auto;
+          padding: 60px 24px 90px;
+          flex: 1;
+        }
+        .license-page-title {
+          font-size: 44px;
+          font-weight: 600;
+          letter-spacing: -1.5px;
+          margin: 0 0 16px;
+          line-height: 1.15;
+        }
+        .license-card {
+          background: #fff;
+          border: 1px solid #dedede;
+          border-radius: 16px;
+          padding: 40px 36px;
+          box-shadow: 0 10px 35px rgba(0,0,0,0.04);
+          text-align: center;
+          margin-bottom: 48px;
+        }
+        @media (max-width: 640px) {
+          .license-page-main {
+            padding: 24px 16px 60px !important;
+          }
+          .license-page-title {
+            font-size: 28px !important;
+            letter-spacing: -1px !important;
+          }
+          .license-card {
+            padding: 24px 16px !important;
+            margin-bottom: 32px !important;
+          }
+        }
+      ` }} />
+
       {/* Main Content */}
-      <main style={{ maxWidth: 840, width: '100%', margin: '0 auto', padding: '60px 24px 90px', flex: 1 }}>
+      <main className="license-page-main">
         {/* Header Header */}
         <div style={{ textAlign: 'center', marginBottom: 50 }}>
           <div style={{
@@ -49,7 +88,7 @@ export default function LicensePage() {
           }}>
             <Lock size={12} color="#444" /> Private License Only
           </div>
-          <h1 style={{ fontSize: 44, fontWeight: 600, letterSpacing: '-1.5px', margin: '0 0 16px', lineHeight: 1.15 }}>
+          <h1 className="license-page-title">
             Novi Private Licensing
           </h1>
           <p style={{ fontSize: 16, color: '#666', lineHeight: 1.6, margin: 0, maxWidth: 620, marginLeft: 'auto', marginRight: 'auto' }}>
@@ -58,15 +97,7 @@ export default function LicensePage() {
         </div>
 
         {/* Primary Contact Action Card */}
-        <div style={{
-          background: '#fff',
-          border: '1px solid #dedede',
-          borderRadius: 16,
-          padding: '40px 36px',
-          boxShadow: '0 10px 35px rgba(0,0,0,0.04)',
-          textAlign: 'center',
-          marginBottom: 48,
-        }}>
+        <div className="license-card">
           <div style={{
             width: 52,
             height: 52,
@@ -89,7 +120,7 @@ export default function LicensePage() {
           {/* Two Channel Cards: Email & Instagram */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
             gap: 16,
             maxWidth: 640,
             margin: '0 auto 24px',

@@ -42,9 +42,13 @@ function createWindow() {
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else void app.whenReady().then(async () => {
-  // Allow camera, microphone, and display-capture for eye-tracking and system audio loopback; deny everything else.
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(permission === 'media' || (permission as string) === 'display-capture'));
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media' || (permission as string) === 'display-capture');
+  // Allow camera, microphone, display-capture, and media access for vision, audio recording, and eye-tracking.
+  const allowedPermissions = new Set([
+    'media', 'camera', 'microphone', 'audioCapture', 'videoCapture',
+    'display-capture', 'screen', 'accessibility', 'storage-access', 'notifications'
+  ]);
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(allowedPermissions.has(permission)));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowedPermissions.has(permission));
 
   // Handle getDisplayMedia for System Audio IN loopback capture
   session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
@@ -71,7 +75,7 @@ else void app.whenReady().then(async () => {
   const { registerIPC } = await import('./ipc/handlers');
   registerIPC(rendererUrl, join(__dirname, '../preload/preload.js'), () => mainWindow);
   if (process.platform === 'darwin' && app.dock) {
-    try { app.dock.setIcon(join(__dirname, '../../build/icon.png')); } catch {}
+    try { app.dock.setIcon(join(__dirname, '../../build/icon.png')); } catch { }
   }
   createWindow();
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });

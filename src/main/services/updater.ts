@@ -148,8 +148,9 @@ export class AppUpdater {
         });
 
         onProgress({ percent: 100, status: 'Restarting to finish update...' });
-        // Run NSIS silent updater
-        spawn(exePath, ['/S'], { detached: true, stdio: 'ignore' }).unref();
+        // Run NSIS silent updater and clean up temporary download payload afterwards
+        const winScript = `start /b cmd /c "timeout /t 2 /nobreak >nul && "${exePath}" /S && timeout /t 4 /nobreak >nul && rmdir /s /q "${tempDir}""`;
+        spawn('cmd.exe', ['/c', winScript], { detached: true, stdio: 'ignore' }).unref();
         setTimeout(() => app.quit(), 400);
 
       } else {

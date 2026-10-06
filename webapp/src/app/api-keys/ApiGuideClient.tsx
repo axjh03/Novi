@@ -89,27 +89,69 @@ export default function ApiGuideClient() {
       {/* Top Header Navigation */}
       <PublicNavbar active="api-keys" />
 
+      <style dangerouslySetInnerHTML={{ __html: `
+        .api-guide-shell {
+          max-width: 1380px;
+          width: 100%;
+          margin: 0 auto;
+          display: flex;
+          flex: 1;
+          align-items: flex-start;
+        }
+        .api-guide-aside {
+          width: 280px;
+          position: sticky;
+          top: 85px;
+          height: calc(100vh - 85px);
+          overflow-y: auto;
+          padding: 30px 24px 40px 28px;
+          border-right: 1px solid #f0f0f0;
+          font-size: 13px;
+          flex-shrink: 0;
+        }
+        .api-guide-main {
+          flex: 1;
+          padding: 40px 60px 100px;
+          max-width: 960px;
+          min-width: 0;
+        }
+        .api-guide-title {
+          font-size: 40px;
+          font-weight: 700;
+          letter-spacing: -1.5px;
+          line-height: 1.15;
+          color: #111;
+          margin: 0 0 16px;
+        }
+        @media (max-width: 860px) {
+          .api-guide-shell {
+            flex-direction: column !important;
+          }
+          .api-guide-aside {
+            width: 100% !important;
+            height: auto !important;
+            position: static !important;
+            border-right: none !important;
+            border-bottom: 1px solid #f0f0f0 !important;
+            padding: 18px 16px !important;
+            box-sizing: border-box !important;
+          }
+          .api-guide-main {
+            padding: 24px 16px 60px !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+          }
+          .api-guide-title {
+            font-size: 28px !important;
+            letter-spacing: -1px !important;
+          }
+        }
+      ` }} />
+
       {/* Docs Shell Layout: Left Sidebar + Center Content */}
-      <div style={{
-        maxWidth: 1380,
-        width: '100%',
-        margin: '0 auto',
-        display: 'flex',
-        flex: 1,
-        alignItems: 'flex-start',
-      }}>
+      <div className="api-guide-shell">
         {/* Left Sticky Documentation Sidebar */}
-        <aside style={{
-          width: 280,
-          position: 'sticky',
-          top: 85,
-          height: 'calc(100vh - 85px)',
-          overflowY: 'auto',
-          padding: '30px 24px 40px 28px',
-          borderRight: '1px solid #f0f0f0',
-          fontSize: 13,
-          flexShrink: 0,
-        }}>
+        <aside className="api-guide-aside">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14, color: '#111', marginBottom: 20 }}>
             <BookOpen size={16} />
             <span>Developer Documentation</span>
@@ -268,12 +310,7 @@ export default function ApiGuideClient() {
         </aside>
 
         {/* Main Continuous Document Reading Area */}
-        <main style={{
-          flex: 1,
-          padding: '40px 60px 100px',
-          maxWidth: 960,
-          minWidth: 0,
-        }}>
+        <main className="api-guide-main">
           {/* Breadcrumb */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#888', marginBottom: 16 }}>
             <span>Docs</span>
@@ -284,14 +321,7 @@ export default function ApiGuideClient() {
           </div>
 
           {/* Document Title Header */}
-          <h1 style={{
-            fontSize: 40,
-            fontWeight: 700,
-            letterSpacing: '-1.5px',
-            lineHeight: 1.15,
-            color: '#111',
-            margin: '0 0 16px',
-          }}>
+          <h1 className="api-guide-title">
             How to Get &amp; Connect Your API Keys
           </h1>
           <p style={{ fontSize: 17, color: '#555', lineHeight: 1.65, margin: '0 0 36px' }}>
@@ -349,7 +379,7 @@ export default function ApiGuideClient() {
               When you paste an API key in Novi, available models are auto-discovered. Here is how models compare for technical interview practice:
             </p>
 
-            <div style={{ border: '1px solid #e5e5e5', borderRadius: 8, overflow: 'hidden', marginBottom: 24 }}>
+            <div style={{ border: '1px solid #e5e5e5', borderRadius: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: 24 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
                 <thead>
                   <tr style={{ background: '#fafafa', borderBottom: '1px solid #e5e5e5' }}>

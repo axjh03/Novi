@@ -65,7 +65,11 @@ export function PlatformFlipGrid({
           transform-style: preserve-3d;
           border-radius: 18px;
         }
-        .novi-flip-card:hover .novi-flip-inner,
+        @media (hover: hover) and (pointer: fine) {
+          .novi-flip-card:hover .novi-flip-inner {
+            transform: rotateY(180deg);
+          }
+        }
         .novi-flip-card.is-flipped .novi-flip-inner {
           transform: rotateY(180deg);
         }
@@ -182,7 +186,7 @@ export function PlatformFlipGrid({
                     padding: '4px 10px',
                     borderRadius: 14,
                   }}>
-                    Hover to Install ➔
+                    Hover / Tap to Install ➔
                   </div>
                 </div>
 
@@ -200,29 +204,50 @@ export function PlatformFlipGrid({
                       <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: dark ? '#60a5fa' : '#2563eb', textTransform: 'uppercase' }}>
                         ⚡ 1-Click Terminal
                       </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyMirrorUrl(`curl -fsSL ${siteOrigin}/install.sh | bash`, 'mac-cli');
-                        }}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          fontSize: 10,
-                          fontFamily: 'monospace',
-                          padding: '3px 8px',
-                          borderRadius: 4,
-                          border: dark ? '1px solid #3f3f46' : '1px solid #d4d4d8',
-                          background: copiedMirror === 'mac-cli' ? '#16a34a' : (dark ? '#27272a' : '#f4f4f5'),
-                          color: copiedMirror === 'mac-cli' ? '#ffffff' : (dark ? '#f4f4f5' : '#18181b'),
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {copiedMirror === 'mac-cli' ? <Check size={10} /> : <Copy size={10} />}
-                        {copiedMirror === 'mac-cli' ? 'Copied' : 'Copy'}
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyMirrorUrl(`curl -fsSL ${siteOrigin}/install.sh | bash`, 'mac-cli');
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            fontSize: 10,
+                            fontFamily: 'monospace',
+                            padding: '3px 8px',
+                            borderRadius: 4,
+                            border: dark ? '1px solid #3f3f46' : '1px solid #d4d4d8',
+                            background: copiedMirror === 'mac-cli' ? '#16a34a' : (dark ? '#27272a' : '#f4f4f5'),
+                            color: copiedMirror === 'mac-cli' ? '#ffffff' : (dark ? '#f4f4f5' : '#18181b'),
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {copiedMirror === 'mac-cli' ? <Check size={10} /> : <Copy size={10} />}
+                          {copiedMirror === 'mac-cli' ? 'Copied' : 'Copy'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFlippedCard(null);
+                          }}
+                          aria-label="Flip back"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: dark ? '#a1a1aa' : '#71717a',
+                            cursor: 'pointer',
+                            padding: '2px 4px',
+                            fontSize: 13,
+                            fontWeight: 700,
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
 
                     <code style={{
@@ -383,7 +408,7 @@ export function PlatformFlipGrid({
                     padding: '4px 10px',
                     borderRadius: 14,
                   }}>
-                    Hover to Install ➔
+                    Hover / Tap to Install ➔
                   </div>
                 </div>
 
@@ -401,29 +426,50 @@ export function PlatformFlipGrid({
                       <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: dark ? '#60a5fa' : '#2563eb', textTransform: 'uppercase' }}>
                         ⚡ PowerShell
                       </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyMirrorUrl(`irm ${siteOrigin}/install.ps1 | iex`, 'win-cli');
-                        }}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          fontSize: 10,
-                          fontFamily: 'monospace',
-                          padding: '3px 8px',
-                          borderRadius: 4,
-                          border: dark ? '1px solid #3f3f46' : '1px solid #d4d4d8',
-                          background: copiedMirror === 'win-cli' ? '#16a34a' : (dark ? '#27272a' : '#f4f4f5'),
-                          color: copiedMirror === 'win-cli' ? '#ffffff' : (dark ? '#f4f4f5' : '#18181b'),
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {copiedMirror === 'win-cli' ? <Check size={10} /> : <Copy size={10} />}
-                        {copiedMirror === 'win-cli' ? 'Copied' : 'Copy'}
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyMirrorUrl(`irm ${siteOrigin}/install.ps1 | iex`, 'win-cli');
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            fontSize: 10,
+                            fontFamily: 'monospace',
+                            padding: '3px 8px',
+                            borderRadius: 4,
+                            border: dark ? '1px solid #3f3f46' : '1px solid #d4d4d8',
+                            background: copiedMirror === 'win-cli' ? '#16a34a' : (dark ? '#27272a' : '#f4f4f5'),
+                            color: copiedMirror === 'win-cli' ? '#ffffff' : (dark ? '#f4f4f5' : '#18181b'),
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {copiedMirror === 'win-cli' ? <Check size={10} /> : <Copy size={10} />}
+                          {copiedMirror === 'win-cli' ? 'Copied' : 'Copy'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFlippedCard(null);
+                          }}
+                          aria-label="Flip back"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: dark ? '#a1a1aa' : '#71717a',
+                            cursor: 'pointer',
+                            padding: '2px 4px',
+                            fontSize: 13,
+                            fontWeight: 700,
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
 
                     <code style={{
@@ -557,7 +603,7 @@ export function PlatformFlipGrid({
                     padding: '4px 10px',
                     borderRadius: 14,
                   }}>
-                    Hover to Install ➔
+                    Hover / Tap to Install ➔
                   </div>
                 </div>
 
@@ -575,29 +621,50 @@ export function PlatformFlipGrid({
                       <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: dark ? '#60a5fa' : '#2563eb', textTransform: 'uppercase' }}>
                         ⚡ Terminal
                       </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyMirrorUrl(`curl -fsSL ${siteOrigin}/install.sh | bash`, 'linux-cli');
-                        }}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          fontSize: 10,
-                          fontFamily: 'monospace',
-                          padding: '3px 8px',
-                          borderRadius: 4,
-                          border: dark ? '1px solid #3f3f46' : '1px solid #d4d4d8',
-                          background: copiedMirror === 'linux-cli' ? '#16a34a' : (dark ? '#27272a' : '#f4f4f5'),
-                          color: copiedMirror === 'linux-cli' ? '#ffffff' : (dark ? '#f4f4f5' : '#18181b'),
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {copiedMirror === 'linux-cli' ? <Check size={10} /> : <Copy size={10} />}
-                        {copiedMirror === 'linux-cli' ? 'Copied' : 'Copy'}
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyMirrorUrl(`curl -fsSL ${siteOrigin}/install.sh | bash`, 'linux-cli');
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            fontSize: 10,
+                            fontFamily: 'monospace',
+                            padding: '3px 8px',
+                            borderRadius: 4,
+                            border: dark ? '1px solid #3f3f46' : '1px solid #d4d4d8',
+                            background: copiedMirror === 'linux-cli' ? '#16a34a' : (dark ? '#27272a' : '#f4f4f5'),
+                            color: copiedMirror === 'linux-cli' ? '#ffffff' : (dark ? '#f4f4f5' : '#18181b'),
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {copiedMirror === 'linux-cli' ? <Check size={10} /> : <Copy size={10} />}
+                          {copiedMirror === 'linux-cli' ? 'Copied' : 'Copy'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFlippedCard(null);
+                          }}
+                          aria-label="Flip back"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: dark ? '#a1a1aa' : '#71717a',
+                            cursor: 'pointer',
+                            padding: '2px 4px',
+                            fontSize: 13,
+                            fontWeight: 700,
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
 
                     <code style={{

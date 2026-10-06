@@ -161,6 +161,16 @@ export interface NoviAPI {
   checkForUpdates(): Promise<Result<UpdateCheckResult>>;
   installUpdate(): Promise<Result<void>>;
   onUpdateProgress(callback: (progress: UpdateProgress) => void): () => void;
+  checkPermissions(): Promise<Result<PermissionStatus>>;
+  requestPermissions(types?: Array<'storage' | 'camera' | 'microphone' | 'screen' | 'accessibility'>): Promise<Result<PermissionStatus>>;
+}
+export interface PermissionStatus {
+  storage: boolean;
+  camera: boolean;
+  microphone: boolean;
+  screen: boolean;
+  accessibility: boolean;
+  details?: Record<string, string>;
 }
 export interface CodeViewerBlock { id: string; label: string; code: string; language?: string }
 export interface UpdateProgress { percent: number; status: string }

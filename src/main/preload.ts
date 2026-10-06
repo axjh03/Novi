@@ -88,5 +88,7 @@ const api: NoviAPI = {
     ipcRenderer.on('update-progress', listener);
     return () => { ipcRenderer.removeListener('update-progress', listener); };
   },
+  checkPermissions: () => ipcRenderer.invoke('check-permissions'),
+  requestPermissions: (types) => ipcRenderer.invoke('request-permissions', types),
 };
 contextBridge.exposeInMainWorld('novi', api);

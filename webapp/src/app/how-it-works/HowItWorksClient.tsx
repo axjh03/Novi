@@ -138,8 +138,69 @@ ${requestName || '[Your Name]'}`;
       {/* Top Navbar */}
       <PublicNavbar active="how-it-works" />
 
+      <style dangerouslySetInnerHTML={{ __html: `
+        .how-it-works-container {
+          max-width: 1120px;
+          width: 100%;
+          margin: 0 auto;
+          padding: 40px 24px 80px;
+          flex: 1;
+        }
+        .how-it-works-heading {
+          font-size: 42px;
+          font-weight: 700;
+          letter-spacing: -1.5px;
+          line-height: 1.15;
+          margin: 0 0 14px;
+          color: #111;
+        }
+        .how-it-works-grid {
+          display: grid;
+          grid-template-columns: 240px 1fr;
+          gap: 40px;
+          align-items: start;
+        }
+        .how-it-works-sidebar {
+          position: sticky;
+          top: 90px;
+          background: #ffffff;
+          border: 1px solid #e5e5e5;
+          border-radius: 12px;
+          padding: 20px 16px;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+        }
+        .how-it-works-card {
+          background: #fff;
+          border: 1px solid #e5e5e5;
+          border-radius: 14px;
+          padding: 32px 30px;
+        }
+        @media (max-width: 860px) {
+          .how-it-works-container {
+            padding: 24px 16px 60px !important;
+          }
+          .how-it-works-heading {
+            font-size: 28px !important;
+            letter-spacing: -1px !important;
+          }
+          .how-it-works-grid {
+            grid-template-columns: 1fr !important;
+            gap: 24px !important;
+          }
+          .how-it-works-sidebar {
+            position: static !important;
+            width: 100% !important;
+            padding: 14px !important;
+            box-sizing: border-box !important;
+          }
+          .how-it-works-card {
+            padding: 20px 16px !important;
+          }
+        }
+      ` }} />
+
       {/* Main Container */}
-      <div style={{ maxWidth: 1120, width: '100%', margin: '0 auto', padding: '40px 24px 80px', flex: 1 }}>
+      <div className="how-it-works-container">
         
         {/* Breadcrumb Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#666', marginBottom: 20 }}>
@@ -167,14 +228,7 @@ ${requestName || '[Your Name]'}`;
             <Lock size={12} color="#444" /> Private License Architecture & Guide
           </div>
 
-          <h1 style={{
-            fontSize: 42,
-            fontWeight: 700,
-            letterSpacing: '-1.5px',
-            lineHeight: 1.15,
-            margin: '0 0 14px',
-            color: '#111',
-          }}>
+          <h1 className="how-it-works-heading">
             How Novi Licensing Works
           </h1>
 
@@ -190,18 +244,10 @@ ${requestName || '[Your Name]'}`;
         </div>
 
         {/* 2-Column Documentation Layout */}
-        <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 40, alignItems: 'start' }}>
+        <div className="how-it-works-grid">
           
           {/* Sticky Left Sidebar Navigation */}
-          <aside style={{
-            position: 'sticky',
-            top: 90,
-            background: '#ffffff',
-            border: '1px solid #e5e5e5',
-            borderRadius: 12,
-            padding: '20px 16px',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
-          }}>
+          <aside className="how-it-works-sidebar">
             <div style={{ fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12, paddingLeft: 8 }}>
               On This Page
             </div>

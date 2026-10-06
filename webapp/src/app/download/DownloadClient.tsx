@@ -150,8 +150,128 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
       {/* Top Navigation */}
       <PublicNavbar active="download" />
 
+      <style dangerouslySetInnerHTML={{ __html: `
+        .download-content-main {
+          max-width: 1100px;
+          width: 100%;
+          margin: 0 auto;
+          padding: 60px 24px 80px;
+          flex: 1;
+        }
+        .download-heading-h1 {
+          font-size: 44px;
+          font-weight: 600;
+          letter-spacing: -1.5px;
+          margin: 0 0 16px;
+          line-height: 1.15;
+        }
+        .download-mirror-card {
+          background: #ffffff;
+          border: 1px solid #e2e2e2;
+          border-radius: 14px;
+          padding: 28px;
+          margin-bottom: 36px;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.02);
+        }
+        .download-mirror-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 16px;
+          background: #fafafa;
+          border: 1px solid #eaeaea;
+          border-radius: 8px;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+        .download-mirror-info {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          min-width: 240px;
+        }
+        .download-mirror-filename {
+          flex: 1;
+          min-width: 180px;
+          font-family: monospace;
+          font-size: 12px;
+          color: #555;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .download-mirror-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .download-license-banner {
+          background: #fff;
+          border: 1px solid #e0e0e0;
+          border-radius: 12px;
+          padding: 24px 28px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 20px;
+          flex-wrap: wrap;
+        }
+        @media (max-width: 768px) {
+          .download-content-main {
+            padding: 30px 16px 60px !important;
+          }
+          .download-heading-h1 {
+            font-size: 30px !important;
+            letter-spacing: -1px !important;
+          }
+          .download-mirror-card {
+            padding: 18px 16px !important;
+          }
+          .download-mirror-row {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            padding: 14px 12px !important;
+            gap: 10px !important;
+          }
+          .download-mirror-info {
+            min-width: 0 !important;
+            width: 100% !important;
+            justify-content: space-between !important;
+          }
+          .download-mirror-filename {
+            min-width: 0 !important;
+            width: 100% !important;
+            white-space: normal !important;
+            word-break: break-all !important;
+            font-size: 11px !important;
+          }
+          .download-mirror-actions {
+            width: 100% !important;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 8px !important;
+          }
+          .download-mirror-actions > button,
+          .download-mirror-actions > a {
+            justify-content: center !important;
+            padding: 8px 10px !important;
+            text-align: center !important;
+          }
+          .download-license-banner {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            padding: 18px 16px !important;
+            gap: 14px !important;
+          }
+          .download-license-banner a {
+            justify-content: center !important;
+            width: 100% !important;
+          }
+        }
+      ` }} />
+
       {/* Main Content */}
-      <main style={{ maxWidth: 1100, width: '100%', margin: '0 auto', padding: '60px 24px 80px', flex: 1 }}>
+      <main className="download-content-main">
         <div style={{ textAlign: 'center', maxWidth: 700, margin: '0 auto 50px' }}>
           {/* Version badge */}
           <div style={{
@@ -171,7 +291,7 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
             <Sparkles size={13} color="#444" /> Desktop App · Version {release.version} (Build #{release.buildNumber})
           </div>
 
-          <h1 style={{ fontSize: 44, fontWeight: 600, letterSpacing: '-1.5px', margin: '0 0 16px', lineHeight: 1.15 }}>
+          <h1 className="download-heading-h1">
             Download Novi for your platform
           </h1>
 
@@ -192,6 +312,8 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
             fontWeight: 500,
             color: '#333',
             boxShadow: '0 2px 10px rgba(0,0,0,0.03)',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
           }}>
             <Calendar size={14} color="#0078d4" />
             <span>
@@ -233,14 +355,7 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
         />
 
         {/* Direct Download Mirrors & GitHub CDN Assets */}
-        <div style={{
-          background: '#ffffff',
-          border: '1px solid #e2e2e2',
-          borderRadius: 14,
-          padding: '28px 28px',
-          marginBottom: 36,
-          boxShadow: '0 2px 12px rgba(0,0,0,0.02)',
-        }}>
+        <div className="download-mirror-card">
           <div style={{
             display: 'flex',
             justifyContent: 'space-between',
@@ -340,39 +455,20 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
             ].map((mirror) => (
               <div
                 key={mirror.filename}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '12px 16px',
-                  background: '#fafafa',
-                  border: '1px solid #eaeaea',
-                  borderRadius: 8,
-                  gap: 12,
-                  flexWrap: 'wrap',
-                }}
+                className="download-mirror-row"
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 260 }}>
+                <div className="download-mirror-info">
                   <span style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{mirror.platform}</span>
                   <span style={{ fontSize: 11, background: '#eee', padding: '2px 8px', borderRadius: 4, color: '#555', fontFamily: 'monospace' }}>
                     {mirror.badge}
                   </span>
                 </div>
 
-                <div style={{
-                  flex: 1,
-                  minWidth: 200,
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                  color: '#555',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}>
+                <div className="download-mirror-filename">
                   {mirror.filename}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="download-mirror-actions">
                   <button
                     type="button"
                     onClick={() => copyMirrorUrl(mirror.url, mirror.filename)}
@@ -420,17 +516,7 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
         </div>
 
         {/* Private License Notice Banner */}
-        <div style={{
-          background: '#fff',
-          border: '1px solid #e0e0e0',
-          borderRadius: 12,
-          padding: '24px 28px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 20,
-          flexWrap: 'wrap',
-        }}>
+        <div className="download-license-banner">
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <div style={{
               width: 40,
