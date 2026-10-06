@@ -42,6 +42,8 @@ jobs:
 
       - name: Sync package version with tag
         run: node scripts/sync-version.mjs
+        env:
+          TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
 
       - name: Build and Package
         run: |
