@@ -52,6 +52,32 @@ export function useStealth() {
     }
   }, [state.transparent, state.clickThrough]);
 
+  useEffect(() => {
+    if (!state.transparent || state.clickThrough) return;
+
+    const cursor = document.createElement('span');
+    cursor.className = 'stealth-private-cursor';
+    cursor.hidden = true;
+    cursor.setAttribute('aria-hidden', 'true');
+    document.body.append(cursor);
+
+    const move = (event: PointerEvent) => {
+      cursor.style.transform = `translate3d(${event.clientX}px, ${event.clientY}px, 0)`;
+      cursor.hidden = false;
+    };
+    const hide = () => { cursor.hidden = true; };
+
+    window.addEventListener('pointermove', move, { passive: true });
+    window.addEventListener('blur', hide);
+    document.documentElement.addEventListener('mouseleave', hide);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('blur', hide);
+      document.documentElement.removeEventListener('mouseleave', hide);
+      cursor.remove();
+    };
+  }, [state.transparent, state.clickThrough]);
+
   const toggleTransparent = useCallback(async () => {
     try {
       const updated = await unwrap(window.novi.toggleTransparent());

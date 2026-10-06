@@ -1,29 +1,14 @@
 import { MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, Settings, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
 import type { Conversation } from '../../../../shared/types';
 import { Brand } from '../Brand';
 
-interface Props { conversations: Conversation[]; selectedId: string | null; displayName: string; busy: boolean; onNew: () => void; onSelect: (id: string) => void; onDelete: (id: string) => void; onSettings: () => void }
-export function Sidebar({ conversations, selectedId, displayName, busy, onNew, onSelect, onDelete, onSettings }: Props) {
-  const compactQuery = '(max-width: 1050px), (max-height: 700px)';
-  const [automatic, setAutomatic] = useState(() => matchMedia(compactQuery).matches);
-  const [manual, setManual] = useState<boolean | null>(null);
-  const collapsed = manual ?? automatic;
-  useEffect(() => {
-    const media = matchMedia(compactQuery);
-    const update = () => { setAutomatic(media.matches); setManual(null); };
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
-  }, []);
-  useEffect(() => {
-    document.querySelector('.chat-layout')?.classList.toggle('sidebar-collapsed', collapsed);
-  }, [collapsed]);
-
+interface Props { conversations: Conversation[]; selectedId: string | null; displayName: string; busy: boolean; collapsed: boolean; onToggle: () => void; onNew: () => void; onSelect: (id: string) => void; onDelete: (id: string) => void; onSettings: () => void }
+export function Sidebar({ conversations, selectedId, displayName, busy, collapsed, onToggle, onNew, onSelect, onDelete, onSettings }: Props) {
   return <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
     <div className="sidebar-brand">
       <Brand compact={collapsed} />
       {!collapsed && <span className="desktop-label">DESKTOP</span>}
-      <button className="icon-button sidebar-toggle" onClick={() => setManual(!collapsed)} title={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
+      <button className="icon-button sidebar-toggle" onClick={onToggle} title={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!collapsed}>
         {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
       </button>
     </div>

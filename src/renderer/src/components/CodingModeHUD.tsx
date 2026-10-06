@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check, Code2, Copy, X } from 'lucide-react';
 import type { ChatMessage, CodeViewerBlock } from '../../../shared/types';
 import { unwrap } from '../services/api';
+import { useStealth } from '../hooks/useStealth';
 
 type CodeToken = { kind: 'plain' | 'comment' | 'string' | 'keyword' | 'number' | 'type' | 'function' | 'property' | 'operator'; text: string };
 
@@ -12,11 +13,17 @@ const EXTENSIONS: Record<string, string> = {
 };
 const KEYWORDS = String.raw`\b(?:abstract|as|async|await|break|case|catch|class|const|continue|def|default|delete|do|else|enum|export|extends|false|final|finally|for|from|function|if|implements|import|in|instanceof|interface|let|new|null|package|private|protected|public|raise|return|static|struct|super|switch|this|throw|throws|true|try|type|typeof|undefined|var|void|while|with|yield)\b`;
 
-function languageFor(fence: string, file?: string) {
+function languageFor(fence: string, file: string | undefined, code: string) {
   const requested = fence.trim().split(/\s+/)[0].toLowerCase();
   if (requested) return EXTENSIONS[requested] || requested;
   const extension = file?.split('.').at(-1)?.toLowerCase() || '';
-  return EXTENSIONS[extension] || extension || 'code';
+  if (extension) return EXTENSIONS[extension] || extension;
+  if (/^\s*[<{[]/.test(code) && /[}\]>]\s*$/.test(code)) try { JSON.parse(code); return 'json'; } catch { /* keep detecting */ }
+  if (/^\s*(?:import |export |const |let |function |interface |type )/m.test(code)) return /:\s*(?:string|number|boolean|[A-Z]\w*)\b/.test(code) ? 'typescript' : 'javascript';
+  if (/^\s*(?:from \S+ import |import \S+|def |class ).*:/m.test(code) || /\bprint\s*\(/.test(code)) return 'python';
+  if (/^\s*(?:SELECT|INSERT|UPDATE|DELETE|CREATE)\b/im.test(code)) return 'sql';
+  if (/^\s*<(?:!doctype|html|[A-Za-z][\w-]*[\s>])/i.test(code)) return 'html';
+  return 'code';
 }
 
 export function tokenizeCode(code: string, language = 'code'): CodeToken[] {
@@ -46,20 +53,26 @@ export function tokenizeCode(code: string, language = 'code'): CodeToken[] {
 }
 
 export function codeFromMessages(messages: ChatMessage[]) {
+  let solution = 0;
   return messages.flatMap((message) => {
     if (message.role !== 'assistant') return [];
     return Array.from(message.content.matchAll(/```([^\n`]*)\r?\n([\s\S]*?)```/g), (match, index) => {
       const precedingLine = message.content.slice(0, match.index).trimEnd().split('\n').at(-1) || '';
       const file = precedingLine.match(/(?:^|[`\s])([\w./\\-]+\.[a-z\d]+)[`\s:]*$/i)?.[1];
       const fence = match[1].trim();
-      return { id: `${message.id}-${index}`, label: file || fence || `Code ${index + 1}`, code: match[2].trimEnd(), language: languageFor(fence, file) };
+      const code = match[2].trimEnd();
+      const time = new Date(message.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      return { id: `${message.id}-${index}`, label: `Soln ${++solution} (${time})${file ? ` — ${file}` : ''}`, code, language: languageFor(fence, file, code) };
     });
   });
 }
 
 export function DetachedCodeViewer() {
   const [blocks, setBlocks] = useState<CodeViewerBlock[]>([]);
+  useStealth();
   useEffect(() => {
+    document.documentElement.style.setProperty('--transparent-opacity', `${localStorage.getItem('novi_transparent_opacity') || 35}%`);
+    document.documentElement.style.setProperty('--transparent-bg', localStorage.getItem('novi_transparent_bg') || '#0f172a');
     const unsubscribe = window.novi.onCodeViewerBlocks(setBlocks);
     void unwrap(window.novi.getCodeViewerBlocks()).then(setBlocks).catch(console.error);
     return unsubscribe;
@@ -69,6 +82,7 @@ export function DetachedCodeViewer() {
 
 function CodingModeHUD({ blocks }: { blocks: CodeViewerBlock[] }) {
   const [copied, setCopied] = useState<string | null>(null);
+  const [language, setLanguage] = useState(() => localStorage.getItem('novi_code_language') || 'auto');
 
   async function copy(id: string, code: string) {
     try {
@@ -80,7 +94,9 @@ function CodingModeHUD({ blocks }: { blocks: CodeViewerBlock[] }) {
   }
 
   return <section className="code-viewer" aria-label="Code viewer">
-    <header className="code-viewer-header"><Code2 size={15} /><strong>Code viewer</strong><span>{blocks.length ? `${blocks.length} ${blocks.length === 1 ? 'block' : 'blocks'}` : ''}</span><button className="code-viewer-close" type="button" aria-label="Close code viewer" onClick={() => void unwrap(window.novi.closeWindow())}><X size={15} /></button></header>
+    <header className="code-viewer-header"><Code2 size={15} /><strong>Code viewer</strong><select className="code-viewer-language" aria-label="Code language" value={language} onChange={(event) => { setLanguage(event.target.value); localStorage.setItem('novi_code_language', event.target.value); }}>
+      <option value="auto">Auto (Smart)</option>{['javascript', 'typescript', 'python', 'java', 'c', 'cpp', 'csharp', 'go', 'rust', 'html', 'css', 'json', 'sql', 'shell', 'yaml'].map((item) => <option key={item} value={item}>{item}</option>)}
+    </select><span>{blocks.length ? `${blocks.length} ${blocks.length === 1 ? 'block' : 'blocks'}` : ''}</span><button className="code-viewer-close" type="button" aria-label="Close code viewer" onClick={() => void unwrap(window.novi.closeWindow())}><X size={15} /></button></header>
     <div className="code-viewer-scroll">
       {blocks.map((block) => <article className="code-viewer-file" key={block.id}>
         <div className="code-viewer-file-header"><span title={block.label}>{block.label}</span>
@@ -88,7 +104,7 @@ function CodingModeHUD({ blocks }: { blocks: CodeViewerBlock[] }) {
             {copied === block.id ? <Check size={13} /> : <Copy size={13} />}{copied === block.id ? 'Copied' : 'Copy'}
           </button>
         </div>
-        <pre><code className="syntax-code">{tokenizeCode(block.code, block.language).map((token, index) => token.kind === 'plain' ? token.text : <span className={`syntax-${token.kind}`} key={index}>{token.text}</span>)}</code></pre>
+        <pre><code className="syntax-code">{tokenizeCode(block.code, language === 'auto' ? block.language : language).map((token, index) => token.kind === 'plain' ? token.text : <span className={`syntax-${token.kind}`} key={index}>{token.text}</span>)}</code></pre>
       </article>)}
     </div>
   </section>;

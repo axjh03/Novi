@@ -41,6 +41,17 @@ export class ConnectionService {
     user.settings.activeConnectionId = connection.id;
     this.storage.save();
   }
+  selectManaged(id: unknown, enabled: unknown) {
+    const user = this.storage.current();
+    if (!user.managed || typeof enabled !== 'boolean') throw new UserError('Choose a managed API connection.');
+    const connection = user.settings.connections.find(item => item.id === text(id, 'connection ID', 100));
+    if (!connection?.managed) throw new UserError('Choose an available API connection.');
+    if (enabled) for (const other of user.settings.connections) if (other.provider === connection.provider) other.enabled = false;
+    connection.enabled = enabled;
+    if (enabled) user.settings.activeConnectionId = connection.id;
+    else if (user.settings.activeConnectionId === connection.id) user.settings.activeConnectionId = user.settings.connections.find(item => item.enabled !== false)?.id || null;
+    this.storage.save();
+  }
   remove(id: unknown) {
     const user = this.storage.current(), connection = user.settings.connections.find((item) => item.id === text(id, 'connection ID', 100));
     if (user.managed) throw new UserError('API connections are read-only. Contact your account owner.');

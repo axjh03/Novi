@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { require as tsxRequire } from 'tsx/cjs/api';
+import { SESSION_ROLES, presetFields } from '../src/renderer/src/context/sessionPresets';
 
 const { ContextService } = tsxRequire('../src/main/services/context.ts', import.meta.url);
 const { Storage } = tsxRequire('../src/main/services/storage.ts', import.meta.url);
@@ -11,7 +12,7 @@ const { LocalAuthService } = tsxRequire('../src/main/services/auth.ts', import.m
 const { ChatService } = tsxRequire('../src/main/services/chat.ts', import.meta.url);
 const { readContextFolders } = tsxRequire('../src/main/services/contextFiles.ts', import.meta.url);
 
-test('context sends files and fields, inherits them in new chats, and deletes only temporary data', async (t) => {
+test('context seeds new chats while saved history survives sessions without raw reference files', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'novi-context-test-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const source = join(root, 'source'); mkdirSync(source);
@@ -28,9 +29,12 @@ test('context sends files and fields, inherits them in new chats, and deletes on
   const folders = await context.loadFolders([source]);
   assert.equal(folders[0].files.length, 1);
   assert.throws(() => context.begin({ folderIds: [folders[0].id], purpose: '', fields: [] }));
-  context.begin({ folderIds: [folders[0].id], purpose: 'Review Cedar UI', fields: [{ label: 'Style', value: 'Concise' }, ...Array.from({ length: 3 }, () => ({ label: '', value: '' }))] });
+  const fields = presetFields(SESSION_ROLES[0], SESSION_ROLES[0].presets[0]);
+  fields[3].value = 'CUSTOM_CONSTRAINT: Explain jargon in plain English.';
+  context.begin({ folderIds: [folders[0].id], purpose: 'Review Cedar UI', fields });
   assert.match(context.prompt, /CONFIDENTIAL_REFERENCE/);
-  assert.match(context.prompt, /Style: Concise/);
+  assert.match(context.prompt, /time and space complexity/);
+  assert.match(context.prompt, /Constraints: CUSTOM_CONSTRAINT/);
   assert(!context.prompt.includes('DO_NOT_SEND'));
   const requests: Array<{ messages: Array<{ content: string }> }> = [];
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
@@ -42,16 +46,26 @@ test('context sends files and fields, inherits them in new chats, and deletes on
   context.completeInitialization();
   assert.equal(context.session.status, 'ready');
   assert.match(readFileSync(context.summaryPath, 'utf8'), /Cedar/);
+  const summaryId = storage.conversations.find((conversation) => conversation.title === 'Session context')!.id;
   await chat.send({ conversationId: null, content: 'What color?', imageIds: [] }, () => {});
   assert.equal(requests[1].messages.length, 3);
   assert.match(requests[1].messages[0].content, /CONFIDENTIAL_REFERENCE/);
+  assert.match(requests[1].messages[0].content, /Constraints: CUSTOM_CONSTRAINT/);
   assert.equal(requests[1].messages[2].content, 'What color?');
-  assert.equal(storage.conversations.length, 2);
-  assert(!readFileSync(storage.file, 'utf8').includes('Cedar'));
+  assert.equal(storage.conversations.length, 3);
+  assert(!readFileSync(storage.file, 'utf8').includes('CONFIDENTIAL_REFERENCE'));
+  assert.match(readFileSync(storage.file, 'utf8'), /What color\?/);
+  await chat.send({ conversationId: summaryId, content: 'Any gaps?', imageIds: [] }, () => {});
+  assert.match(requests[2].messages[0].content, /CONFIDENTIAL_REFERENCE/);
+  assert.equal(requests[2].messages.at(-1)?.content, 'Any gaps?');
   context.end();
   assert(!existsSync(context.summaryPath));
   assert.equal(storage.sessionConversations, null);
   assert.equal(storage.current().conversations[0].id, 'legacy');
+  const reopened = new Storage(storage.directory);
+  assert.equal(reopened.current().conversations.length, 3);
+  assert(reopened.current().conversations.some((conversation) => conversation.messages.some((message) => message.content === 'What color?')));
+  assert(!readFileSync(reopened.file, 'utf8').includes('CONFIDENTIAL_REFERENCE'));
   assert.match(readFileSync(join(source, 'reference.txt'), 'utf8'), /CONFIDENTIAL_REFERENCE/);
   writeFileSync(context.summaryPath, 'abandoned session');
   new ContextService(storage);

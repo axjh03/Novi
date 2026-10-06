@@ -6,6 +6,7 @@ import { Brand } from '../components/Brand';
 import { ProviderPicker } from '../components/chat/ProviderPicker';
 import { SettingsPage } from './SettingsPage';
 import { errorText, unwrap } from '../services/api';
+import { SESSION_ROLES, presetFields } from '../context/sessionPresets';
 
 type Section = 'model' | 'sources' | 'brief';
 
@@ -15,6 +16,10 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
   const [folders, setFolders] = useState<ContextFolder[]>([]);
   const [purpose, setPurpose] = useState('');
   const [fields, setFields] = useState(['Role / perspective', 'Background', 'Output format', 'Constraints'].map((label) => ({ label, value: '' })));
+  const [roleIndex, setRoleIndex] = useState(0), [presetIndex, setPresetIndex] = useState(0);
+  const [presetNotice, setPresetNotice] = useState('');
+  const instructions = useRef<HTMLDetailsElement>(null);
+  const role = SESSION_ROLES[roleIndex], preset = role.presets[presetIndex];
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [modelReady, setModelReady] = useState(false), [checking, setChecking] = useState(false);
   const attempt = useRef(0);
@@ -61,7 +66,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
             <Icon size={16} /><span>{label}</span>{done && <Check className="context-nav-check" size={14} aria-label="Complete" />}
           </button>)}
         </nav>
-        <p className="context-rail-note">Session data is cleared when you end the session. Your source folders stay in place.</p>
+        <p className="context-rail-note">Conversations are saved across sessions. Ending a session removes only its temporary context file; source folders stay in place.</p>
       </aside>
 
       <div className="context-main-panel">
@@ -83,7 +88,30 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
         {section === 'brief' && <section id="context-panel-brief" aria-labelledby="context-tab-brief" className="context-panel-content">
           <div className="context-panel-heading"><div className="context-panel-icon"><FileText size={19} /></div><div><span className="context-overline">03 / TASK</span><h2>Session instructions</h2><p>Describe what you want to do with these sources.</p></div></div>
           <div className="context-brief-editor"><label htmlFor="context-purpose">Purpose <span>Required</span></label><textarea id="context-purpose" maxLength={2000} value={purpose} disabled={busy} onChange={(e) => setPurpose(e.target.value)} placeholder="What should Novi help you accomplish?" />
-            <details className="custom-fields-accordion"><summary>Additional instructions <span>Optional</span></summary><div className="context-fields">{fields.map((field, index) => <div className="context-field" key={index}><input aria-label={`Instruction ${index + 1} name`} maxLength={80} value={field.label} disabled={busy} onChange={(e) => setFields((items) => items.map((f, i) => i === index ? { ...f, label: e.target.value } : f))} /><textarea aria-label={`${field.label || `Instruction ${index + 1}`} details`} maxLength={2000} value={field.value} disabled={busy} onChange={(e) => setFields((items) => items.map((f, i) => i === index ? { ...f, value: e.target.value } : f))} placeholder="Add a detail…" /></div>)}</div></details>
+            <fieldset className="context-presets" disabled={busy}>
+              <legend>Start from a role preset</legend>
+              <p>Optional starting points for this session. Preview a preset, then apply and edit its instructions.</p>
+              <label htmlFor="context-preset-role">Role</label>
+              <select id="context-preset-role" value={roleIndex} onChange={(event) => { setRoleIndex(Number(event.target.value)); setPresetIndex(0); setPresetNotice(''); }}>
+                {SESSION_ROLES.map((item, index) => <option key={item.name} value={index}>{item.name}</option>)}
+              </select>
+              <div className="context-preset-options" role="group" aria-label={`${role.name} presets`}>
+                {role.presets.map((item, index) => <button type="button" key={item.name} aria-pressed={presetIndex === index} onClick={() => { setPresetIndex(index); setPresetNotice(''); }}>
+                  <strong>{item.name}</strong><span>{item.description}</span>
+                </button>)}
+              </div>
+              <details className="context-preset-preview"><summary>Preview instructions: {preset.name}</summary>
+                <dl>{presetFields(role, preset).map((field) => <div key={field.label}><dt>{field.label}</dt><dd>{field.value}</dd></div>)}</dl>
+              </details>
+              <button type="button" className="secondary" onClick={() => {
+                setFields(presetFields(role, preset));
+                setPresetNotice(`${role.name} / ${preset.name} applied. You can edit all four fields below.`);
+                if (instructions.current) instructions.current.open = true;
+              }}>{fields.some((field) => field.value.trim()) ? 'Replace instructions with preset' : 'Apply preset'}</button>
+              <small>Applying fills all four additional fields. Your purpose stays unchanged.</small>
+              <span className="context-preset-notice" role="status">{presetNotice}</span>
+            </fieldset>
+            <details ref={instructions} className="custom-fields-accordion"><summary>Additional instructions <span>Optional · editable</span></summary><div className="context-fields">{fields.map((field, index) => <div className="context-field" key={index}><input aria-label={`Instruction ${index + 1} name`} maxLength={80} value={field.label} disabled={busy} onChange={(e) => { setPresetNotice(''); setFields((items) => items.map((f, i) => i === index ? { ...f, label: e.target.value } : f)); }} /><textarea aria-label={`${field.label || `Instruction ${index + 1}`} details`} maxLength={2000} value={field.value} disabled={busy} onChange={(e) => { setPresetNotice(''); setFields((items) => items.map((f, i) => i === index ? { ...f, value: e.target.value } : f)); }} placeholder="Add a detail…" /></div>)}</div></details>
           </div>
         </section>}
       </div>

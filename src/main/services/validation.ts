@@ -58,7 +58,7 @@ export function settingsInput(value: unknown): SettingsInput {
     audioRecordShortcut: typeof input.audioRecordShortcut === 'string' && input.audioRecordShortcut.trim() ? input.audioRecordShortcut.trim() : 'Alt+A',
     autoSendOnAudioStop: typeof input.autoSendOnAudioStop === 'boolean' ? input.autoSendOnAudioStop : false,
     fastInterviewModel: typeof input.fastInterviewModel === 'boolean' ? input.fastInterviewModel : false,
-    transparentOpacity: typeof input.transparentOpacity === 'number' ? Math.max(20, Math.min(100, input.transparentOpacity)) : 85,
+    transparentOpacity: typeof input.transparentOpacity === 'number' ? Math.max(20, Math.min(100, input.transparentOpacity)) : 35,
     transparentBg: typeof input.transparentBg === 'string' && input.transparentBg.trim() ? input.transparentBg.trim() : '#0f172a',
     workingMonitorId: typeof input.workingMonitorId === 'number' ? input.workingMonitorId : null,
     behavioralFramework: ['smart', 'star', 'car', 'par', 'soar'].includes(String(input.behavioralFramework))

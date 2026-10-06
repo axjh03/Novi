@@ -154,6 +154,7 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
   }, []);
 
   useEffect(() => {
+    if (!snapshot?.user) return;
     void refreshMonitors();
     void unwrap(window.novi.getWorkingMonitor())
       .then((res) => {
@@ -162,7 +163,7 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
         }
       })
       .catch(() => {});
-  }, [refreshMonitors]);
+  }, [refreshMonitors, snapshot?.user?.id]);
 
   useEffect(() => {
     if (typeof snapshot?.settings?.workingMonitorId === 'number') {
@@ -195,7 +196,7 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
   // 3. Transparency customization
   const [transparentOpacity, setTransparentOpacityState] = useState<number>(() => {
     const saved = localStorage.getItem('novi_transparent_opacity');
-    return saved ? Math.max(20, Math.min(100, Number(saved))) : (snapshot?.settings?.transparentOpacity || 85);
+    return saved ? Math.max(20, Math.min(100, Number(saved))) : (snapshot?.settings?.transparentOpacity || 35);
   });
 
   const [transparentBg, setTransparentBgState] = useState<string>(() => {
@@ -348,8 +349,9 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
 
   const sessionActive = Boolean(snapshot?.user && snapshot.contextSession);
   useEffect(() => {
+    if (!snapshot?.user) return;
     void unwrap(window.novi.setCodeViewerVisible(sessionActive && appMode === 'coding')).catch(console.error);
-  }, [sessionActive, appMode]);
+  }, [snapshot?.user?.id, sessionActive, appMode]);
   useEffect(() => window.novi.onCodeViewerClosed(() => {
     setAppModeState((mode) => {
       if (mode !== 'coding') return mode;

@@ -18,6 +18,7 @@ import { BehavioralModeHUD } from '../components/BehavioralModeHUD';
 
 export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSaved: (state: Snapshot) => void; onSignOut: () => void }) {
   const chat = useChat(state.conversations), [settings, setSettings] = useState(false), [deleting, setDeleting] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const {
     appMode,
     setAppMode,
@@ -111,8 +112,10 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   }
 
   return (
-    <div className="chat-layout">
+    <div className={`chat-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <Sidebar
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed((value) => !value)}
         conversations={chat.conversations}
         selectedId={chat.selectedId}
         displayName={config.displayName}
@@ -159,7 +162,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
                 </button>
               ))}
             </nav>
-            <div className="session-controls"><span>{state.contextSession?.summaryReady ? 'Context ready · temporary session' : state.contextSession?.status === 'error' ? 'Context loading failed' : 'Reading your context…'}</span><button className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button></div>
+            <div className="session-controls"><span title="Temporary session context">{state.contextSession?.summaryReady ? 'Ready' : state.contextSession?.status === 'error' ? 'Context error' : 'Loading context…'}</span><button className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button></div>
             {/* Eye tracking controls in header */}
             <EyeTrackingPanel
               state={et.state}
@@ -244,7 +247,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
       )}
 
       {/* Delete dialog */}
-      {confirmEnd && <div className="session-confirm" role="alertdialog" aria-modal="true" aria-label="End context session"><div><h2>End this session?</h2><p>This deletes this session’s local conversations, image copies, and AI Context.md. Source folders and unrelated history are kept.</p><button className="text-button" disabled={ending} onClick={() => setConfirmEnd(false)}>Keep session</button><button className="danger-button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End & delete session'}</button></div></div>}
+      {confirmEnd && <div className="session-confirm" role="alertdialog" aria-modal="true" aria-label="End context session"><div><h2>End this session?</h2><p>Your conversations and attachments stay saved. The temporary AI Context.md file will be removed; source folders stay in place.</p><button className="text-button" disabled={ending} onClick={() => setConfirmEnd(false)}>Keep session</button><button className="danger-button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div></div>}
       {et.state === 'calibrating' && (
         <GazeCalibration key={`${et.selectedCameraId}:${et.selectedDisplayId}`} onAddSample={et.addCalibrationSample} onFinish={et.finishCalibration} onCancel={et.stop} />
       )}

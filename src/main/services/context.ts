@@ -65,7 +65,7 @@ export class ContextService {
     return this.session;
   }
   history(messages: ChatMessage[], conversationId: string): ChatMessage[] {
-    return conversationId === this.conversationId ? messages : [...this.seed, ...messages];
+    return conversationId === this.conversationId ? [...this.seed, ...messages.slice(this.seed.length)] : [...this.seed, ...messages];
   }
   completeInitialization(): void {
     const session = this.assertActive();
@@ -76,8 +76,17 @@ export class ContextService {
       return;
     }
     writeFileSync(this.summaryPath, `# AI Context\n\n${reply.content}\n`, { mode: 0o600 });
+    const account = this.storage.current();
+    account.conversations.push({
+      ...conversation,
+      title: 'Session context',
+      messages: conversation.messages.map((message) => message.role === 'user' ? { ...message, content: 'Session context loaded.' } : message),
+    });
+    try { this.storage.save(); }
+    catch (error) { account.conversations.pop(); throw error; }
     this.seed = [...conversation.messages];
     this.conversationId = conversation.id;
+    this.storage.sessionConversations = null;
     session.status = 'ready';
     session.summaryReady = true;
   }

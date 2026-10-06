@@ -66,6 +66,8 @@ async function main() {
   try {
     app = await launch();
     let page = await app.firstWindow();
+    await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
+    assert.equal(await page.locator('.global-error').count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Transparency' }).count(), 0);
     assert.equal(await page.getByRole('navigation', { name: 'Conversation mode' }).count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Create account', exact: true }).count(), 0);
@@ -74,11 +76,15 @@ async function main() {
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await page.getByRole('heading', { name: 'Temporary session' }).waitFor();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await page.getByRole('button', { name: 'API management', exact: true }).click();
+    await page.getByRole('button', { name: 'API Management', exact: true }).click();
     await page.getByText('Shared by Test owner · Key hidden').waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Selected', exact: true }).count(), 1);
     assert.equal(await page.getByRole('button', { name: 'Add provider' }).count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Edit Local test' }).count(), 0);
     assert(!JSON.stringify(await page.evaluate(() => window.novi.session())).includes('fixture-key'));
+    await page.getByRole('button', { name: 'Audio & Camera', exact: true }).click();
+    await page.getByRole('heading', { name: 'Microphone sound test' }).waitFor();
+    assert.equal(await page.locator('.device-tests .settings-section').count(), 4);
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await page.getByLabel('Choose model', { exact: true }).selectOption('test-model');
     assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), 'test-model');
@@ -90,7 +96,18 @@ async function main() {
     await page.getByRole('button', { name: 'Choose folders' }).click();
     await page.getByRole('button', { name: 'Instructions' }).click();
     await page.getByLabel('Purpose').fill('Review the Cedar interface.');
-    await page.getByText('Additional instructions').click();
+    for (const label of ['Software Engineer', 'Data Analyst', 'Data Scientist', 'Data Engineer']) {
+      await page.getByLabel('Role', { exact: true }).selectOption({ label });
+      assert.equal(await page.getByRole('group', { name: `${label} presets`, exact: true }).getByRole('button').count(), 4);
+    }
+    await page.getByLabel('Role', { exact: true }).selectOption({ label: 'Software Engineer' });
+    await page.getByRole('button', { name: /Coding interview Approach/ }).click();
+    await page.getByRole('button', { name: 'Apply preset', exact: true }).click();
+    assert.match(await page.getByLabel('Output format details').inputValue(), /time and space complexity/);
+    await page.getByLabel('Constraints details').fill('CUSTOM_CONSTRAINT: Explain jargon in plain English.');
+    await page.getByLabel('Role', { exact: true }).selectOption({ label: 'Data Analyst' });
+    assert.equal(await page.getByLabel('Constraints details').inputValue(), 'CUSTOM_CONSTRAINT: Explain jargon in plain English.', 'browsing presets preserves edits');
+    assert.equal(await page.getByLabel('Purpose').inputValue(), 'Review the Cedar interface.');
     await page.getByLabel('Role / perspective details').fill('Keep the answer concise.');
     rejectPing = true;
     await page.getByRole('button', { name: 'Start session', exact: true }).click();
@@ -99,6 +116,7 @@ async function main() {
     rejectPing = false;
     await page.getByRole('button', { name: 'Start session', exact: true }).click();
     await page.getByText('Understood the loaded context. Cedar uses blue buttons.', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Expand sidebar' }).count(), 1);
     assert.equal(await page.getByRole('navigation', { name: 'Conversation mode' }).getByRole('button').count(), 3);
     assert.equal(await page.getByRole('button', { name: 'Whiteboard' }).count(), 0);
     const viewerEvent = app.waitForEvent('window');
@@ -109,11 +127,15 @@ async function main() {
     await viewer.getByRole('button', { name: 'Close code viewer' }).click();
     assert.equal(await page.getByRole('button', { name: 'Transparency' }).count(), 1);
     assert.equal(await page.getByRole('button', { name: 'Camera', exact: true }).count(), 0);
+    await page.getByLabel('Recording output').selectOption('live_stream');
+    assert.equal(await page.getByLabel('Recording output').inputValue(), 'live_stream');
     assert.equal(pings, 2);
     assert(contextSentAt >= confirmedAt, 'context follows a successful connection check');
     assert.equal(requests.length, 1);
     assert.match(JSON.stringify(requests[0]), /SESSION_SOURCE/);
     assert.match(JSON.stringify(requests[0]), /Keep the answer concise/);
+    assert.match(JSON.stringify(requests[0]), /CUSTOM_CONSTRAINT/);
+    assert.match(JSON.stringify(requests[0]), /time and space complexity/);
     const summary = join(env.NOVI_DATA_DIR, 'context-session', 'AI Context.md');
     assert(existsSync(summary));
     assert(!readFileSync(join(env.NOVI_DATA_DIR, 'data.json'), 'utf8').includes('SESSION_SOURCE'));
@@ -123,25 +145,27 @@ async function main() {
       dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [imagePath] })) as typeof dialog.showOpenDialog;
     }, imagePath);
     await page.getByRole('button', { name: 'New conversation' }).click();
-    await page.getByRole('button', { name: 'Add attachment' }).click();
     await page.getByRole('button', { name: /Attach image/ }).click();
     await page.getByRole('button', { name: 'Remove sample.png' }).waitFor();
     await page.getByLabel('Message Novi').fill('What color should this button be?');
     await page.getByRole('button', { name: 'Send message' }).click();
     await page.getByText('Your button should be blue.', { exact: true }).waitFor();
     assert.match(JSON.stringify(requests[1]), /SESSION_SOURCE/);
+    assert.match(JSON.stringify(requests[1]), /CUSTOM_CONSTRAINT/);
     assert.match(JSON.stringify(requests[1]), /data:image\/png;base64/);
     await page.getByRole('button', { name: 'End session', exact: true }).click();
-    await page.getByRole('button', { name: 'End & delete session', exact: true }).click();
+    await page.getByRole('alertdialog', { name: 'End context session' }).getByRole('button', { name: 'End session', exact: true }).click();
     await page.getByRole('heading', { name: 'Temporary session' }).waitFor();
     assert(!existsSync(summary));
-    assert.equal(readdirSync(join(env.NOVI_DATA_DIR, 'images')).length, 0);
+    assert.equal(readdirSync(join(env.NOVI_DATA_DIR, 'images')).length, 1);
+    assert.match(readFileSync(join(env.NOVI_DATA_DIR, 'data.json'), 'utf8'), /What color should this button be\?/);
     assert.match(readFileSync(join(source, 'brief.txt'), 'utf8'), /SESSION_SOURCE/);
     assert.equal(await page.getByLabel('Message Novi').count(), 0);
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
     await app.close(); app = await launch(); page = await app.firstWindow();
     await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
-    console.log('Desktop smoke passed: session setup, model check, detached code viewer, context chat, session deletion, restart.');
+    assert.equal(await page.locator('.global-error').count(), 0);
+    console.log('Desktop smoke passed: session setup, model check, detached code viewer, saved context chat, restart.');
   } finally {
     await app?.close();
     await new Promise<void>((resolve) => server.close(() => resolve()));

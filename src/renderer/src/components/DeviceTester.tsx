@@ -689,14 +689,14 @@ export function DeviceTester() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+    <div className="device-tests">
       {/* 1. Microphone Input Test */}
       <section className="settings-section">
         <div>
           <h2>Microphone sound test</h2>
           <p>Choose your microphone and record 10s or 20s to verify input sound.</p>
         </div>
-        <div className="settings-fields" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="settings-fields">
           <div className="device-card">
             {/* Device Selector Row */}
             <div className="device-select-row">
@@ -862,7 +862,7 @@ export function DeviceTester() {
           <h2>System audio IN test (Desktop & Call audio)</h2>
           <p>Verify that Novi can listen to audio playing from your PC (e.g. call partner voice, videos, or system sound).</p>
         </div>
-        <div className="settings-fields" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="settings-fields">
           <div className="device-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1003,7 +1003,7 @@ export function DeviceTester() {
           <h2>Camera test</h2>
           <p>Select camera device and preview video framing.</p>
         </div>
-        <div className="settings-fields" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="settings-fields">
           <div className="device-card">
             {/* Camera Select Row */}
             <div className="device-select-row">
@@ -1120,7 +1120,7 @@ export function DeviceTester() {
           <h2>Audio transcription test</h2>
           <p>Test if speech can be captured and converted to text via your selected microphone or system audio.</p>
         </div>
-        <div className="settings-fields" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="settings-fields">
           <div className="device-card">
             {/* Audio Source Mode Selection */}
             <div className="device-select-row">

@@ -7,6 +7,10 @@ export function useChat(initial: Conversation[]) {
   const [selectedId, setSelectedId] = useState<string | null>(initial[0]?.id ?? null);
   const [busy, setBusy] = useState(false), [activeId, setActiveId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  useEffect(() => {
+    setConversations(initial);
+    setSelectedId((id) => initial.some((conversation) => conversation.id === id) ? id : initial.at(-1)?.id ?? null);
+  }, [initial]);
   useEffect(() => window.novi.onChat((event) => {
     if (event.type === 'delta') {
       setConversations((items) => items.map((c) => c.id !== event.conversationId ? c : { ...c, messages: c.messages.map((m) => m.id === event.messageId ? { ...m, content: m.content + event.text } : m) }));

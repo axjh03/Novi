@@ -19,7 +19,7 @@ export class Storage {
   // ponytail: whole-file JSON suits small histories; use SQLite when write size becomes noticeable.
   readonly file: string;
   data: Database;
-  // Session chats are deliberately never included in data.json.
+  // Only the context-loading exchange is temporary; normal chats use account history.
   sessionConversations: Conversation[] | null = null;
   get conversations(): Conversation[] { return this.sessionConversations ?? this.current().conversations; }
   set conversations(value: Conversation[]) {
@@ -38,7 +38,7 @@ export class Storage {
       user.settings.behavioralModeShortcut ||= 'Alt+B';
       user.settings.screenshotShortcut ||= 'Alt+3';
       user.settings.audioRecordShortcut ||= 'Alt+A';
-      user.settings.transparentOpacity ||= 85;
+      user.settings.transparentOpacity ||= 35;
       user.settings.transparentBg ||= '#0f172a';
       user.settings.checkUpdatesAtStartup = user.settings.checkUpdatesAtStartup ?? true;
       if (this.data.version === 1) {

@@ -162,10 +162,9 @@ export class StealthService {
     this.numLock = this.readNumLock();
     this.clickThrough = enabled && !this.numLock;
 
-    if (win && !win.isDestroyed()) {
-      // 1. Screen capture protection: window invisible in screen recording/sharing
-      win.setContentProtection(enabled);
+    for (const window of this.getWindows()) window.setContentProtection(enabled);
 
+    if (win && !win.isDestroyed()) {
       if (enabled) {
         // Float on top in transparent stealth mode
         win.setAlwaysOnTop(true, 'screen-saver');
@@ -288,10 +287,14 @@ export class StealthService {
   }
 
   private broadcastState() {
+    for (const window of this.getWindows()) window.webContents.send('stealth-state-changed', this.getState());
+  }
+
+  private getWindows(): BrowserWindow[] {
     const win = this.getWindow();
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('stealth-state-changed', this.getState());
-    }
+    const windows = new Set<BrowserWindow>(win && !win.isDestroyed() ? [win] : []);
+    try { for (const window of req('electron').BrowserWindow.getAllWindows()) if (!window.isDestroyed()) windows.add(window); } catch { /* tests and shutdown */ }
+    return [...windows];
   }
 
   setShortcuts(shortcuts: { coding?: string; behavioral?: string; screenshot?: string; audio?: string }) {

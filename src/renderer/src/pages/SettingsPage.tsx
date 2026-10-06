@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { ArrowLeft, Check, LogOut, Trash2, Mic, Video, Cpu, Zap, Radio, ShieldCheck, KeyRound, Sparkles } from 'lucide-react';
-import { DEFAULT_CLICK_THROUGH_SHORTCUT, type SettingsInput, type Snapshot, type AudioPipelineMode } from '../../../shared/types';
+import { ArrowLeft, Check, LogOut, Trash2 } from 'lucide-react';
+import { DEFAULT_CLICK_THROUGH_SHORTCUT, type SettingsInput, type Snapshot } from '../../../shared/types';
 import { ProviderManager } from '../components/ProviderManager';
 import { DeviceTester } from '../components/DeviceTester';
 import { SettingsAppUpdater } from '../components/SettingsAppUpdater';
@@ -9,7 +9,7 @@ import { errorText, unwrap } from '../services/api';
 interface Props { state: Snapshot; onSaved: (state: Snapshot) => void; onBack: () => void; onSignOut: () => void; onCleared: () => void }
 
 export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: Props) {
-  const [tab, setTab] = useState<'general' | 'pipeline' | 'devices' | 'api'>('general');
+  const [tab, setTab] = useState<'general' | 'devices' | 'api'>('general');
   const [value, setValue] = useState<SettingsInput>({
     ...state.settings!,
     clickThroughShortcut: state.settings!.clickThroughShortcut || DEFAULT_CLICK_THROUGH_SHORTCUT,
@@ -67,6 +67,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
     setBusy(true); setError('');
     try {
       await unwrap(window.novi.clearHistory());
+      onSaved(await unwrap(window.novi.session()));
       onCleared();
       setConfirm(false);
     } catch (err) {
@@ -85,12 +86,12 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
         <span className="eyebrow">MAKE IT YOURS</span>
       </header>
 
-      <div className="settings-content">
+      <div className={`settings-content ${tab === 'general' ? '' : 'settings-content-wide'}`}>
         <h1>Settings</h1>
         <p className="muted">Configure your audio devices, AI models, and interaction preferences.</p>
 
         {/* Navigation Tabs */}
-        <div className="segmented settings-tabs" aria-label="Settings tabs" style={{ maxWidth: 640 }}>
+        <div className="segmented settings-tabs" aria-label="Settings tabs">
           <button
             type="button"
             aria-pressed={tab === 'general'}
@@ -98,14 +99,6 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
             onClick={() => setTab('general')}
           >
             General
-          </button>
-          <button
-            type="button"
-            aria-pressed={tab === 'pipeline'}
-            className={tab === 'pipeline' ? 'active' : ''}
-            onClick={() => setTab('pipeline')}
-          >
-            AI Pipeline
           </button>
           <button
             type="button"
@@ -324,17 +317,17 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
               <div className="settings-fields">
                 <button
                   className="danger-button"
-                  disabled={busy || !state.contextSession}
+                  disabled={busy}
                   onClick={() => setConfirm(true)}
                 >
-                  <Trash2 size={16} />Clear session conversations
+                  <Trash2 size={16} />Clear conversation history
                 </button>
                 {confirm && (
                   <div className="confirmation" role="alert">
-                    <p>Delete this session’s conversations and their local image copies? Loaded reference context stays active until you end the session. This cannot be undone.</p>
+                    <p>Delete all saved conversations and their local image copies? {state.contextSession ? 'Loaded reference context stays active until you end the session. ' : ''}This cannot be undone.</p>
                     <div>
                       <button className="text-button" onClick={() => setConfirm(false)}>Cancel</button>
-                      <button className="danger-button" onClick={() => void clear()} disabled={busy}>Delete session conversations</button>
+                      <button className="danger-button" onClick={() => void clear()} disabled={busy}>Delete all conversations</button>
                     </div>
                   </div>
                 )}
@@ -346,62 +339,9 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
           </>
         )}
 
-        {/* Tab 2: AI Pipeline Mode */}
-        {tab === 'pipeline' && (
-          <form onSubmit={save}>
-            <fieldset disabled={busy}>
-              <section className="settings-section">
-                <div>
-                  <h2>Recording output</h2>
-                  <p>Choose how captured system audio is processed and sent to your models.</p>
-                </div>
-                <div className="settings-fields">
-                  <label className="audio-mode-option">
-                    <input type="radio" name="pipelineMode" checked={value.audioPipelineMode === 'local_stt'} onChange={() => change({ ...value, audioPipelineMode: 'local_stt' })} />
-                    <span><strong>Transcribe to text</strong><small>Save the recording on this device, then use a configured OpenAI or Gemini connection to transcribe it into the composer.</small></span>
-                  </label>
-                  <label className="audio-mode-option">
-                    <input type="radio" name="pipelineMode" checked={value.audioPipelineMode === 'live_stream'} onChange={() => change({ ...value, audioPipelineMode: 'live_stream' })} />
-                    <span><strong>Attach recording</strong><small>Attach the finished recording with Gemini. Other connections transcribe it into text.</small></span>
-                  </label>
-                </div>
-              </section>
-
-              {error && <div className="error" role="alert">{error}</div>}
-
-              <div className="settings-save">
-                <span role="status">{saved && <><Check size={15} />Changes saved</>}</span>
-                <button className="primary" type="submit">{busy ? 'Saving…' : 'Save changes'}</button>
-              </div>
-            </fieldset>
-          </form>
-        )}
-
-        {/* Tab 3: Device Testing (Audio & Camera) */}
         {tab === 'devices' && <DeviceTester />}
 
-        {/* Tab 4: API Management (OpenAI, Claude, Gemini) */}
-        {tab === 'api' && (
-          <div>
-            <div style={{
-              background: 'var(--panel)',
-              border: '1px solid var(--border, #e5e5e5)',
-              borderRadius: 10,
-              padding: '14px 18px',
-              marginBottom: 24,
-              fontSize: 13,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-            }}>
-              <ShieldCheck size={18} color="var(--accent)" />
-              <div>
-                <strong>Supported Providers:</strong> Novi exclusively supports <b>OpenAI</b>, <b>Anthropic (Claude)</b>, and <b>Google (Gemini)</b>. Add your keys below.
-              </div>
-            </div>
-            <ProviderManager state={state} onSaved={onSaved} />
-          </div>
-        )}
+        {tab === 'api' && <ProviderManager state={state} onSaved={onSaved} />}
       </div>
     </main>
   );

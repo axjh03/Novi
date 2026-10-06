@@ -118,6 +118,11 @@ export class ManagedAuthService {
         const old = oldConnections.find(old => old.id === c.id && old.provider === c.provider && old.baseUrl === c.baseUrl);
         return { ...c, model: old?.model ?? c.model, managed: true, enabled: old?.enabled !== false };
       });
+      for (const provider of new Set(connections.map(c => c.provider))) {
+        const selected = connections.filter(c => c.provider === provider && c.enabled);
+        const keep = selected.find(c => c.id === account!.settings.activeConnectionId) || selected[0];
+        for (const connection of selected) connection.enabled = connection === keep;
+      }
       Object.assign(account, user);
       account.settings.connections = connections;
       account.settings.onboardingComplete = true;

@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { require as tsxRequire } from 'tsx/cjs/api';
+import type { ProviderConnection } from '../src/shared/types';
 
 test('managed desktop keeps tokens and keys out of renderer state, preserves selection and fails closed', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'novi-managed-test-'));
@@ -33,6 +34,7 @@ test('managed desktop keeps tokens and keys out of renderer state, preserves sel
     return Response.json({ data: { user: { id: 'licensed-account', username: 'desktop.user', name: 'Desktop user' }, license: { key: 'ABCD-EFGH-IJKL-MNOP', expiresAt: '2099-01-01' }, credentials: [
       { id: 'key-one', name: 'Primary', ownerName: 'Owner', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'test-model', stream: true, apiKey: 'owner-private-secret' },
       { id: 'key-two', name: 'Secondary', ownerName: 'Owner', provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'test-model', stream: true, apiKey: 'owner-secondary-secret' },
+      { id: 'key-three', name: 'Gemini', ownerName: 'Owner', provider: 'gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-test', stream: true, apiKey: 'owner-gemini-secret' },
     ] } });
   });
   assert.equal(await auth.getCurrentUser(), null);
@@ -43,6 +45,7 @@ test('managed desktop keeps tokens and keys out of renderer state, preserves sel
   assert(!readFileSync(storage.file, 'utf8').includes('jwt-for-test'));
   assert(!readFileSync(join(directory, 'access-session.json'), 'utf8').includes('jwt-for-test'));
   const connection = storage.current().settings.connections[0];
+  assert.deepEqual(storage.current().settings.connections.map((c: ProviderConnection) => c.enabled), [true, false, true]);
   assert.equal(credentials.get(user.id, connection), 'owner-private-secret');
   assert.throws(() => connections.save({ id: connection.id, name: 'Changed', ai: connection }), /read-only/);
   assert.throws(() => connections.remove(connection.id), /read-only/);
@@ -51,8 +54,13 @@ test('managed desktop keeps tokens and keys out of renderer state, preserves sel
   assert.equal(connections.resolveKey({ id: connection.id, name: connection.name, ai: connection }), 'owner-private-secret');
   assert.throws(() => connections.select(connection.id, ''), /model selection/);
   assert.throws(() => connections.resolveKey({ id: connection.id, name: connection.name, ai: { ...connection, baseUrl: 'https://evil.example/v1' } }), /provided/);
-  connections.select('key-two');
-  connection.enabled = false;
+  connections.selectManaged('key-two', true);
+  assert.deepEqual(storage.current().settings.connections.map((c: ProviderConnection) => c.enabled), [false, true, true]);
+  assert.equal(storage.current().settings.activeConnectionId, 'key-two');
+  assert.throws(() => connections.select('key-one'), /Enable this connection/);
+  connections.selectManaged('key-two', false);
+  assert.equal(storage.current().settings.activeConnectionId, 'key-three');
+  connections.selectManaged('key-two', true);
   await auth.refresh(true);
   assert.equal(storage.current().settings.activeConnectionId, 'key-two');
   assert.equal(storage.current().settings.connections[0].enabled, false);

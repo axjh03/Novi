@@ -50,7 +50,7 @@ export function registerIPC(
       screenshot: account.settings.screenshotShortcut,
       audio: account.settings.audioRecordShortcut
     });
-    return { user, settings: account.settings, credentialIds: account.settings.connections.filter((c) => credentials.has(user.id, c)).map((c) => c.id), conversations: get().context.session ? get().storage.conversations : [], contextSession: get().context.session };
+    return { user, settings: account.settings, credentialIds: account.settings.connections.filter((c) => credentials.has(user.id, c)).map((c) => c.id), conversations: get().storage.conversations, contextSession: get().context.session };
   }
   const handle = (channel: string, callback: (value: unknown, event: Electron.IpcMainInvokeEvent) => unknown) => {
     ipcMain.handle(channel, async (event, value: unknown) => {
@@ -66,11 +66,14 @@ export function registerIPC(
           'install-update', 'check-permissions', 'request-permissions'
         ];
         if (!publicChannels.includes(channel)) {
+          const wasSignedIn = get().auth.signedIn;
           try { await get().auth.refresh(['send', 'initialize-context', 'start-context', 'list-models', 'test-connection'].includes(channel)); }
           catch (error) {
-            await endContext().catch(() => { });
-            await get().auth.signOut();
-            for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('session-ended', error instanceof UserError ? error.message : 'Your session has ended.');
+            if (wasSignedIn) {
+              await endContext().catch(() => { });
+              await get().auth.signOut();
+              for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('session-ended', error instanceof UserError ? error.message : 'Your session has ended.');
+            }
             throw error;
           }
         }
@@ -104,16 +107,15 @@ export function registerIPC(
   handle('refresh-managed', async () => { await get().auth.refresh(true); return snapshot(); });
   handle('enable-connection', async (value) => {
     requireNoContext(); get().chat.assertIdle();
-    const input = object(value), account = get().storage.current();
-    const connection = account.settings.connections.find(c => c.id === text(input.id, 'connection ID', 100));
-    if (!connection || typeof input.enabled !== 'boolean') throw new UserError('Choose an available API connection.');
-    connection.enabled = input.enabled;
-    if (!input.enabled && account.settings.activeConnectionId === connection.id) account.settings.activeConnectionId = account.settings.connections.find(c => c.enabled !== false)?.id || null;
-    if (input.enabled && !account.settings.activeConnectionId) account.settings.activeConnectionId = connection.id;
-    get().storage.save(); return snapshot();
+    const input = object(value);
+    get().connections.selectManaged(input.id, input.enabled);
+    return snapshot();
   });
   async function endContext() {
     const { chat, context, images, overlay } = get();
+    codeViewerVisible = false;
+    codeViewerBlocks = [];
+    if (codeViewerWindow && !codeViewerWindow.isDestroyed()) codeViewerWindow.hide();
     if (context.session) context.session.status = 'ending';
     await chat.stopAndWait();
     await context.initialization?.catch(() => { });
@@ -190,7 +192,7 @@ export function registerIPC(
     const id = text(value, 'conversation ID', 100); get().context.assertActive();
     storage.conversations = storage.conversations.filter((item) => item.id !== id); storage.save(); images.prune();
   });
-  handle('clear-history', () => { const { storage, images, chat, context } = get(); chat.assertIdle(); context.assertActive(); storage.conversations = []; storage.save(); images.prune(); });
+  handle('clear-history', () => { const { storage, images, chat } = get(); chat.assertIdle(); storage.current().conversations = []; storage.save(); images.prune(); });
   handle('pick-images', async (_value, event) => {
     get().storage.current();
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -269,7 +271,7 @@ export function registerIPC(
       parent: main,
       x: area.x, y: area.y + Math.round((area.height - height) / 2), width, height,
       minWidth: 300, minHeight: 240, show: false, frame: false, resizable: true, title: 'Novi Code Viewer',
-      backgroundColor: '#11151b', autoHideMenuBar: true,
+      transparent: true, backgroundColor: '#00000000', autoHideMenuBar: true,
       webPreferences: { preload: preloadPath, contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true },
     });
     codeViewerWindow = viewer;
@@ -422,6 +424,7 @@ export function registerIPC(
   }, 20_000);
   heartbeat.unref();
   app.on('browser-window-created', (_event, window) => {
+    if (services?.stealth.getState().transparent) window.setContentProtection(true);
     window.on('close', () => {
       if (!window.webContents.getURL().includes('#/overlay')) void endContext().catch(() => { });
     });

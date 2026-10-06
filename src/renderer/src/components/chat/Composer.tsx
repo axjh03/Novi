@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react';
-import { ArrowUp, Camera, ImagePlus, Plus, Square, Volume2, X } from 'lucide-react';
+import { ArrowUp, Camera, ImagePlus, Square, Volume2, X } from 'lucide-react';
 import type { ImageAttachment } from '../../../../shared/types';
 import { errorText, unwrap } from '../../services/api';
 import { ImagePreview } from './Message';
@@ -15,7 +15,6 @@ export function Composer({ busy, onSend }: Props) {
   const [text, setText] = useState('');
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [error, setError] = useState('');
-  const [menu, setMenu] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [attaching, setAttaching] = useState(false);
   const textarea = useRef<HTMLTextAreaElement>(null);
@@ -33,6 +32,8 @@ export function Composer({ busy, onSend }: Props) {
     audioError,
     recordingSeconds,
     toggleAudioRecording,
+    audioPipelineMode,
+    setAudioPipelineMode,
     captureScreenshot,
     pendingAutoSend,
     consumePendingAutoSend,
@@ -78,7 +79,6 @@ export function Composer({ busy, onSend }: Props) {
   async function attach(files?: File[]) {
     if (busy || attaching) return;
     setError('');
-    setMenu(false);
     setAttaching(true);
     try {
       if (files?.some((file) => !/\.(png|jpe?g|webp)$/i.test(file.name)))
@@ -97,7 +97,6 @@ export function Composer({ busy, onSend }: Props) {
 
   async function handleQuickScreenshot() {
     if (busy || attaching) return;
-    setMenu(false);
     setAttaching(true);
     try {
       await captureScreenshot();
@@ -207,7 +206,7 @@ export function Composer({ busy, onSend }: Props) {
           ref={textarea}
           aria-label="Message Novi"
           placeholder="Ask Novi anything…"
-          rows={2}
+          rows={1}
           value={text}
           maxLength={100000}
           disabled={busy}
@@ -226,33 +225,20 @@ export function Composer({ busy, onSend }: Props) {
 
         {/* Controls Toolbar */}
         <div className="composer-controls">
-          <div className="attach-control" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {/* Plus / Attach Menu */}
+          <div className="attach-control">
             <button
-              className="icon-button attach-button"
-              aria-label="Add attachment"
-              aria-expanded={menu}
+              className="composer-quick-btn"
               type="button"
               disabled={busy || attaching}
-              onClick={() => setMenu(!menu)}
+              onClick={() => void attach()}
+              title="Attach image file"
             >
-              <Plus size={20} />
+              <ImagePlus size={14} /><span>Attach image</span>
             </button>
-
-            {menu && (
-              <div className="attach-menu">
-                <button type="button" onClick={() => void handleQuickScreenshot()}>
-                  <Camera size={17} />
-                  <span>Snap entire screen</span>
-                  <span className="menu-key-tag">Alt+3</span>
-                </button>
-                <button type="button" onClick={() => void attach()}>
-                  <ImagePlus size={17} />
-                  <span>Attach image file</span>
-                  <span>PNG, JPG, WEBP</span>
-                </button>
-              </div>
-            )}
+            <button className="composer-quick-btn" type="button" disabled={busy || attaching}
+              onClick={() => void handleQuickScreenshot()} title="Snap entire screen (Alt+3)">
+              <Camera size={14} /><span>Snapshot</span>
+            </button>
 
             {/* Quick Audio Recording Button */}
             {appMode !== 'behavioral' && <button
@@ -270,6 +256,11 @@ export function Composer({ busy, onSend }: Props) {
               </span>
               {isRecordingAudio && <AudioMeter level={audioLevel} />}
             </button>}
+            <select className="audio-output-select" aria-label="Recording output" title="Attach recording works with Gemini; other providers transcribe to text"
+              value={audioPipelineMode} onChange={(event) => void setAudioPipelineMode(event.target.value as typeof audioPipelineMode)}>
+              <option value="local_stt">Audio: text</option>
+              <option value="live_stream">Audio: attach</option>
+            </select>
           </div>
 
           {busy ? (
@@ -302,14 +293,6 @@ export function Composer({ busy, onSend }: Props) {
         </div>
       )}
 
-      <div className="composer-footnote">
-        <span>
-          Alt+3: Snap · Alt+A: Audio · Alt+C: Code · Alt+B: Interview
-        </span>
-        <span>
-          ↵ Send <span className="shortcut-divider">/</span> Shift ↵ New line
-        </span>
-      </div>
     </div>
   );
 }

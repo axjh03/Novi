@@ -1,13 +1,4 @@
-import {
-  Volume2,
-  Zap,
-  Sparkles,
-  Award,
-  Target,
-  Rocket,
-  Wrench,
-  Compass,
-} from 'lucide-react';
+import { Volume2, Zap } from 'lucide-react';
 import type { BehavioralFramework } from '../../../shared/types';
 import { AudioMeter } from './AudioMeter';
 
@@ -29,43 +20,31 @@ interface Props {
 const FRAMEWORKS: {
   id: BehavioralFramework;
   label: string;
-  icon: typeof Sparkles;
-  hint: string;
   description: string;
 }[] = [
   {
     id: 'smart',
     label: 'SMART Auto',
-    icon: Sparkles,
-    hint: 'AI Auto-Select',
     description: 'Analyzes the interviewer question and automatically chooses the best framework (STAR, CAR, or PAR).',
   },
   {
     id: 'star',
     label: 'STAR Method',
-    icon: Target,
-    hint: 'Situation • Task • Action • Result',
     description: 'Classic behavioral: Situation context, Task ownership, Actions taken, and quantified measurable Results.',
   },
   {
     id: 'car',
     label: 'CAR Method',
-    icon: Rocket,
-    hint: 'Context • Action • Result',
     description: 'Punchy & concise: high-level Context, decisive Actions taken, and tangible business Results.',
   },
   {
     id: 'par',
     label: 'PAR Method',
-    icon: Wrench,
-    hint: 'Problem • Action • Resolution',
     description: 'Technical focus: Problem statement, Engineering Action executed, and final Resolution.',
   },
   {
     id: 'soar',
     label: 'SOAR Method',
-    icon: Compass,
-    hint: 'Situation • Obstacle • Action • Result',
     description: 'Grit & resilience focus: Situation, Roadblock/Obstacle overcome, Action taken, and Results.',
   },
 ];
@@ -88,35 +67,12 @@ export function BehavioralModeHUD({
 
   return (
     <div className="behavioral-copilot-bar">
-      <div className="behavioral-bar-main">
-        {/* Badge & Label */}
-        <div className="behavioral-bar-tag">
-          <Award size={14} className="behavioral-bar-icon" />
-          <span>Behavioral Mode</span>
-        </div>
-
-        {/* Framework Selector Tabs */}
-        <div className="behavioral-framework-tabs" role="tablist" aria-label="Behavioral Frameworks">
-          {FRAMEWORKS.map((f) => {
-            const Icon = f.icon;
-            const isSelected = f.id === framework;
-            return (
-              <button
-                key={f.id}
-                type="button"
-                role="tab"
-                aria-selected={isSelected}
-                className={`framework-pill-btn ${isSelected ? 'active' : ''} ${f.id === 'smart' ? 'smart-pill' : ''}`}
-                onClick={() => onSelectFramework(f.id)}
-                title={`${f.label} (${f.hint}) - ${f.description}`}
-              >
-                <Icon size={12} />
-                <span>{f.label}</span>
-                {f.id === 'smart' && <span className="smart-indicator">AI</span>}
-              </button>
-            );
-          })}
-        </div>
+        <label className="behavioral-framework-picker">Framework
+          <select aria-label="Interview framework" value={framework} title={activeDef.description}
+            onChange={(event) => onSelectFramework(event.target.value as BehavioralFramework)}>
+            {FRAMEWORKS.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
+          </select>
+        </label>
 
         <div className="behavioral-bar-actions">
           {/* Fast Interview Model Toggle */}
@@ -152,15 +108,6 @@ export function BehavioralModeHUD({
             {isRecordingAudio && <AudioMeter level={audioLevel} />}
           </button>
         </div>
-      </div>
-
-      {/* Dynamic Framework Guidance Subtitle */}
-      <div className="behavioral-bar-sub">
-        <span className="behavioral-sub-hint">
-          <strong>{activeDef.label}:</strong> {activeDef.hint} — {activeDef.description}
-        </span>
-      </div>
-
     </div>
   );
 }
