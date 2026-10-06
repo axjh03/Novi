@@ -1,9 +1,9 @@
 {
-  "version": "0.1.1",
-  "buildNumber": 2,
-  "releaseTag": "v0.1.1",
+  "version": "0.2.2",
+  "buildNumber": 4,
+  "releaseTag": "v0.2.2",
   "releaseDate": "October 5, 2026",
-  "updatedAt": "2026-10-05T22:04:29.132Z",
+  "updatedAt": "2026-10-05T22:04:00.000Z",
   "repo": "axjh03/Novi",
-  "releaseNotes": "Hello World"
+  "releaseNotes": "Release v0.2.2 — On-demand remote file explorer, streamlined settings updater, and multi-platform executables."
 }

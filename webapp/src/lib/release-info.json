@@ -1,11 +1,11 @@
 {
-  "version": "0.1.2",
-  "buildNumber": 3,
-  "releaseTag": "v0.1.2",
+  "version": "0.2.2",
+  "buildNumber": 4,
+  "releaseTag": "v0.2.2",
   "releaseDate": "October 5, 2026",
-  "updatedAt": "2026-10-05T22:33:42.000Z",
+  "updatedAt": "2026-10-05T22:04:00.000Z",
   "repo": "axjh03/Novi",
-  "releaseNotes": "Release v0.1.2 — Automated multi-platform build (macOS Apple Silicon/Intel, Windows x64, Linux Debian/Ubuntu/AppImage).",
+  "releaseNotes": "Release v0.2.2 — On-demand remote file explorer, streamlined settings updater, and multi-platform executables.",
   "downloads": {
     "macArm64": "/api/download?asset=mac-arm64",
     "macX64": "/api/download?asset=mac-x64",
@@ -14,10 +14,10 @@
     "linuxAppImage": "/api/download?asset=linux-appimage"
   },
   "fileNames": {
-    "macArm64": "Novi-0.1.1-arm64.dmg",
-    "macX64": "Novi-0.1.1-x64.dmg",
-    "windows": "Novi-Setup-0.1.1.exe",
-    "linuxDeb": "novi_0.1.1_amd64.deb",
-    "linuxAppImage": "novi_0.1.1_x86_64.AppImage"
+    "macArm64": "Novi-0.2.2-arm64.dmg",
+    "macX64": "Novi-0.2.2-x64.dmg",
+    "windows": "Novi-Setup-0.2.2.exe",
+    "linuxDeb": "novi_0.2.2_amd64.deb",
+    "linuxAppImage": "novi_0.2.2_x86_64.AppImage"
   }
 }
