@@ -150,7 +150,8 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
       {/* Top Navigation */}
       <PublicNavbar active="download" />
 
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .download-content-main {
           max-width: 1100px;
           width: 100%;
@@ -317,7 +318,7 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
           }}>
             <Calendar size={14} color="#0078d4" />
             <span>
-              LAST UPDATE DATE: <strong style={{ color: '#111' }}>{release.releaseDate}</strong>
+              Last Release: <strong style={{ color: '#111' }}>{release.releaseDate}</strong>
             </span>
             {relativeTime && (
               <span style={{ color: '#777', fontSize: 11 }}>
@@ -325,18 +326,18 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
               </span>
             )}
             {isLiveFromGitHub && (
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                color: '#107c41',
-                fontSize: 11,
-                fontWeight: 600,
-                marginLeft: 4,
-                paddingLeft: 8,
-                borderLeft: '1px solid #eee'
-              }}>
-                <CheckCircle2 size={12} /> Live GitHub Sync
+              <span
+                title="Synced live from GitHub Releases"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  color: '#16a34a',
+                  marginLeft: 4,
+                  paddingLeft: 8,
+                  borderLeft: '1px solid #eee'
+                }}
+              >
+                <CheckCircle2 size={14} />
               </span>
             )}
           </div>
@@ -354,7 +355,7 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
           setHoveredOS={setHoveredOS}
         />
 
-        {/* Direct Download Mirrors & GitHub CDN Assets */}
+        {/* Direct Download Mirrors & GitHub CDN Assets Table */}
         <div className="download-mirror-card">
           <div style={{
             display: 'flex',
@@ -415,103 +416,134 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              {
-                platform: 'macOS Apple Silicon',
-                arch: 'arm64',
-                filename: release.fileNames.macArm64,
-                url: release.downloads.macArm64,
-                badge: '.dmg installer',
-              },
-              {
-                platform: 'macOS Intel',
-                arch: 'x64',
-                filename: release.fileNames.macX64,
-                url: release.downloads.macX64,
-                badge: '.dmg installer',
-              },
-              {
-                platform: 'Windows 10 / 11',
-                arch: 'x64',
-                filename: release.fileNames.windows,
-                url: release.downloads.windows,
-                badge: 'NSIS .exe',
-              },
-              {
-                platform: 'Linux (Ubuntu / Debian / Mint)',
-                arch: 'amd64',
-                filename: release.fileNames.linuxDeb,
-                url: release.downloads.linuxDeb,
-                badge: '.deb package',
-              },
-              {
-                platform: 'Linux Universal',
-                arch: 'x64',
-                filename: release.fileNames.linuxAppImage,
-                url: release.downloads.linuxAppImage,
-                badge: '.AppImage binary',
-              },
-            ].map((mirror) => (
-              <div
-                key={mirror.filename}
-                className="download-mirror-row"
-              >
-                <div className="download-mirror-info">
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{mirror.platform}</span>
-                  <span style={{ fontSize: 11, background: '#eee', padding: '2px 8px', borderRadius: 4, color: '#555', fontFamily: 'monospace' }}>
-                    {mirror.badge}
-                  </span>
-                </div>
-
-                <div className="download-mirror-filename">
-                  {mirror.filename}
-                </div>
-
-                <div className="download-mirror-actions">
-                  <button
-                    type="button"
-                    onClick={() => copyMirrorUrl(mirror.url, mirror.filename)}
+          {/* Mirrors Table Wrapper */}
+          <div style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid #e4e4e7' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#fafafa', borderBottom: '1px solid #e4e4e7', color: '#555', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <th style={{ padding: '12px 16px' }}>Platform & Architecture</th>
+                  <th style={{ padding: '12px 16px' }}>Format</th>
+                  <th style={{ padding: '12px 16px' }}>Release Artifact File</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  {
+                    platform: 'macOS Apple Silicon',
+                    arch: 'arm64',
+                    logo: '/apple-logo.png',
+                    filename: release.fileNames.macArm64,
+                    url: release.downloads.macArm64,
+                    badge: '.dmg installer',
+                  },
+                  {
+                    platform: 'macOS Intel',
+                    arch: 'x64',
+                    logo: '/apple-logo.png',
+                    filename: release.fileNames.macX64,
+                    url: release.downloads.macX64,
+                    badge: '.dmg installer',
+                  },
+                  {
+                    platform: 'Windows 10 / 11',
+                    arch: 'x64',
+                    logo: '/microsoft.png',
+                    filename: release.fileNames.windows,
+                    url: release.downloads.windows,
+                    badge: 'NSIS .exe',
+                  },
+                  {
+                    platform: 'Linux (Ubuntu / Debian)',
+                    arch: 'amd64',
+                    logo: '/ubuntu.png',
+                    filename: release.fileNames.linuxDeb,
+                    url: release.downloads.linuxDeb,
+                    badge: '.deb package',
+                  },
+                  {
+                    platform: 'Linux Universal',
+                    arch: 'x64',
+                    logo: '/ubuntu.png',
+                    filename: release.fileNames.linuxAppImage,
+                    url: release.downloads.linuxAppImage,
+                    badge: '.AppImage binary',
+                  },
+                ].map((mirror, idx, arr) => (
+                  <tr
+                    key={mirror.filename}
                     style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      background: copiedMirror === mirror.filename ? '#15803d' : '#ffffff',
-                      color: copiedMirror === mirror.filename ? '#ffffff' : '#444444',
-                      border: '1px solid #d4d4d8',
-                      padding: '6px 10px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
+                      borderBottom: idx === arr.length - 1 ? 'none' : '1px solid #f0f0f0',
+                      transition: 'background 0.15s ease',
                     }}
                   >
-                    {copiedMirror === mirror.filename ? <Check size={12} /> : <Copy size={12} />}
-                    {copiedMirror === mirror.filename ? 'Copied' : 'Copy Mirror URL'}
-                  </button>
+                    <td style={{ padding: '14px 16px', fontWeight: 600, color: '#111' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 24, height: 24, borderRadius: 6, background: '#f4f4f5', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}>
+                          <img src={mirror.logo} alt={mirror.platform} style={{ width: 14, height: 14, objectFit: 'contain' }} />
+                        </div>
+                        <span>{mirror.platform}</span>
+                      </div>
+                    </td>
 
-                  <a
-                    href={mirror.url}
-                    download
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      background: '#18181b',
-                      color: '#ffffff',
-                      padding: '6px 14px',
-                      borderRadius: 6,
-                      textDecoration: 'none',
-                    }}
-                  >
-                    <Download size={12} /> Direct Download
-                  </a>
-                </div>
-              </div>
-            ))}
+                    <td style={{ padding: '14px 16px' }}>
+                      <span style={{ fontSize: 11, background: '#f4f4f5', border: '1px solid #e4e4e7', padding: '3px 8px', borderRadius: 6, color: '#444', fontFamily: 'monospace', fontWeight: 600 }}>
+                        {mirror.badge}
+                      </span>
+                    </td>
+
+                    <td style={{ padding: '14px 16px', fontFamily: 'monospace', fontSize: 12, color: '#555' }}>
+                      {mirror.filename}
+                    </td>
+
+                    <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => copyMirrorUrl(mirror.url, mirror.filename)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            background: copiedMirror === mirror.filename ? '#15803d' : '#ffffff',
+                            color: copiedMirror === mirror.filename ? '#ffffff' : '#444444',
+                            border: '1px solid #d4d4d8',
+                            padding: '6px 12px',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {copiedMirror === mirror.filename ? <Check size={12} /> : <Copy size={12} />}
+                          {copiedMirror === mirror.filename ? 'Copied ✓' : 'Copy URL'}
+                        </button>
+
+                        <a
+                          href={mirror.url}
+                          download
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            background: '#09090b',
+                            color: '#ffffff',
+                            padding: '6px 14px',
+                            borderRadius: 6,
+                            textDecoration: 'none',
+                          }}
+                        >
+                          <Download size={12} /> Download
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 

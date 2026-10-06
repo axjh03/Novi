@@ -593,10 +593,10 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: 6, background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {isMac && <span style={{ fontSize: 15 }}>🍎</span>}
-                      {isWin && <span style={{ fontSize: 15 }}>🪟</span>}
-                      {isLinux && <TuxPenguinLogo size={16} />}
+                    <div style={{ width: 30, height: 30, borderRadius: 6, background: '#ffffff', border: '1px solid #e4e4e7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}>
+                      {isMac && <img src="/apple-logo.png" alt="macOS" style={{ width: 18, height: 18, objectFit: 'contain' }} />}
+                      {isWin && <img src="/microsoft.png" alt="Windows" style={{ width: 18, height: 18, objectFit: 'contain' }} />}
+                      {isLinux && <img src="/ubuntu.png" alt="Linux" style={{ width: 18, height: 18, objectFit: 'contain' }} />}
                     </div>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>
