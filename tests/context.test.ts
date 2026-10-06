@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { require as tsxRequire } from 'tsx/cjs/api';
 import { SESSION_ROLES, presetFields } from '../src/renderer/src/context/sessionPresets';
 
+import type { Conversation, ChatMessage } from '../src/shared/types';
+
 const { ContextService } = tsxRequire('../src/main/services/context.ts', import.meta.url);
 const { Storage } = tsxRequire('../src/main/services/storage.ts', import.meta.url);
 const { LocalAuthService } = tsxRequire('../src/main/services/auth.ts', import.meta.url);
@@ -46,7 +48,7 @@ test('context seeds new chats while saved history survives sessions without raw 
   context.completeInitialization();
   assert.equal(context.session.status, 'ready');
   assert.match(readFileSync(context.summaryPath, 'utf8'), /Cedar/);
-  const summaryId = storage.conversations.find((conversation) => conversation.title === 'Session context')!.id;
+  const summaryId = storage.conversations.find((conversation: Conversation) => conversation.title === 'Session context')!.id;
   await chat.send({ conversationId: null, content: 'What color?', imageIds: [] }, () => {});
   assert.equal(requests[1].messages.length, 3);
   assert.match(requests[1].messages[0].content, /CONFIDENTIAL_REFERENCE/);
@@ -64,7 +66,7 @@ test('context seeds new chats while saved history survives sessions without raw 
   assert.equal(storage.current().conversations[0].id, 'legacy');
   const reopened = new Storage(storage.directory);
   assert.equal(reopened.current().conversations.length, 3);
-  assert(reopened.current().conversations.some((conversation) => conversation.messages.some((message) => message.content === 'What color?')));
+  assert(reopened.current().conversations.some((conversation: Conversation) => conversation.messages.some((message: ChatMessage) => message.content === 'What color?')));
   assert(!readFileSync(reopened.file, 'utf8').includes('CONFIDENTIAL_REFERENCE'));
   assert.match(readFileSync(join(source, 'reference.txt'), 'utf8'), /CONFIDENTIAL_REFERENCE/);
   writeFileSync(context.summaryPath, 'abandoned session');
