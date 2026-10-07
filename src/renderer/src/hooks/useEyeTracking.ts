@@ -27,6 +27,7 @@ export interface UseEyeTrackingReturn {
   addCalibrationSample: (fx: number, fy: number) => boolean;
   finishCalibration: () => void;
   recalibrate: () => void;
+  startUncalibrated: () => void;
   setMonitor: (displayId: number) => void;
 }
 
@@ -142,6 +143,11 @@ export function useEyeTracking(): UseEyeTrackingReturn {
     syncState();
   }, [syncState]);
 
+  const startUncalibrated = useCallback(() => {
+    eyeTracking.startUncalibrated();
+    syncState();
+  }, [syncState]);
+
   const setMonitor = useCallback((displayId: number) => {
     eyeTracking.setMonitor(displayId);
     setSelectedDisplayId(displayId);
@@ -154,6 +160,6 @@ export function useEyeTracking(): UseEyeTrackingReturn {
     monitors, selectedDisplayId, overlayActive,
     start, stop, listCameras, switchCamera,
     listMonitors, openOverlay, closeOverlay, sendStickyToOverlay,
-    addCalibrationSample, finishCalibration, recalibrate, setMonitor
+    addCalibrationSample, finishCalibration, recalibrate, startUncalibrated, setMonitor
   };
 }

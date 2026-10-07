@@ -79,6 +79,8 @@ export class EyeTrackingService {
     return this._monitors;
   }
 
+  private _lastSticky: { text: string; title?: string } | null = null;
+
   /** Open the transparent sticky overlay window on the selected monitor. */
   async openOverlay(displayId?: number): Promise<void> {
     if (this._state !== 'running' && this._state !== 'calibrating') return;
@@ -86,9 +88,20 @@ export class EyeTrackingService {
     const id = displayId ?? this._selectedDisplayId;
     if (id === null || id === undefined) return;
     this._selectedDisplayId = id;
-    const res = await window.novi.openOverlay(id);
-    if (res.ok && session === this.session) {
-      this._overlayActive = true;
+    try {
+      const res = await window.novi.openOverlay(id);
+      if (res.ok && session === this.session) {
+        this._overlayActive = true;
+        if (this._lastSticky) {
+          void window.novi.sendOverlayEvent({
+            type: 'set-content',
+            text: this._lastSticky.text,
+            title: this._lastSticky.title || 'Novi Sticky Note',
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Overlay window notice:', err);
     }
   }
 
@@ -108,6 +121,7 @@ export class EyeTrackingService {
 
   /** Send a sticky note or response message to the screen overlay. */
   sendStickyToOverlay(text: string, title?: string): void {
+    this._lastSticky = { text, title };
     if (this._overlayActive) {
       void window.novi.sendOverlayEvent({
         type: 'set-content',
@@ -222,6 +236,17 @@ export class EyeTrackingService {
     this.dwell.reset();
     this._state = 'running';
     this.sendStickyToOverlay('Extreme calibration complete. Look around to position your response.');
+    this.startLoop();
+  }
+
+  /** Skip full 25-point calibration and use direct relative-iris gaze estimation immediately. */
+  startUncalibrated(): void {
+    if (!this.estimator || !this.camera) return;
+    this.stopCalibrationStep();
+    this.smoother.reset();
+    this.dwell.reset();
+    this._state = 'running';
+    this.sendStickyToOverlay('Direct eye tracking active. Look around to position your response.');
     this.startLoop();
   }
 

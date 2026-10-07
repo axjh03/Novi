@@ -28,7 +28,15 @@ interface DesktopState {
   license: { key: string; expiresAt: string };
   credentials: Array<ProviderConnection & { apiKey: string; ownerName: string }>;
 }
-interface SavedSession { deviceId: string; encryptedToken?: string; server?: string }
+interface SavedSession {
+  deviceId: string;
+  encryptedToken?: string;
+  server?: string;
+  savedCredentials?: {
+    username: string;
+    encryptedPassword?: string;
+  };
+}
 export class ManagedAuthService {
   private token = '';
   private current: User | null = null;
@@ -84,7 +92,40 @@ export class ManagedAuthService {
     this.credentials.clearManaged(); this.storage.data.currentUserId = null; this.storage.save();
     delete this.saved.encryptedToken; atomicJSON(this.file, this.saved);
   }
-  async signIn(username: string, password: string) {
+  getSavedCredentials(): { username: string; password?: string } | null {
+    if (!this.saved.savedCredentials?.username) return null;
+    let password = '';
+    if (this.saved.savedCredentials.encryptedPassword) {
+      try {
+        this.assertSecure();
+        password = this.secureStorage.decryptString(Buffer.from(this.saved.savedCredentials.encryptedPassword, 'base64'));
+      } catch {
+        password = '';
+      }
+    }
+    return { username: this.saved.savedCredentials.username, password };
+  }
+  setSavedCredentials(credentials: { username: string; password?: string } | null) {
+    if (!credentials?.username) {
+      delete this.saved.savedCredentials;
+    } else {
+      let encryptedPassword = '';
+      if (credentials.password) {
+        try {
+          this.assertSecure();
+          encryptedPassword = this.secureStorage.encryptString(credentials.password).toString('base64');
+        } catch {
+          encryptedPassword = '';
+        }
+      }
+      this.saved.savedCredentials = {
+        username: credentials.username,
+        encryptedPassword,
+      };
+    }
+    atomicJSON(this.file, this.saved);
+  }
+  async signIn(username: string, password: string, saveCredentials?: boolean) {
     if (this.token) throw new UserError('Sign out of the current account first.');
     this.assertSecure();
     username = text(username, 'username', 64);
@@ -93,7 +134,13 @@ export class ManagedAuthService {
     this.generation++; this.token = result.token;
     try {
       this.saved.encryptedToken = this.secureStorage.encryptString(this.token).toString('base64');
-      this.saved.server = this.baseUrl; atomicJSON(this.file, this.saved);
+      this.saved.server = this.baseUrl;
+      if (saveCredentials === true) {
+        this.setSavedCredentials({ username, password });
+      } else if (saveCredentials === false) {
+        this.setSavedCredentials(null);
+      }
+      atomicJSON(this.file, this.saved);
       this.remoteFiles.start();
       await this.refresh(true);
       return this.current!;

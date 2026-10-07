@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { OverlayEvent } from '../../../shared/types';
 import { createOverlayInput } from '../eye-tracking/overlayInput';
+import { useStealth } from '../hooks/useStealth';
 
 interface StickyState {
   x: number;
@@ -13,6 +14,7 @@ interface StickyState {
 }
 
 export function EyeTrackingOverlay() {
+  useStealth();
   const [gaze, setGaze] = useState<{ x: number; y: number; confidence: number; visible: boolean }>({
     x: -100,
     y: -100,
@@ -82,6 +84,13 @@ export function EyeTrackingOverlay() {
     document.documentElement.classList.add('overlay-window');
     document.body.classList.add('overlay-window');
 
+    const syncStealthVars = () => {
+      document.documentElement.style.setProperty('--transparent-opacity', `${localStorage.getItem('novi_transparent_opacity') || 35}%`);
+      document.documentElement.style.setProperty('--transparent-bg', localStorage.getItem('novi_transparent_bg') || '#0f172a');
+    };
+    syncStealthVars();
+    const unsubStealth = window.novi.onStealthState(() => syncStealthVars());
+
     // Subscribe to overlay events coming from main window / eye-tracking service
     const unsubscribe = window.novi.onOverlayEvent((event: OverlayEvent) => {
       if (event.type === 'gaze') {
@@ -150,6 +159,7 @@ export function EyeTrackingOverlay() {
     });
 
     return () => {
+      unsubStealth();
       unsubscribe();
       document.documentElement.classList.remove('overlay-window');
       document.body.classList.remove('overlay-window');

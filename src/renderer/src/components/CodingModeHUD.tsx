@@ -71,11 +71,18 @@ export function DetachedCodeViewer() {
   const [blocks, setBlocks] = useState<CodeViewerBlock[]>([]);
   useStealth();
   useEffect(() => {
-    document.documentElement.style.setProperty('--transparent-opacity', `${localStorage.getItem('novi_transparent_opacity') || 35}%`);
-    document.documentElement.style.setProperty('--transparent-bg', localStorage.getItem('novi_transparent_bg') || '#0f172a');
+    const syncStealthVars = () => {
+      document.documentElement.style.setProperty('--transparent-opacity', `${localStorage.getItem('novi_transparent_opacity') || 35}%`);
+      document.documentElement.style.setProperty('--transparent-bg', localStorage.getItem('novi_transparent_bg') || '#0f172a');
+    };
+    syncStealthVars();
+    const unsubStealth = window.novi.onStealthState(() => syncStealthVars());
     const unsubscribe = window.novi.onCodeViewerBlocks(setBlocks);
     void unwrap(window.novi.getCodeViewerBlocks()).then(setBlocks).catch(console.error);
-    return unsubscribe;
+    return () => {
+      unsubStealth();
+      unsubscribe();
+    };
   }, []);
   return <CodingModeHUD blocks={blocks} />;
 }

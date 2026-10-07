@@ -78,3 +78,41 @@ test('managed desktop keeps tokens and keys out of renderer state, preserves sel
   assert.equal(loggedOut, true);
   assert.equal(auth.signedIn, false);
 });
+
+test('managed auth saves, retrieves, and clears credentials across sign-out', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'novi-creds-test-'));
+  const keychain = { isEncryptionAvailable: () => true, getSelectedStorageBackend: () => 'test', encryptString: (value: string) => Buffer.from(value), decryptString: (value: Buffer) => value.toString() };
+  const { ManagedAuthService } = tsxRequire('../src/main/services/managedAuth.ts', import.meta.url);
+  const { CredentialStore } = tsxRequire('../src/main/services/credentials.ts', import.meta.url);
+  const { Storage } = tsxRequire('../src/main/services/storage.ts', import.meta.url);
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+
+  const storage = new Storage(directory), credentials = new CredentialStore(directory);
+  const auth = new ManagedAuthService(storage, credentials, keychain);
+
+  // Initially no credentials saved
+  assert.equal(auth.getSavedCredentials(), null);
+
+  t.mock.method(globalThis, 'fetch', async (url: string) => {
+    if (url.endsWith('/login')) return Response.json({ data: { token: 'jwt-token' } });
+    if (url.endsWith('/logout')) return Response.json({ data: {} });
+    return Response.json({ data: { user: { id: 'u1', username: 'saved.user', name: 'Saved User' }, license: { key: 'KEY', expiresAt: '2099-01-01' }, credentials: [] } });
+  });
+
+  // Sign in with saveCredentials = true
+  await auth.signIn('saved.user', 'secret-pass-123', true);
+  const saved = auth.getSavedCredentials();
+  assert.deepEqual(saved, { username: 'saved.user', password: 'secret-pass-123' });
+
+  // Signing out should keep the saved credentials so user does not need to retype them
+  await auth.signOut();
+  assert.deepEqual(auth.getSavedCredentials(), { username: 'saved.user', password: 'secret-pass-123' });
+
+  // Re-instantiating ManagedAuthService (app restart) should still load the saved credentials
+  const restarted = new ManagedAuthService(storage, credentials, keychain);
+  assert.deepEqual(restarted.getSavedCredentials(), { username: 'saved.user', password: 'secret-pass-123' });
+
+  // Clearing saved credentials removes them
+  restarted.setSavedCredentials(null);
+  assert.equal(restarted.getSavedCredentials(), null);
+});

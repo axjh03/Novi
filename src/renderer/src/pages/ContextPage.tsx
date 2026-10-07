@@ -34,6 +34,25 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     finally { setBusy(false); }
   }
 
+  async function startEmpty() {
+    if (busy || !modelReady) return;
+    const current = ++attempt.current;
+    setBusy(true); setChecking(true); setError('');
+    try {
+      await unwrap(window.novi.testConnection());
+      if (current !== attempt.current) return;
+      setChecking(false);
+      onSaved(await unwrap(window.novi.startEmptySession()));
+    } catch (err) { if (current === attempt.current) setError(errorText(err)); }
+    finally { if (current === attempt.current) { setBusy(false); setChecking(false); } }
+  }
+
+  useEffect(() => {
+    if (state.settings?.autoStartEmptySession && modelReady && !busy && folders.length === 0 && !purpose) {
+      void startEmpty();
+    }
+  }, [state.settings?.autoStartEmptySession, modelReady]);
+
   async function start() {
     if (!canStart) return;
     const current = ++attempt.current;
@@ -45,6 +64,13 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
       onSaved(await unwrap(window.novi.startContext({ folderIds: folders.map((f) => f.id), purpose, fields })));
     } catch (err) { if (current === attempt.current) setError(errorText(err)); }
     finally { if (current === attempt.current) { setBusy(false); setChecking(false); } }
+  }
+
+  async function toggleAutoEmpty(checked: boolean) {
+    try {
+      const updated = await unwrap(window.novi.saveSettings({ ...state.settings!, autoStartEmptySession: checked }));
+      onSaved(updated);
+    } catch (err) { setError(errorText(err)); }
   }
 
   if (settings) return <SettingsPage state={state} onSaved={onSaved} onBack={() => setSettings(false)} onSignOut={onSignOut} onCleared={() => {}} />;
@@ -67,6 +93,15 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
           </button>)}
         </nav>
         <p className="context-rail-note">Conversations are saved across sessions. Ending a session removes only its temporary context file; source folders stay in place.</p>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginTop: 12, fontSize: 12, color: 'var(--muted)', userSelect: 'none' }}>
+          <input
+            type="checkbox"
+            checked={Boolean(state.settings?.autoStartEmptySession)}
+            onChange={(e) => void toggleAutoEmpty(e.target.checked)}
+            style={{ width: 14, height: 14, accentColor: 'var(--accent)' }}
+          />
+          <span>Auto-start empty session on sign-in</span>
+        </label>
       </aside>
 
       <div className="context-main-panel">
@@ -118,8 +153,11 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     </div>
 
     <footer className="context-footer">
-      <div className="context-footer-status" role="status">{error ? <span className="error" role="alert">{error}</span> : checking ? 'Checking connection…' : busy ? 'Starting session…' : !modelReady ? 'Choose an available model' : !folders.length ? 'Add a source folder' : !purpose.trim() ? 'Add session instructions' : `${folders.length} ${folders.length === 1 ? 'folder' : 'folders'} ready · ${connection?.model || 'Model ready'}`}</div>
-      <button className="primary context-start" disabled={!canStart} onClick={() => void start()}><Play size={15} />{busy ? 'Starting…' : 'Start session'}</button>
+      <div className="context-footer-status" role="status">{error ? <span className="error" role="alert">{error}</span> : checking ? 'Checking connection…' : busy ? 'Starting session…' : !modelReady ? 'Choose an available model' : !folders.length ? 'Add a source folder, or start an empty session directly' : !purpose.trim() ? 'Add session instructions, or start an empty session' : `${folders.length} ${folders.length === 1 ? 'folder' : 'folders'} ready · ${connection?.model || 'Model ready'}`}</div>
+      <div className="context-footer-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button type="button" className="secondary context-start-empty" disabled={busy || !modelReady} title="Start an empty session without loading source documents" onClick={() => void startEmpty()}><Play size={15} />{busy ? 'Starting…' : 'Start empty session'}</button>
+        <button type="button" className="primary context-start" disabled={!canStart} onClick={() => void start()}><Play size={15} />{busy ? 'Starting…' : 'Start with context'}</button>
+      </div>
     </footer>
   </main>;
 }

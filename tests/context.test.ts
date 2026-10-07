@@ -99,3 +99,45 @@ test('PDF extraction includes page text without a cloud upload', async (t) => {
   assert.match(loaded[0].documents[0].content, /Hello PDF context/);
   assert.match(loaded[0].documents[0].content, /Page 1/);
 });
+
+test('empty context session starts immediately and supports chatting without source documents', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'novi-context-empty-test-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const storage = new Storage(join(root, 'app'));
+  await new LocalAuthService(storage).signUp('Test User', 'empty@example.com', 'test-password');
+  const user = storage.current();
+  user.settings.connections = [{ id: 'local', name: 'Test model', provider: 'compatible', baseUrl: 'http://localhost:1234/v1', model: 'test-model', stream: false }];
+  user.settings.activeConnectionId = 'local';
+  user.settings.onboardingComplete = true;
+  storage.save();
+
+  const context = new ContextService(storage);
+  assert.equal(context.session, null);
+
+  // Begin empty session
+  context.beginEmpty();
+  assert.ok(context.session);
+  assert.equal(context.session.status, 'ready');
+  assert.equal(context.session.summaryReady, true);
+  assert.equal(context.session.isEmpty, true);
+  assert.equal(context.assertActive().id, context.session.id);
+
+  // Chatting works directly with empty session
+  const requests: Array<{ messages: Array<{ content: string }> }> = [];
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
+    requests.push(JSON.parse(init.body as string));
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'Hello there!' }, finish_reason: 'stop' }] }), { headers: { 'Content-Type': 'application/json' } });
+  });
+
+  const chat = new ChatService(storage, { get: () => '' }, { commit() {}, dataUrl() {}, resolve() {} }, context);
+  await chat.send({ conversationId: null, content: 'Hi, this is a clean chat', imageIds: [] }, () => {});
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].messages.length, 1);
+  assert.equal(requests[0].messages[0].content, 'Hi, this is a clean chat');
+  assert.equal(storage.conversations.length, 1);
+
+  // Ending empty session clears session state
+  context.end();
+  assert.equal(context.session, null);
+  assert.throws(() => context.assertActive(), /Start a context session first/);
+});

@@ -1012,6 +1012,24 @@ html.overlay-window #root {
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 15px rgba(125, 164, 240, 0.3);
 }
 
+.transparent-mode .overlay-sticky-card {
+  background: color-mix(in srgb, var(--transparent-bg, #0f172a) var(--transparent-opacity, 35%), transparent) !important;
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+}
+
+.transparent-mode .overlay-card-header {
+  background: color-mix(in srgb, var(--transparent-bg, rgba(255, 255, 255, 0.05)) var(--transparent-opacity, 35%), transparent) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.transparent-mode .overlay-card-footer {
+  background: transparent !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
 .overlay-card-header {
   display: flex;
   align-items: center;
@@ -2581,6 +2599,37 @@ html.transparent-mode #root {
   gap: 8px;
 }
 
+.eye-tracker-hud-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 150ms ease;
+}
+
+.eye-tracker-hud-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.eye-tracker-hud-btn.active {
+  border-color: #48bb78;
+  background: rgba(72, 187, 120, 0.14);
+  color: #68d391;
+}
+
+.transparent-mode .behavioral-copilot-bar {
+  background: color-mix(in srgb, var(--transparent-bg, var(--panel)) var(--transparent-opacity, 35%), transparent) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
 /* ==========================================================================
    Coding Mode Dedicated Code Stream HUD (Left Window)
    ========================================================================== */
@@ -2599,9 +2648,29 @@ html.transparent-mode #root {
 .code-viewer-copy { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 5px; color: var(--muted); font: 11px 'Segoe UI', sans-serif; }
 .code-viewer-copy:hover { color: var(--text); background: var(--hover); }
 .code-viewer-file pre { overflow-x: hidden; margin: 0; padding: 14px; color: #d8dee9; font: 12px/1.6 'Cascadia Code', Consolas, monospace; tab-size: 2; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; user-select: text; }
-.transparent-mode .code-viewer { background: color-mix(in srgb, var(--transparent-bg, var(--bg)) var(--transparent-opacity, 35%), transparent); }
-.transparent-mode .code-viewer-header, .transparent-mode .code-viewer-file-header { background: color-mix(in srgb, var(--transparent-bg, var(--panel)) var(--transparent-opacity, 35%), transparent); }
-.transparent-mode .code-viewer-file { background: color-mix(in srgb, #0d1117 var(--transparent-opacity, 35%), transparent); }
+.transparent-mode .code-viewer {
+  background: color-mix(in srgb, var(--transparent-bg, var(--bg)) var(--transparent-opacity, 35%), transparent) !important;
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75);
+}
+.transparent-mode.clickthrough-on .code-viewer {
+  border-color: rgba(245, 158, 11, 0.55);
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.18), 0 20px 60px rgba(0, 0, 0, 0.75);
+}
+.transparent-mode.clickthrough-off .code-viewer {
+  border-color: var(--accent);
+  box-shadow: var(--shadow);
+}
+.transparent-mode .code-viewer-header, .transparent-mode .code-viewer-file-header {
+  background: color-mix(in srgb, var(--transparent-bg, var(--panel)) var(--transparent-opacity, 35%), transparent) !important;
+}
+.transparent-mode .code-viewer-file {
+  background: color-mix(in srgb, #0d1117 var(--transparent-opacity, 35%), transparent) !important;
+  border-color: rgba(255, 255, 255, 0.1);
+}
 .syntax-code { display: block; white-space: inherit; }
 .syntax-comment { color: #7f8c98; font-style: italic; }
 .syntax-string { color: #a5d6a7; }

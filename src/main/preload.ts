@@ -4,10 +4,13 @@ import type { ChatEvent, CodeViewerBlock, NoviAPI } from '../shared/types';
 const api: NoviAPI = {
   pickContextFolders: () => ipcRenderer.invoke('pick-context-folders'),
   startContext: (input) => ipcRenderer.invoke('start-context', input),
+  startEmptySession: () => ipcRenderer.invoke('start-empty-session'),
   initializeContext: () => ipcRenderer.invoke('initialize-context'),
   endContext: () => ipcRenderer.invoke('end-context'),
   session: () => ipcRenderer.invoke('session'),
-  signIn: (username, password) => ipcRenderer.invoke('sign-in', { username, password }),
+  signIn: (username, password, saveCredentials) => ipcRenderer.invoke('sign-in', { username, password, saveCredentials }),
+  getSavedCredentials: () => ipcRenderer.invoke('get-saved-credentials'),
+  saveCredentials: (credentials) => ipcRenderer.invoke('save-credentials', credentials),
   enableConnection: (id, enabled) => ipcRenderer.invoke('enable-connection', { id, enabled }),
   refreshManaged: () => ipcRenderer.invoke('refresh-managed'),
   onSessionEnded: (callback) => {

@@ -162,23 +162,21 @@ export class StealthService {
     this.numLock = this.readNumLock();
     this.clickThrough = enabled && !this.numLock;
 
-    for (const window of this.getWindows()) window.setContentProtection(enabled);
-
-    if (win && !win.isDestroyed()) {
+    for (const window of this.getWindows()) {
+      window.setContentProtection(enabled);
       if (enabled) {
-        // Float on top in transparent stealth mode
-        win.setAlwaysOnTop(true, 'screen-saver');
-
-        // NumLock initializes the mode; the configured shortcut toggles it afterward.
-        this.applyMouseMode(win, !this.clickThrough);
-
-        // Start polling NumLock state and register shortcuts
-        this.startMonitoring();
+        window.setAlwaysOnTop(true, 'screen-saver');
+        this.applyMouseMode(window, !this.clickThrough);
       } else {
-        win.setAlwaysOnTop(false);
-        win.setIgnoreMouseEvents(false);
-        this.stopMonitoring();
+        window.setAlwaysOnTop(false);
+        window.setIgnoreMouseEvents(false);
       }
+    }
+
+    if (enabled) {
+      this.startMonitoring();
+    } else {
+      this.stopMonitoring();
     }
 
     // Also protect the eye-tracking overlay window if present
@@ -277,10 +275,11 @@ export class StealthService {
     const current = this.readNumLock();
     if (current !== this.numLock) {
       this.numLock = current;
-      const win = this.getWindow();
-      if (win && !win.isDestroyed() && this.transparent) {
-        this.clickThrough = !this.numLock;
-        this.applyMouseMode(win, !this.clickThrough);
+      this.clickThrough = !this.numLock;
+      for (const window of this.getWindows()) {
+        if (window && !window.isDestroyed() && this.transparent) {
+          this.applyMouseMode(window, !this.clickThrough);
+        }
       }
       this.broadcastState();
     }

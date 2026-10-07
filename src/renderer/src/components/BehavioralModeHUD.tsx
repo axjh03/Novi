@@ -1,4 +1,4 @@
-import { Volume2, Zap } from 'lucide-react';
+import { Eye, Volume2, Zap } from 'lucide-react';
 import type { BehavioralFramework } from '../../../shared/types';
 import { AudioMeter } from './AudioMeter';
 
@@ -15,6 +15,8 @@ interface Props {
   onToggleFastModel: () => void;
   fastModelName: string;
   busy: boolean;
+  isEyeTrackingActive?: boolean;
+  onToggleEyeTracking?: () => void;
 }
 
 const FRAMEWORKS: {
@@ -62,6 +64,8 @@ export function BehavioralModeHUD({
   onToggleFastModel,
   fastModelName,
   busy,
+  isEyeTrackingActive = false,
+  onToggleEyeTracking,
 }: Props) {
   const activeDef = FRAMEWORKS.find((f) => f.id === framework) || FRAMEWORKS[0];
 
@@ -75,6 +79,23 @@ export function BehavioralModeHUD({
         </label>
 
         <div className="behavioral-bar-actions">
+          {/* Eye Tracker & Screen HUD Toggle */}
+          {onToggleEyeTracking && (
+            <button
+              type="button"
+              className={`eye-tracker-hud-btn ${isEyeTrackingActive ? 'active' : ''}`}
+              onClick={onToggleEyeTracking}
+              title={
+                isEyeTrackingActive
+                  ? 'Eye Tracker & Answer HUD are ON. Interview answers follow your gaze.'
+                  : 'Turn on Eye Tracker & Answer HUD for hands-free interview assistance'
+              }
+            >
+              <Eye size={12} color={isEyeTrackingActive ? '#68d391' : 'var(--muted)'} />
+              <span>{isEyeTrackingActive ? 'Eye Tracker HUD: ON' : 'Eye Tracker HUD: OFF'}</span>
+            </button>
+          )}
+
           {/* Fast Interview Model Toggle */}
           <button
             type="button"

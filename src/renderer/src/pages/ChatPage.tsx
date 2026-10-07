@@ -45,7 +45,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const [confirmEnd, setConfirmEnd] = useState(false);
   const sessionId = state.contextSession?.id;
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || state.contextSession?.status === 'ready' || state.contextSession?.isEmpty) return;
     let mounted = true;
     void unwrap(window.novi.initializeContext()).then((snapshot) => { if (mounted) onSaved(snapshot); })
       .catch((error) => {
@@ -53,7 +53,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
         void unwrap(window.novi.session()).then((snapshot) => { if (mounted) onSaved(snapshot); }).catch(() => {});
       });
     return () => { mounted = false; };
-  }, [sessionId]);
+  }, [sessionId, state.contextSession?.status, state.contextSession?.isEmpty]);
   async function endSession() {
     setEnding(true); et.stop();
     try { onSaved(await unwrap(window.novi.endContext())); }
@@ -70,6 +70,19 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const et = useEyeTracking();
   const [showDebugDot, setShowDebugDot] = useState(false);
 
+  // In behavioral mode, automatically route assistant answers into the HUD
+  useEffect(() => {
+    if (appMode !== 'behavioral') return;
+    const messages = chat.selected?.messages || [];
+    const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+    if (lastAssistant && lastAssistant.content.trim()) {
+      et.sendStickyToOverlay(
+        lastAssistant.content,
+        `Interview Copilot (${behavioralFramework.toUpperCase()})`
+      );
+    }
+  }, [appMode, chat.selected?.messages, behavioralFramework, et]);
+
   const handleEyeToggle = useCallback(async () => {
     if (et.state === 'idle' || et.state === 'error') {
       // Reset error state first
@@ -79,6 +92,25 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
       et.stop();
     }
   }, [et]);
+
+  const handleToggleEyeTrackingBehavioral = useCallback(async () => {
+    if (et.state === 'idle' || et.state === 'error') {
+      if (et.state === 'error') et.stop();
+      await et.start(et.selectedCameraId);
+      await et.openOverlay();
+      const messages = chat.selected?.messages || [];
+      const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+      if (lastAssistant?.content.trim()) {
+        et.sendStickyToOverlay(
+          lastAssistant.content,
+          `Interview Copilot (${behavioralFramework.toUpperCase()})`
+        );
+      }
+    } else {
+      et.stop();
+      await et.closeOverlay();
+    }
+  }, [et, chat.selected?.messages, behavioralFramework]);
 
   // ──────────────────────────────────────────────────────────────────────────
 
@@ -162,7 +194,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
                 </button>
               ))}
             </nav>
-            <div className="session-controls"><span title="Temporary session context">{state.contextSession?.summaryReady ? 'Ready' : state.contextSession?.status === 'error' ? 'Context error' : 'Loading context…'}</span><button className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button></div>
+            <div className="session-controls"><span title="Temporary session context">{state.contextSession?.isEmpty ? 'Empty session' : state.contextSession?.summaryReady ? 'Ready' : state.contextSession?.status === 'error' ? 'Context error' : 'Loading context…'}</span><button className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button></div>
             {/* Eye tracking controls in header */}
             <EyeTrackingPanel
               state={et.state}
@@ -208,6 +240,8 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
               }}
               fastModelName={connection ? getFastInterviewModel(connection.provider, connection.model) : 'Fast Flash'}
               busy={sidebarBusy || syncingModel}
+              isEyeTrackingActive={et.state === 'running' || et.state === 'calibrating'}
+              onToggleEyeTracking={handleToggleEyeTrackingBehavioral}
             />
           )}
 
@@ -249,7 +283,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
       {/* Delete dialog */}
       {confirmEnd && <div className="session-confirm" role="alertdialog" aria-modal="true" aria-label="End context session"><div><h2>End this session?</h2><p>Your conversations and attachments stay saved. The temporary AI Context.md file will be removed; source folders stay in place.</p><button className="text-button" disabled={ending} onClick={() => setConfirmEnd(false)}>Keep session</button><button className="danger-button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div></div>}
       {et.state === 'calibrating' && (
-        <GazeCalibration key={`${et.selectedCameraId}:${et.selectedDisplayId}`} onAddSample={et.addCalibrationSample} onFinish={et.finishCalibration} onCancel={et.stop} />
+        <GazeCalibration key={`${et.selectedCameraId}:${et.selectedDisplayId}`} onAddSample={et.addCalibrationSample} onFinish={et.finishCalibration} onCancel={et.stop} onSkip={et.startUncalibrated} />
       )}
       {deleting && (
         <dialog ref={deleteDialog} className="dialog" aria-labelledby="delete-title" onCancel={() => setDeleting(null)}>

@@ -131,7 +131,7 @@ export const SESSION_ROLES: Array<{ name: string; perspective: string; presets: 
   },
 ];
 
-export function presetFields(role: typeof SESSION_ROLES[number], preset: InstructionPreset): ContextInput['fields'] {
+export function presetFields(role: typeof SESSION_ROLES[number], preset: InstructionPreset): Array<{ label: string; value: string }> {
   return [
     { label: 'Role / perspective', value: role.perspective },
     { label: 'Background', value: preset.background },

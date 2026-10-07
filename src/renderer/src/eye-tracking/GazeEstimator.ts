@@ -36,16 +36,33 @@ export class GazeEstimator {
   get headPitch(): number { return this._headPitch; }
 
   async init(modelUrl: string): Promise<void> {
-    const vision = await FilesetResolver.forVisionTasks('/mediapipe-wasm');
-    this.landmarker = await FaceLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: modelUrl,
-        delegate: 'GPU',
-      },
-      outputFacialTransformationMatrixes: true,
-      runningMode: 'VIDEO',
-      numFaces: 1,
-    });
+    const baseUrl = typeof window !== 'undefined' && window.location ? window.location.href : 'http://localhost/';
+    const cleanModel = modelUrl.replace(/^\//, '');
+    const resolvedModelUrl = new URL(cleanModel, baseUrl).href;
+    const wasmPath = new URL('mediapipe-wasm', baseUrl).href;
+    const vision = await FilesetResolver.forVisionTasks(wasmPath);
+    try {
+      this.landmarker = await FaceLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: resolvedModelUrl,
+          delegate: 'GPU',
+        },
+        outputFacialTransformationMatrixes: true,
+        runningMode: 'VIDEO',
+        numFaces: 1,
+      });
+    } catch (gpuError) {
+      console.warn('FaceLandmarker GPU delegate failed, falling back to CPU:', gpuError);
+      this.landmarker = await FaceLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: resolvedModelUrl,
+          delegate: 'CPU',
+        },
+        outputFacialTransformationMatrixes: true,
+        runningMode: 'VIDEO',
+        numFaces: 1,
+      });
+    }
   }
 
   /** Extract normalized feature vector from landmarks for calibration and prediction */

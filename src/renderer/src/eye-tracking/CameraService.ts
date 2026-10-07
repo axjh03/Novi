@@ -18,7 +18,7 @@ export class CameraService {
     this.video.playsInline = true;
     this.video.muted = true;
     this.video.style.cssText =
-      'position:absolute;width:0;height:0;opacity:0;pointer-events:none;';
+      'position:fixed;top:-9999px;left:-9999px;width:640px;height:480px;opacity:0.01;pointer-events:none;z-index:-1;';
     document.body.appendChild(this.video);
   }
 
@@ -81,6 +81,18 @@ export class CameraService {
     }
     this.video.srcObject = this.stream;
     await this.video.play().catch(() => {});
+    if (this.video.readyState < 2) {
+      await new Promise<void>((resolve) => {
+        const onReady = () => {
+          this.video.removeEventListener('loadeddata', onReady);
+          this.video.removeEventListener('canplay', onReady);
+          resolve();
+        };
+        this.video.addEventListener('loadeddata', onReady);
+        this.video.addEventListener('canplay', onReady);
+        setTimeout(resolve, 800);
+      });
+    }
   }
 
   stop(): void {

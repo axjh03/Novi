@@ -40,7 +40,7 @@ export function settingsInput(value: unknown): SettingsInput {
   const parts = shortcut.split('+');
   const modifiers = parts.slice(0, -1);
   const key = parts.at(-1) || '';
-  if (!modifiers.length || modifiers.some((part) => !['Control', 'Alt', 'Shift', 'Super'].includes(part)) || new Set(modifiers).size !== modifiers.length || !/^(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4])|Space|Tab|Backspace|Delete|Insert|Return|Esc|Up|Down|Left|Right|Home|End|PageUp|PageDown|NumLock)$/.test(key)) {
+  if (!modifiers.length || modifiers.some((part) => !['Control', 'Alt', 'Option', 'Shift', 'Super', 'Command'].includes(part)) || new Set(modifiers).size !== modifiers.length || !/^(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4])|Space|Tab|Backspace|Delete|Insert|Return|Esc|Up|Down|Left|Right|Home|End|PageUp|PageDown|NumLock)$/.test(key)) {
     throw new UserError('Use a supported key combination with at least one modifier.');
   }
   if (shortcut === 'Control+Shift+T' || shortcut === 'Super+Shift+T') throw new UserError('That shortcut is already used to toggle transparent mode.');
@@ -65,6 +65,7 @@ export function settingsInput(value: unknown): SettingsInput {
       ? (input.behavioralFramework as any)
       : 'smart',
     checkUpdatesAtStartup: typeof input.checkUpdatesAtStartup === 'boolean' ? input.checkUpdatesAtStartup : true,
+    autoStartEmptySession: typeof input.autoStartEmptySession === 'boolean' ? input.autoStartEmptySession : false,
   };
 }
 export function connectionInput(value: unknown): ConnectionInput {

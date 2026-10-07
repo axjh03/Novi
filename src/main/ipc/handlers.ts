@@ -63,11 +63,12 @@ export function registerIPC(
         const publicChannels = [
           'session', 'sign-in', 'sign-out', 'minimize-window', 'maximize-window',
           'close-window', 'is-window-maximized', 'get-stealth-state', 'check-for-updates',
-          'install-update', 'check-permissions', 'request-permissions'
+          'install-update', 'check-permissions', 'request-permissions',
+          'get-saved-credentials', 'save-credentials'
         ];
         if (!publicChannels.includes(channel)) {
           const wasSignedIn = get().auth.signedIn;
-          try { await get().auth.refresh(['send', 'initialize-context', 'start-context', 'list-models', 'test-connection'].includes(channel)); }
+          try { await get().auth.refresh(['send', 'initialize-context', 'start-context', 'start-empty-session', 'list-models', 'test-connection'].includes(channel)); }
           catch (error) {
             if (wasSignedIn) {
               await endContext().catch(() => { });
@@ -90,6 +91,19 @@ export function registerIPC(
   handle('check-permissions', () => permissionsService.checkPermissions());
   handle('request-permissions', (value) => permissionsService.requestPermissions(Array.isArray(value) ? value as any : undefined));
   handle('session', snapshot);
+  handle('get-saved-credentials', () => get().auth.getSavedCredentials());
+  handle('save-credentials', (value) => {
+    if (value === null || value === undefined) {
+      get().auth.setSavedCredentials(null);
+    } else {
+      const v = object(value);
+      get().auth.setSavedCredentials({
+        username: text(v.username, 'username', 64),
+        password: typeof v.password === 'string' ? text(v.password, 'password', 128, true) : undefined,
+      });
+    }
+    return true;
+  });
   handle('sign-in', async (value) => {
     requireNoContext();
     get().chat.assertIdle();
@@ -101,7 +115,11 @@ export function registerIPC(
       }
     }
     const v = object(value);
-    await get().auth.signIn(v.username as string, v.password as string);
+    await get().auth.signIn(
+      v.username as string,
+      v.password as string,
+      typeof v.saveCredentials === 'boolean' ? v.saveCredentials : undefined
+    );
     return snapshot();
   });
   handle('refresh-managed', async () => { await get().auth.refresh(true); return snapshot(); });
@@ -142,6 +160,21 @@ export function registerIPC(
     const selected = account.settings.connections.find(c => c.id === input.id);
     if (storage.current() !== account || account.settings.activeConnectionId !== input.id || selected?.model !== input.ai.model || selected.provider !== input.ai.provider || selected.baseUrl !== input.ai.baseUrl || selected.enabled === false) throw new UserError('Your selection changed. Start the session again.');
     chat.assertIdle(); context.begin(value); return snapshot();
+  });
+  handle('start-empty-session', async () => {
+    const { chat, storage, connections, context } = get();
+    chat.assertIdle();
+    const account = storage.current();
+    const connection = account.settings.connections.find(c => c.id === account.settings.activeConnectionId);
+    if (!connection?.model) throw new UserError('Choose a provider and model before starting a session.');
+    const input = { id: connection.id, name: connection.name, ai: { ...connection } };
+    const models = await listModels(input.ai, connections.resolveKey(input));
+    if (!models.some(m => m.id === input.ai.model)) throw new UserError('This model is no longer available. Refresh the model list and choose another model.');
+    const selected = account.settings.connections.find(c => c.id === input.id);
+    if (storage.current() !== account || account.settings.activeConnectionId !== input.id || selected?.model !== input.ai.model || selected.provider !== input.ai.provider || selected.baseUrl !== input.ai.baseUrl || selected.enabled === false) throw new UserError('Your selection changed. Start the session again.');
+    chat.assertIdle();
+    context.beginEmpty();
+    return snapshot();
   });
   handle('initialize-context', async (_value, event) => {
     const { context, chat } = get();
@@ -268,12 +301,16 @@ export function registerIPC(
     const width = Math.min(430, area.width);
     const height = Math.min(700, area.height);
     const viewer = new BrowserWindow({
-      parent: main,
       x: area.x, y: area.y + Math.round((area.height - height) / 2), width, height,
       minWidth: 300, minHeight: 240, show: false, frame: false, resizable: true, title: 'Novi Code Viewer',
       transparent: true, backgroundColor: '#00000000', autoHideMenuBar: true,
       webPreferences: { preload: preloadPath, contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true },
     });
+    const isStealthTransparent = services?.stealth.getState().transparent;
+    if (isStealthTransparent) {
+      viewer.setAlwaysOnTop(true, 'screen-saver');
+      viewer.setContentProtection(true);
+    }
     codeViewerWindow = viewer;
     viewer.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     viewer.webContents.on('will-navigate', (navigation) => navigation.preventDefault());

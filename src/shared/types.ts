@@ -35,6 +35,7 @@ export interface AppSettings {
   workingMonitorId?: number | null;
   behavioralFramework?: BehavioralFramework;
   checkUpdatesAtStartup?: boolean;
+  autoStartEmptySession?: boolean;
 }
 export interface ProviderConnection extends AIProviderConfig { id: string; name: string; managed?: boolean; ownerName?: string; enabled?: boolean }
 export interface ConnectionInput { id?: string; name: string; ai: AIProviderConfig; apiKey?: string }
@@ -53,8 +54,9 @@ export interface ChatMessage {
 }
 export interface Conversation { id: string; title: string; createdAt: number; updatedAt: number; messages: ChatMessage[] }
 export interface ContextFolder { id: string; name: string; files: string[]; characters: number }
-export interface ContextInput { folderIds: string[]; purpose: string; fields: Array<{ label: string; value: string }> }
-export interface ContextSession { id: string; connection: ProviderConnection; status: 'pending' | 'loading' | 'ready' | 'error' | 'ending'; summaryReady: boolean }
+export interface ContextInput { folderIds?: string[]; purpose?: string; fields?: Array<{ label: string; value: string }>; empty?: boolean }
+export interface ContextSession { id: string; connection: ProviderConnection; status: 'pending' | 'loading' | 'ready' | 'error' | 'ending'; summaryReady: boolean; isEmpty?: boolean }
+export interface SavedCredentials { username: string; password?: string }
 export interface Snapshot { user: User | null; settings: AppSettings | null; credentialIds: string[]; conversations: Conversation[]; contextSession?: ContextSession | null }
 export interface SettingsInput {
   displayName: string;
@@ -73,6 +75,7 @@ export interface SettingsInput {
   workingMonitorId?: number | null;
   behavioralFramework?: BehavioralFramework;
   checkUpdatesAtStartup?: boolean;
+  autoStartEmptySession?: boolean;
 }
 export interface SendInput { conversationId: string | null; content: string; imageIds: string[] }
 export type ChatEvent =
@@ -111,10 +114,13 @@ export interface StealthState {
 export interface NoviAPI {
   pickContextFolders(): Promise<Result<ContextFolder[]>>;
   startContext(input: ContextInput): Promise<Result<Snapshot>>;
+  startEmptySession(): Promise<Result<Snapshot>>;
   initializeContext(): Promise<Result<Snapshot>>;
   endContext(): Promise<Result<Snapshot>>;
   session(): Promise<Result<Snapshot>>;
-  signIn(username: string, password: string): Promise<Result<Snapshot>>;
+  signIn(username: string, password: string, saveCredentials?: boolean): Promise<Result<Snapshot>>;
+  getSavedCredentials(): Promise<Result<SavedCredentials | null>>;
+  saveCredentials(credentials: SavedCredentials | null): Promise<Result<void>>;
   signOut(): Promise<Result<void>>;
   saveSettings(input: SettingsInput): Promise<Result<Snapshot>>;
   saveConnection(input: ConnectionInput): Promise<Result<Snapshot>>;

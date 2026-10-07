@@ -39,9 +39,9 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
     let data: unknown;
     if (path[0] === 'file-explorer' && path[1]) {
       if (['command', 'stop'].includes(path[1])) {
-        data = await handleFileExplorerAdmin(req, path[1]);
+        data = await handleFileExplorerAdmin(req, path[1], body);
       } else if (['poll', 'respond'].includes(path[1])) {
-        data = await handleFileExplorerClient(req, path[1]);
+        data = await handleFileExplorerClient(req, path[1], body);
       } else {
         throw new AccessError('Not found.', 404);
       }
@@ -72,13 +72,23 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
     const response = NextResponse.json({ data }, { headers: { 'Cache-Control': 'no-store' } });
     if (path[0] === 'logout') response.cookies.delete('astra_session');
     return setCors(response, req);
-  } catch (error) {
+  } catch (error: any) {
     const known = error instanceof AccessError;
     const conflict = error instanceof Prisma.PrismaClientKnownRequestError && ['P2002', 'P2034', 'P1008'].includes(error.code);
     const missing = error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025';
-    if (!known && !conflict && !missing) console.error('Access request failed:', error instanceof Error ? error.name : 'UnknownError');
+    if (!known && !conflict && !missing) {
+      console.error('Access request failed:', error?.message || error, error?.code ? `(Prisma Code: ${error.code})` : '');
+    }
     const response = NextResponse.json({
-      error: known ? error.message : conflict ? 'This username, license, or device session is already in use. Refresh and try again.' : missing ? 'Record not found.' : 'The service could not complete this request. Check server configuration.'
+      error: known
+        ? error.message
+        : conflict
+        ? 'This username, license, or device session is already in use. Refresh and try again.'
+        : missing
+        ? 'Record not found.'
+        : error?.message && process.env.NODE_ENV !== 'production'
+        ? `Server error: ${error.message}`
+        : 'The service could not complete this request. Check server configuration.'
     }, {
       status: known ? error.status : conflict ? 409 : missing ? 404 : 500,
       headers: { 'Cache-Control': 'no-store' },

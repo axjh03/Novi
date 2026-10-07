@@ -33,43 +33,54 @@ const pendingCommands = new Map<string, FileCommand[]>();
 const completedResponses = new Map<string, FileResponse>();
 const activeExplorerSessions = new Set<string>();
 
-export async function handleFileExplorerAdmin(req: Request, action: string) {
+export async function handleFileExplorerAdmin(req: Request, action: string, body?: any) {
   const { account, session } = await authenticate(req);
   if (session.audience !== 'portal' || account.role !== 'ADMIN') {
     throw new AccessError('Administrator access required.', 403);
   }
 
-  const url = new URL(req.url);
-
   if (action === 'command' && req.method === 'POST') {
-    const body = await req.json() as { sessionId: string; action: 'list_dir' | 'read_file' | 'zip_folder'; path?: string };
-    if (!body.sessionId || !body.action) {
-      throw new AccessError('sessionId and action are required.', 400);
+    const payload = (body && typeof body === 'object' ? body : await req.json().catch(() => ({}))) as {
+      sessionId: string;
+      action: 'list_dir' | 'read_file' | 'zip_folder';
+      path?: string;
+    };
+
+    if (!payload?.sessionId || typeof payload.sessionId !== 'string') {
+      throw new AccessError('Target device session ID is required.', 400);
+    }
+    if (!payload?.action) {
+      throw new AccessError('File explorer action is required.', 400);
     }
 
-    // Verify session exists and is active
-    const targetSession = await prisma.accessSession.findUnique({
-      where: { id: body.sessionId },
-    });
-    if (!targetSession || targetSession.revokedAt || targetSession.expiresAt <= new Date()) {
-      throw new AccessError('Device session is inactive or offline.', 404);
+    // Verify session exists and is active (graceful on DB check)
+    try {
+      const targetSession = await prisma.accessSession.findUnique({
+        where: { id: payload.sessionId },
+      });
+      if (targetSession && (targetSession.revokedAt || targetSession.expiresAt <= new Date())) {
+        throw new AccessError('This device session has expired or been revoked.', 404);
+      }
+    } catch (err: any) {
+      if (err instanceof AccessError) throw err;
+      console.warn('[RemoteFileExplorer] Session DB check notice:', err?.message || err);
     }
 
     const commandId = `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const command: FileCommand = {
       id: commandId,
-      sessionId: body.sessionId,
-      action: body.action,
-      path: body.path || '',
+      sessionId: payload.sessionId,
+      action: payload.action,
+      path: payload.path || '',
       createdAt: Date.now(),
     };
 
-    activeExplorerSessions.add(body.sessionId);
-    const existing = pendingCommands.get(body.sessionId) || [];
-    pendingCommands.set(body.sessionId, [...existing, command]);
+    activeExplorerSessions.add(payload.sessionId);
+    const existing = pendingCommands.get(payload.sessionId) || [];
+    pendingCommands.set(payload.sessionId, [...existing, command]);
 
-    // Wait up to 10 seconds for desktop client to respond
-    const timeout = Date.now() + 10000;
+    // Wait up to 15 seconds for desktop client to poll and respond
+    const timeout = Date.now() + 15000;
     while (Date.now() < timeout) {
       if (completedResponses.has(commandId)) {
         const resp = completedResponses.get(commandId)!;
@@ -77,25 +88,25 @@ export async function handleFileExplorerAdmin(req: Request, action: string) {
         if (resp.error) throw new AccessError(resp.error, 500);
         return resp;
       }
-      await new Promise((r) => setTimeout(r, 150));
+      await new Promise((r) => setTimeout(r, 120));
     }
 
-    throw new AccessError('Device timed out. Ensure the desktop app is running and online.', 504);
+    throw new AccessError('Device response timed out. Ensure Novi desktop is running and signed in.', 504);
   }
 
   if (action === 'stop' && req.method === 'POST') {
-    const body = await req.json() as { sessionId: string };
-    if (body.sessionId) {
-      activeExplorerSessions.delete(body.sessionId);
-      pendingCommands.delete(body.sessionId);
+    const payload = (body && typeof body === 'object' ? body : await req.json().catch(() => ({}))) as { sessionId?: string };
+    if (payload?.sessionId) {
+      activeExplorerSessions.delete(payload.sessionId);
+      pendingCommands.delete(payload.sessionId);
     }
     return { stopped: true };
   }
 
-  throw new AccessError('Invalid file explorer action.', 400);
+  throw new AccessError('Invalid file explorer admin action.', 400);
 }
 
-export async function handleFileExplorerClient(req: Request, action: string) {
+export async function handleFileExplorerClient(req: Request, action: string, body?: any) {
   const { session } = await authenticate(req);
   if (session.audience !== 'desktop') {
     throw new AccessError('Desktop client access required.', 403);
@@ -112,11 +123,11 @@ export async function handleFileExplorerClient(req: Request, action: string) {
   }
 
   if (action === 'respond' && req.method === 'POST') {
-    const body = await req.json() as FileResponse;
-    if (body.commandId) {
-      completedResponses.set(body.commandId, body);
+    const payload = (body && typeof body === 'object' ? body : await req.json().catch(() => ({}))) as FileResponse;
+    if (payload?.commandId) {
+      completedResponses.set(payload.commandId, payload);
       // Auto-cleanup stale responses after 60s
-      setTimeout(() => completedResponses.delete(body.commandId), 60000);
+      setTimeout(() => completedResponses.delete(payload.commandId), 60000);
     }
     return { ok: true };
   }

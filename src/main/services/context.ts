@@ -35,9 +35,28 @@ export class ContextService {
       return { id, name: folder.name, files: folder.documents.map((d) => d.name), characters: folder.documents.reduce((sum, d) => sum + d.content.length, 0) };
     });
   }
+  beginEmpty(): void {
+    if (this.session) throw new UserError('A context session is already active.');
+    const user = this.storage.current();
+    const connection = activeConnection(user.settings);
+    if (!connection?.model || connection.enabled === false) throw new UserError('Choose a provider and model before starting a session.');
+    this.removeSummary();
+    this.owner = user.id;
+    this.prompt = '';
+    this.seed = [];
+    this.conversationId = null;
+    this.initialization = null;
+    this.session = { id: randomUUID(), connection: { ...connection }, status: 'ready', summaryReady: true, isEmpty: true };
+    this.storage.sessionConversations = null;
+    this.folders.clear();
+  }
   begin(value: unknown): void {
     if (this.session) throw new UserError('A context session is already active.');
     const user = this.storage.current(), input = object(value);
+    if (input.empty) {
+      this.beginEmpty();
+      return;
+    }
     if (this.owner !== user.id) throw new UserError('Load context folders first.');
     if (!Array.isArray(input.folderIds) || !input.folderIds.length || input.folderIds.length > 8) throw new UserError('Choose at least one loaded folder.');
     const documents = [...new Set(input.folderIds)].flatMap((id) => {
