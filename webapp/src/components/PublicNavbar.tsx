@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowUpRight, Menu, X } from 'lucide-react';
 
 export interface PublicNavbarProps {
-  active?: 'download' | 'how-it-works' | 'api-keys' | 'license';
+  active?: 'download' | 'how-it-works' | 'api-keys' | 'license' | 'pricing';
   onSignIn?: () => void;
 }
 
@@ -69,6 +69,17 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
             }}
           >
             API Guide
+          </Link>
+
+          <Link
+            href="/pricing"
+            style={{
+              textDecoration: 'none',
+              color: active === 'pricing' ? '#111' : 'inherit',
+              fontWeight: active === 'pricing' ? 600 : 400,
+            }}
+          >
+            Pricing
           </Link>
 
           <Link
@@ -185,6 +196,22 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
             }}
           >
             API Guide
+          </Link>
+
+          <Link
+            href="/pricing"
+            onClick={closeMenu}
+            style={{
+              padding: '10px 12px',
+              borderRadius: 8,
+              textDecoration: 'none',
+              color: active === 'pricing' ? '#111' : '#444',
+              fontWeight: active === 'pricing' ? 600 : 500,
+              background: active === 'pricing' ? '#f4f4f4' : 'transparent',
+              fontSize: 15,
+            }}
+          >
+            Pricing
           </Link>
 
           <Link

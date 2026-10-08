@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react';
-import { ArrowUp, Camera, ChevronDown, ImagePlus, Mic, Radio, Square, X } from 'lucide-react';
+import { ArrowUp, Brain, Camera, ImagePlus, Mic, Square, X } from 'lucide-react';
 import type { ImageAttachment } from '../../../../shared/types';
-import type { AudioSource, InterviewEvent, InterviewMode, TranscriptSegment } from '../../../../shared/interview';
-import { updateTranscript } from '../../../../shared/interview';
+import type { InterviewEvent, ListeningSource, TranscriptSegment } from '../../../../shared/interview';
+import { LiveTranscriptDraft, listeningSources } from '../../../../shared/interview';
 import { errorText, unwrap } from '../../services/api';
 import { ImagePreview } from './Message';
 import { useAppMode } from '../../context/AppModeContext';
 import { AudioMeter } from '../AudioMeter';
+import { DRAW_DIAGRAM_PROMPT } from '../../../../shared/sessionModes';
+import { CloudListening } from '../../services/cloudListening';
 import { InterviewAudio } from '../../services/interviewAudio';
 
 interface Props {
@@ -21,130 +23,153 @@ export function Composer({ busy, onSend }: Props) {
   const [dragging, setDragging] = useState(false);
   const [attaching, setAttaching] = useState(false);
   const [localActive, setLocalActive] = useState(false);
-  const [localMode, setLocalMode] = useState<InterviewMode>('interviewer');
-  const [localMenuOpen, setLocalMenuOpen] = useState(false);
-  const [audioMenuOpen, setAudioMenuOpen] = useState(false);
+  const [source, setSource] = useState<ListeningSource>('system');
+  const [engine, setEngine] = useState<'local' | 'cloud'>('local');
+  const cloud = useRef<CloudListening | null>(null);
+  const draft = useRef(new LiveTranscriptDraft());
+  const [localStarting, setLocalStarting] = useState(false);
+  const [localStopping, setLocalStopping] = useState(false);
+  const [localLevel, setLocalLevel] = useState(0);
+  const localTransition = useRef(false);
+  const sending = useRef(false);
+  const mounted = useRef(true);
   const [localWarning, setLocalWarning] = useState('');
-  const [segments, setSegments] = useState<TranscriptSegment[]>([]);
-  const segmentsRef = useRef<TranscriptSegment[]>([]);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const textRef = useRef(text);
   const sessionId = useRef('');
   const localAudio = useRef<InterviewAudio | null>(null);
   const unsubscribeInterview = useRef<(() => void) | null>(null);
-  const transcriptPrefix = useRef('');
   const depth = useRef(0);
 
   const {
-    pendingTranscript,
-    consumePendingTranscript,
     pendingAttachment,
     consumePendingAttachment,
-    isRecordingAudio,
-    isAudioStarting,
-    isAudioProcessing,
-    audioLevel,
-    audioError,
-    recordingSeconds,
-    toggleAudioRecording,
-    audioSource,
-    setAudioSource,
-    localTranscriptionActive,
-    setLocalTranscriptionActive,
     captureScreenshot,
     appMode,
-    behavioralFramework,
   } = useAppMode();
 
   useEffect(() => { textRef.current = text; }, [text]);
 
-  useEffect(() => () => {
-    unsubscribeInterview.current?.();
-    localAudio.current?.close();
-    if (sessionId.current) void window.novi.stopInterview();
-    setLocalTranscriptionActive(false);
-  }, [setLocalTranscriptionActive]);
-
-  async function toggleLocalTranscription() {
-    if (localActive) {
-      localAudio.current?.stop().catch(() => {});
-      localAudio.current = null;
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
       unsubscribeInterview.current?.();
-      unsubscribeInterview.current = null;
-      try { await unwrap(window.novi.stopInterview()); }
-      catch (cause) { setLocalWarning(errorText(cause)); }
-      sessionId.current = '';
-      setLocalActive(false);
-      setLocalTranscriptionActive(false);
-      return;
-    }
-    if (isRecordingAudio || isAudioStarting || isAudioProcessing) {
-      setLocalWarning('Stop the cloud audio recording before starting local transcription.');
-      return;
-    }
-    setLocalWarning('');
-    setSegments([]);
-    segmentsRef.current = [];
-    transcriptPrefix.current = textRef.current.trim();
-    setLocalTranscriptionActive(true);
-    try {
-      const mode: InterviewMode = localMode === 'interviewer' ? 'interviewer' : 'conversation';
-      const session = await unwrap(window.novi.startInterview({ mode, vadThreshold: 0.006, diarization: false, useVad: true }));
-      sessionId.current = session.id;
-      setLocalActive(true);
-      unsubscribeInterview.current = window.novi.onInterview((event: InterviewEvent) => {
-        if (event.type === 'transcript:partial' || event.type === 'transcript:final') {
-          if (event.segment.sessionId !== session.id) return;
-          const next = updateTranscript(segmentsRef.current, event.segment);
-          segmentsRef.current = next;
-          setSegments(next);
-          const transcript = next.map(segment => segment.text).join(' ').trim();
-          const prefix = transcriptPrefix.current;
-          const updated = [prefix, transcript].filter(Boolean).join(prefix ? '\n' : '');
-          textRef.current = updated;
-          setText(updated);
-        } else if ('sessionId' in event && event.sessionId === session.id) {
-          if (event.type === 'warning') setLocalWarning(event.message);
-          if (event.type === 'status') {
-            localAudio.current?.close();
-            localAudio.current = null;
-            sessionId.current = '';
-            setLocalActive(false);
-            setLocalTranscriptionActive(false);
-          }
-        }
-      });
-      const capture = new InterviewAudio(frame => unwrap(window.novi.interviewFrame(frame)), setLocalWarning);
-      localAudio.current = capture;
-      await capture.start(session.id, session.startedAt, mode, '', '');
-      textarea.current?.focus();
-    } catch (cause) {
       localAudio.current?.close();
-      localAudio.current = null;
-      unsubscribeInterview.current?.();
-      unsubscribeInterview.current = null;
-      if (sessionId.current) await window.novi.stopInterview();
-      sessionId.current = '';
-      setLocalActive(false);
-      setLocalTranscriptionActive(false);
-      setLocalWarning(errorText(cause));
+      if (!cloud.current && (sessionId.current || localTransition.current)) void window.novi.stopInterview();
+      // Finish bounded cloud requests already accepted; unmounted drafts receive no callbacks.
+      if (cloud.current) void cloud.current.stop(sessionId.current);
+    };
+  }, []);
+
+  function updateDraft(segment: TranscriptSegment) {
+    if (!mounted.current || segment.sessionId !== sessionId.current) return;
+    textRef.current = draft.current.update(segment);
+    setText(textRef.current);
+    if (textarea.current) {
+      textarea.current.style.height = 'auto';
+      textarea.current.style.height = `${Math.min(textarea.current.scrollHeight, 180)}px`;
     }
   }
 
-  // Consume any newly transcribed text
-  useEffect(() => {
-    if (pendingTranscript) {
-      const transcript = consumePendingTranscript();
-      if (transcript) {
-        setText((prev) => (prev ? `${prev}\n${transcript}` : transcript));
-        if (textarea.current) {
-          textarea.current.focus();
-          textarea.current.style.height = 'auto';
-          textarea.current.style.height = `${Math.min(textarea.current.scrollHeight, 180)}px`;
+  async function stopListening() {
+    setLocalStopping(true);
+    try {
+      await localAudio.current?.stop();
+      if (cloud.current) await cloud.current.stop(sessionId.current);
+      else {
+        const session = await unwrap(window.novi.stopInterview());
+        if (session && mounted.current) for (const segment of session.segments) {
+          textRef.current = draft.current.update(segment);
+          setText(textRef.current);
         }
       }
+    } finally {
+      localAudio.current?.close();
+      localAudio.current = null;
+      cloud.current = null;
+      unsubscribeInterview.current?.();
+      unsubscribeInterview.current = null;
+      sessionId.current = '';
+      if (mounted.current) { setLocalActive(false); setLocalStopping(false); setLocalLevel(0); }
     }
-  }, [pendingTranscript, consumePendingTranscript]);
+  }
+
+  async function toggleListening(selectedSource: ListeningSource = source) {
+    if (localTransition.current) return;
+    localTransition.current = true;
+    if (sessionId.current) {
+      try { await stopListening(); }
+      catch (cause) { setLocalWarning(errorText(cause)); }
+      finally { localTransition.current = false; }
+      return;
+    }
+    setLocalStarting(true);
+    setLocalWarning('');
+    draft.current = new LiveTranscriptDraft();
+    draft.current.edit(textRef.current);
+    try {
+      let id: string, startedAt: number;
+      const mode = selectedSource === 'system' ? 'interviewer' : 'conversation';
+      if (engine === 'local') {
+        unsubscribeInterview.current = window.novi.onInterview((event: InterviewEvent) => {
+          if (!mounted.current) return;
+          if (event.type === 'transcript:partial' || event.type === 'transcript:final') updateDraft(event.segment);
+          else if ('sessionId' in event && (event.sessionId === sessionId.current || !sessionId.current)) {
+            if (event.type === 'warning') setLocalWarning(event.message);
+            if (event.type === 'audio:level') setLocalLevel(event.level);
+            if (event.type === 'status' && event.status !== 'recording') {
+              localAudio.current?.close();
+              sessionId.current = '';
+              unsubscribeInterview.current?.();
+              unsubscribeInterview.current = null;
+              setLocalActive(false); setLocalLevel(0);
+            }
+          }
+        });
+        const session = await unwrap(window.novi.startInterview({ mode, vadThreshold: 0.006, diarization: selectedSource === 'both', useVad: true }));
+        if (!mounted.current) { await window.novi.stopInterview(); return; }
+        id = session.id; startedAt = session.startedAt;
+      } else {
+        id = crypto.randomUUID(); startedAt = Date.now();
+        cloud.current = new CloudListening(async wav => {
+          let binary = '';
+          for (const byte of wav) binary += String.fromCharCode(byte);
+          const result = await unwrap(window.novi.transcribeAudio({ base64: btoa(binary), mimeType: 'audio/wav' }));
+          return result.text;
+        }, updateDraft, warning => { if (mounted.current) setLocalWarning(warning); });
+      }
+      sessionId.current = id;
+      const capture = new InterviewAudio(async frame => {
+        if (cloud.current) {
+          setLocalLevel(Math.min(1, Math.sqrt(frame.samples.reduce((sum, value) => sum + value * value, 0) / frame.samples.length) * 8));
+          cloud.current.frame(frame);
+        } else await unwrap(window.novi.interviewFrame(frame));
+      }, warning => { if (mounted.current) setLocalWarning(warning); });
+      localAudio.current = capture;
+      await capture.start(id, startedAt, mode, '', '', listeningSources(selectedSource));
+      if (!mounted.current) { await stopListening(); return; }
+      setLocalActive(true);
+      textarea.current?.focus();
+    } catch (cause) {
+      try { await stopListening(); } catch { /* Keep the original startup error. */ }
+      if (mounted.current) setLocalWarning(errorText(cause));
+    } finally {
+      localTransition.current = false;
+      if (mounted.current) setLocalStarting(false);
+    }
+  }
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey && event.key.toLowerCase() === 'a') {
+        event.preventDefault();
+        if (!event.repeat) void toggleListening();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [toggleListening]);
 
   // Consume any newly captured screenshot
   useEffect(() => {
@@ -160,15 +185,22 @@ export function Composer({ busy, onSend }: Props) {
   // Listen for remote companion actions
   useEffect(() => {
     const cleanup = window.novi.onGlobalAction((action) => {
-      if (action.type === 'submit-prompt') {
+      if (action.type === 'toggle-audio-record' || action.type === 'toggle-listening') {
+        const next = action.payload === 'both' || action.payload === 'microphone' || action.payload === 'system' ? action.payload : source;
+        if (!sessionId.current && !localTransition.current) setSource(next);
+        void toggleListening(next);
+      } else if (action.type === 'set-listening-mode' && !sessionId.current && !localTransition.current && ['system', 'both', 'microphone'].includes(action.payload)) {
+        setSource(action.payload);
+      } else if (action.type === 'submit-prompt') {
         void submit();
       } else if (action.type === 'delete-last-snapshot') {
         setImages((prev) => prev.slice(0, -1));
       } else if (action.type === 'stop-generation') {
         void window.novi.stop();
       } else if (action.type === 'quick-prompt' && typeof action.payload === 'string') {
-        setText(action.payload);
-        void onSend(action.payload, images);
+        if (busy || sending.current) return;
+        draft.current.edit(action.payload); textRef.current = action.payload; setText(action.payload);
+        void submit();
       }
     });
     return cleanup;
@@ -205,41 +237,25 @@ export function Composer({ busy, onSend }: Props) {
     }
   }
 
-  function getBehavioralPrefix(framework: string): string {
-    switch (framework) {
-      case 'star':
-        return '[Behavioral Mode - STAR Method: Structure your spoken interview response using Situation, Task, Action, Result. Quantify measurable impact and keep it conversational for spoken delivery.]\n\n';
-      case 'car':
-        return '[Behavioral Mode - CAR Method: Structure your spoken interview response using Context, Action, Result. Keep it concise, punchy, and highlight measurable outcomes.]\n\n';
-      case 'par':
-        return '[Behavioral Mode - PAR Method: Structure your spoken interview response using Problem, Action, Resolution. Emphasize technical problem-solving and root cause resolution.]\n\n';
-      case 'soar':
-        return '[Behavioral Mode - SOAR Method: Structure your spoken interview response using Situation, Obstacle, Action, Result. Highlight navigating roadblocks, resilience, and final outcomes.]\n\n';
-      case 'smart':
-      default:
-        return '[Behavioral Mode - SMART Auto-Detect: Analyze this interview question. Automatically select the optimal framework (STAR, CAR, or PAR). Respond with a structured, persuasive, authentic spoken response.]\n\n';
-    }
-  }
-
-  async function submit(event?: FormEvent) {
+  async function submit(event?: FormEvent, draw = false) {
     event?.preventDefault();
-    if (busy || attaching || localActive || (!text.trim() && !images.length)) return;
-    const rawText = text;
-    let sentText = rawText.trim();
-    if (appMode === 'behavioral' && sentText && !sentText.startsWith('[Behavioral Mode')) {
-      sentText = `${getBehavioralPrefix(behavioralFramework)}${sentText}`;
-    }
-    const sentImages = images;
-    setError('');
-    setText('');
-    setImages([]);
-    if (textarea.current) textarea.current.style.height = '';
-    const success = await onSend(sentText, sentImages);
-    if (!success) {
-      setText(rawText);
-      setImages(sentImages);
-    }
-    textarea.current?.focus();
+    if (busy || attaching || sending.current || localTransition.current) return;
+    sending.current = true;
+    try {
+      const rawText = textRef.current;
+      if (!draw && !rawText.trim() && !images.length) return;
+      const sentText = draw ? `${DRAW_DIAGRAM_PROMPT}\n\nLatest transcript / question:\n${rawText.trim()}` : rawText.trim();
+      const sentImages = images;
+      setError('');
+      draft.current.take(); textRef.current = ''; setText('');
+      setImages([]);
+      const success = await onSend(sentText, sentImages);
+      if (!success) {
+        textRef.current = draft.current.restore(rawText); setText(textRef.current);
+        setImages(sentImages);
+      }
+    } catch (cause) { setError(errorText(cause)); }
+    finally { sending.current = false; textarea.current?.focus(); }
   }
 
   function drag(event: DragEvent) {
@@ -307,8 +323,10 @@ export function Composer({ busy, onSend }: Props) {
           rows={1}
           value={text}
           maxLength={100000}
-          disabled={busy || localActive}
+          disabled={busy || localStarting || localStopping}
           onChange={(e) => {
+            draft.current.edit(e.target.value);
+            textRef.current = e.target.value;
             setText(e.target.value);
             e.target.style.height = 'auto';
             e.target.style.height = `${Math.min(e.target.scrollHeight, 180)}px`;
@@ -329,36 +347,26 @@ export function Composer({ busy, onSend }: Props) {
               <Camera size={14} /><span>Snapshot</span>
             </button>
 
-            {appMode !== 'behavioral' && <>
-              {!localTranscriptionActive && <div className="composer-audio-source">
-                <button type="button" className={`composer-quick-btn ${isRecordingAudio ? 'recording' : ''}`} onClick={toggleAudioRecording}
-                  disabled={(busy && !isRecordingAudio) || isAudioStarting || isAudioProcessing}
-                  title={isRecordingAudio ? `Stop ${audioSource} audio capture` : `Capture ${audioSource} audio (${audioSource === 'system' ? 'Alt+A' : 'microphone'})`}>
-                  {audioSource === 'system' ? <Radio size={14} /> : <Mic size={14} />}
-                  <span>{isRecordingAudio ? `${Math.floor(recordingSeconds / 60)}:${(recordingSeconds % 60).toString().padStart(2, '0')}` : isAudioStarting ? 'Starting…' : isAudioProcessing ? 'Processing…' : audioSource === 'system' ? 'System audio' : 'Microphone'}</span>
-                  {isRecordingAudio && <AudioMeter level={audioLevel} />}
-                </button>
-                <button type="button" className="composer-quick-btn composer-audio-menu-trigger" aria-label="Choose audio source" aria-expanded={audioMenuOpen} onClick={() => setAudioMenuOpen(open => !open)}><ChevronDown size={14} /></button>
-                {audioMenuOpen && <div className="composer-audio-menu" role="menu">
-                  {(['system', 'microphone'] as AudioSource[]).map(source => <button type="button" role="menuitemradio" aria-checked={audioSource === source} key={source} onClick={() => { setAudioSource(source); setAudioMenuOpen(false); }}>{source === 'system' ? <Radio size={14} /> : <Mic size={14} />}{source === 'system' ? 'System audio' : 'Microphone'}{audioSource === source ? ' ✓' : ''}</button>)}
-                </div>}
-              </div>}
-              <div className="composer-audio-source composer-local-control">
-                <button type="button" className={`composer-quick-btn ${localActive ? 'recording' : ''}`} onClick={() => void toggleLocalTranscription()} disabled={busy || isRecordingAudio || isAudioStarting || isAudioProcessing} title={localActive ? 'Stop local live transcription' : 'Start local live transcription'}>
-                  <Mic size={14} /><span>{localActive ? 'Local listening' : 'Local'}</span>{localActive && <AudioMeter level={0} />}
-                </button>
-                <button type="button" className="composer-quick-btn composer-audio-menu-trigger" aria-label="Choose local transcription settings" aria-expanded={localMenuOpen} onClick={() => setLocalMenuOpen(open => !open)}><ChevronDown size={14} /></button>
-                {localMenuOpen && <div className="composer-audio-menu composer-local-menu" role="group" aria-label="Local transcription settings">
-                  <strong>Transcription mode</strong>
-                  <button type="button" aria-pressed={localMode === 'interviewer'} onClick={() => { setLocalMode('interviewer'); setLocalMenuOpen(false); }}>System audio only{localMode === 'interviewer' ? ' ✓' : ''}</button>
-                  <button type="button" aria-pressed={localMode === 'conversation'} onClick={() => { setLocalMode('conversation'); setLocalMenuOpen(false); }}>Interviewer + you{localMode === 'conversation' ? ' ✓' : ''}</button>
-                  <strong>Chat response model</strong>
-                  <button type="button" aria-pressed>Cloud LLM · configured provider ✓</button>
-                  <button type="button" disabled title="Local LLM inference runtime is not integrated yet">Local LLM · unavailable</button>
-                  <small>Live speech recognition stays on this device. Press Stop, review the draft, then press Enter to send it.</small>
-                </div>}
-              </div>
-            </>}
+            {appMode === 'system-design' && <button type="button" className="secondary" disabled={busy || attaching || localStarting || localStopping} onClick={() => void submit(undefined, true)}>Draw / update diagram</button>}
+            <div className="composer-audio-source composer-local-control">
+              <button type="button" className={`composer-quick-btn ${localActive ? 'recording' : ''}`} onClick={() => void toggleListening()}
+                disabled={localStarting || localStopping}>
+                <Mic size={14} /><span>{localStarting ? 'Starting…' : localStopping ? 'Stopping…' : localActive ? 'Stop listening' : 'Start listening'}</span>
+                {localActive && <AudioMeter level={localLevel} />}
+              </button>
+              <select aria-label="Audio input" value={source} disabled={localActive || localStarting || localStopping}
+                onChange={(event) => setSource(event.target.value as ListeningSource)}>
+                <option value="system">System audio</option>
+                <option value="both">Mic + system audio</option>
+                <option value="microphone">Mic only</option>
+              </select>
+              <label className="transcription-engine" title="Audio transcription engine"><Brain size={15} />
+                <select aria-label="Audio transcription engine" value={engine} disabled={localActive || localStarting || localStopping}
+                  onChange={(event) => setEngine(event.target.value as 'local' | 'cloud')}>
+                  <option value="local">Local</option><option value="cloud">Cloud</option>
+                </select>
+              </label>
+            </div>
           </div>
 
           {busy ? (
@@ -377,7 +385,7 @@ export function Composer({ busy, onSend }: Props) {
               type="submit"
               className="send-button"
               aria-label="Send message"
-              disabled={attaching || localActive || (!text.trim() && !images.length)}
+              disabled={attaching || localStarting || localStopping || (!localActive && !text.trim() && !images.length)}
             >
               <ArrowUp size={20} />
             </button>
@@ -385,9 +393,10 @@ export function Composer({ busy, onSend }: Props) {
         </div>
       </form>
 
-      {(error || audioError || localWarning) && (
+      <small>{engine === 'local' ? 'Local transcription appears live.' : 'Cloud transcription sends short audio chunks to your configured transcription provider.'} Send from here or your phone whenever ready. Listening continues until you stop it.</small>
+      {(error || localWarning) && (
         <div className="error composer-error" role="alert">
-          {error || audioError || localWarning}
+          {error || localWarning}
         </div>
       )}
 

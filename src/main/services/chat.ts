@@ -1,3 +1,4 @@
+import { modeInstructions } from '../../shared/sessionModes';
 import { randomUUID } from 'node:crypto';
 import type { ChatEvent, ChatMessage } from '../../shared/types';
 import { Storage } from './storage';
@@ -36,6 +37,11 @@ export class ChatService {
     }
     conversation.messages.push({ id: randomUUID(), role: 'user', content: input.content, images, createdAt: now });
     const history = this.context?.history([...conversation.messages], conversation.id) ?? [...conversation.messages];
+    const guidance = modeInstructions(input.appMode ?? 'normal', input.behavioralFramework);
+    if (guidance && history.length) {
+      const last = history.length - 1;
+      history[last] = { ...history[last], content: `[Mode guidance: ${guidance}]\n\n${history[last].content}` };
+    }
     const assistant: ChatMessage = { id: randomUUID(), role: 'assistant', content: '', createdAt: now, providerName: connection.name, model: connection.model };
     conversation.messages.push(assistant);
     conversation.updatedAt = now;

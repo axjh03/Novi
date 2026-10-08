@@ -13,9 +13,9 @@ export function Sidebar({ conversations, selectedId, displayName, busy, collapse
       </button>
     </div>
 
-    <button className="new-chat" onClick={onNew} disabled={busy} title="New conversation">
+    <button className="new-chat" onClick={onNew} disabled={busy} title="New session" aria-label="New session">
       <Plus size={17} className="new-icon" />
-      {!collapsed && <><span>New conversation</span><span className="new-arrow">↗</span></>}
+      {!collapsed && <><span>New session</span><span className="new-arrow">↗</span></>}
     </button>
 
     {!collapsed && <div className="history-heading">YOUR CONVERSATIONS<span>{conversations.length || ''}</span></div>}

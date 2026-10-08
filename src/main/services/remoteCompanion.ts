@@ -1,3 +1,5 @@
+import { isAppMode } from '../../shared/sessionModes';
+import type { AppMode } from '../../shared/types';
 import http from 'node:http';
 import os from 'node:os';
 import { randomBytes } from 'node:crypto';
@@ -14,7 +16,7 @@ export class RemoteCompanionService {
   private activeClients = new Map<string, number>();
   private stealth: StealthService;
   private getWindow: () => BrowserWindow | null;
-  private currentMode: 'normal' | 'behavioral' | 'coding' = 'normal';
+  private currentMode: AppMode = 'normal';
   private currentAudioSource: 'system' | 'mic' = 'system';
   private tunnel = new CloudflareTunnelService();
   private tunnelLoading = false;
@@ -242,12 +244,20 @@ export class RemoteCompanionService {
         }
         break;
 
+      case 'toggle-listening':
+        win.webContents.send('global-action', { type: 'toggle-listening', payload: payload === 'both' || payload === 'microphone' ? payload : 'system' });
+        break;
+
+      case 'set-listening-mode':
+        if (payload === 'system' || payload === 'both' || payload === 'microphone') win.webContents.send('global-action', { type: 'set-listening-mode', payload });
+        break;
+
       case 'toggle-audio':
         win.webContents.send('global-action', { type: 'toggle-audio-record' });
         break;
 
       case 'set-app-mode':
-        if (payload === 'normal' || payload === 'behavioral' || payload === 'coding') {
+        if (isAppMode(payload)) {
           this.currentMode = payload;
           win.webContents.send('global-action', { type: 'set-app-mode', payload });
         }
@@ -358,14 +368,16 @@ export class RemoteCompanionService {
         </button>
       </div>
 
-      <!-- 4. AUDIO CONTROLS (RECORD & SOURCE SWITCH) -->
+      <!-- 4. LIVE LISTENING -->
       <div class="button-row">
-        <button type="button" class="ctrl-btn" onclick="triggerAction('toggle-audio')">
-          <span>Toggle Audio</span>
+        <button type="button" class="ctrl-btn" onclick="triggerAction('toggle-listening', document.getElementById('listeningMode').value)">
+          <span>Start / stop listening</span>
         </button>
-        <button type="button" id="btnAudioSource" class="ctrl-btn" onclick="toggleAudioSource()">
-          <span id="txtAudioSource">System Audio</span>
-        </button>
+        <select id="listeningMode" class="ctrl-btn" aria-label="Audio input" onchange="triggerAction('set-listening-mode', this.value)">
+          <option value="system">System audio</option>
+          <option value="both">Mic + system audio</option>
+          <option value="microphone">Mic only</option>
+        </select>
       </div>
 
       <!-- 5. TRANSPARENT & INTERACTIVE TOGGLES -->
@@ -424,14 +436,6 @@ export class RemoteCompanionService {
     const token = params.get('token') || localStorage.getItem('novi_companion_token') || '';
     if (token) localStorage.setItem('novi_companion_token', token);
     history.replaceState(null, '', window.location.pathname);
-    let currentAudioSource = 'system';
-
-    // 5. AUDIO SOURCE TOGGLE (System vs Mic)
-    function toggleAudioSource() {
-      const nextSource = currentAudioSource === 'system' ? 'mic' : 'system';
-      triggerAction('set-audio-source', nextSource);
-    }
-
     // 6. ACTION DISPATCH WITH LOW LATENCY
     async function triggerAction(action, payload) {
       haptic();
@@ -482,17 +486,6 @@ export class RemoteCompanionService {
       } else {
         btnInteract.classList.remove('active-state');
         txtInteract.innerText = 'Interactive';
-      }
-
-      // Audio Source
-      if (status.currentAudioSource) {
-        currentAudioSource = status.currentAudioSource;
-        const txtSrc = document.getElementById('txtAudioSource');
-        if (currentAudioSource === 'mic') {
-          txtSrc.innerText = 'Mic Audio';
-        } else {
-          txtSrc.innerText = 'System Audio';
-        }
       }
 
       // App Mode Tabs

@@ -6,23 +6,17 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
-import type { AppMode, AudioPipelineMode, ImageAttachment, Snapshot, MonitorDisplay, BehavioralFramework } from '../../../shared/types';
-import type { AudioSource } from '../../../shared/interview';
+import type { AppMode, ImageAttachment, Snapshot, MonitorDisplay, BehavioralFramework } from '../../../shared/types';
 import { unwrap } from '../services/api';
-import { useAudioRecording } from '../hooks/useAudioRecording';
 import { eyeTracking } from '../eye-tracking/EyeTrackingService';
 
+import { isAppMode } from '../../../shared/sessionModes';
+
 interface AppModeContextType {
-  localTranscriptionActive: boolean;
-  setLocalTranscriptionActive: (active: boolean) => void;
-  audioSource: AudioSource;
-  setAudioSource: (source: AudioSource) => void;
   appMode: AppMode;
   setAppMode: (mode: AppMode) => void;
   behavioralFramework: BehavioralFramework;
   setBehavioralFramework: (framework: BehavioralFramework) => void;
-  audioPipelineMode: AudioPipelineMode;
-  setAudioPipelineMode: (mode: AudioPipelineMode) => Promise<void>;
   latestScreenshot: ImageAttachment | null;
   captureScreenshot: () => Promise<ImageAttachment | null>;
   // Working Monitor
@@ -30,14 +24,6 @@ interface AppModeContextType {
   setWorkingMonitor: (displayId: number) => Promise<void>;
   monitors: MonitorDisplay[];
   refreshMonitors: () => Promise<MonitorDisplay[]>;
-  // Audio recording & live listening
-  isRecordingAudio: boolean;
-  isAudioStarting: boolean;
-  isAudioProcessing: boolean;
-  recordingSeconds: number;
-  audioLevel: number;
-  audioError: string;
-  toggleAudioRecording: () => void;
   // Fast Interview Model
   fastInterviewModel: boolean;
   setFastInterviewModel: (val: boolean) => Promise<void>;
@@ -47,9 +33,6 @@ interface AppModeContextType {
   setTransparentOpacity: (val: number) => void;
   transparentBg: string;
   setTransparentBg: (color: string) => void;
-  // Transcribed text queue for composer
-  pendingTranscript: string;
-  consumePendingTranscript: () => string;
   // Pending attached screenshot for composer
   pendingAttachment: ImageAttachment | null;
   consumePendingAttachment: () => ImageAttachment | null;
@@ -64,13 +47,10 @@ interface ProviderProps {
 }
 
 export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: ProviderProps) {
-  const [localTranscriptionActive, setLocalTranscriptionActive] = useState(false);
-  const [audioSource, setAudioSourceState] = useState<AudioSource>(() => localStorage.getItem('novi_audio_source') === 'microphone' ? 'microphone' : 'system');
-  const setAudioSource = useCallback((source: AudioSource) => { setAudioSourceState(source); localStorage.setItem('novi_audio_source', source); }, []);
   // 1. App Mode
   const [appMode, setAppModeState] = useState<AppMode>(() => {
     const saved = localStorage.getItem('novi_app_mode');
-    return saved === 'coding' || saved === 'behavioral' ? saved : 'normal';
+    return isAppMode(saved) ? saved : 'normal';
   });
 
   const setAppMode = useCallback((mode: AppMode) => {
@@ -102,37 +82,6 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
           if (onSnapshotUpdated) onSnapshotUpdated(updated);
         } catch (err) {
           console.warn('[AppMode] Failed to save behavioral framework setting:', err);
-        }
-      }
-    },
-    [snapshot?.settings, onSnapshotUpdated]
-  );
-
-  // 2. Audio Pipeline Mode: 'local_stt' | 'live_stream'
-  const [audioPipelineMode, setAudioPipelineModeState] = useState<AudioPipelineMode>(() => {
-    return snapshot?.settings?.audioPipelineMode || 'local_stt';
-  });
-
-  useEffect(() => {
-    if (snapshot?.settings?.audioPipelineMode) {
-      setAudioPipelineModeState(snapshot.settings.audioPipelineMode);
-    }
-  }, [snapshot?.settings?.audioPipelineMode]);
-
-  const setAudioPipelineMode = useCallback(
-    async (mode: AudioPipelineMode) => {
-      setAudioPipelineModeState(mode);
-      if (snapshot?.settings) {
-        try {
-          const updated = await unwrap(
-            window.novi.saveSettings({
-              ...snapshot.settings,
-              audioPipelineMode: mode,
-            })
-          );
-          if (onSnapshotUpdated) onSnapshotUpdated(updated);
-        } catch (err) {
-          console.warn('[AppMode] Failed to save pipeline mode setting:', err);
         }
       }
     },
@@ -226,7 +175,6 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
   // 4. Screenshots & Attachments
   const [latestScreenshot, setLatestScreenshot] = useState<ImageAttachment | null>(null);
   const [pendingAttachment, setPendingAttachment] = useState<ImageAttachment | null>(null);
-  const [pendingTranscript, setPendingTranscript] = useState<string>('');
 
   // 6. Fast Interview Model toggle
   const [fastInterviewModel, setFastInterviewModelState] = useState<boolean>(() => {
@@ -276,26 +224,6 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
     }
   }, []);
 
-  const handleTranscribed = useCallback((text: string) => {
-    setPendingTranscript((prev) => (prev ? `${prev} ${text}` : text));
-  }, []);
-
-  const audioRec = useAudioRecording({
-    pipelineMode: audioPipelineMode,
-    source: audioSource,
-    attachRawAudio: snapshot?.contextSession?.connection.provider === 'gemini',
-    onTranscribed: handleTranscribed,
-    onAudioAttached: (attachment) => {
-      setPendingAttachment(attachment);
-    },
-  });
-
-  const consumePendingTranscript = useCallback(() => {
-    const current = pendingTranscript;
-    setPendingTranscript('');
-    return current;
-  }, [pendingTranscript]);
-
   const consumePendingAttachment = useCallback(() => {
     const current = pendingAttachment;
     setPendingAttachment(null);
@@ -305,7 +233,7 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
   const sessionActive = Boolean(snapshot?.user && snapshot.contextSession);
   useEffect(() => {
     if (!snapshot?.user) return;
-    void unwrap(window.novi.setCodeViewerVisible(sessionActive && appMode === 'coding')).catch(console.error);
+    void unwrap(window.novi.setCodeViewerVisible(sessionActive && (appMode === 'coding' || appMode === 'system-design'))).catch(console.error);
   }, [snapshot?.user?.id, sessionActive, appMode]);
   useEffect(() => window.novi.onCodeViewerClosed(() => {
     setAppModeState((mode) => {
@@ -325,16 +253,14 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
         setAppMode(appMode === 'behavioral' ? 'normal' : 'behavioral');
       } else if (action.type === 'capture-screen') {
         void captureScreenshot();
-      } else if (action.type === 'toggle-audio-record') {
-        if (!localTranscriptionActive) audioRec.toggleRecording();
+
       } else if (action.type === 'set-app-mode' && typeof action.payload === 'string') {
-        setAppMode(action.payload as any);
-      } else if (action.type === 'set-audio-source' && typeof action.payload === 'string') {
-        setAudioSource(action.payload as any);
+        if (isAppMode(action.payload)) setAppMode(action.payload);
+
       }
     });
     return cleanup;
-  }, [sessionActive, appMode, setAppMode, captureScreenshot, audioRec, localTranscriptionActive, setAudioSource]);
+  }, [sessionActive, appMode, setAppMode, captureScreenshot]);
 
   // Window-level keydown handler for in-app shortcut execution
   useEffect(() => {
@@ -354,43 +280,27 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
       } else if (key === '3') {
         e.preventDefault();
         void captureScreenshot();
-      } else if (key === 'a') {
-        if (localTranscriptionActive) return;
-        e.preventDefault();
-        audioRec.toggleRecording();
+
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [sessionActive, appMode, setAppMode, captureScreenshot, audioRec, localTranscriptionActive]);
+  }, [sessionActive, appMode, setAppMode, captureScreenshot]);
 
   return (
     <AppModeContext.Provider
       value={{
-        localTranscriptionActive,
-        setLocalTranscriptionActive,
-        audioSource,
-        setAudioSource,
         appMode,
         setAppMode,
         behavioralFramework,
         setBehavioralFramework,
-        audioPipelineMode,
-        setAudioPipelineMode,
         latestScreenshot,
         captureScreenshot,
         workingMonitorId,
         setWorkingMonitor,
         monitors,
         refreshMonitors,
-        isRecordingAudio: audioRec.isRecording,
-        isAudioStarting: audioRec.isStarting,
-        isAudioProcessing: audioRec.isProcessing,
-        recordingSeconds: audioRec.recordingSeconds,
-        audioLevel: audioRec.audioLevel,
-        audioError: audioRec.error,
-        toggleAudioRecording: audioRec.toggleRecording,
         fastInterviewModel,
         setFastInterviewModel,
         toggleFastInterviewModel,
@@ -398,8 +308,6 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
         setTransparentOpacity,
         transparentBg,
         setTransparentBg,
-        pendingTranscript,
-        consumePendingTranscript,
         pendingAttachment,
         consumePendingAttachment,
       }}

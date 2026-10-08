@@ -8,7 +8,7 @@ import { InterviewEngine, validateFrame, type ASRStream, type StreamingASR } fro
 import { InterviewStore } from '../src/main/services/interviewStore';
 import { assertRemoteInterviewAccess } from '../src/main/services/interviewPrivacy';
 import { speakerResolver } from '../src/main/services/interviewSpeakers';
-import { updateTranscript, type InterviewEvent, type InterviewFrame, type TranscriptSegment } from '../src/shared/interview';
+import { updateTranscript, transcriptDraft, type InterviewEvent, type InterviewFrame, type TranscriptSegment } from '../src/shared/interview';
 
 class Stream implements ASRStream {
   text = ''; frames = 0;
@@ -35,6 +35,8 @@ test('live partials revise one segment, independent inputs retain roles, stop fi
     assert.equal(rendered.length, 1); assert.equal(rendered[0].text, 'Tell me'); assert.equal(rendered[0].isFinal, false);
     await engine.frame(frame(session.id, 0, 'microphone')); await engine.frame(frame(session.id, 2));
     assert.equal(rendered.length, 2); assert.equal(rendered.find(s => s.source === 'microphone')?.role, 'candidate');
+    assert.match(transcriptDraft(rendered), /Interviewer: Tell me about your experience/);
+    assert.match(transcriptDraft(rendered), /You: Tell/);
     assert.equal(store.read('owner', session.id).segments.length, 0);
     await engine.stop(); await engine.stop();
     assert.equal(events.filter(event => event.type === 'transcript:final').length, 2);
@@ -104,4 +106,16 @@ test('audio worklet sends independent 100 ms frames and bounds backlog with cred
   system.port.onmessage(); system.process(audio);
   assert.equal(sent[2].sequence, 3, 'dropped frames leave a detectable sequence gap');
   mic.process(audio); assert.equal(sent[3].sequence, 0, 'microphone has an independent clock and credit budget');
+});
+
+
+test('draft revises partials in place and retains final speaker labels for manual sending', () => {
+  const segment: TranscriptSegment = { sessionId: 'live', segmentId: 'turn', speakerId: 'system_1', role: 'interviewer', source: 'system', text: 'Tell', startTime: 0, endTime: 100, revision: 1, isFinal: false };
+  let draft = updateTranscript([], segment);
+  draft = updateTranscript(draft, { ...segment, text: 'Tell me about yourself', revision: 2 });
+  assert.equal(transcriptDraft(draft), 'Interviewer: Tell me about yourself');
+  draft = updateTranscript(draft, { ...segment, text: 'Tell me about yourself.', speakerId: 'interviewer_2', revision: 3, isFinal: true });
+  draft = updateTranscript(draft, { ...segment, segmentId: 'reply', source: 'microphone', role: 'candidate', speakerId: 'microphone_1', startTime: 200, text: "I'm an engineer", isFinal: true });
+  assert.equal(transcriptDraft(draft), "Interviewer 2: Tell me about yourself.\nYou: I'm an engineer");
+  assert.equal(transcriptDraft([]), '');
 });

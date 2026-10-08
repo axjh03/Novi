@@ -66,6 +66,7 @@ export class AudioTranscriptionService {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model.replace(/^models\//, ''))}:generateContent`;
     const response = await fetch(url, {
       method: 'POST',
+      signal: AbortSignal.timeout(30_000),
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
         contents: [
@@ -110,7 +111,7 @@ export class AudioTranscriptionService {
     const buffer = Buffer.from(cleanBase64, 'base64');
     const form = new FormData();
     const blob = new Blob([buffer], { type: mimeType });
-    form.append('file', blob, 'audio.webm');
+    form.append('file', blob, mimeType === 'audio/wav' ? 'audio.wav' : 'audio.webm');
     form.append('model', 'whisper-1');
 
     const cleanBase = baseUrl.replace(/\/+$/, '');
@@ -118,6 +119,7 @@ export class AudioTranscriptionService {
 
     const response = await fetch(url, {
       method: 'POST',
+      signal: AbortSignal.timeout(30_000),
       headers: {
         Authorization: `Bearer ${apiKey}`,
       },

@@ -30,6 +30,9 @@ async function main() {
       window.novi = {
         session: async () => ok(structuredClone(state)),
         onSessionEnded: () => () => {}, onStealthState: () => () => {},
+        onGlobalAction: () => () => {}, onCodeViewerClosed: () => () => {},
+        setCodeViewerVisible: async () => ok(undefined),
+        getMonitors: async () => ok([]), getWorkingMonitor: async () => ok({ workingMonitorId: null }),
         getStealthState: async () => ok({ transparent: false, numLock: false, clickThrough: false, clickThroughShortcut: 'Alt+Shift+I' }),
         isWindowMaximized: async () => ok(false),
         listModels: async () => fixture.discoveryFails ? { ok: false, error: 'Cannot load models. Try again.' } : ok([{ id: 'gemini-chat', name: 'Gemini Chat' }]),
@@ -43,34 +46,29 @@ async function main() {
     await page.getByText('The previous model is unavailable. Choose a model from the list.').waitFor();
     assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), '');
     assert.equal(await page.getByRole('option', { name: 'gemini3.8', exact: true }).count(), 0);
-    await page.getByRole('button', { name: 'Load context', exact: true }).click();
-    await page.getByLabel('Session purpose (required)').fill('Review the reference');
-    assert(await page.getByRole('button', { name: 'Start session', exact: true }).isDisabled());
+    await page.getByRole('button', { name: 'Instructions', exact: true }).click();
+    await page.getByLabel('Purpose').fill('Review the reference');
+    await page.getByRole('button', { name: 'Model', exact: true }).click();
+    assert(await page.getByRole('button', { name: 'Start Chat', exact: true }).isDisabled());
     await page.getByLabel('Choose model', { exact: true }).selectOption('gemini-chat');
-    await page.getByRole('button', { name: 'Start session', exact: true }).click();
+    await page.getByRole('button', { name: 'Start Chat', exact: true }).click();
     await page.getByRole('alert').filter({ hasText: 'Your API key was rejected.' }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Cancel start' }).count(), 0);
     await page.evaluate(() => { (window as any).fixture.reject = false; });
-    await page.getByRole('button', { name: 'Start session', exact: true }).click();
-    await page.getByText('Connection confirmed. Starting session in 5 seconds.', { exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Cancel start', exact: true }).click();
-    await new Promise(resolve => setTimeout(resolve, 5200));
-    assert.equal(await page.evaluate(() => (window as any).fixture.starts), 0);
-    await page.getByRole('button', { name: 'Start session', exact: true }).click();
-    for (const n of [5, 4, 3, 2, 1]) await page.getByText(`Connection confirmed. Starting session in ${n} seconds.`, { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Start Chat', exact: true }).click();
     await page.getByRole('alert').filter({ hasText: 'TEST_SESSION_STARTED' }).waitFor();
     const result = await page.evaluate(() => (window as any).fixture);
     assert.equal(result.starts, 1);
-    assert(result.started - result.confirmed >= 5000);
+    assert(result.started >= result.confirmed);
     await page.evaluate(() => { (window as any).fixture.discoveryFails = true; });
     await page.getByRole('button', { name: 'Refresh models', exact: true }).click();
     await page.getByText('Cannot load models. Try again.', { exact: true }).waitFor();
-    assert(await page.getByRole('button', { name: 'Start session', exact: true }).isDisabled());
+    assert(await page.getByRole('button', { name: 'Start Chat', exact: true }).isDisabled());
     await page.evaluate(() => { (window as any).fixture.discoveryFails = false; });
     await page.getByRole('button', { name: 'Refresh models', exact: true }).click();
     await page.waitForFunction(() => !(document.querySelector('select[aria-label="Choose model"]') as HTMLSelectElement).disabled);
     assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), 'gemini-chat');
-    console.log('Model UI passed: invalid legacy model, live dropdown, failed ping, cancellation, five-second countdown, discovery failure and retry.');
+    console.log('Model UI passed: invalid legacy model, live dropdown, failed ping, immediate startup, discovery failure and retry.');
   } finally { await browser.close(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

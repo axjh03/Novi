@@ -51,7 +51,7 @@ export class InterviewService {
       if (preferred !== 'auto' && !candidates.some(model => model.id === preferred)) throw new UserError('Download the selected speech model in Local AI setup first, or choose Automatic.');
       if (!candidates.length) throw new UserError('Download a speech model in Local AI setup first.');
       const vad = options.useVad === false ? undefined : setup.models.find(model => model.type === 'vad' && model.state === 'READY' && !model.reason);
-      const speakerModel = options.mode === 'multiple' && options.diarization ? setup.models.find(model => model.type === 'diarization' && model.state === 'READY' && !model.reason) : undefined;
+      const speakerModel = options.mode !== 'interviewer' && options.diarization ? setup.models.find(model => model.type === 'diarization' && model.state === 'READY' && !model.reason) : undefined;
       let loaded = false;
       for (const model of candidates) {
         if (this.storage.current().id !== owner) throw new UserError('Your account changed. Start the interview again.');
@@ -76,7 +76,7 @@ export class InterviewService {
             await this.launch(session, lease, options.vadThreshold);
             this.warn('Optional voice/speaker models could not load. Transcription continues with lightweight voice detection and source labels.');
           }
-          if (options.mode === 'multiple') this.warn(speakerLease ? 'Lite speaker detection is active: labels update after each turn. Overlap and within-turn speaker changes are not separated.' : 'Interviewer separation is off. Install the speaker model and enable Lite speaker detection; sufficient free memory is required.');
+          if (options.mode !== 'interviewer' && options.diarization) this.warn(speakerLease ? 'Lite speaker detection is active: labels update after each turn. Overlap and within-turn speaker changes are not separated.' : 'Interviewer separation is off. Install the speaker model and enable Lite speaker detection; sufficient free memory is required.');
           if (generation !== this.generation) throw new UserError('Interview startup was cancelled.');
           loaded = true; break;
         } catch {
@@ -164,7 +164,7 @@ export class InterviewService {
     try {
       if (event.type === 'transcript:final') {
         if (!Object.hasOwn(this.session.speakers, event.segment.speakerId)) {
-          this.session.speakers[event.segment.speakerId] = `Interviewer ${event.segment.speakerId.split('_').at(-1)}`;
+          this.session.speakers[event.segment.speakerId] = event.segment.source === 'microphone' ? 'You' : `Interviewer ${event.segment.speakerId.split('_').at(-1)}`;
           this.store.metadata(this.owner, this.session);
           this.emit(this.windowId, { type: 'speaker:update', sessionId: this.session.id, speakers: this.session.speakers });
         }

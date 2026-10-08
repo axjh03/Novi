@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import type { Conversation, SendInput } from '../../../shared/types';
 import { errorText, unwrap } from '../services/api';
 
+import { useAppMode } from '../context/AppModeContext';
+
 export function useChat(initial: Conversation[]) {
+  const { appMode, behavioralFramework } = useAppMode();
   const [conversations, setConversations] = useState(initial);
   const [selectedId, setSelectedId] = useState<string | null>(initial[0]?.id ?? null);
   const [busy, setBusy] = useState(false), [activeId, setActiveId] = useState<string | null>(null);
@@ -22,7 +25,10 @@ export function useChat(initial: Conversation[]) {
   }), []);
   async function send(input: Omit<SendInput, 'conversationId'>): Promise<boolean> {
     setError(''); setBusy(true);
-    try { await unwrap(window.novi.send({ ...input, conversationId: selectedId })); return true; }
+    try {
+      await unwrap(window.novi.send({ ...input, appMode, behavioralFramework, conversationId: selectedId }));
+      return true;
+    }
     catch (error) { setError(errorText(error)); return false; }
     finally { setBusy(false); setActiveId(null); }
   }

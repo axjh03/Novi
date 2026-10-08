@@ -3,7 +3,7 @@ import fallbackReleaseInfo from '@/lib/release-info.json';
 
 const GITHUB_REPO = 'axjh03/Novi';
 
-export const revalidate = 60; // Cache for 60 seconds
+export const revalidate = 0;
 
 export async function GET() {
   const token = process.env.GITHUB_PAT || process.env.GITHUB_TOKEN;
@@ -23,7 +23,7 @@ export async function GET() {
         Authorization: `Bearer ${token.trim()}`,
         'User-Agent': 'Novi-Web',
       },
-      next: { revalidate: 60 },
+      cache: 'no-store',
     });
 
     if (!res.ok) {

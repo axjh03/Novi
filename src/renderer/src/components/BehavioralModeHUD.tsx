@@ -1,16 +1,10 @@
-import { Eye, Volume2, Zap } from 'lucide-react';
+import { Eye, Zap } from 'lucide-react';
 import type { BehavioralFramework } from '../../../shared/types';
-import { AudioMeter } from './AudioMeter';
 
 interface Props {
+  showFramework?: boolean;
   framework: BehavioralFramework;
   onSelectFramework: (framework: BehavioralFramework) => void;
-  isRecordingAudio: boolean;
-  audioLevel: number;
-  isAudioStarting: boolean;
-  isAudioProcessing: boolean;
-  recordingSeconds: number;
-  onToggleRecording: () => void;
   fastModelActive: boolean;
   onToggleFastModel: () => void;
   fastModelName: string;
@@ -52,14 +46,9 @@ const FRAMEWORKS: {
 ];
 
 export function BehavioralModeHUD({
+  showFramework = true,
   framework,
   onSelectFramework,
-  isRecordingAudio,
-  audioLevel,
-  isAudioStarting,
-  isAudioProcessing,
-  recordingSeconds,
-  onToggleRecording,
   fastModelActive,
   onToggleFastModel,
   fastModelName,
@@ -71,12 +60,12 @@ export function BehavioralModeHUD({
 
   return (
     <div className="behavioral-copilot-bar">
-        <label className="behavioral-framework-picker">Framework
+        {showFramework && <label className="behavioral-framework-picker">Framework
           <select aria-label="Interview framework" value={framework} title={activeDef.description}
             onChange={(event) => onSelectFramework(event.target.value as BehavioralFramework)}>
             {FRAMEWORKS.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
           </select>
-        </label>
+        </label>}
 
         <div className="behavioral-bar-actions">
           {/* Eye Tracker & Screen HUD Toggle */}
@@ -112,22 +101,6 @@ export function BehavioralModeHUD({
             <span>{fastModelActive ? `Fast: ${fastModelName}` : 'Fast Model: OFF'}</span>
           </button>
 
-          {/* Live System Audio Listening Pill */}
-          <button
-            type="button"
-            className={`listen-toggle-btn ${isRecordingAudio ? 'active-stop' : 'start-btn'}`}
-            onClick={onToggleRecording}
-            disabled={isAudioStarting || isAudioProcessing}
-            title="Capture system audio (Alt+A / Option+A)"
-          >
-            <Volume2 size={12} />
-            <span>
-              {isRecordingAudio
-                ? `Listening (${Math.floor(recordingSeconds / 60)}:${(recordingSeconds % 60).toString().padStart(2, '0')})`
-                : isAudioStarting ? 'Starting…' : isAudioProcessing ? 'Processing…' : 'System audio'}
-            </span>
-            {isRecordingAudio && <AudioMeter level={audioLevel} />}
-          </button>
         </div>
     </div>
   );

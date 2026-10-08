@@ -45,6 +45,10 @@ jobs:
         env:
           TAG_NAME: ${{ inputs.tag_name || github.ref_name }}
 
+      - name: Check Windows install script
+        if: runner.os == 'Windows'
+        run: node --import tsx --test tests/windows-installer.test.ts
+
       - name: Build and Package
         run: |
           npm run build

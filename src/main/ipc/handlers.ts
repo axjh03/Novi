@@ -86,8 +86,8 @@ export function registerIPC(
           if (!window) throw new UserError('Interview window unavailable.');
           return { ok: true, value: await get().interview.frame(value, window.id) };
         }
-        if (get().interview.active && ['send', 'save-audio-recording', 'attach-audio-recording', 'transcribe-audio', 'capture-screen'].includes(channel)) {
-          throw new UserError('Cloud chat, screenshots, and the old audio recorder are paused during a local interview.');
+        if (get().interview.active && ['save-audio-recording', 'attach-audio-recording', 'transcribe-audio'].includes(channel)) {
+          throw new UserError('Stop local listening before using cloud audio transcription or recording.');
         }
         const publicChannels = [
           'session', 'sign-in', 'sign-out', 'minimize-window', 'maximize-window',
@@ -398,7 +398,7 @@ export function registerIPC(
     const height = Math.min(700, area.height);
     const viewer = new BrowserWindow({
       x: area.x, y: area.y + Math.round((area.height - height) / 2), width, height,
-      minWidth: 300, minHeight: 240, show: false, frame: false, resizable: true, title: 'Novi Code Viewer',
+      minWidth: 300, minHeight: 240, show: false, frame: false, resizable: true, title: 'Novi Viewer',
       transparent: true, backgroundColor: '#00000000', autoHideMenuBar: true,
       webPreferences: { preload: preloadPath, contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true },
     });

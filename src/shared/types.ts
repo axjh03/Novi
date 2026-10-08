@@ -6,7 +6,7 @@ export type AudioPipelineMode = 'local_stt' | 'live_stream';
 const isMacPlatform = typeof process !== 'undefined' && process.platform ? process.platform === 'darwin' : (typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform));
 export const DEFAULT_CLICK_THROUGH_SHORTCUT = isMacPlatform ? 'Option+Control+I' : 'Shift+Home';
 export const DEFAULT_TRANSPARENT_SHORTCUT = isMacPlatform ? 'Option+Control+T' : 'Home+PageUp';
-export type AppMode = 'normal' | 'coding' | 'behavioral';
+export type AppMode = 'normal' | 'coding' | 'behavioral' | 'recruiter' | 'technical' | 'system-design';
 export type BehavioralFramework = 'smart' | 'star' | 'car' | 'par' | 'soar';
 export const DEFAULT_CODING_SHORTCUT = 'Alt+C';
 export const DEFAULT_BEHAVIORAL_SHORTCUT = 'Alt+B';
@@ -84,7 +84,7 @@ export interface SettingsInput {
   autoStartEmptySession?: boolean;
   localASRModelId?: string;
 }
-export interface SendInput { conversationId: string | null; content: string; imageIds: string[] }
+export interface SendInput { appMode?: AppMode; behavioralFramework?: BehavioralFramework; conversationId: string | null; content: string; imageIds: string[] }
 export type ChatEvent =
   | { type: 'started'; conversation: Conversation }
   | { type: 'delta'; conversationId: string; messageId: string; text: string }

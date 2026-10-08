@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check, Code2, Copy, X } from 'lucide-react';
 import type { ChatMessage, CodeViewerBlock } from '../../../shared/types';
 import { unwrap } from '../services/api';
+import { MermaidDiagram } from './MermaidDiagram';
 import { useStealth } from '../hooks/useStealth';
 
 type CodeToken = { kind: 'plain' | 'comment' | 'string' | 'keyword' | 'number' | 'type' | 'function' | 'property' | 'operator'; text: string };
@@ -88,6 +89,8 @@ export function DetachedCodeViewer() {
 }
 
 function CodingModeHUD({ blocks }: { blocks: CodeViewerBlock[] }) {
+  const [hidden, setHidden] = useState<string[]>([]);
+  const diagrams = blocks.some((block) => block.language === 'mermaid') || localStorage.getItem('novi_app_mode') === 'system-design';
   const [copied, setCopied] = useState<string | null>(null);
   const [language, setLanguage] = useState(() => localStorage.getItem('novi_code_language') || 'auto');
 
@@ -100,18 +103,22 @@ function CodingModeHUD({ blocks }: { blocks: CodeViewerBlock[] }) {
     }
   }
 
-  return <section className="code-viewer" aria-label="Code viewer">
-    <header className="code-viewer-header"><Code2 size={15} /><strong>Code viewer</strong><select className="code-viewer-language" aria-label="Code language" value={language} onChange={(event) => { setLanguage(event.target.value); localStorage.setItem('novi_code_language', event.target.value); }}>
+  return <section className={`code-viewer ${diagrams ? 'diagram-viewer' : ''}`} aria-label={diagrams ? 'Diagram viewer' : 'Code viewer'}>
+    <header className="code-viewer-header"><Code2 size={15} /><strong>{diagrams ? 'Diagrams' : 'Code viewer'}</strong>{!diagrams && <select className="code-viewer-language" aria-label="Code language" value={language} onChange={(event) => { setLanguage(event.target.value); localStorage.setItem('novi_code_language', event.target.value); }}>
       <option value="auto">Auto (Smart)</option>{['javascript', 'typescript', 'python', 'java', 'c', 'cpp', 'csharp', 'go', 'rust', 'html', 'css', 'json', 'sql', 'shell', 'yaml'].map((item) => <option key={item} value={item}>{item}</option>)}
-    </select><span>{blocks.length ? `${blocks.length} ${blocks.length === 1 ? 'block' : 'blocks'}` : ''}</span><button className="code-viewer-close" type="button" aria-label="Close code viewer" onClick={() => void unwrap(window.novi.closeWindow())}><X size={15} /></button></header>
+    </select>}<span>{blocks.length ? `${blocks.length} ${diagrams ? 'diagrams' : 'blocks'}` : ''}</span><button className="code-viewer-close" type="button" aria-label={diagrams ? 'Close diagram window' : 'Close code viewer'} onClick={() => void unwrap(window.novi.closeWindow())}><X size={15} /></button></header>
     <div className="code-viewer-scroll">
-      {blocks.map((block) => <article className="code-viewer-file" key={block.id}>
+      {diagrams && <p>Diagrams are saved in chat. Close a diagram below to hide it here; reopen it from this list.</p>}
+      {diagrams && hidden.length > 0 && <button type="button" className="secondary" onClick={() => setHidden([])}>Reopen closed diagrams</button>}
+      {diagrams && !blocks.length && <p>Use “Draw / update diagram” in chat after adding your question, audio transcript, or images.</p>}
+      {blocks.filter((block) => !hidden.includes(block.id)).map((block) => <article className="code-viewer-file" key={block.id}>
         <div className="code-viewer-file-header"><span title={block.label}>{block.label}</span>
           <button type="button" className="code-viewer-copy" onClick={() => void copy(block.id, block.code)} aria-label={`Copy ${block.label}`}>
             {copied === block.id ? <Check size={13} /> : <Copy size={13} />}{copied === block.id ? 'Copied' : 'Copy'}
           </button>
+          {block.language === 'mermaid' && <button type="button" className="icon-button" aria-label={`Close ${block.label}`} onClick={() => setHidden((ids) => [...ids, block.id])}><X size={13} /></button>}
         </div>
-        <pre><code className="syntax-code">{tokenizeCode(block.code, language === 'auto' ? block.language : language).map((token, index) => token.kind === 'plain' ? token.text : <span className={`syntax-${token.kind}`} key={index}>{token.text}</span>)}</code></pre>
+        {block.language === 'mermaid' ? <MermaidDiagram code={block.code} /> : <pre><code className="syntax-code">{tokenizeCode(block.code, language === 'auto' ? block.language : language).map((token, index) => token.kind === 'plain' ? token.text : <span className={`syntax-${token.kind}`} key={index}>{token.text}</span>)}</code></pre>}
       </article>)}
     </div>
   </section>;

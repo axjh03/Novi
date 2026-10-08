@@ -1,4 +1,4 @@
-import type { ContextInput } from '../../../shared/types';
+import type { AppMode } from '../../../shared/types';
 
 interface InstructionPreset {
   name: string;
@@ -22,7 +22,7 @@ export const SESSION_ROLES: Array<{ name: string; perspective: string; presets: 
       {
         name: 'System design', description: 'Requirements, architecture, scale, and tradeoffs.',
         background: 'For design interviews, establish functional requirements, scale, latency, and consistency needs. State assumptions when measurements are unavailable. Start with a simple working design, then discuss the first bottleneck.',
-        output: 'Use short sections: Requirements, Design, Data flow, Tradeoffs, and Failure handling. Include a compact text diagram and rough capacity estimates with units when useful. Aim for 300-450 words initially; expand one area per follow-up.',
+        output: 'Use short sections: Requirements, Design, Data flow, Tradeoffs, and Failure handling. Include a Mermaid diagram when requested and rough capacity estimates with units when useful. Aim for 300-450 words initially; expand one area per follow-up.',
         constraints: 'Explain component responsibilities and unfamiliar terms in plain English. Justify databases, queues, caches, and partitioning from requirements. Cover security, observability, and recovery. Mark estimates as assumptions; avoid invented traffic numbers presented as facts.',
       },
       {
@@ -112,7 +112,7 @@ export const SESSION_ROLES: Array<{ name: string; perspective: string; presets: 
       {
         name: 'Data platform design', description: 'Ingestion, storage, orchestration, and reliability.',
         background: 'Clarify consumers, freshness, retention, throughput, and availability requirements. Start with a minimal end-to-end architecture and identify its scaling limits.',
-        output: 'Use Requirements, Data flow, Storage, Reliability, and Tradeoffs. Include a compact text diagram, partitioning strategy, and recovery/backfill plan. Compare one credible alternative. Aim for 300-450 words.',
+        output: 'Use Requirements, Data flow, Storage, Reliability, and Tradeoffs. Include a Mermaid diagram when requested, partitioning strategy, and recovery/backfill plan. Compare one credible alternative. Aim for 300-450 words.',
         constraints: 'Define platform terminology. Justify technology choices with workload needs and operational cost. Cover schema evolution, access control, lineage, and observability. Treat scale numbers as assumptions and do not promise exactly-once behavior without explaining its scope.',
       },
       {
@@ -134,8 +134,15 @@ export const SESSION_ROLES: Array<{ name: string; perspective: string; presets: 
 export function presetFields(role: typeof SESSION_ROLES[number], preset: InstructionPreset): Array<{ label: string; value: string }> {
   return [
     { label: 'Role / perspective', value: role.perspective },
-    { label: 'Background', value: preset.background },
-    { label: 'Output format', value: preset.output },
-    { label: 'Constraints', value: preset.constraints },
+    { label: 'Level / experience', value: '' },
+    { label: 'Output format', value: `${preset.background} ${preset.output} ${preset.constraints}` },
+    { label: 'Additional instructions', value: '' },
   ];
+}
+
+export function presetMode(name: string): AppMode {
+  if (/system design|pipeline/i.test(name)) return 'system-design';
+  if (/coding|SQL|debug|modeling/i.test(name)) return 'coding';
+  if (/behavioral|experience|incident/i.test(name)) return 'behavioral';
+  return 'technical';
 }

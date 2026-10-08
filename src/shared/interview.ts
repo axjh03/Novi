@@ -49,3 +49,31 @@ export function updateTranscript(segments: TranscriptSegment[], incoming: Transc
   if (previous.sessionId !== incoming.sessionId || previous.isFinal || incoming.revision <= previous.revision) return segments;
   const next = [...segments]; next[index] = incoming; return next;
 }
+
+export function transcriptDraft(segments: TranscriptSegment[]): string {
+  return segments.map(segment => {
+    const speaker = segment.source === 'microphone' ? 'You' : segment.speakerId.startsWith('interviewer_') ? `Interviewer ${segment.speakerId.slice('interviewer_'.length)}` : 'Interviewer';
+    return `${speaker}: ${segment.text}`;
+  }).join('\n');
+}
+
+export type ListeningSource = AudioSource | 'both';
+export const listeningSources = (source: ListeningSource): AudioSource[] => source === 'both' ? ['system', 'microphone'] : [source];
+
+// Track already-sent words so later partial/final revisions cannot resend a turn.
+export class LiveTranscriptDraft {
+  private segments: TranscriptSegment[] = [];
+  private consumed = new Map<string, number>();
+  private prefix = '';
+  update(segment: TranscriptSegment) { this.segments = updateTranscript(this.segments, segment); return this.value(); }
+  value() {
+    const remaining = this.segments.map(segment => ({ ...segment, text: segment.text.trim().split(/\s+/).slice(this.consumed.get(segment.segmentId) || 0).join(' ') })).filter(segment => segment.text);
+    return [this.prefix, transcriptDraft(remaining)].filter(Boolean).join('\n');
+  }
+  edit(text: string) {
+    for (const segment of this.segments) this.consumed.set(segment.segmentId, segment.text.trim().split(/\s+/).length);
+    this.prefix = text;
+  }
+  take() { const text = this.value(); this.edit(''); return text; }
+  restore(text: string) { this.prefix = [text, this.prefix].filter(Boolean).join('\n'); return this.value(); }
+}

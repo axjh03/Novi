@@ -36,7 +36,7 @@ test('context seeds new chats while saved history survives sessions without raw 
   context.begin({ folderIds: [folders[0].id], purpose: 'Review Cedar UI', fields });
   assert.match(context.prompt, /CONFIDENTIAL_REFERENCE/);
   assert.match(context.prompt, /time and space complexity/);
-  assert.match(context.prompt, /Constraints: CUSTOM_CONSTRAINT/);
+  assert.match(context.prompt, /Additional instructions: CUSTOM_CONSTRAINT/);
   assert(!context.prompt.includes('DO_NOT_SEND'));
   const requests: Array<{ messages: Array<{ content: string }> }> = [];
   t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
@@ -52,7 +52,7 @@ test('context seeds new chats while saved history survives sessions without raw 
   await chat.send({ conversationId: null, content: 'What color?', imageIds: [] }, () => {});
   assert.equal(requests[1].messages.length, 3);
   assert.match(requests[1].messages[0].content, /CONFIDENTIAL_REFERENCE/);
-  assert.match(requests[1].messages[0].content, /Constraints: CUSTOM_CONSTRAINT/);
+  assert.match(requests[1].messages[0].content, /Additional instructions: CUSTOM_CONSTRAINT/);
   assert.equal(requests[1].messages[2].content, 'What color?');
   assert.equal(storage.conversations.length, 3);
   assert(!readFileSync(storage.file, 'utf8').includes('CONFIDENTIAL_REFERENCE'));
@@ -60,12 +60,18 @@ test('context seeds new chats while saved history survives sessions without raw 
   await chat.send({ conversationId: summaryId, content: 'Any gaps?', imageIds: [] }, () => {});
   assert.match(requests[2].messages[0].content, /CONFIDENTIAL_REFERENCE/);
   assert.equal(requests[2].messages.at(-1)?.content, 'Any gaps?');
+  await chat.send({ conversationId: null, content: 'Tell me about yourself', imageIds: [], appMode: 'recruiter' }, () => {});
+  assert.match(requests.at(-1)!.messages.at(-1)!.content, /30–60 second/);
+  assert.match(requests.at(-1)!.messages[0].content, /Additional instructions: CUSTOM_CONSTRAINT/);
+  const savedConversation = storage.conversations.at(-1)!;
+  assert.equal(savedConversation.title, 'Tell me about yourself');
+  assert.equal(savedConversation.messages[0].content, 'Tell me about yourself');
   context.end();
   assert(!existsSync(context.summaryPath));
   assert.equal(storage.sessionConversations, null);
   assert.equal(storage.current().conversations[0].id, 'legacy');
   const reopened = new Storage(storage.directory);
-  assert.equal(reopened.current().conversations.length, 3);
+  assert.equal(reopened.current().conversations.length, 4);
   assert(reopened.current().conversations.some((conversation: Conversation) => conversation.messages.some((message: ChatMessage) => message.content === 'What color?')));
   assert(!readFileSync(reopened.file, 'utf8').includes('CONFIDENTIAL_REFERENCE'));
   assert.match(readFileSync(join(source, 'reference.txt'), 'utf8'), /CONFIDENTIAL_REFERENCE/);
@@ -140,4 +146,22 @@ test('empty context session starts immediately and supports chatting without sou
   context.end();
   assert.equal(context.session, null);
   assert.throws(() => context.assertActive(), /Start a context session first/);
+});
+
+test('instructions without source folders are retained in new conversations', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'novi-instructions-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const storage = new Storage(root);
+  await new LocalAuthService(storage).signUp('Test', 'instructions@example.com', 'test-password');
+  storage.current().settings.connections = [{ id: 'local', name: 'Local', provider: 'compatible', baseUrl: 'http://localhost:11434', model: 'test', enabled: true }];
+  storage.current().settings.activeConnectionId = 'local';
+  const context = new ContextService(storage);
+  const fields = presetFields(SESSION_ROLES[0], SESSION_ROLES[0].presets[0]);
+  fields[1].value = 'Senior, 8 years';
+  fields[3].value = 'Answer in Spanish';
+  context.begin({ folderIds: [], purpose: 'Recruiter call', fields });
+  assert.match(context.prompt, /Senior, 8 years/);
+  assert.match(context.prompt, /Answer in Spanish/);
+  assert.equal(context.assertActive().status, 'pending');
+  assert.throws(() => context.begin({ folderIds: [], purpose: 'Duplicate', fields }), /already active/);
 });

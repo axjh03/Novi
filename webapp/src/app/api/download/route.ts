@@ -20,7 +20,7 @@ export async function GET(req: Request) {
         Authorization: `Bearer ${token.trim()}`,
         'User-Agent': 'Novi-Download-Proxy',
       },
-      next: { revalidate: 30 },
+      cache: 'no-store',
     });
 
     if (!relRes.ok) {

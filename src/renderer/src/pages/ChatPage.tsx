@@ -13,20 +13,17 @@ import { EyeTrackingPanel } from '../components/EyeTrackingPanel';
 import { unwrap, errorText } from '../services/api';
 import { useAppMode } from '../context/AppModeContext';
 import { codeFromMessages } from '../components/CodingModeHUD';
+import { SESSION_MODES } from '../../../shared/sessionModes';
+import { diagramBlocks } from '../../../shared/diagrams';
 import { BehavioralModeHUD } from '../components/BehavioralModeHUD';
 
 export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSaved: (state: Snapshot) => void; onSignOut: () => void }) {
   const chat = useChat(state.conversations), [settings, setSettings] = useState(false), [deleting, setDeleting] = useState<string | null>(null);
+  const [composerKey, setComposerKey] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const {
     appMode,
     setAppMode,
-    isRecordingAudio,
-    audioLevel,
-    isAudioStarting,
-    isAudioProcessing,
-    recordingSeconds,
-    toggleAudioRecording,
     fastInterviewModel,
     toggleFastInterviewModel,
     behavioralFramework,
@@ -61,8 +58,8 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   useEffect(() => { if (atBottom.current && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight; }, [chat.selected?.messages]);
   useEffect(() => { atBottom.current = true; if (scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight; }, [chat.selectedId]);
   useEffect(() => {
-    if (appMode !== 'coding') return;
-    void unwrap(window.novi.updateCodeViewer(codeFromMessages(chat.selected?.messages || []))).catch(console.error);
+    if (appMode !== 'coding' && appMode !== 'system-design') return;
+    void unwrap(window.novi.updateCodeViewer(appMode === 'system-design' ? diagramBlocks(chat.selected?.messages || []) : codeFromMessages(chat.selected?.messages || []))).catch(console.error);
   }, [appMode, chat.selected?.messages, chat.selectedId]);
 
   // ── Eye tracking ──────────────────────────────────────────────────────────
@@ -71,13 +68,13 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
 
   // In behavioral mode, automatically route assistant answers into the HUD
   useEffect(() => {
-    if (appMode !== 'behavioral') return;
+    if (!['behavioral', 'recruiter', 'technical'].includes(appMode)) return;
     const messages = chat.selected?.messages || [];
     const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
     if (lastAssistant && lastAssistant.content.trim()) {
       et.sendStickyToOverlay(
         lastAssistant.content,
-        `Interview Copilot (${behavioralFramework.toUpperCase()})`
+        `${SESSION_MODES.find((mode) => mode.id === appMode)?.name} ${appMode === 'behavioral' ? `(${behavioralFramework.toUpperCase()})` : ''}`
       );
     }
   }, [appMode, chat.selected?.messages, behavioralFramework, et]);
@@ -102,14 +99,14 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
       if (lastAssistant?.content.trim()) {
         et.sendStickyToOverlay(
           lastAssistant.content,
-          `Interview Copilot (${behavioralFramework.toUpperCase()})`
+          `${SESSION_MODES.find((mode) => mode.id === appMode)?.name} ${appMode === 'behavioral' ? `(${behavioralFramework.toUpperCase()})` : ''}`
         );
       }
     } else {
       et.stop();
       await et.closeOverlay();
     }
-  }, [et, chat.selected?.messages, behavioralFramework]);
+  }, [et, chat.selected?.messages, behavioralFramework, appMode]);
 
   // ──────────────────────────────────────────────────────────────────────────
 
@@ -192,8 +189,8 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
         selectedId={chat.selectedId}
         displayName={config.displayName}
         busy={sidebarBusy || syncingModel}
-        onNew={() => { chat.setSelectedId(null); setSettings(false); chat.setError(''); }}
-        onSelect={(id) => { chat.setSelectedId(id); setSettings(false); chat.setError(''); }}
+        onNew={() => void endSession()}
+        onSelect={(id) => { if (id !== chat.selectedId) setComposerKey(key => key + 1); chat.setSelectedId(id); setSettings(false); chat.setError(''); }}
         onDelete={setDeleting}
         onSettings={() => setSettings(true)}
       />
@@ -240,16 +237,14 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
               </div>
             </div>
             <nav className="chat-mode-tabs" aria-label="Conversation mode">
-              {([
-                ['normal', 'Chat', MessageSquare],
-                ['coding', 'Code', Code2],
-                ['behavioral', 'Interview', Award],
-              ] as const).map(([mode, label, Icon]) => (
+              {SESSION_MODES.map(({ id: mode, name: label }) => {
+                const Icon = mode === 'coding' ? Code2 : mode === 'normal' ? MessageSquare : Award;
+                return (
                 <button key={mode} type="button" className={`mode-tab-btn ${appMode === mode ? 'active' : ''}`}
                   aria-label={label} title={label} aria-pressed={appMode === mode} onClick={() => setAppMode(mode)}>
                   <Icon size={14} /><span>{label}</span>
                 </button>
-              ))}
+              ); })}
             </nav>
             <div className="session-controls"><span title="Temporary session context">{state.contextSession?.isEmpty ? 'Empty session' : state.contextSession?.summaryReady ? 'Ready' : state.contextSession?.status === 'error' ? 'Context error' : 'Loading context…'}</span><button className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button></div>
             {/* Eye tracking controls in header */}
@@ -278,16 +273,11 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
           </header>
 
           {/* Integrated Behavioral Mode Copilot Bar (All in One Right Side - No Left Tab) */}
-          {appMode === 'behavioral' && (
+          {['behavioral', 'recruiter', 'technical'].includes(appMode) && (
             <BehavioralModeHUD
+              showFramework={appMode === 'behavioral'}
               framework={behavioralFramework}
               onSelectFramework={setBehavioralFramework}
-              isRecordingAudio={isRecordingAudio}
-              audioLevel={audioLevel}
-              isAudioStarting={isAudioStarting}
-              isAudioProcessing={isAudioProcessing}
-              recordingSeconds={recordingSeconds}
-              onToggleRecording={toggleAudioRecording}
               fastModelActive={fastInterviewModel}
               onToggleFastModel={async () => {
                 const willBeActive = !fastInterviewModel;
@@ -304,6 +294,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             />
           )}
 
+          {appMode === 'system-design' && <button type="button" className="secondary" onClick={() => void unwrap(window.novi.setCodeViewerVisible(true)).then(() => unwrap(window.novi.updateCodeViewer(diagramBlocks(chat.selected?.messages || [])))).catch((error) => chat.setError(errorText(error)))}>Open diagrams · saved with this conversation</button>}
           {chat.selected ? (
             <div className="conversation-scroll" ref={scroll} onScroll={() => { const el = scroll.current!; atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }}>
               <div className="messages">
@@ -331,7 +322,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
               </div>
             )}
             <Composer
-              key={chat.selectedId || 'new'}
+              key={composerKey}
               busy={chat.busy || contextBusy || ending || syncingModel}
               onSend={(content, images) => chat.send({ content, imageIds: images.map((image) => image.id) })}
             />

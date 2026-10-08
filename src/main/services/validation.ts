@@ -1,3 +1,4 @@
+import { isAppMode } from '../../shared/sessionModes';
 import { DEFAULT_CLICK_THROUGH_SHORTCUT, DEFAULT_TRANSPARENT_SHORTCUT, type ConnectionInput, type ProviderKind, type SettingsInput, type SendInput } from '../../shared/types';
 import { PROVIDERS } from '../../shared/providers.ts';
 
@@ -92,6 +93,13 @@ export function sendInput(value: unknown): SendInput {
   if (!Array.isArray(input.imageIds) || input.imageIds.length > 6) throw new UserError('Attach up to 6 images per message.');
   const imageIds = input.imageIds.map((id) => text(id, 'image ID', 100));
   if (!content && !imageIds.length) throw new UserError('Write a message or attach an image.');
-  return { content, imageIds, conversationId: input.conversationId === null ? null : text(input.conversationId, 'conversation ID', 100) };
+  if (input.appMode !== undefined && !isAppMode(input.appMode)) throw new UserError('Choose a valid mode.');
+  if (input.behavioralFramework !== undefined && !['smart', 'star', 'car', 'par', 'soar'].includes(String(input.behavioralFramework))) throw new UserError('Choose a valid interview framework.');
+  return {
+    content, imageIds,
+    conversationId: input.conversationId === null ? null : text(input.conversationId, 'conversation ID', 100),
+    ...(input.appMode === undefined ? {} : { appMode: input.appMode as SendInput['appMode'] }),
+    ...(input.behavioralFramework === undefined ? {} : { behavioralFramework: input.behavioralFramework as SendInput['behavioralFramework'] }),
+  };
 }
 export const conversationTitle = (content: string) => content.trim().replace(/\s+/g, ' ').slice(0, 60) || 'Image conversation';

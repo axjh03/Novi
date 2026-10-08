@@ -3135,3 +3135,14 @@ html.transparent-mode #root {
 .companion-card footer { border-top: 1px solid #333; margin-top: 16px; padding-top: 14px; }
 .companion-card small { font-size: 11px; color: #aaa; }
 .companion-card footer button { background: #eee; color: #111; }
+
+/* The diagram window keeps its native transparent background even outside stealth mode. */
+.diagram-viewer { background: color-mix(in srgb, var(--transparent-bg, #0f172a) var(--transparent-opacity, 35%), transparent); color: #e5e7eb; }
+.diagram-viewer .code-viewer-file, .diagram-viewer .code-viewer-header, .diagram-viewer .code-viewer-file-header { background: #0f172a55; color: #e5e7eb; }
+.mermaid-diagram { padding: 12px; overflow: auto; }
+.mermaid-diagram svg { display: block; min-width: 360px; width: 100%; height: auto; background: transparent; }
+.chat-mode-tabs { flex-wrap: wrap; }
+html:has(.diagram-viewer), body:has(.diagram-viewer), #root:has(.diagram-viewer) { background: transparent; }
+.transcription-engine { display: inline-flex; align-items: center; gap: 5px; margin: 0; }
+.composer-local-control > select, .transcription-engine select { width: auto; min-height: 30px; padding: 4px 6px; font-size: 12px; }
+.composer-local-control { flex-wrap: wrap; }
