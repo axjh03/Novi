@@ -16,6 +16,9 @@ import { captureScreenBuffer } from '../services/screenCapture';
 import { AudioTranscriptionService } from '../services/audioTranscription';
 import { AppUpdater } from '../services/updater';
 import { PermissionService } from '../services/permissions';
+import { detectHardware, ModelManager } from '../services/localModels.mjs';
+import { InterviewService } from '../services/interviewService';
+import { dirname, join } from 'node:path';
 
 export function registerIPC(
   rendererUrl: string,
@@ -34,7 +37,18 @@ export function registerIPC(
     const context = new ContextService(storage);
     const audio = new AudioService(storage.directory);
     const transcription = new AudioTranscriptionService(storage, credentials);
-    return { storage, credentials, images, context, audio, transcription, connections: new ConnectionService(storage, credentials), auth: new ManagedAuthService(storage, credentials), chat: new ChatService(storage, credentials, images, context), overlay, stealth };
+    const localModels = new ModelManager(storage.directory, {
+      onProgress: status => {
+        const window = getMainWindow();
+        if (window && !window.isDestroyed()) window.webContents.send('local-model-progress', status);
+      },
+      log: event => console.info(JSON.stringify({ scope: 'local-ai', ...event })),
+    });
+    const interview = new InterviewService(storage, localModels, join(dirname(preloadPath), '../main/interviewWorker.js'), (windowId, event) => {
+      const window = BrowserWindow.fromId(windowId);
+      if (window && !window.isDestroyed()) window.webContents.send('interview-event', event);
+    });
+    return { storage, credentials, images, context, audio, transcription, localModels, interview, connections: new ConnectionService(storage, credentials), auth: new ManagedAuthService(storage, credentials), chat: new ChatService(storage, credentials, images, context), overlay, stealth };
   }
   const get = () => services ||= initialize();
   const requireNoContext = () => { if (get().context.session) throw new UserError('End this session before changing accounts or AI providers.'); };
@@ -61,6 +75,16 @@ export function registerIPC(
         const baseSender = frameUrl.split('#')[0];
         const isTrusted = baseSender === baseTarget;
         if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || !isTrusted) throw new UserError('Untrusted application request.');
+        // Small, bounded PCM frames belong to a previously authorized interview.
+        // Never make a license/network request for every 100 ms of local audio.
+        if (channel === 'interview-frame') {
+          const window = BrowserWindow.fromWebContents(event.sender);
+          if (!window) throw new UserError('Interview window unavailable.');
+          return { ok: true, value: await get().interview.frame(value, window.id) };
+        }
+        if (get().interview.active && ['send', 'save-audio-recording', 'attach-audio-recording', 'transcribe-audio', 'capture-screen'].includes(channel)) {
+          throw new UserError('Cloud chat, screenshots, and the old audio recorder are paused during a local interview.');
+        }
         const publicChannels = [
           'session', 'sign-in', 'sign-out', 'minimize-window', 'maximize-window',
           'close-window', 'is-window-maximized', 'get-stealth-state', 'check-for-updates',
@@ -89,6 +113,29 @@ export function registerIPC(
       }
     });
   };
+  handle('interview-frame', () => {});
+  handle('interview-start', (value, event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window || window !== getMainWindow()) throw new UserError('Start interviews in the main application window.');
+    return get().interview.start(value, window.id);
+  });
+  handle('interview-stop', (_value, event) => { get().interview.assertOwner(BrowserWindow.fromWebContents(event.sender)?.id || 0); return get().interview.stop(); });
+  handle('interview-list', () => get().interview.list());
+  handle('interview-read', value => get().interview.read(text(value, 'interview ID', 64)));
+  handle('interview-rename', value => { const input = object(value); return get().interview.rename(text(input.sessionId, 'interview ID', 64), text(input.speakerId, 'speaker ID', 64), text(input.name, 'speaker name', 60)); });
+  handle('local-ai-setup', async () => {
+    const { storage, localModels } = get();
+    const gpu = await app.getGPUInfo('basic').catch(() => ({}));
+    return localModels.snapshot(await detectHardware(storage.directory, gpu), storage.current().settings.localASRModelId || 'auto');
+  });
+  handle('local-asr-select', value => {
+    const modelId = text(value, 'speech model ID', 80);
+    if (modelId !== 'auto' && !get().localModels.registry.some((model: { id: string; type: string }) => model.id === modelId && model.type === 'asr')) throw new UserError('Choose a registered speech model.');
+    const account = get().storage.current(); account.settings.localASRModelId = modelId; get().storage.save(); return snapshot();
+  });
+  handle('local-model-download', value => get().localModels.download(text(value, 'model ID', 80)));
+  handle('local-model-cancel', value => get().localModels.cancel(text(value, 'model ID', 80)));
+  handle('local-model-delete', value => get().localModels.remove(text(value, 'model ID', 80)));
   handle('check-permissions', () => permissionsService.checkPermissions());
   handle('request-permissions', (value) => permissionsService.requestPermissions(Array.isArray(value) ? value as any : undefined));
   handle('session', snapshot);
@@ -138,6 +185,7 @@ export function registerIPC(
   });
   async function endContext() {
     const { chat, context, images, overlay } = get();
+    await get().interview.stop(true);
     codeViewerVisible = false;
     codeViewerBlocks = [];
     if (codeViewerWindow && !codeViewerWindow.isDestroyed()) codeViewerWindow.hide();
@@ -473,9 +521,10 @@ export function registerIPC(
   let quitting = false;
   app.on('before-quit', (event) => {
     clearInterval(heartbeat);
+    void services?.localModels.shutdown();
     if (services?.auth.signedIn && !quitting) {
       event.preventDefault(); quitting = true;
-      void services.auth.signOut().finally(() => app.quit());
+      void services.interview.stop(true).finally(() => services!.auth.signOut()).finally(() => app.quit());
     }
     services?.chat.stop();
     services?.context.end();

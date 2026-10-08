@@ -66,6 +66,19 @@ Image messages require a vision-capable model. Desktop accounts can select and d
 
 ## Architecture
 
+### Local interview work in progress
+
+**Settings → Local AI** now provides hardware discovery and a versioned local
+model downloader with checksum verification, resumable downloads, and deletion.
+**Local interview** in session setup or chat opens the separate streaming
+system/microphone transcription workflow, with local recovery and optional
+turn-level speaker labeling. Real-device inference/capture validation is still
+pending. Local LLM analysis and offline account access are not enabled yet.
+Existing chat audio still uses the configured cloud provider. See [implementation status](docs/local-ai.md)
+and [inspected architecture](docs/existing-architecture.md).
+
+Run the dependency-free model checks with `npm run test:local-models`.
+
 ```text
 src/
   main/

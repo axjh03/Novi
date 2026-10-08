@@ -12,6 +12,7 @@ import { useAudioRecording } from '../hooks/useAudioRecording';
 import { eyeTracking } from '../eye-tracking/EyeTrackingService';
 
 interface AppModeContextType {
+  setLocalInterviewOpen: (open: boolean) => void;
   appMode: AppMode;
   setAppMode: (mode: AppMode) => void;
   behavioralFramework: BehavioralFramework;
@@ -65,6 +66,7 @@ interface ProviderProps {
 }
 
 export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: ProviderProps) {
+  const [localInterviewOpen, setLocalInterviewOpen] = useState(false);
   // 1. App Mode
   const [appMode, setAppModeState] = useState<AppMode>(() => {
     const saved = localStorage.getItem('novi_app_mode');
@@ -347,7 +349,7 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
     return current;
   }, [pendingAttachment]);
 
-  const sessionActive = Boolean(snapshot?.user && snapshot.contextSession);
+  const sessionActive = Boolean(snapshot?.user && snapshot.contextSession && !localInterviewOpen);
   useEffect(() => {
     if (!snapshot?.user) return;
     void unwrap(window.novi.setCodeViewerVisible(sessionActive && appMode === 'coding')).catch(console.error);
@@ -408,6 +410,7 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
   return (
     <AppModeContext.Provider
       value={{
+        setLocalInterviewOpen,
         appMode,
         setAppMode,
         behavioralFramework,

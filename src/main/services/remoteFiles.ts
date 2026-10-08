@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { deflateRawSync } from 'node:zlib';
 import type { FileCommand, FileItem, FileResponse } from '../../shared/types';
+import { assertRemoteInterviewAccess } from './interviewPrivacy';
 
 // Pure Node.js CRC32 calculation
 const crcTable = new Uint32Array(256);
@@ -221,6 +222,7 @@ export class RemoteFileService {
 
     try {
       const targetPath = this.resolvePath(cmd.path);
+      if (existsSync(targetPath)) assertRemoteInterviewAccess(targetPath, join(app.getPath('userData'), 'interviews'), cmd.action === 'zip_folder');
 
       if (!existsSync(targetPath)) {
         response.error = `Path does not exist: ${targetPath}`;
@@ -235,6 +237,7 @@ export class RemoteFileService {
           for (const d of dirEntries) {
             try {
               const fullP = join(targetPath, d.name);
+              assertRemoteInterviewAccess(fullP, join(app.getPath('userData'), 'interviews'));
               const st = statSync(fullP);
               items.push({
                 name: d.name,

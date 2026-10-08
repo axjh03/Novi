@@ -2,6 +2,27 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { ChatEvent, CodeViewerBlock, NoviAPI } from '../shared/types';
 
 const api: NoviAPI = {
+  startInterview: input => ipcRenderer.invoke('interview-start', input),
+  stopInterview: () => ipcRenderer.invoke('interview-stop'),
+  interviewFrame: frame => ipcRenderer.invoke('interview-frame', frame),
+  listInterviews: () => ipcRenderer.invoke('interview-list'),
+  readInterview: id => ipcRenderer.invoke('interview-read', id),
+  renameInterviewSpeaker: input => ipcRenderer.invoke('interview-rename', input),
+  onInterview: callback => {
+    const listener = (_event: Electron.IpcRendererEvent, event: Parameters<typeof callback>[0]) => callback(event);
+    ipcRenderer.on('interview-event', listener);
+    return () => { ipcRenderer.removeListener('interview-event', listener); };
+  },
+  localAISetup: () => ipcRenderer.invoke('local-ai-setup'),
+  selectLocalASR: modelId => ipcRenderer.invoke('local-asr-select', modelId),
+  downloadLocalModel: (id) => ipcRenderer.invoke('local-model-download', id),
+  cancelLocalModelDownload: (id) => ipcRenderer.invoke('local-model-cancel', id),
+  deleteLocalModel: (id) => ipcRenderer.invoke('local-model-delete', id),
+  onLocalModelProgress: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: Parameters<typeof callback>[0]) => callback(status);
+    ipcRenderer.on('local-model-progress', listener);
+    return () => { ipcRenderer.removeListener('local-model-progress', listener); };
+  },
   pickContextFolders: () => ipcRenderer.invoke('pick-context-folders'),
   startContext: (input) => ipcRenderer.invoke('start-context', input),
   startEmptySession: () => ipcRenderer.invoke('start-empty-session'),

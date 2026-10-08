@@ -4,12 +4,13 @@ import { DEFAULT_CLICK_THROUGH_SHORTCUT, DEFAULT_TRANSPARENT_SHORTCUT, type Sett
 import { ProviderManager } from '../components/ProviderManager';
 import { DeviceTester } from '../components/DeviceTester';
 import { SettingsAppUpdater } from '../components/SettingsAppUpdater';
+import { LocalAISetup } from '../components/LocalAISetup';
 import { errorText, unwrap } from '../services/api';
 
 interface Props { state: Snapshot; onSaved: (state: Snapshot) => void; onBack: () => void; onSignOut: () => void; onCleared: () => void }
 
 export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: Props) {
-  const [tab, setTab] = useState<'general' | 'devices' | 'api'>('general');
+  const [tab, setTab] = useState<'general' | 'devices' | 'api' | 'local-ai'>('general');
   const [value, setValue] = useState<SettingsInput>({
     ...state.settings!,
     clickThroughShortcut: state.settings!.clickThroughShortcut || DEFAULT_CLICK_THROUGH_SHORTCUT,
@@ -94,6 +95,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
 
         {/* Navigation Tabs */}
         <div className="segmented settings-tabs" aria-label="Settings tabs">
+          <button type="button" aria-pressed={tab === 'local-ai'} className={tab === 'local-ai' ? 'active' : ''} onClick={() => setTab('local-ai')}>Local AI</button>
           <button
             type="button"
             aria-pressed={tab === 'general'}
@@ -120,6 +122,10 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
           </button>
         </div>
 
+        {tab === 'local-ai' && <LocalAISetup onSettingsSaved={(updated, modelId) => {
+          onSaved(updated);
+          setValue(current => ({ ...current, localASRModelId: modelId }));
+        }} />}
         {/* Tab 1: General */}
         {tab === 'general' && (
           <>

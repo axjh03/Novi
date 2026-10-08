@@ -7,7 +7,7 @@ const devNonce = randomBytes(18).toString('base64');
 export default defineConfig(({ command }) => ({
   main: {
     plugins: [externalizeDepsPlugin()],
-    build: { rollupOptions: { input: resolve('src/main/main.ts') } },
+    build: { rollupOptions: { input: { main: resolve('src/main/main.ts'), interviewWorker: resolve('src/main/interviewWorker.ts') } } },
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
@@ -30,4 +30,3 @@ export default defineConfig(({ command }) => ({
     build: { rollupOptions: { input: resolve('src/renderer/index.html') } },
   },
 }));
-

@@ -8,6 +8,9 @@ files:
   - out/**/*
   - package.json
 
+asarUnpack:
+  - node_modules/sherpa-onnx-*/**/*
+
 mac:
   icon: build/icon.icns
   category: public.app-category.productivity
@@ -43,6 +46,8 @@ linux:
     - target: deb
       arch:
         - x64
+        - arm64
     - target: AppImage
       arch:
         - x64
+        - arm64

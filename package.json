@@ -16,7 +16,8 @@
     "start": "electron-vite preview",
     "web:setup": "npm --prefix webapp run setup",
     "web:dev": "npm --prefix webapp run dev",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "node --test tests/local-models.test.mjs && tsx --test tests/*.test.ts",
+    "test:local-models": "node --test tests/local-models.test.mjs",
     "test:desktop": "npm run build && tsx scripts/smoke.ts",
     "package:mac": "npm run build && electron-builder --mac dmg",
     "package:win": "npm run build && electron-builder --win nsis",
@@ -31,7 +32,8 @@
     "pdfjs-dist": "^5.4.149",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-markdown": "^10.1.0"
+    "react-markdown": "^10.1.0",
+    "sherpa-onnx-node": "1.13.8"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

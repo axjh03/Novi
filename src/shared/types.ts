@@ -1,3 +1,5 @@
+import type { LocalAISetup, LocalModelStatus } from './localAI';
+import type { InterviewEvent, InterviewFrame, InterviewSession, InterviewStart } from './interview';
 export type SupportedProviderKind = 'openai' | 'anthropic' | 'gemini';
 export type ProviderKind = SupportedProviderKind | 'compatible';
 export type AudioPipelineMode = 'local_stt' | 'live_stream';
@@ -38,6 +40,7 @@ export interface AppSettings {
   behavioralFramework?: BehavioralFramework;
   checkUpdatesAtStartup?: boolean;
   autoStartEmptySession?: boolean;
+  localASRModelId?: string;
 }
 export interface ProviderConnection extends AIProviderConfig { id: string; name: string; managed?: boolean; ownerName?: string; enabled?: boolean }
 export interface ConnectionInput { id?: string; name: string; ai: AIProviderConfig; apiKey?: string }
@@ -79,6 +82,7 @@ export interface SettingsInput {
   behavioralFramework?: BehavioralFramework;
   checkUpdatesAtStartup?: boolean;
   autoStartEmptySession?: boolean;
+  localASRModelId?: string;
 }
 export interface SendInput { conversationId: string | null; content: string; imageIds: string[] }
 export type ChatEvent =
@@ -115,6 +119,19 @@ export interface StealthState {
 }
 
 export interface NoviAPI {
+  startInterview(input: InterviewStart): Promise<Result<InterviewSession>>;
+  stopInterview(): Promise<Result<InterviewSession | null>>;
+  interviewFrame(frame: InterviewFrame): Promise<Result<boolean>>;
+  listInterviews(): Promise<Result<Array<Omit<InterviewSession, 'segments'>>>>;
+  readInterview(id: string): Promise<Result<InterviewSession>>;
+  renameInterviewSpeaker(input: { sessionId: string; speakerId: string; name: string }): Promise<Result<InterviewSession>>;
+  onInterview(callback: (event: InterviewEvent) => void): () => void;
+  localAISetup(): Promise<Result<LocalAISetup>>;
+  selectLocalASR(modelId: string): Promise<Result<Snapshot>>;
+  downloadLocalModel(id: string): Promise<Result<LocalModelStatus>>;
+  cancelLocalModelDownload(id: string): Promise<Result<void>>;
+  deleteLocalModel(id: string): Promise<Result<LocalModelStatus>>;
+  onLocalModelProgress(callback: (status: LocalModelStatus) => void): () => void;
   pickContextFolders(): Promise<Result<ContextFolder[]>>;
   startContext(input: ContextInput): Promise<Result<Snapshot>>;
   startEmptySession(): Promise<Result<Snapshot>>;
@@ -218,5 +235,3 @@ export interface FileResponse {
   filename?: string;
   mimeType?: string;
 }
-
-

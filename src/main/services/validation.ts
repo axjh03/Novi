@@ -67,6 +67,7 @@ export function settingsInput(value: unknown): SettingsInput {
       : 'smart',
     checkUpdatesAtStartup: typeof input.checkUpdatesAtStartup === 'boolean' ? input.checkUpdatesAtStartup : true,
     autoStartEmptySession: typeof input.autoStartEmptySession === 'boolean' ? input.autoStartEmptySession : false,
+    localASRModelId: typeof input.localASRModelId === 'string' && /^[a-z0-9-]{1,80}$/.test(input.localASRModelId) ? input.localASRModelId : 'auto',
   };
 }
 export function connectionInput(value: unknown): ConnectionInput {
