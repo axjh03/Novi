@@ -87,6 +87,18 @@ interface ReleaseData {
   configured: boolean;
 }
 
+function elapsedTime(startedAt: string | null | undefined, now: number) {
+  const start = startedAt ? Date.parse(startedAt) : NaN;
+  if (!Number.isFinite(start)) return '—';
+  const seconds = Math.max(0, Math.floor((now - start) / 1000));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
+    : `${minutes}:${String(remainder).padStart(2, '0')}`;
+}
+
 export default function ReleaseManagement({ admin }: { admin: boolean }) {
   const [data, setData] = useState<ReleaseData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,6 +111,7 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
   const [customVersion, setCustomVersion] = useState('');
   const [releaseNotes, setReleaseNotes] = useState('');
   const [showConfirm, setShowConfirm] = useState(false);
+  const [clockNow, setClockNow] = useState(() => Date.now());
 
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -143,6 +156,12 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (data?.state !== 'BUILDING') return;
+    const timer = window.setInterval(() => setClockNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [data?.state]);
 
   // Live polling when a build is actively queued or in progress
   useEffect(() => {
@@ -253,6 +272,9 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                     <span>Desktop Build in Progress on GitHub Actions</span>
                     <span style={{ fontSize: 11, background: '#dbeafe', color: '#1d4ed8', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>
                       Live Polling
+                    </span>
+                    <span style={{ fontSize: 11, color: '#1d4ed8', fontVariantNumeric: 'tabular-nums' }}>
+                      Elapsed {elapsedTime(data.latestRun?.createdAt, clockNow)}
                     </span>
                   </div>
                   <p style={{ fontSize: 13, color: '#2563eb', margin: '4px 0 0' }}>
@@ -620,7 +642,7 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                     gap: 4,
                   }}>
                     {isRunning && <Loader2 size={11} className="spin" style={{ animation: 'spin 1s linear infinite' }} />}
-                    {statusText}
+                    {isRunning ? `Building · ${elapsedTime(job.startedAt || data.latestRun?.createdAt, clockNow)}` : statusText}
                   </span>
                 </div>
               );
