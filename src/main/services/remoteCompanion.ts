@@ -68,7 +68,7 @@ export class RemoteCompanionService {
   getStatus(): RemoteCompanionStatus {
     const running = Boolean(this.server && this.server.listening);
     const bestUrl = this.getBestUrl();
-    const qrSvg = generateQRCodeSVG(bestUrl, { size: 240, margin: 2, darkColor: '#00e5a3', lightColor: '#121316' });
+    const qrSvg = generateQRCodeSVG(bestUrl, { size: 240, margin: 3, darkColor: '#000000', lightColor: '#ffffff' });
     return {
       running,
       port: this.port,
@@ -180,7 +180,7 @@ export class RemoteCompanionService {
     // 3. Dynamic QR code SVG endpoint
     if (pathname === '/api/qr') {
       const bestUrl = this.getBestUrl();
-      const svg = generateQRCodeSVG(bestUrl, { size: 240, margin: 2, darkColor: '#00e5a3', lightColor: '#121316' });
+      const svg = generateQRCodeSVG(bestUrl, { size: 240, margin: 3, darkColor: '#000000', lightColor: '#ffffff' });
       res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
       res.end(svg);
       return;
@@ -348,8 +348,7 @@ export class RemoteCompanionService {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #00e5a3;
-      box-shadow: 0 0 10px #00e5a3;
+      background: #345fc5;
     }
     .badge {
       display: inline-flex;
@@ -364,9 +363,9 @@ export class RemoteCompanionService {
       color: #8e94a0;
     }
     .badge.connected {
-      color: #00e5a3;
-      border-color: rgba(0,229,163,0.3);
-      background: rgba(0,229,163,0.08);
+      color: #93c5fd;
+      border-color: rgba(147,197,253,0.3);
+      background: rgba(147,197,253,0.08);
     }
     .badge.error {
       color: #ff4d4f;
@@ -389,18 +388,18 @@ export class RemoteCompanionService {
     .hero-btn {
       width: 100%;
       min-height: 68px;
-      border-radius: 16px;
-      border: 1px solid #00e5a3;
-      background: linear-gradient(135deg, #00e5a3 0%, #00b37e 100%);
-      color: #050b08;
+      border-radius: 14px;
+      border: 1px solid #345fc5;
+      background: linear-gradient(135deg, #345fc5 0%, #23489e 100%);
+      color: #ffffff;
       font-size: 18px;
-      font-weight: 800;
+      font-weight: 700;
       letter-spacing: -0.01em;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 10px;
-      box-shadow: 0 6px 20px rgba(0,229,163,0.28);
+      box-shadow: 0 4px 18px rgba(52, 95, 197, 0.3);
       cursor: pointer;
       transition: transform 60ms ease, filter 60ms ease;
       flex-shrink: 0;
@@ -415,10 +414,10 @@ export class RemoteCompanionService {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
       gap: 6px;
-      background: #121316;
+      background: #171c24;
       padding: 4px;
-      border-radius: 14px;
-      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      border: 1px solid #354050;
       flex-shrink: 0;
     }
     .mode-tab-btn {
@@ -428,7 +427,7 @@ export class RemoteCompanionService {
       font-size: 12px;
       font-weight: 600;
       padding: 10px 4px;
-      border-radius: 10px;
+      border-radius: 8px;
       cursor: pointer;
       display: flex;
       flex-direction: column;
@@ -437,10 +436,10 @@ export class RemoteCompanionService {
       transition: all 80ms ease;
     }
     .mode-tab-btn.active {
-      background: rgba(0,229,163,0.15);
-      color: #00e5a3;
+      background: #25344e;
+      color: #a3c1ff;
       font-weight: 700;
-      box-shadow: 0 0 10px rgba(0,229,163,0.15);
+      border: 1px solid rgba(163, 193, 255, 0.2);
     }
     .mode-tab-btn:active {
       transform: scale(0.96);
@@ -454,9 +453,9 @@ export class RemoteCompanionService {
       flex-shrink: 0;
     }
     .ctrl-btn {
-      background: #14161b;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 13px;
+      background: #171c24;
+      border: 1px solid #354050;
+      border-radius: 12px;
       color: #e5e7eb;
       padding: 12px 8px;
       min-height: 56px;
@@ -471,13 +470,12 @@ export class RemoteCompanionService {
     }
     .ctrl-btn:active {
       transform: scale(0.96);
-      background: #1e2128;
+      background: #25344e;
     }
     .ctrl-btn.active-state {
-      background: rgba(0,229,163,0.14);
-      border-color: #00e5a3;
-      color: #00e5a3;
-      box-shadow: 0 0 14px rgba(0,229,163,0.22);
+      background: #25344e;
+      border-color: #a3c1ff;
+      color: #a3c1ff;
     }
     .ctrl-btn.danger-active {
       background: rgba(255,77,79,0.14);
@@ -585,14 +583,17 @@ export class RemoteCompanionService {
       font-weight: 800;
       letter-spacing: 14px;
       text-align: center;
-      background: #16181f;
-      border: 2px solid #00e5a3;
-      border-radius: 14px;
+      background: #171c24;
+      border: 2px solid #354050;
+      border-radius: 12px;
       color: #fff;
       padding: 12px 10px;
       width: 200px;
       outline: none;
-      box-shadow: 0 0 20px rgba(0,229,163,0.25);
+    }
+    .pin-input:focus {
+      border-color: #a3c1ff;
+      box-shadow: 0 0 16px rgba(163, 193, 255, 0.2);
     }
   </style>
 </head>
