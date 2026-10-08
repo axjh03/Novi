@@ -6,14 +6,12 @@ import { errorText, unwrap } from '../services/api';
 import type { AudioSource, InterviewEvent, InterviewSession, TranscriptSegment } from '../../../shared/interview';
 import { updateTranscript } from '../../../shared/interview';
 import { InterviewAudio } from '../services/interviewAudio';
-import { useAppMode } from '../context/AppModeContext';
 
 const size = (bytes: number) => bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : bytes >= 1024 ** 2 ? `${(bytes / 1024 ** 2).toFixed(1)} MB` : `${Math.max(0, Math.round(bytes / 1024))} KB`;
 const speed = (bytes: number) => `${size(bytes)}/s`;
 const active = (state: string) => ['DOWNLOADING', 'DOWNLOADED', 'VERIFYING'].includes(state);
 
 export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot: Snapshot, modelId: string) => void } = {}) {
-  const { setLocalTranscriptionActive } = useAppMode();
   const [setup, setSetup] = useState<Setup | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -64,10 +62,10 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
       if (!('sessionId' in event) || event.sessionId !== testSessionId.current) return;
       if (event.type === 'warning') setTestWarning(event.message);
       if (event.type === 'metrics') setTestLatency(event.processingMs);
-      if (event.type === 'status') { setTestSession(current => current ? { ...current, status: event.status } : current); testAudio.current?.close(); testAudio.current = null; setTestBusy(false); setLocalTranscriptionActive(false); }
+      if (event.type === 'status') { setTestSession(current => current ? { ...current, status: event.status } : current); testAudio.current?.close(); testAudio.current = null; setTestBusy(false); }
     });
     void refresh().catch(cause => { if (mounted.current) setError(errorText(cause)); });
-    return () => { mounted.current = false; cancelled.current = true; navigator.mediaDevices?.removeEventListener('devicechange', handleDeviceChange); unsubscribe(); stopTranscriptEvents(); testAudio.current?.close(); setLocalTranscriptionActive(false); if (testSessionId.current) void window.novi.stopInterview(); };
+    return () => { mounted.current = false; cancelled.current = true; navigator.mediaDevices?.removeEventListener('devicechange', handleDeviceChange); unsubscribe(); stopTranscriptEvents(); testAudio.current?.close(); if (testSessionId.current) void window.novi.stopInterview(); };
   }, [refresh]);
   useEffect(() => { if (testScroller.current) testScroller.current.scrollTop = testScroller.current.scrollHeight; }, [testSegments]);
 
@@ -106,23 +104,23 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
 
   async function startTest() {
     if (!setup || !selectedASR || selectedASR.state !== 'READY') return;
-    setTestBusy(true); setLocalTranscriptionActive(true); setTestSegments([]); setTestWarning(''); setTestLatency(null); testSessionId.current = '';
+    setTestBusy(true); setTestSegments([]); setTestWarning(''); setTestLatency(null); testSessionId.current = '';
     try {
       const session = await unwrap(window.novi.startInterview({ mode: testSpeakers ? 'multiple' : 'conversation', vadThreshold: 0.006, diarization: testSpeakers, useVad: testVad }));
-      if (!mounted.current) { await window.novi.stopInterview(); setLocalTranscriptionActive(false); return; }
+      if (!mounted.current) { await window.novi.stopInterview(); return; }
       testSessionId.current = session.id; setTestSession(session);
       const capture = new InterviewAudio(frame => unwrap(window.novi.interviewFrame(frame)), setTestWarning); testAudio.current = capture;
       await capture.start(session.id, session.startedAt, 'conversation', testMicId, testSystemId, [testSource]);
     } catch (cause) {
       testAudio.current?.close(); testAudio.current = null; await window.novi.stopInterview();
-      if (mounted.current) { setTestWarning(errorText(cause)); setTestBusy(false); setLocalTranscriptionActive(false); }
+      if (mounted.current) { setTestWarning(errorText(cause)); setTestBusy(false); }
     }
   }
   async function stopTest() {
     setTestBusy(true);
     try { await testAudio.current?.stop(); testAudio.current = null; const session = await unwrap(window.novi.stopInterview()); if (session) setTestSession(session); }
     catch (cause) { setTestWarning(errorText(cause)); }
-    finally { setTestBusy(false); setLocalTranscriptionActive(false); }
+    finally { setTestBusy(false); }
   }
 
   if (!setup) return <section className="settings-section"><h2>Local AI setup</h2><p role="status">{error || 'Checking this computer and installed models…'}</p>
