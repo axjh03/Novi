@@ -5,7 +5,6 @@ import { activeConnection } from '../../../shared/providers';
 import { Brand } from '../components/Brand';
 import { ProviderPicker } from '../components/chat/ProviderPicker';
 import { SettingsPage } from './SettingsPage';
-import { InterviewPage } from './InterviewPage';
 import { errorText, unwrap } from '../services/api';
 import { SESSION_ROLES, presetFields } from '../context/sessionPresets';
 
@@ -13,7 +12,6 @@ type Section = 'model' | 'sources' | 'brief';
 
 export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; onSaved: (state: Snapshot) => void; onSignOut: () => void }) {
   const [settings, setSettings] = useState(false);
-  const [interview, setInterview] = useState(false);
   const [section, setSection] = useState<Section>('model');
   const [folders, setFolders] = useState<ContextFolder[]>([]);
   const [purpose, setPurpose] = useState('');
@@ -63,12 +61,10 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
   }
 
   if (settings) return <SettingsPage state={state} onSaved={onSaved} onBack={() => setSettings(false)} onSignOut={onSignOut} onCleared={() => {}} />;
-  if (interview) return <InterviewPage onBack={() => setInterview(false)} />;
   return <main className="context-page">
     <header className="context-header">
       <div className="context-header-identity"><Brand /><span>Session setup</span></div>
       <div className="context-header-actions">
-        <button className="text-button" disabled={busy} onClick={() => setInterview(true)}>Local interview</button>
         <button
           type="button"
           className="secondary skip-session-btn"

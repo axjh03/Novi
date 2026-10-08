@@ -200,6 +200,25 @@ export function EyeTrackingPanel({
         )}
       </button>
 
+      {/* Keep sensitivity beside the control it tunes. */}
+      <div className="et-camera-picker" ref={sensitivityPickerRef}>
+        <button className={`et-camera-btn ${sensitivityPickerOpen ? 'et-camera-btn--open' : ''}`} onClick={() => {
+          setCameraPickerOpen(false); setMonitorPickerOpen(false); setSensitivityPickerOpen(value => !value);
+        }} title={`Eye tracker sensitivity: ${sensitivity.toFixed(1)}x (Default: 3.0)`} aria-label="Eye tracker sensitivity">
+          <SlidersHorizontal size={13} /><span className="et-camera-label">{sensitivity.toFixed(1)}x</span><ChevronDown size={11} />
+        </button>
+        {sensitivityPickerOpen && <div className="et-camera-dropdown et-sensitivity-dropdown">
+          <div className="et-camera-dropdown-header"><span>Sensitivity Level</span><span className="overlay-desc-tag">Default: 3.0</span></div>
+          <div className="et-sensitivity-body">
+            <div className="et-sensitivity-value-row"><span className="et-sensitivity-current">{sensitivity.toFixed(1)}x</span><span className="et-sensitivity-default-note">(Default: 3.0)</span>
+              {Math.abs(sensitivity - 3.0) > 0.05 && <button type="button" className="et-sensitivity-reset-btn" onClick={() => onSetSensitivity(3.0)} title="Reset sensitivity to 3.0 default">Reset</button>}
+            </div>
+            <input type="range" min="0.5" max="6.0" step="0.1" value={sensitivity} onChange={event => onSetSensitivity(parseFloat(event.target.value))} className="et-sensitivity-slider" aria-label="Eye tracker sensitivity slider" />
+            <div className="et-sensitivity-ticks"><span>0.5x (Slow)</span><span className="et-tick-default">3.0x (Default)</span><span>6.0x (Fast)</span></div>
+          </div>
+        </div>}
+      </div>
+
       {/* 2. Camera Picker Dropdown */}
       <div className="et-camera-picker" ref={cameraPickerRef}>
         <button
@@ -351,69 +370,6 @@ export function EyeTrackingPanel({
                 </form>
               </>
             )}
-          </div>
-        )}
-      </div>
-
-      {/* 4. Eye Tracker Sensitivity Slider */}
-      <div className="et-camera-picker" ref={sensitivityPickerRef}>
-        <button
-          className={`et-camera-btn ${sensitivityPickerOpen ? 'et-camera-btn--open' : ''}`}
-          onClick={() => {
-            setCameraPickerOpen(false);
-            setMonitorPickerOpen(false);
-            setSensitivityPickerOpen((v) => !v);
-          }}
-          title={`Eye tracker sensitivity: ${sensitivity.toFixed(1)}x (Default: 3.0)`}
-          aria-label="Eye tracker sensitivity"
-        >
-          <SlidersHorizontal size={13} />
-          <span className="et-camera-label">
-            {sensitivity.toFixed(1)}x
-          </span>
-          <ChevronDown size={11} />
-        </button>
-
-        {sensitivityPickerOpen && (
-          <div className="et-camera-dropdown et-sensitivity-dropdown">
-            <div className="et-camera-dropdown-header">
-              <span>Sensitivity Level</span>
-              <span className="overlay-desc-tag">Default: 3.0</span>
-            </div>
-
-            <div className="et-sensitivity-body">
-              <div className="et-sensitivity-value-row">
-                <span className="et-sensitivity-current">{sensitivity.toFixed(1)}x</span>
-                <span className="et-sensitivity-default-note">(Default: 3.0)</span>
-                {Math.abs(sensitivity - 3.0) > 0.05 && (
-                  <button
-                    type="button"
-                    className="et-sensitivity-reset-btn"
-                    onClick={() => onSetSensitivity(3.0)}
-                    title="Reset sensitivity to 3.0 default"
-                  >
-                    Reset
-                  </button>
-                )}
-              </div>
-
-              <input
-                type="range"
-                min="0.5"
-                max="6.0"
-                step="0.1"
-                value={sensitivity}
-                onChange={(e) => onSetSensitivity(parseFloat(e.target.value))}
-                className="et-sensitivity-slider"
-                aria-label="Eye tracker sensitivity slider"
-              />
-
-              <div className="et-sensitivity-ticks">
-                <span>0.5x (Slow)</span>
-                <span className="et-tick-default">3.0x (Default)</span>
-                <span>6.0x (Fast)</span>
-              </div>
-            </div>
           </div>
         )}
       </div>

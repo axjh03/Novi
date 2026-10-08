@@ -20,7 +20,6 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
     behavioralModeShortcut: state.settings!.behavioralModeShortcut || 'Alt+B',
     screenshotShortcut: state.settings!.screenshotShortcut || 'Alt+3',
     audioRecordShortcut: state.settings!.audioRecordShortcut || 'Alt+A',
-    autoSendOnAudioStop: state.settings!.autoSendOnAudioStop ?? false,
     fastInterviewModel: state.settings!.fastInterviewModel ?? false,
     checkUpdatesAtStartup: state.settings!.checkUpdatesAtStartup ?? true,
   });
@@ -168,7 +167,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                     <h2>Interaction</h2>
                     <p>One shortcut toggles both modes.</p>
                   </div>
-                  <div className="settings-fields">
+                  <div className="settings-fields settings-fields-interaction">
                     <label>
                       Interaction toggle shortcut
                       <div className="shortcut-setting">
@@ -250,36 +249,6 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                         placeholder="e.g. Alt+A"
                       />
                       <small>Captures desktop playback without opening your microphone. Saves locally and then transcribes or attaches it. Default: Alt+A (Option+A on Mac).</small>
-                    </label>
-
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 4 }}>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(value.autoSendOnAudioStop)}
-                        onChange={(e) => change({ ...value, autoSendOnAudioStop: e.target.checked })}
-                        style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
-                      />
-                      <div>
-                        <strong>Send transcript automatically</strong>
-                        <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
-                          When transcription finishes, send the text as a new message.
-                        </div>
-                      </div>
-                    </label>
-
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 4 }}>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(value.fastInterviewModel)}
-                        onChange={(e) => change({ ...value, fastInterviewModel: e.target.checked })}
-                        style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
-                      />
-                      <div>
-                        <strong>Use a faster interview model</strong>
-                        <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
-                          Choose a smaller model when Interview mode is active.
-                        </div>
-                      </div>
                     </label>
 
                   </div>

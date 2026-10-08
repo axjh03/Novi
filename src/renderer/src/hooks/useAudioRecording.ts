@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AudioPipelineMode, ImageAttachment } from '../../../shared/types';
+import type { AudioSource } from '../../../shared/interview';
 import { errorText, unwrap } from '../services/api';
 
 interface Options {
   pipelineMode: AudioPipelineMode;
+  source: AudioSource;
   attachRawAudio: boolean;
   onTranscribed: (text: string) => void;
   onAudioAttached: (attachment: ImageAttachment) => void;
@@ -42,14 +44,13 @@ export function useAudioRecording(options: Options) {
     setError('');
     setRecordingSeconds(0);
     try {
-      const display = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-      });
+      const display = optionsRef.current.source === 'system'
+        ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
+        : await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
       const audioTracks = display.getAudioTracks();
       if (!audioTracks.length) {
         display.getTracks().forEach((track) => track.stop());
-        throw new Error('System audio is unavailable. Enable system audio sharing and try again.');
+        throw new Error(`${optionsRef.current.source === 'system' ? 'System audio' : 'Microphone'} is unavailable.`);
       }
       display.getVideoTracks().forEach((track) => track.stop());
       const recordingStream = new MediaStream([audioTracks[0]]);
@@ -92,7 +93,7 @@ export function useAudioRecording(options: Options) {
             reader.onerror = () => reject(new Error('Could not read the recording.'));
             reader.readAsDataURL(blob);
           });
-          const filename = `System-Audio-${new Date().toISOString().replace(/[:.]/g, '-')}.webm`;
+          const filename = `${optionsRef.current.source === 'system' ? 'System' : 'Microphone'}-Audio-${new Date().toISOString().replace(/[:.]/g, '-')}.webm`;
           await unwrap(window.novi.saveAudioRecording({ base64, mimeType, filename }));
           if (optionsRef.current.pipelineMode === 'live_stream' && optionsRef.current.attachRawAudio) {
             const attachment = await unwrap(window.novi.attachAudioRecording({ base64, mimeType, filename }));

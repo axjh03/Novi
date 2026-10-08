@@ -15,12 +15,14 @@ export interface LocalModelDefinition {
   languages: string[];
   quality: number;
   liveMode?: 'streaming' | 'simulated';
+  memoryWarning?: string | null;
 }
 export interface LocalModelStatus {
   id: string;
   state: LocalModelState;
   downloadedBytes: number;
   totalBytes: number;
+  speedBytesPerSecond?: number;
   error?: string;
 }
 export interface DeviceProfile {

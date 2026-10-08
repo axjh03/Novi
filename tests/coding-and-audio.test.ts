@@ -92,7 +92,7 @@ test('settingsInput validates coding, behavioral, screenshot, audio shortcuts, a
   assert.equal(validated.screenshotShortcut, 'Alt+3');
   assert.equal(validated.audioRecordShortcut, 'Alt+A');
   assert.equal(validated.transparentShortcut, 'Option+Control+T');
-  assert.equal(validated.autoSendOnAudioStop, true);
+  assert.equal('autoSendOnAudioStop' in validated, false);
   assert.equal(validated.fastInterviewModel, true);
   assert.equal(validated.transparentOpacity, 75);
   assert.equal(validated.transparentBg, '#0f172a');

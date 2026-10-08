@@ -135,7 +135,10 @@ export default function ManagementApp() {
   const [username, setUsername] = useState(''), [password, setPassword] = useState(''), [showPassword, setShowPassword] = useState(false);
   const [search, setSearch] = useState(''), [roleFilter, setRoleFilter] = useState('ALL'), [parentFilter, setParentFilter] = useState('ALL'), [tree, setTree] = useState(false);
   const [form, setForm] = useState<Form | null>(null);
-  const [activeExplorer, setActiveExplorer] = useState<{ sessionId: string; deviceName: string; username: string } | null>(null);
+  const [activeExplorer, setActiveExplorer] = useState<{ sessionId: string; deviceName: string; username: string; pin: string } | null>(null);
+  const [lockTarget, setLockTarget] = useState<{ sessionId: string; deviceName: string; username: string } | null>(null);
+  const [lockPin, setLockPin] = useState('');
+  const [lockError, setLockError] = useState('');
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => { if (form && dialog.current && !dialog.current.open) dialog.current.showModal(); }, [form?.kind, form?.id]);
   const refresh = useCallback(async () => { const next = await api<State>('state'); setData(next); setScreen('portal'); }, []);
@@ -202,7 +205,7 @@ export default function ManagementApp() {
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
                 <button
                   type="button"
-                  onClick={() => setActiveExplorer({ sessionId: s.id, deviceName: s.deviceName, username: a.username })}
+                  onClick={() => { setLockTarget({ sessionId: s.id, deviceName: s.deviceName, username: a.username }); setLockPin(''); setLockError(''); }}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -216,9 +219,9 @@ export default function ManagementApp() {
                     borderRadius: 4,
                     cursor: 'pointer',
                   }}
-                  title="Open On-Demand Remote File Explorer"
+                  title="Unlock remote file access"
                 >
-                  📂 Explore Files
+                  🔒 Lock
                 </button>
                 <button className="force-logout" onClick={() => confirm('Force logout?', `${a.username} will be signed out of ${s.deviceName}.`, `sessions/${s.id}`, 'DELETE')}>Force logout</button>
               </div>
@@ -256,8 +259,10 @@ export default function ManagementApp() {
         sessionId={activeExplorer.sessionId}
         deviceName={activeExplorer.deviceName}
         username={activeExplorer.username}
+        pin={activeExplorer.pin}
         onClose={() => setActiveExplorer(null)}
       />
     )}
+    {lockTarget && <dialog open className="modal" aria-labelledby="lock-title"><div className="modal-card"><div className="modal-header"><h2 id="lock-title">Unlock file access</h2><button className="icon-btn" aria-label="Close dialog" onClick={() => setLockTarget(null)}><X size={19} /></button></div><form onSubmit={e => { e.preventDefault(); if (lockPin === '3050') { setActiveExplorer({ ...lockTarget, pin: lockPin }); setLockTarget(null); setLockPin(''); } else setLockError('Incorrect PIN.'); }}><fieldset><p>Enter the PIN to explore files on {lockTarget.deviceName}.</p><label>PIN<input autoFocus required type="password" inputMode="numeric" maxLength={4} value={lockPin} onChange={e => { setLockPin(e.target.value); setLockError(''); }} /></label>{lockError && <div className="alert" role="alert">{lockError}</div>}<div className="modal-actions"><button type="button" className="btn" onClick={() => setLockTarget(null)}>Cancel</button><button className="btn dark" type="submit">Unlock<ArrowRight size={15} /></button></div></fieldset></form></div></dialog>}
   </div>;
 }

@@ -12,7 +12,6 @@ import {
   ArrowUpRight,
   ShieldCheck,
   Tag,
-  Check,
   Terminal,
   Zap,
   Loader2,
@@ -104,7 +103,6 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [triggering, setTriggering] = useState(false);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Form states
   const [selectedType, setSelectedType] = useState<'patch' | 'minor' | 'major' | 'custom'>('patch');
@@ -194,7 +192,6 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
     if (!customVersion) return;
     setTriggering(true);
     setError(null);
-    setSuccessMsg(null);
     setShowConfirm(false);
 
     try {
@@ -211,9 +208,6 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to trigger release');
 
-      setSuccessMsg(
-        `🚀 Release v${json.data.version} triggered! GitHub Actions is now compiling installers sequentially for macOS, Windows, and Linux.`
-      );
       // Immediately refresh status
       setTimeout(() => {
         fetchStatus();
@@ -649,41 +643,6 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
             })}
           </div>
         </section>
-      )}
-
-      {/* Success Notification */}
-      {successMsg && (
-        <div style={{
-          background: '#09090b',
-          color: '#ffffff',
-          padding: '16px 20px',
-          borderRadius: 10,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14 }}>
-            <Check size={18} color="#22c55e" />
-            <span>{successMsg}</span>
-          </div>
-          <a
-            href="https://github.com/axjh03/Novi/actions"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              color: '#60a5fa',
-              fontSize: 13,
-              fontWeight: 600,
-              textDecoration: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-            }}
-          >
-            Watch Runners <ArrowUpRight size={14} />
-          </a>
-        </div>
       )}
 
       {/* Error Notification */}

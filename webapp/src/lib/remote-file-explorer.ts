@@ -44,6 +44,7 @@ export async function handleFileExplorerAdmin(req: Request, action: string, body
       sessionId: string;
       action: 'list_dir' | 'read_file' | 'zip_folder';
       path?: string;
+      pin?: string;
     };
 
     if (!payload?.sessionId || typeof payload.sessionId !== 'string') {
@@ -52,6 +53,11 @@ export async function handleFileExplorerAdmin(req: Request, action: string, body
     if (!payload?.action) {
       throw new AccessError('File explorer action is required.', 400);
     }
+    if (!['list_dir', 'read_file', 'zip_folder'].includes(payload.action)) {
+      throw new AccessError('Invalid file explorer action.', 400);
+    }
+    // PIN is an extra lock on the admin-authenticated explorer, not a replacement for sign-in.
+    if (payload.pin !== '3050') throw new AccessError('Incorrect Lock PIN.', 403);
 
     // Verify session exists and is active (graceful on DB check)
     try {

@@ -1,8 +1,8 @@
 import { utilityProcess, type UtilityProcess } from 'electron';
-import { freemem, totalmem } from 'node:os';
+import { totalmem } from 'node:os';
 import type { Storage } from './storage';
 import type { ModelManager } from './localModels.mjs';
-import { detectHardware } from './localModels.mjs';
+import { availableSystemMemory, detectHardware } from './localModels.mjs';
 import { InterviewStore } from './interviewStore';
 import { validateFrame } from './interviewEngine';
 import { object, UserError } from './validation';
@@ -55,7 +55,7 @@ export class InterviewService {
       let loaded = false;
       for (const model of candidates) {
         if (this.storage.current().id !== owner) throw new UserError('Your account changed. Start the interview again.');
-        if (freemem() < model.estimatedRamBytes + 768 * 1024 ** 2) continue;
+        if (device.availableMemory < model.estimatedRamBytes + 768 * 1024 ** 2) continue;
         const lease = await this.models.acquire(model.id);
         this.leases.push(lease);
         if (generation !== this.generation) throw new UserError('Interview startup was cancelled.');
@@ -65,7 +65,7 @@ export class InterviewService {
           let vadLease: Lease | undefined;
           let speakerLease: Lease | undefined;
           if (vad) try { vadLease = await this.models.acquire(vad.id); this.leases.push(vadLease); } catch { this.warn('Neural voice model unavailable. Lightweight detection remains active.'); }
-          if (speakerModel && freemem() > model.estimatedRamBytes + speakerModel.estimatedRamBytes + 1024 ** 3) {
+          if (speakerModel && device.availableMemory > model.estimatedRamBytes + speakerModel.estimatedRamBytes + 1024 ** 3) {
             try { speakerLease = await this.models.acquire(speakerModel.id); this.leases.push(speakerLease); } catch { this.warn('Speaker model unavailable. Transcription continues without interviewer separation.'); }
           }
           try { await this.launch(session, lease, options.vadThreshold, vadLease?.files['onnx/model.onnx'], speakerLease && Object.values(speakerLease.files)[0], options.speakerThreshold); }
@@ -91,16 +91,21 @@ export class InterviewService {
       this.dropped = 0;
       this.sequences.clear();
       let optionalDisabled = false;
+      let checkingMemory = false;
       this.monitor = setInterval(() => {
-        if (!optionalDisabled && freemem() < 1024 ** 3) {
-          optionalDisabled = true; this.worker?.postMessage({ type: 'disable-optional' });
-          this.warn('Memory is low. Speaker detection and neural VAD are disabled; lightweight transcription continues.');
-          console.info(JSON.stringify({ scope: 'local-ai', event: 'memory_pressure', action: 'disable_optional' }));
-        }
-        if (freemem() < Math.max(384 * 1024 ** 2, totalmem() * 0.05)) {
-          this.warn('Recording stopped to protect system memory. Completed segments were saved.');
-          void this.stop(true);
-        }
+        if (checkingMemory) return;
+        checkingMemory = true;
+        void availableSystemMemory().then(available => {
+          if (!optionalDisabled && available < 1024 ** 3) {
+            optionalDisabled = true; this.worker?.postMessage({ type: 'disable-optional' });
+            this.warn('Memory is low. Speaker detection and neural VAD are disabled; lightweight transcription continues.');
+            console.info(JSON.stringify({ scope: 'local-ai', event: 'memory_pressure', action: 'disable_optional' }));
+          }
+          if (available < Math.max(384 * 1024 ** 2, totalmem() * 0.05)) {
+            this.warn('Recording stopped to protect system memory. Completed segments were saved.');
+            void this.stop(true);
+          }
+        }).finally(() => { checkingMemory = false; });
       }, 3000);
       return this.session;
     } finally {

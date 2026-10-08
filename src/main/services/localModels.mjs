@@ -1,12 +1,15 @@
 import { cpus, freemem, totalmem, platform, arch, release, availableParallelism } from 'node:os';
 import { mkdir, lstat, statfs, readFile, open, rename, unlink, realpath } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { join, basename } from 'node:path';
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { MODEL_REGISTRY, modelById, selectModels } from './localModelRegistry.mjs';
 
 const MiB = 1024 ** 2;
+const execFileAsync = promisify(execFile);
 const STATES = new Set(['NOT_INSTALLED', 'DOWNLOADING', 'DOWNLOADED', 'VERIFYING', 'READY', 'CORRUPTED', 'FAILED', 'DISABLED']);
 const exists = async path => { try { return await lstat(path); } catch (e) { if (e.code === 'ENOENT') return null; throw e; } };
 function safeFile(info) { if (info && (!info.isFile() || info.isSymbolicLink())) throw new Error('Model storage contains an unsafe file.'); }
@@ -33,13 +36,30 @@ async function directory(path) {
 }
 async function freeDisk(path) { const s = await statfs(path); return s.bavail * s.bsize; }
 
+export async function availableSystemMemory() {
+  try {
+    if (platform() === 'linux') {
+      const meminfo = await readFile('/proc/meminfo', 'utf8');
+      const available = meminfo.match(/^MemAvailable:\s+(\d+)\s+kB/im);
+      if (available) return Number(available[1]) * 1024;
+    }
+    if (platform() === 'darwin') {
+      const { stdout } = await execFileAsync('/usr/bin/vm_stat', [], { timeout: 1500 });
+      const pageSize = Number(stdout.match(/page size of (\d+) bytes/i)?.[1]);
+      const pages = [...stdout.matchAll(/Pages (free|inactive|speculative|purgeable):\s+(\d+)/gi)];
+      if (pageSize && pages.length) return pages.reduce((sum, page) => sum + Number(page[2]), 0) * pageSize;
+    }
+  } catch { /* Fall back to Node's portable estimate. */ }
+  return freemem();
+}
+
 export async function detectHardware(directoryPath, gpuInfo = {}) {
   const gpuDevices = Array.isArray(gpuInfo?.gpuDevice) ? gpuInfo.gpuDevice.filter(g => g && typeof g === 'object') : [];
   const cpu = cpus()[0]?.model || 'Unknown CPU';
   const apple = platform() === 'darwin' && arch() === 'arm64' && /Apple/i.test(cpu);
   return {
     platform: platform(), release: release(), arch: arch(), cpu,
-    cores: availableParallelism(), totalMemory: totalmem(), availableMemory: freemem(),
+    cores: availableParallelism(), totalMemory: totalmem(), availableMemory: await availableSystemMemory(),
     processMemory: process.memoryUsage().rss,
     diskFree: await freeDisk(directoryPath).catch(() => null),
     unifiedMemory: apple ? true : null,
@@ -93,6 +113,7 @@ export class ModelManager {
     this.retryDelay = retryDelay;
     this.jobs = new Map();
     this.status = new Map();
+    this.progressSamples = new Map();
     this.leases = new Set();
     this.preparing = null;
     this.scanning = null;
@@ -115,7 +136,13 @@ export class ModelManager {
 
   update(id, state, downloadedBytes = 0, totalBytes = 0, error) {
     if (!STATES.has(state)) throw new Error('Invalid model state.');
-    const status = { id, state, downloadedBytes, totalBytes, ...(error ? { error } : {}) };
+    const now = Date.now(), sample = this.progressSamples.get(id);
+    const instantaneous = state === 'DOWNLOADING' && sample?.state === state
+      ? Math.max(0, downloadedBytes - sample.bytes) * 1000 / Math.max(1, now - sample.at) : 0;
+    const speedBytesPerSecond = state === 'DOWNLOADING'
+      ? Math.round((sample?.state === state ? sample.speed * 0.7 : 0) + instantaneous * 0.3) : 0;
+    this.progressSamples.set(id, { state, bytes: downloadedBytes, at: now, speed: speedBytesPerSecond });
+    const status = { id, state, downloadedBytes, totalBytes, speedBytesPerSecond, ...(error ? { error } : {}) };
     const previous = this.status.get(id);
     this.status.set(id, status);
     this.onProgress(status);
@@ -303,7 +330,7 @@ export class ModelManager {
   async buildSnapshot(device, preferredASR = 'auto') {
     const selection = selectModels(device, this.registry);
     const models = [];
-    for (const model of this.registry) models.push({ ...model, ...await this.inspect(model), recommended: selection.required.includes(model.id), reason: selection.reasons[model.id] });
+    for (const model of this.registry) models.push({ ...model, ...await this.inspect(model), recommended: selection.required.includes(model.id), reason: selection.reasons[model.id], memoryWarning: selection.memoryWarnings[model.id] });
     await writeJSON(join(this.root, 'device-profile.json'), device);
     for (const model of models) Object.assign(model, this.status.get(model.id));
     return {

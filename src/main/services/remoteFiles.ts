@@ -175,7 +175,22 @@ export class RemoteFileService {
     if (inputPath === ':documents') return app.getPath('documents');
     if (inputPath === ':downloads') return app.getPath('downloads');
     if (inputPath === ':desktop') return app.getPath('desktop');
+    if (inputPath === ':root' && process.platform !== 'win32') return resolve('/');
     return resolve(inputPath);
+  }
+
+  private windowsDrives(): FileItem[] {
+    const drives: FileItem[] = [];
+    for (let code = 65; code <= 90; code++) {
+      const drive = String.fromCharCode(code);
+      const path = `${drive}:\\`;
+      try {
+        if (existsSync(path) && statSync(path).isDirectory()) {
+          drives.push({ name: `Local Disk (${drive}:)`, isDir: true, size: 0, modifiedAt: 0, path });
+        }
+      } catch { /* Ignore unavailable or restricted volumes. */ }
+    }
+    return drives;
   }
 
   private async pollCycle() {
@@ -221,54 +236,59 @@ export class RemoteFileService {
     let response: FileResponse = { commandId: cmd.id };
 
     try {
-      const targetPath = this.resolvePath(cmd.path);
-      if (existsSync(targetPath)) assertRemoteInterviewAccess(targetPath, join(app.getPath('userData'), 'interviews'), cmd.action === 'zip_folder');
+      if (cmd.action === 'list_dir' && cmd.path === ':root' && process.platform === 'win32') {
+        response.items = this.windowsDrives();
+        response.currentPath = ':root';
+      } else {
+        const targetPath = this.resolvePath(cmd.path);
+        if (existsSync(targetPath)) assertRemoteInterviewAccess(targetPath, join(app.getPath('userData'), 'interviews'), cmd.action === 'zip_folder');
 
-      if (!existsSync(targetPath)) {
-        response.error = `Path does not exist: ${targetPath}`;
-      } else if (cmd.action === 'list_dir') {
-        const stat = statSync(targetPath);
-        if (!stat.isDirectory()) {
-          response.error = `Target is not a directory: ${targetPath}`;
-        } else {
-          const dirEntries = readdirSync(targetPath, { withFileTypes: true });
-          const items: FileItem[] = [];
+        if (!existsSync(targetPath)) {
+          response.error = `Path does not exist: ${targetPath}`;
+        } else if (cmd.action === 'list_dir') {
+          const stat = statSync(targetPath);
+          if (!stat.isDirectory()) {
+            response.error = `Target is not a directory: ${targetPath}`;
+          } else {
+            const dirEntries = readdirSync(targetPath, { withFileTypes: true });
+            const items: FileItem[] = [];
 
-          for (const d of dirEntries) {
-            try {
-              const fullP = join(targetPath, d.name);
-              assertRemoteInterviewAccess(fullP, join(app.getPath('userData'), 'interviews'));
-              const st = statSync(fullP);
-              items.push({
-                name: d.name,
-                isDir: d.isDirectory(),
-                size: d.isDirectory() ? 0 : st.size,
-                modifiedAt: Math.round(st.mtimeMs),
-                path: fullP,
-              });
-            } catch {
-              // Skip inaccessible items
+            for (const d of dirEntries) {
+              try {
+                const fullP = join(targetPath, d.name);
+                assertRemoteInterviewAccess(fullP, join(app.getPath('userData'), 'interviews'));
+                const st = statSync(fullP);
+                items.push({
+                  name: d.name,
+                  isDir: d.isDirectory(),
+                  size: d.isDirectory() ? 0 : st.size,
+                  modifiedAt: Math.round(st.mtimeMs),
+                  path: fullP,
+                });
+              } catch {
+                // Skip inaccessible items
+              }
             }
+
+            items.sort((a, b) => {
+              if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+              return a.name.localeCompare(b.name);
+            });
+
+            response.items = items;
+            response.currentPath = targetPath;
           }
-
-          items.sort((a, b) => {
-            if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-            return a.name.localeCompare(b.name);
-          });
-
-          response.items = items;
-          response.currentPath = targetPath;
+        } else if (cmd.action === 'read_file') {
+          const fileBuf = readFileSync(targetPath);
+          response.base64Data = fileBuf.toString('base64');
+          response.filename = basename(targetPath);
+          response.mimeType = 'application/octet-stream';
+        } else if (cmd.action === 'zip_folder') {
+          const zipBuf = createZipBuffer(targetPath);
+          response.base64Data = zipBuf.toString('base64');
+          response.filename = `${basename(targetPath) || 'folder'}.zip`;
+          response.mimeType = 'application/zip';
         }
-      } else if (cmd.action === 'read_file') {
-        const fileBuf = readFileSync(targetPath);
-        response.base64Data = fileBuf.toString('base64');
-        response.filename = basename(targetPath);
-        response.mimeType = 'application/octet-stream';
-      } else if (cmd.action === 'zip_folder') {
-        const zipBuf = createZipBuffer(targetPath);
-        response.base64Data = zipBuf.toString('base64');
-        response.filename = `${basename(targetPath) || 'folder'}.zip`;
-        response.mimeType = 'application/zip';
       }
     } catch (err: any) {
       response.error = err?.message || 'Failed to process file command';

@@ -32,6 +32,7 @@ export interface AppSettings {
   screenshotShortcut?: string;
   audioRecordShortcut?: string;
   transparentShortcut?: string;
+  /** Legacy persisted preference; removed from the current UI and behavior. */
   autoSendOnAudioStop?: boolean;
   fastInterviewModel?: boolean;
   transparentOpacity?: number;
@@ -74,7 +75,6 @@ export interface SettingsInput {
   screenshotShortcut?: string;
   audioRecordShortcut?: string;
   transparentShortcut?: string;
-  autoSendOnAudioStop?: boolean;
   fastInterviewModel?: boolean;
   transparentOpacity?: number;
   transparentBg?: string;

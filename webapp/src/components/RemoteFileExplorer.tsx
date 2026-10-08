@@ -18,11 +18,13 @@ import {
   AlertCircle
 } from 'lucide-react';
 import type { FileItem, FileResponse } from '@/lib/remote-file-explorer';
+import { parentPath } from '@/lib/remote-paths';
 
 interface RemoteFileExplorerProps {
   sessionId: string;
   deviceName: string;
   username: string;
+  pin: string;
   onClose: () => void;
 }
 
@@ -53,6 +55,7 @@ export default function RemoteFileExplorer({
   sessionId,
   deviceName,
   username,
+  pin,
   onClose,
 }: RemoteFileExplorerProps) {
   const [currentPath, setCurrentPath] = useState<string>(':app_data');
@@ -60,12 +63,13 @@ export default function RemoteFileExplorer({
   const [loading, setLoading] = useState<boolean>(true);
   const [downloading, setDownloading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeShortcut, setActiveShortcut] = useState(':app_data');
 
   const sendCommand = async (action: 'list_dir' | 'read_file' | 'zip_folder', path?: string) => {
     const res = await fetch('/api/control/file-explorer/command', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, action, path: path ?? currentPath }),
+      body: JSON.stringify({ sessionId, action, path: path ?? currentPath, pin }),
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || 'Failed to communicate with device');
@@ -75,6 +79,7 @@ export default function RemoteFileExplorer({
   const loadDirectory = async (path: string) => {
     setLoading(true);
     setError(null);
+    setActiveShortcut(path.startsWith(':') ? path : '');
     try {
       const resp = await sendCommand('list_dir', path);
       if (resp.items) {
@@ -138,16 +143,7 @@ export default function RemoteFileExplorer({
     }
   };
 
-  const navigateUp = () => {
-    if (!currentPath || currentPath.startsWith(':')) return;
-    const separator = currentPath.includes('\\') ? '\\' : '/';
-    const parts = currentPath.split(separator).filter(Boolean);
-    if (parts.length > 1) {
-      parts.pop();
-      const parent = (currentPath.startsWith('/') ? '/' : '') + parts.join(separator);
-      loadDirectory(parent);
-    }
-  };
+  const upPath = parentPath(currentPath);
 
   return (
     <div style={{
@@ -285,24 +281,26 @@ export default function RemoteFileExplorer({
           {/* Shortcuts */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {[
-              { label: 'App Data', path: ':app_data', icon: HardDrive },
-              { label: 'User Home', path: ':home', icon: Home },
+              { label: 'This PC / Root', path: ':root', icon: HardDrive },
+              { label: 'My User', path: ':home', icon: Home },
               { label: 'Documents', path: ':documents', icon: Folder },
               { label: 'Downloads', path: ':downloads', icon: Download },
+              { label: 'Novi Data', path: ':app_data', icon: HardDrive },
             ].map((shortcut) => (
               <button
                 key={shortcut.path}
                 type="button"
                 onClick={() => loadDirectory(shortcut.path)}
                 disabled={loading}
+                aria-current={activeShortcut === shortcut.path ? 'location' : undefined}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 4,
                   fontSize: 11,
                   fontWeight: 600,
-                  background: currentPath.includes(shortcut.label.toLowerCase()) ? '#18181b' : '#f4f4f5',
-                  color: currentPath.includes(shortcut.label.toLowerCase()) ? '#ffffff' : '#3f3f46',
+                  background: activeShortcut === shortcut.path ? '#18181b' : '#f4f4f5',
+                  color: activeShortcut === shortcut.path ? '#ffffff' : '#3f3f46',
                   border: 'none',
                   padding: '5px 10px',
                   borderRadius: 6,
@@ -318,8 +316,8 @@ export default function RemoteFileExplorer({
           {/* Up Navigation */}
           <button
             type="button"
-            onClick={navigateUp}
-            disabled={loading || currentPath.startsWith(':')}
+            onClick={() => { if (upPath) loadDirectory(upPath); }}
+            disabled={loading || !upPath}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -333,7 +331,7 @@ export default function RemoteFileExplorer({
               cursor: 'pointer',
             }}
           >
-            <ArrowUp size={12} /> Parent Folder
+            <ArrowUp size={12} /> Up one level
           </button>
         </div>
 
@@ -351,7 +349,7 @@ export default function RemoteFileExplorer({
           overflowX: 'auto',
           whiteSpace: 'nowrap',
         }}>
-          <span>Path:</span>
+          <span>{currentPath === ':root' ? 'This PC' : 'Path:'}</span>
           <span style={{ color: '#111', fontWeight: 600 }}>{currentPath}</span>
         </div>
 

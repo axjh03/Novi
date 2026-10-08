@@ -5,11 +5,14 @@ import { errorText, unwrap } from '../services/api';
 import type { AudioSource, InterviewEvent, InterviewSession, TranscriptSegment } from '../../../shared/interview';
 import { updateTranscript } from '../../../shared/interview';
 import { InterviewAudio } from '../services/interviewAudio';
+import { useAppMode } from '../context/AppModeContext';
 
-const size = (bytes: number) => bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : `${Math.ceil(bytes / 1024 ** 2)} MB`;
+const size = (bytes: number) => bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : bytes >= 1024 ** 2 ? `${(bytes / 1024 ** 2).toFixed(1)} MB` : `${Math.max(0, Math.round(bytes / 1024))} KB`;
+const speed = (bytes: number) => `${size(bytes)}/s`;
 const active = (state: string) => ['DOWNLOADING', 'DOWNLOADED', 'VERIFYING'].includes(state);
 
 export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot: Snapshot, modelId: string) => void } = {}) {
+  const { setLocalTranscriptionActive } = useAppMode();
   const [setup, setSetup] = useState<Setup | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -42,10 +45,10 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
       if (!('sessionId' in event) || event.sessionId !== testSessionId.current) return;
       if (event.type === 'warning') setTestWarning(event.message);
       if (event.type === 'metrics') setTestLatency(event.processingMs);
-      if (event.type === 'status') { setTestSession(current => current ? { ...current, status: event.status } : current); testAudio.current?.close(); testAudio.current = null; setTestBusy(false); }
+      if (event.type === 'status') { setTestSession(current => current ? { ...current, status: event.status } : current); testAudio.current?.close(); testAudio.current = null; setTestBusy(false); setLocalTranscriptionActive(false); }
     });
     void refresh().catch(cause => { if (mounted.current) setError(errorText(cause)); });
-    return () => { mounted.current = false; cancelled.current = true; unsubscribe(); stopTranscriptEvents(); testAudio.current?.close(); if (testSessionId.current) void window.novi.stopInterview(); };
+    return () => { mounted.current = false; cancelled.current = true; unsubscribe(); stopTranscriptEvents(); testAudio.current?.close(); setLocalTranscriptionActive(false); if (testSessionId.current) void window.novi.stopInterview(); };
   }, [refresh]);
   useEffect(() => { if (testScroller.current) testScroller.current.scrollTop = testScroller.current.scrollHeight; }, [testSegments]);
 
@@ -83,24 +86,24 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
   }
 
   async function startTest() {
-    if (!setup || !selectedASR || selectedASR.state !== 'READY' || (testVad && !setup.models.some(model => model.type === 'vad' && model.state === 'READY'))) return;
-    setTestBusy(true); setTestSegments([]); setTestWarning(''); setTestLatency(null); testSessionId.current = '';
+    if (!setup || !selectedASR || selectedASR.state !== 'READY') return;
+    setTestBusy(true); setLocalTranscriptionActive(true); setTestSegments([]); setTestWarning(''); setTestLatency(null); testSessionId.current = '';
     try {
       const session = await unwrap(window.novi.startInterview({ mode: testSpeakers ? 'multiple' : 'conversation', vadThreshold: 0.006, diarization: testSpeakers, useVad: testVad }));
-      if (!mounted.current) { await window.novi.stopInterview(); return; }
+      if (!mounted.current) { await window.novi.stopInterview(); setLocalTranscriptionActive(false); return; }
       testSessionId.current = session.id; setTestSession(session);
       const capture = new InterviewAudio(frame => unwrap(window.novi.interviewFrame(frame)), setTestWarning); testAudio.current = capture;
       await capture.start(session.id, session.startedAt, 'conversation', '', '', [testSource]);
     } catch (cause) {
       testAudio.current?.close(); testAudio.current = null; await window.novi.stopInterview();
-      if (mounted.current) { setTestWarning(errorText(cause)); setTestBusy(false); }
+      if (mounted.current) { setTestWarning(errorText(cause)); setTestBusy(false); setLocalTranscriptionActive(false); }
     }
   }
   async function stopTest() {
     setTestBusy(true);
     try { await testAudio.current?.stop(); testAudio.current = null; const session = await unwrap(window.novi.stopInterview()); if (session) setTestSession(session); }
     catch (cause) { setTestWarning(errorText(cause)); }
-    finally { setTestBusy(false); }
+    finally { setTestBusy(false); setLocalTranscriptionActive(false); }
   }
 
   if (!setup) return <section className="settings-section"><h2>Local AI setup</h2><p role="status">{error || 'Checking this computer and installed models…'}</p>
@@ -112,6 +115,8 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
   const selected = setup.models.filter(model => (model.id === selectedASR?.id || (model.type === 'vad' && model.recommended) || (includeAnalysis && model.type === 'llm' && !model.reason)) && model.state !== 'READY');
   const requiredBytes = selected.reduce((sum, model) => sum + model.totalBytes, 0);
   const enoughDisk = setup.device.diskFree !== null && setup.device.diskFree >= requiredBytes + 256 * 1024 ** 2;
+  const vadReady = setup.models.some(model => model.type === 'vad' && model.state === 'READY');
+  const lowAvailableMemory = setup.device.availableMemory < 1024 ** 3;
 
   return <div className="local-ai-setup">
     <section className="settings-section">
@@ -119,8 +124,9 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
       <div className="settings-fields">
         <p>{setup.device.cpu} · {size(setup.device.totalMemory)} RAM · {setup.device.platform}/{setup.device.arch}</p>
         <p className="muted">Available memory: {size(setup.device.availableMemory)}. Free disk: {setup.device.diskFree === null ? 'unknown' : size(setup.device.diskFree)}.</p>
+        {lowAvailableMemory && <p className="local-ai-warning" role="status">Memory is currently low. Model downloads are still available, but close other apps before starting transcription; optional features may be disabled automatically.</p>}
         <p className="muted">{setup.device.unifiedMemory ? 'Unified memory. ' : ''}GPU acceleration is unverified until the native inference runtime is installed and tested.</p>
-        <p role="status">Open Local interview for streaming speech recognition on this computer. Optional AI analysis is not enabled yet. Existing chat audio still uses your configured cloud provider.</p>
+        <p role="status">Use the live test below for streaming speech recognition on this computer. Optional AI analysis is not enabled yet. Existing chat audio still uses your configured cloud provider.</p>
         <label>Speech-to-text model<select value={selectionValue} disabled={busy || inProgress} onChange={event => void selectASR(event.target.value)}><option value="auto">Automatic (hardware recommendation)</option>{setup.models.filter(model => model.type === 'asr').map(model => <option key={model.id} value={model.id} disabled={Boolean(model.reason)}>{model.name}{model.reason ? ' — unavailable on this device' : ''}</option>)}</select></label>
         <p className="muted">Zipformer provides native streaming partials. Whisper tiny.en and Parakeet use Sherpa’s simulated streaming recognition; their interim updates may arrive later and need on-device speed testing. Parakeet needs substantially more memory. Model choice is saved to this account.</p>
         <label className="checkbox-label"><input type="checkbox" checked={includeAnalysis} disabled={busy || inProgress} onChange={event => setIncludeAnalysis(event.target.checked)} /> Also download optional lightweight analysis weights</label>
@@ -128,7 +134,7 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
         <button type="button" className="primary" disabled={busy || inProgress || !selected.length || !enoughDisk} onClick={() => void download(selected.map(model => model.id))}>Download required models</button>
         {!enoughDisk && selected.length > 0 && <p className="muted">Free disk space could not be confirmed or is too low. Refresh after freeing space.</p>}
         <button type="button" className="text-button" disabled={busy || inProgress} onClick={() => void refresh().catch(cause => setError(errorText(cause)))}>Refresh hardware and installed models</button>
-        <p className="muted">Downloads contact Hugging Face for model files only. Files stay in <code>{setup.directory}</code>. No models load automatically.</p>
+        <p className="muted">Downloads contact Hugging Face for model files only. Models stay in <code>{setup.directory}</code>, outside the app bundle, and remain installed across app updates. Novi restarts automatically when an update requires it; you do not need to reinstall or re-download models.</p>
       </div>
     </section>
     <section className="settings-section" aria-label="Live transcription model test">
@@ -137,9 +143,10 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
         <label>Audio input<select value={testSource} disabled={testBusy} onChange={event => setTestSource(event.target.value as AudioSource)}><option value="microphone">Microphone</option><option value="system">System audio (share a window or select a loopback input)</option></select></label>
         <label className="checkbox-label"><input type="checkbox" checked={testVad} disabled={testBusy} onChange={event => setTestVad(event.target.checked)} /> Use Silero VAD {setup.models.some(model => model.type === 'vad' && model.state === 'READY') ? '' : '(download it below first)'}</label>
         <label className="checkbox-label"><input type="checkbox" checked={testSpeakers} disabled={testBusy || testSource !== 'system' || !setup.models.some(model => model.type === 'diarization' && model.state === 'READY')} onChange={event => setTestSpeakers(event.target.checked)} /> Test optional system-audio speaker labeling {setup.models.some(model => model.type === 'diarization' && model.state === 'READY') ? '' : '(download speaker detection below first)'}</label>
-        <p>Test configuration: <strong>{selectedASR?.name || 'No speech model selected'}</strong> · VAD {testVad ? 'on' : 'off'}</p>
-        <p className="muted">Audio and test transcripts remain local. Test runs are saved with interview history. To compare combinations, switch the speech model above, then repeat with each input, VAD, and (for system audio) speaker-labeling setting.</p>
-        <button type="button" className={testBusy ? 'danger-button' : 'primary'} disabled={!testBusy && (!selectedASR || selectedASR.state !== 'READY' || (testVad && !setup.models.some(model => model.type === 'vad' && model.state === 'READY')))} onClick={() => void (testBusy ? stopTest() : startTest())}>{testBusy ? 'Stop live test' : 'Start live test'}</button>
+        <p>Test configuration: <strong>{selectedASR?.name || 'No speech model selected'}</strong> · VAD {testVad ? vadReady ? 'on' : 'requested (lightweight fallback; Silero is not installed)' : 'off'}</p>
+        {testVad && !vadReady && <p className="muted">The test can start now with lightweight voice detection. Install Silero VAD to test neural VAD.</p>}
+        <p className="muted">Live microphone/system audio is processed in memory; raw audio recordings are never saved. Test transcripts are saved locally with interview history. Choose a model above, then test microphone or system audio with VAD on/off; speaker labeling is available for system audio when its model is installed.</p>
+        <button type="button" className={testBusy ? 'danger-button' : 'primary'} disabled={!testBusy && (!selectedASR || selectedASR.state !== 'READY')} onClick={() => void (testBusy ? stopTest() : startTest())}>{testBusy ? 'Stop live test' : 'Start live test'}</button>
         {testLatency !== null && <p role="status">Recognition: {Math.round(testLatency)} ms per 100 ms audio frame · {testLatency > 100 ? 'behind real time' : 'keeping up so far'}</p>}
         {testWarning && <p role="alert" className="muted">{testWarning}</p>}
         <div className="local-test-transcript" ref={testScroller} role="log" aria-label="Live local transcription results" aria-live="off">
@@ -153,7 +160,8 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
       {setup.models.map(model => <section className="local-model-card" key={model.id}>
         <div><h3>{model.name}{model.recommended ? ' · Recommended' : ''}</h3><p className="muted">{model.license} · {size(model.totalBytes)} download · ~{size(model.estimatedRamBytes)} RAM</p></div>
         <p role="status">{model.state.replaceAll('_', ' ')}{model.state === 'READY' ? ' — files verified' : ''}{model.id === selectedASR?.id ? ' · Selected speech model' : ''}</p>
-        {active(model.state) && <><progress aria-label={`${model.name} download`} max={model.totalBytes || 1} value={model.downloadedBytes} /><span>{size(model.downloadedBytes)} / {size(model.totalBytes)}</span><button type="button" className="secondary" onClick={() => void pause(model.id)}>Pause download</button></>}
+        {model.memoryWarning && <p className="local-ai-warning">{model.memoryWarning}</p>}
+        {active(model.state) && <div className="local-model-progress"><div><strong>{model.state === 'DOWNLOADING' ? 'Downloading' : model.state === 'VERIFYING' ? 'Verifying files' : 'Download complete'}</strong><span>{Math.min(100, Math.floor(model.downloadedBytes / Math.max(1, model.totalBytes) * 100))}%</span></div><progress aria-label={`${model.name} download`} max={model.totalBytes || 1} value={model.downloadedBytes} /><div><span>{size(model.downloadedBytes)} of {size(model.totalBytes)}</span><span>{model.state === 'DOWNLOADING' && model.speedBytesPerSecond ? speed(model.speedBytesPerSecond) : model.state === 'DOWNLOADING' ? 'Starting…' : model.state === 'VERIFYING' ? 'Checking integrity…' : 'Finishing…'}</span></div><button type="button" className="secondary" onClick={() => void pause(model.id)}>Pause download</button></div>}
         {model.reason && <p className="muted">{model.reason}</p>}
         {model.error && <p className="error">{model.error}</p>}
         {!active(model.state) && <div className="local-model-actions">

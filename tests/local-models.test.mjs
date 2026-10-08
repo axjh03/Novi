@@ -33,11 +33,12 @@ test('catalog has immutable publisher revisions, unique safe output names and do
   }
 });
 
-test('selector reserves system memory, prefers small on 8 GB, balanced on larger hardware', () => {
+test('selector uses installed RAM for recommendations and warns without blocking downloads', () => {
   const device = { platform: 'darwin', arch: 'arm64', totalMemory: 8 * GiB, availableMemory: 4 * GiB, cores: 8 };
   assert.deepEqual(selectModels(device).required, ['zipformer-en-small', 'silero-vad']);
   assert.deepEqual(selectModels({ ...device, totalMemory: 24 * GiB, availableMemory: 16 * GiB }).required, ['zipformer-en-balanced', 'silero-vad']);
-  assert.deepEqual(selectModels({ ...device, availableMemory: GiB }).required, []);
+  assert.deepEqual(selectModels({ ...device, availableMemory: 86 * 1024 ** 2 }).required, ['zipformer-en-small', 'silero-vad']);
+  assert.match(selectModels(device).memoryWarnings['parakeet-tdt-0.6b'], /substantial memory/);
   assert.deepEqual(selectModels({ ...device, arch: 'ia32' }).required, []);
 });
 
@@ -52,6 +53,7 @@ test('download verifies, records SHA256 metadata, loads offline and locks deleti
   assert.equal(saved.files[0].sha256, sha256(bytes));
   assert.ok(events.some(e => e.state === 'VERIFYING'));
   assert.ok(events.some(e => e.state === 'DOWNLOADED'));
+  assert.ok(events.filter(e => e.state === 'DOWNLOADING').every(e => Number.isFinite(e.speedBytesPerSecond)));
   assert.ok(logs.every(log => !JSON.stringify(log).includes(bytes.toString())));
   const offline = new ModelManager(dir, { registry: [model], fetcher: () => { throw new Error('Unexpected network'); } });
   assert.equal((await offline.inspect(model)).state, 'READY');
@@ -205,6 +207,7 @@ test('hardware discovery returns actual memory/disk and does not invent GPU memo
   t.after(() => rm(dir, { recursive: true, force: true }));
   const device = await detectHardware(dir, { gpuDevice: [{ deviceString: 'Test GPU', vendorId: 1 }] });
   assert.ok(device.totalMemory > 0);
+  assert.ok(device.availableMemory > 0);
   assert.ok(device.cores > 0);
   assert.ok(device.diskFree > 0);
   assert.equal(device.gpus[0].memoryBytes, null);

@@ -270,6 +270,7 @@ export function registerIPC(
     });
     user.name = input.displayName;
     user.settings = { ...user.settings, ...input, onboardingComplete: true };
+    delete user.settings.autoSendOnAudioStop;
     storage.save(); return snapshot();
   });
   handle('save-connection', async (value) => {

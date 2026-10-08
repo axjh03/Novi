@@ -1,6 +1,7 @@
 // Versioned, publisher-hosted weights. Resolve file digests at these immutable
 // revisions; never accept model URLs, filenames, or checksums from the renderer.
 const MiB = 1024 ** 2;
+const GiB = 1024 ** 3;
 export const MODEL_REGISTRY = Object.freeze([
   {
     id: 'zipformer-en-small', name: 'English speech — lightweight', type: 'asr',
@@ -70,17 +71,15 @@ export function modelById(id, registry = MODEL_REGISTRY) {
 // Estimates are conservative admission budgets, not measured latency promises.
 // GPU models are not recommended until an actual inference backend is probed.
 export function selectModels(device, registry = MODEL_REGISTRY) {
-  const reserve = Math.max(1536 * MiB, device.totalMemory * 0.2);
-  const budget = Math.max(0, Math.min(device.availableMemory - reserve, device.totalMemory * 0.35));
   const supported = ['darwin', 'win32', 'linux'].includes(device.platform) && ['arm64', 'x64'].includes(device.arch);
-  const reasons = {};
+  const reasons = {}, memoryWarnings = {};
   for (const model of registry) {
-    reasons[model.id] = !supported ? 'No verified native runtime target for this operating system/architecture.'
-      : model.estimatedRamBytes > budget ? 'More available memory is needed; close other applications.' : null;
+    reasons[model.id] = supported ? null : 'No verified native runtime target for this operating system/architecture.';
+    memoryWarnings[model.id] = model.estimatedRamBytes > device.totalMemory * 0.35
+      ? `This model may use substantial memory on a ${Math.round(device.totalMemory / GiB)} GB system; close other apps before running it.` : null;
   }
   const speech = registry.filter(m => m.type === 'asr' && m.streaming && !reasons[m.id])
     .sort((a, b) => (device.totalMemory >= 12 * 1024 ** 3 && device.cores >= 4 ? b.quality - a.quality : a.estimatedRamBytes - b.estimatedRamBytes))[0];
   const vad = registry.find(m => m.type === 'vad' && !reasons[m.id]);
-  const required = speech && vad && speech.estimatedRamBytes + vad.estimatedRamBytes <= budget ? [speech.id, vad.id] : [];
-  return { required, reasons, budget };
+  return { required: speech ? [speech.id, ...(vad ? [vad.id] : [])] : [], reasons, memoryWarnings };
 }

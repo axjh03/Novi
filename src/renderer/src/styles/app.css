@@ -234,7 +234,6 @@ svg { flex-shrink: 0; }
 .composer textarea:focus-visible { outline: none; }
 .composer-controls { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
 .attach-control { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; position: relative; min-width: 0; }
-.audio-output-select { width: auto; min-height: 30px; padding: 4px 8px; font-size: 11px; }
 .send-button { background: var(--button); color: var(--accent-ink); width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
 .send-button:disabled { opacity: .35; }
 .send-button.stop { background: var(--selected); color: var(--accent); }
@@ -2631,6 +2630,16 @@ html.transparent-mode #root {
   font-weight: 600;
 }
 
+.composer-audio-source { display: inline-flex; align-items: center; gap: 3px; position: relative; }
+.composer-audio-menu { position: absolute; z-index: 30; left: 0; bottom: calc(100% + 8px); min-width: 170px; padding: 6px; display: grid; gap: 3px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); box-shadow: var(--shadow); }
+.composer-audio-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 9px; border-radius: 6px; text-align: left; color: var(--text); font-size: 11px; white-space: nowrap; }
+.composer-audio-menu button:hover:not(:disabled) { background: var(--hover); }
+.composer-audio-menu button:disabled { opacity: .55; cursor: not-allowed; }
+.composer-audio-menu strong { padding: 6px 8px 2px; color: var(--muted); font-size: 10px; }
+.composer-audio-menu small { max-width: 230px; padding: 6px 8px; color: var(--muted); font-size: 10px; line-height: 1.45; white-space: normal; }
+.composer-local-menu { min-width: 225px; }
+.composer-audio-menu-trigger { padding-inline: 6px; }
+
 .audio-meter { display: inline-flex; align-items: center; justify-content: center; gap: 2px; height: 24px; min-width: 25px; }
 .audio-meter > span { width: 3px; min-height: 3px; border-radius: 3px; background: currentColor; transition: height 80ms linear; }
 
@@ -3023,6 +3032,7 @@ html.transparent-mode #root {
 .settings-page { padding: 0 clamp(18px, 4vw, 56px) 48px; }
 .settings-page > header { position: sticky; top: 0; z-index: 4; background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(12px); }
 .settings-content { width: min(100%, 850px); margin: 30px auto 0; }
+.settings-content:not(.settings-content-wide) { width: min(100%, 980px); }
 .settings-content-wide { width: min(100%, 1120px); }
 .settings-content h1 { margin: 0 0 6px; font-size: clamp(27px, 3vw, 34px); letter-spacing: -.04em; }
 .settings-content > p { margin-bottom: 22px; color: var(--muted); }
@@ -3033,6 +3043,12 @@ html.transparent-mode #root {
 .settings-page .settings-section > div > p { font-size: 12px; line-height: 1.6; }
 .settings-page .settings-fields { gap: 16px; }
 .settings-page .settings-fields > label:not(.checkbox-label) { gap: 7px; }
+.settings-page .settings-fields-interaction { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 16px 18px; }
+.settings-page .settings-fields-interaction > label:first-child { grid-column: 1 / -1; }
+.settings-page .settings-fields-interaction > label { min-width: 0; }
+.settings-page .settings-fields-interaction small { line-height: 1.55; }
+.settings-page .shortcut-setting .shortcut-input { flex: 1; }
+.settings-page .shortcut-setting button { white-space: nowrap; padding: 8px 10px; }
 .settings-page .settings-save { margin-top: 18px; }
 .settings-page .settings-save .text-button { margin-right: auto; }
 .local-ai-setup { display: grid; gap: 14px; }
@@ -3054,6 +3070,20 @@ html.transparent-mode #root {
 .local-model-card h3 { margin: 0; font-size: 14px; line-height: 1.45; }
 .local-model-card p { margin: 0; font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
 .local-model-card progress { width: 100%; accent-color: var(--accent); }
+.local-model-progress { display: grid; gap: 8px; padding: 11px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); font-size: 11px; }
+.local-model-progress > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); }
+.local-model-progress strong { color: var(--text); font-size: 11px; }
+.local-model-progress progress { height: 8px; }
+.local-model-progress button { justify-self: start; }
+.local-ai-warning { padding: 10px 12px !important; border: 1px solid color-mix(in srgb, #d97706 35%, var(--border)); border-radius: 9px; background: color-mix(in srgb, #d97706 8%, var(--surface)); color: var(--text); }
+/* Keep device tests as one clear card per test, even inside the wider settings layout. */
+.settings-page .device-tests .settings-section { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 18px; }
+.settings-page .device-tests .settings-section > div:first-child h2 { margin-bottom: 5px; }
+.settings-page .device-tests .settings-section > div:first-child p { margin: 0; max-width: 70ch; }
+.settings-page .device-tests .device-card { padding: clamp(14px, 2vw, 22px); }
+.settings-page .device-tests .device-select-row { align-items: center; }
+.settings-page .device-tests .duration-pill-group { max-width: 100%; flex-wrap: wrap; }
+.settings-page .device-tests .duration-pill-btn { min-height: 32px; }
 .local-model-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: auto; }
 .local-model-actions button { padding: 8px; font-size: 11px; }
 .local-ai-setup code { overflow-wrap: anywhere; }
@@ -3063,6 +3093,8 @@ html.transparent-mode #root {
   .settings-tabs { overflow-x: auto; }
   .settings-tabs button { flex: 0 0 auto; }
   .settings-page .settings-section { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 17px; }
+  .settings-page .settings-fields-interaction { grid-template-columns: minmax(0, 1fr); }
+  .settings-page .settings-fields-interaction > label:first-child { grid-column: auto; }
   .local-model-list { grid-template-columns: minmax(0, 1fr); }
 }
 .interview-page { flex: 1; min-width: 0; height: 100%; overflow: auto; padding: 24px; }

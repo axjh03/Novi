@@ -57,7 +57,6 @@ export function settingsInput(value: unknown): SettingsInput {
     screenshotShortcut: typeof input.screenshotShortcut === 'string' && input.screenshotShortcut.trim() ? input.screenshotShortcut.trim() : 'Alt+3',
     audioRecordShortcut: typeof input.audioRecordShortcut === 'string' && input.audioRecordShortcut.trim() ? input.audioRecordShortcut.trim() : 'Alt+A',
     transparentShortcut: typeof input.transparentShortcut === 'string' && input.transparentShortcut.trim() ? input.transparentShortcut.trim() : DEFAULT_TRANSPARENT_SHORTCUT,
-    autoSendOnAudioStop: typeof input.autoSendOnAudioStop === 'boolean' ? input.autoSendOnAudioStop : false,
     fastInterviewModel: typeof input.fastInterviewModel === 'boolean' ? input.fastInterviewModel : false,
     transparentOpacity: typeof input.transparentOpacity === 'number' ? Math.max(20, Math.min(100, input.transparentOpacity)) : 35,
     transparentBg: typeof input.transparentBg === 'string' && input.transparentBg.trim() ? input.transparentBg.trim() : '#0f172a',

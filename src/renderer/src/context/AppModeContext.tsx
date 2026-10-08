@@ -7,12 +7,16 @@ import {
   type ReactNode,
 } from 'react';
 import type { AppMode, AudioPipelineMode, ImageAttachment, Snapshot, MonitorDisplay, BehavioralFramework } from '../../../shared/types';
+import type { AudioSource } from '../../../shared/interview';
 import { unwrap } from '../services/api';
 import { useAudioRecording } from '../hooks/useAudioRecording';
 import { eyeTracking } from '../eye-tracking/EyeTrackingService';
 
 interface AppModeContextType {
-  setLocalInterviewOpen: (open: boolean) => void;
+  localTranscriptionActive: boolean;
+  setLocalTranscriptionActive: (active: boolean) => void;
+  audioSource: AudioSource;
+  setAudioSource: (source: AudioSource) => void;
   appMode: AppMode;
   setAppMode: (mode: AppMode) => void;
   behavioralFramework: BehavioralFramework;
@@ -34,12 +38,6 @@ interface AppModeContextType {
   audioLevel: number;
   audioError: string;
   toggleAudioRecording: () => void;
-  // Auto-send on audio stop
-  autoSendOnAudioStop: boolean;
-  setAutoSendOnAudioStop: (val: boolean) => Promise<void>;
-  toggleAutoSendOnAudioStop: () => void;
-  pendingAutoSend: { text: string; id: number } | null;
-  consumePendingAutoSend: () => { text: string; id: number } | null;
   // Fast Interview Model
   fastInterviewModel: boolean;
   setFastInterviewModel: (val: boolean) => Promise<void>;
@@ -66,7 +64,9 @@ interface ProviderProps {
 }
 
 export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: ProviderProps) {
-  const [localInterviewOpen, setLocalInterviewOpen] = useState(false);
+  const [localTranscriptionActive, setLocalTranscriptionActive] = useState(false);
+  const [audioSource, setAudioSourceState] = useState<AudioSource>(() => localStorage.getItem('novi_audio_source') === 'microphone' ? 'microphone' : 'system');
+  const setAudioSource = useCallback((source: AudioSource) => { setAudioSourceState(source); localStorage.setItem('novi_audio_source', source); }, []);
   // 1. App Mode
   const [appMode, setAppModeState] = useState<AppMode>(() => {
     const saved = localStorage.getItem('novi_app_mode');
@@ -228,42 +228,6 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
   const [pendingAttachment, setPendingAttachment] = useState<ImageAttachment | null>(null);
   const [pendingTranscript, setPendingTranscript] = useState<string>('');
 
-  // 5. Auto Send on Audio Stop (Alt+A)
-  const [autoSendOnAudioStop, setAutoSendOnAudioStopState] = useState<boolean>(() => {
-    return snapshot?.settings?.autoSendOnAudioStop ?? (localStorage.getItem('novi_auto_send') === 'true');
-  });
-
-  useEffect(() => {
-    if (typeof snapshot?.settings?.autoSendOnAudioStop === 'boolean') {
-      setAutoSendOnAudioStopState(snapshot.settings.autoSendOnAudioStop);
-    }
-  }, [snapshot?.settings?.autoSendOnAudioStop]);
-
-  const setAutoSendOnAudioStop = useCallback(
-    async (val: boolean) => {
-      setAutoSendOnAudioStopState(val);
-      localStorage.setItem('novi_auto_send', String(val));
-      if (snapshot?.settings) {
-        try {
-          const updated = await unwrap(
-            window.novi.saveSettings({
-              ...snapshot.settings,
-              autoSendOnAudioStop: val,
-            })
-          );
-          if (onSnapshotUpdated) onSnapshotUpdated(updated);
-        } catch (err) {
-          console.warn('[AppMode] Failed to save autoSendOnAudioStop setting:', err);
-        }
-      }
-    },
-    [snapshot?.settings, onSnapshotUpdated]
-  );
-
-  const toggleAutoSendOnAudioStop = useCallback(() => {
-    void setAutoSendOnAudioStop(!autoSendOnAudioStop);
-  }, [autoSendOnAudioStop, setAutoSendOnAudioStop]);
-
   // 6. Fast Interview Model toggle
   const [fastInterviewModel, setFastInterviewModelState] = useState<boolean>(() => {
     return snapshot?.settings?.fastInterviewModel ?? (localStorage.getItem('novi_fast_interview_model') === 'true');
@@ -300,15 +264,6 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
     void setFastInterviewModel(!fastInterviewModel);
   }, [fastInterviewModel, setFastInterviewModel]);
 
-  // Pending Auto Send Trigger
-  const [pendingAutoSend, setPendingAutoSend] = useState<{ text: string; id: number } | null>(null);
-
-  const consumePendingAutoSend = useCallback(() => {
-    const cur = pendingAutoSend;
-    setPendingAutoSend(null);
-    return cur;
-  }, [pendingAutoSend]);
-
   const captureScreenshot = useCallback(async (): Promise<ImageAttachment | null> => {
     try {
       const result = await unwrap(window.novi.captureScreen());
@@ -327,11 +282,9 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
 
   const audioRec = useAudioRecording({
     pipelineMode: audioPipelineMode,
+    source: audioSource,
     attachRawAudio: snapshot?.contextSession?.connection.provider === 'gemini',
-    onTranscribed: (text) => {
-      if (autoSendOnAudioStop) setPendingAutoSend({ text, id: Date.now() });
-      else handleTranscribed(text);
-    },
+    onTranscribed: handleTranscribed,
     onAudioAttached: (attachment) => {
       setPendingAttachment(attachment);
     },
@@ -349,7 +302,7 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
     return current;
   }, [pendingAttachment]);
 
-  const sessionActive = Boolean(snapshot?.user && snapshot.contextSession && !localInterviewOpen);
+  const sessionActive = Boolean(snapshot?.user && snapshot.contextSession);
   useEffect(() => {
     if (!snapshot?.user) return;
     void unwrap(window.novi.setCodeViewerVisible(sessionActive && appMode === 'coding')).catch(console.error);
@@ -373,11 +326,11 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
       } else if (action.type === 'capture-screen') {
         void captureScreenshot();
       } else if (action.type === 'toggle-audio-record') {
-        audioRec.toggleRecording();
+        if (!localTranscriptionActive) audioRec.toggleRecording();
       }
     });
     return cleanup;
-  }, [sessionActive, appMode, setAppMode, captureScreenshot, audioRec]);
+  }, [sessionActive, appMode, setAppMode, captureScreenshot, audioRec, localTranscriptionActive]);
 
   // Window-level keydown handler for in-app shortcut execution
   useEffect(() => {
@@ -398,6 +351,7 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
         e.preventDefault();
         void captureScreenshot();
       } else if (key === 'a') {
+        if (localTranscriptionActive) return;
         e.preventDefault();
         audioRec.toggleRecording();
       }
@@ -405,12 +359,15 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [sessionActive, appMode, setAppMode, captureScreenshot, audioRec]);
+  }, [sessionActive, appMode, setAppMode, captureScreenshot, audioRec, localTranscriptionActive]);
 
   return (
     <AppModeContext.Provider
       value={{
-        setLocalInterviewOpen,
+        localTranscriptionActive,
+        setLocalTranscriptionActive,
+        audioSource,
+        setAudioSource,
         appMode,
         setAppMode,
         behavioralFramework,
@@ -430,11 +387,6 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
         audioLevel: audioRec.audioLevel,
         audioError: audioRec.error,
         toggleAudioRecording: audioRec.toggleRecording,
-        autoSendOnAudioStop,
-        setAutoSendOnAudioStop,
-        toggleAutoSendOnAudioStop,
-        pendingAutoSend,
-        consumePendingAutoSend,
         fastInterviewModel,
         setFastInterviewModel,
         toggleFastInterviewModel,

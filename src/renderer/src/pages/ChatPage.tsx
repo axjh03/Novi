@@ -8,7 +8,6 @@ import { Brand } from '../components/Brand';
 import { useChat } from '../hooks/useChat';
 import { activeConnection, DEFAULT_PROVIDER_MODELS, getFastInterviewModel } from '../../../shared/providers';
 import { SettingsPage } from './SettingsPage';
-import { InterviewPage } from './InterviewPage';
 import { useEyeTracking } from '../hooks/useEyeTracking';
 import { EyeTrackingPanel } from '../components/EyeTrackingPanel';
 import { unwrap, errorText } from '../services/api';
@@ -19,7 +18,6 @@ import { BehavioralModeHUD } from '../components/BehavioralModeHUD';
 export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSaved: (state: Snapshot) => void; onSignOut: () => void }) {
   const chat = useChat(state.conversations), [settings, setSettings] = useState(false), [deleting, setDeleting] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  const [interview, setInterview] = useState(false);
   const {
     appMode,
     setAppMode,
@@ -185,7 +183,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   })();
 
-  if (interview) return <InterviewPage onBack={() => setInterview(false)} />;
   return (
     <div className={`chat-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <Sidebar
@@ -206,7 +203,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
       ) : (
         <main className={`chat-main ${!chat.selected ? 'empty' : ''}`}>
           <header className="chat-header">
-            <button className="text-button" disabled={sidebarBusy || isRecordingAudio || isAudioStarting || isAudioProcessing} onClick={() => setInterview(true)}>Local interview</button>
             <div className="header-title-area">
               <span className="header-title">{chat.selected?.title || 'A new conversation'}</span>
               <div className="header-model-select-wrapper">

@@ -1,5 +1,6 @@
 import type { DeviceProfile, LocalAISetup, LocalModelDefinition, LocalModelStatus } from '../../shared/localAI';
 export function detectHardware(directory: string, gpuInfo?: unknown): Promise<DeviceProfile>;
+export function availableSystemMemory(): Promise<number>;
 export function modelDownloadURL(value: string): string;
 export class ModelManager {
   constructor(userData: string, options?: { fetcher?: typeof fetch; onProgress?: (status: LocalModelStatus) => void; log?: (event: Record<string, unknown>) => void });
