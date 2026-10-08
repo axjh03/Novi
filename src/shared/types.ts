@@ -195,6 +195,7 @@ export interface NoviAPI {
   requestPermissions(types?: Array<'storage' | 'camera' | 'microphone' | 'screen' | 'accessibility'>): Promise<Result<PermissionStatus>>;
   getRemoteCompanionStatus(): Promise<Result<RemoteCompanionStatus>>;
   regenerateRemotePin(): Promise<Result<RemoteCompanionStatus>>;
+  toggleRemoteTunnel(enable?: boolean): Promise<Result<RemoteCompanionStatus>>;
 }
 export interface RemoteCompanionStatus {
   running: boolean;
@@ -204,6 +205,9 @@ export interface RemoteCompanionStatus {
   bestUrl: string;
   qrSvg: string;
   connectedClients: number;
+  tunnelActive: boolean;
+  tunnelUrl: string | null;
+  tunnelLoading: boolean;
 }
 export interface PermissionStatus {
   storage: boolean;

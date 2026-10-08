@@ -94,7 +94,7 @@ export function registerIPC(
           'close-window', 'is-window-maximized', 'get-stealth-state', 'check-for-updates',
           'install-update', 'check-permissions', 'request-permissions',
           'get-saved-credentials', 'save-credentials', 'open-external', 'open-audio-midi-setup',
-          'get-remote-companion-status', 'regenerate-remote-pin'
+          'get-remote-companion-status', 'regenerate-remote-pin', 'toggle-remote-tunnel'
         ];
         if (!publicChannels.includes(channel)) {
           const wasSignedIn = get().auth.signedIn;
@@ -537,6 +537,11 @@ export function registerIPC(
   handle('regenerate-remote-pin', async () => {
     get().remoteCompanion.regeneratePIN();
     return get().remoteCompanion.getStatus();
+  });
+  handle('toggle-remote-tunnel', async (value) => {
+    const input = object(value);
+    const enable = typeof input.enable === 'boolean' ? input.enable : undefined;
+    return await get().remoteCompanion.toggleTunnel(enable);
   });
   let quitting = false;
   app.on('before-quit', (event) => {

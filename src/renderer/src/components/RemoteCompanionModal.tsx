@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, Copy, RefreshCw, Smartphone, Wifi, X } from 'lucide-react';
+import { Check, Copy, Globe, RefreshCw, Smartphone, Wifi, X } from 'lucide-react';
 import type { RemoteCompanionStatus } from '../../../shared/types';
 import { unwrap } from '../services/api';
 
@@ -11,6 +11,7 @@ interface RemoteCompanionModalProps {
 export function RemoteCompanionModal({ isOpen, onClose }: RemoteCompanionModalProps) {
   const [status, setStatus] = useState<RemoteCompanionStatus | null>(null);
   const [loading, setLoading] = useState(false);
+  const [tunnelToggling, setTunnelToggling] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -63,6 +64,19 @@ export function RemoteCompanionModal({ isOpen, onClose }: RemoteCompanionModalPr
     }
   };
 
+  const handleToggleTunnel = async (enable: boolean) => {
+    if (status?.tunnelActive === enable || tunnelToggling) return;
+    setTunnelToggling(true);
+    try {
+      const res = await unwrap(window.novi.toggleRemoteTunnel(enable));
+      setStatus(res);
+    } catch (err) {
+      console.error('Failed to toggle tunnel:', err);
+    } finally {
+      setTunnelToggling(false);
+    }
+  };
+
   return (
     <div className="companion-modal-overlay" onClick={onClose}>
       <div className="companion-modal-card" onClick={(e) => e.stopPropagation()}>
@@ -86,7 +100,12 @@ export function RemoteCompanionModal({ isOpen, onClose }: RemoteCompanionModalPr
         <div className="companion-modal-body">
           {/* Left: QR Code */}
           <div className="companion-qr-wrapper">
-            {status?.qrSvg ? (
+            {tunnelToggling || status?.tunnelLoading ? (
+              <div className="companion-qr-loading">
+                <RefreshCw size={24} className="spinning" />
+                <span>Creating Cloudflare Tunnel…</span>
+              </div>
+            ) : status?.qrSvg ? (
               <div
                 className="companion-qr-svg"
                 dangerouslySetInnerHTML={{ __html: status.qrSvg }}
@@ -99,8 +118,30 @@ export function RemoteCompanionModal({ isOpen, onClose }: RemoteCompanionModalPr
             </div>
           </div>
 
-          {/* Right: Instructions & 4-Digit PIN */}
+          {/* Right: Network Mode, PIN & URL */}
           <div className="companion-details">
+            {/* Network Selector Tabs: Local Wi-Fi vs Cloudflare Tunnel */}
+            <div className="companion-mode-switch">
+              <button
+                type="button"
+                className={`companion-mode-btn ${!status?.tunnelActive ? 'active' : ''}`}
+                onClick={() => void handleToggleTunnel(false)}
+                disabled={tunnelToggling || status?.tunnelLoading}
+              >
+                <Wifi size={13} />
+                <span>Local Wi-Fi (1ms)</span>
+              </button>
+              <button
+                type="button"
+                className={`companion-mode-btn ${status?.tunnelActive ? 'active' : ''}`}
+                onClick={() => void handleToggleTunnel(true)}
+                disabled={tunnelToggling || status?.tunnelLoading}
+              >
+                <Globe size={13} />
+                <span>Cloudflare (5G/Anywhere)</span>
+              </button>
+            </div>
+
             {/* 4-Digit PIN Highlight */}
             <div className="companion-pin-box">
               <div className="companion-pin-label">
@@ -129,7 +170,9 @@ export function RemoteCompanionModal({ isOpen, onClose }: RemoteCompanionModalPr
 
             {/* Direct URL input with Copy button */}
             <div className="companion-url-section">
-              <label>Or open browser on your phone:</label>
+              <label>
+                {status?.tunnelActive ? 'Cloudflare Encrypted Tunnel URL:' : 'Or open browser on your phone:'}
+              </label>
               <div className="companion-url-input-row">
                 <input
                   type="text"
@@ -161,8 +204,17 @@ export function RemoteCompanionModal({ isOpen, onClose }: RemoteCompanionModalPr
                 </span>
               </div>
               <div className="companion-net-hint">
-                <Wifi size={13} />
-                <span>Runs on Local Wi-Fi / Hotspot (Instant 1ms response)</span>
+                {status?.tunnelActive ? (
+                  <>
+                    <Globe size={13} />
+                    <span>Cloudflare Anycast Tunnel active (Encrypted HTTPS)</span>
+                  </>
+                ) : (
+                  <>
+                    <Wifi size={13} />
+                    <span>Direct Local Link (Zero-lag ~1ms response)</span>
+                  </>
+                )}
               </div>
             </div>
           </div>

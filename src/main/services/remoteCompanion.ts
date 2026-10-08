@@ -3,6 +3,7 @@ import os from 'node:os';
 import type { BrowserWindow } from 'electron';
 import type { StealthService } from './stealth';
 import { generateQRCodeSVG } from './qrCode';
+import { CloudflareTunnelService } from './cloudflareTunnel';
 
 export interface RemoteCompanionStatus {
   running: boolean;
@@ -12,6 +13,9 @@ export interface RemoteCompanionStatus {
   bestUrl: string;
   qrSvg: string;
   connectedClients: number;
+  tunnelActive: boolean;
+  tunnelUrl: string | null;
+  tunnelLoading: boolean;
 }
 
 export class RemoteCompanionService {
@@ -23,6 +27,8 @@ export class RemoteCompanionService {
   private getWindow: () => BrowserWindow | null;
   private currentMode: 'normal' | 'behavioral' | 'coding' = 'normal';
   private currentAudioSource: 'system' | 'mic' = 'system';
+  private tunnel = new CloudflareTunnelService();
+  private tunnelLoading = false;
 
   constructor(stealth: StealthService, getWindow: () => BrowserWindow | null) {
     this.stealth = stealth;
@@ -50,6 +56,9 @@ export class RemoteCompanionService {
   }
 
   getBestUrl(): string {
+    if (this.tunnel.isActive() && this.tunnel.getUrl()) {
+      return `${this.tunnel.getUrl()}?pin=${this.pin}`;
+    }
     const ips = this.getLocalIPs();
     // Prioritize standard local subnets (192.168.x.x, 10.x.x.x, 172.x.x.x)
     const preferred = ips.find(ip => ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) || ips[0];
@@ -68,7 +77,26 @@ export class RemoteCompanionService {
       bestUrl,
       qrSvg,
       connectedClients: this.clients.size,
+      tunnelActive: this.tunnel.isActive(),
+      tunnelUrl: this.tunnel.getUrl(),
+      tunnelLoading: this.tunnelLoading,
     };
+  }
+
+  async toggleTunnel(enable?: boolean): Promise<RemoteCompanionStatus> {
+    const shouldEnable = enable !== undefined ? enable : !this.tunnel.isActive();
+    if (shouldEnable) {
+      this.tunnelLoading = true;
+      try {
+        await this.tunnel.start(this.port);
+      } finally {
+        this.tunnelLoading = false;
+      }
+    } else {
+      this.tunnel.stop();
+      this.tunnelLoading = false;
+    }
+    return this.getStatus();
   }
 
   async start(preferredPort = 4890): Promise<RemoteCompanionStatus> {
@@ -97,6 +125,7 @@ export class RemoteCompanionService {
   }
 
   stop(): void {
+    this.tunnel.stop();
     if (this.server) {
       this.server.close();
       this.server = null;
