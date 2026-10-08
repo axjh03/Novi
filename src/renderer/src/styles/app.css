@@ -3020,12 +3020,51 @@ html.transparent-mode #root {
   transition: width 0.25s ease-out;
 }
 /* Local model setup shares the existing settings layout and theme. */
-.local-model-list { display: grid; gap: 12px; }
-.local-model-card { padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
-.local-model-card h3 { margin: 0; font-size: 15px; }
+.settings-page { padding: 0 clamp(18px, 4vw, 56px) 48px; }
+.settings-page > header { position: sticky; top: 0; z-index: 4; background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(12px); }
+.settings-content { width: min(100%, 850px); margin: 30px auto 0; }
+.settings-content-wide { width: min(100%, 1120px); }
+.settings-content h1 { margin: 0 0 6px; font-size: clamp(27px, 3vw, 34px); letter-spacing: -.04em; }
+.settings-content > p { margin-bottom: 22px; color: var(--muted); }
+.settings-tabs { width: min(100%, 560px); max-width: none; gap: 3px; padding: 5px; margin: 0 0 24px; border-radius: 11px; }
+.settings-tabs button { min-height: 38px; padding: 8px 13px; white-space: nowrap; }
+.settings-page .settings-section { grid-template-columns: minmax(150px, 190px) minmax(0, 1fr); gap: clamp(18px, 3vw, 34px); padding: 22px; margin: 0 0 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
+.settings-page .settings-section h2 { font-size: 15px; }
+.settings-page .settings-section > div > p { font-size: 12px; line-height: 1.6; }
+.settings-page .settings-fields { gap: 16px; }
+.settings-page .settings-fields > label:not(.checkbox-label) { gap: 7px; }
+.settings-page .settings-save { margin-top: 18px; }
+.settings-page .settings-save .text-button { margin-right: auto; }
+.local-ai-setup { display: grid; gap: 14px; }
+.local-ai-setup > .settings-section { margin: 0; }
+.local-ai-setup .settings-fields > p { margin: 0; }
+.local-ai-setup .settings-fields > p[role='status'], .local-ai-setup .settings-fields > p[role='alert'] { padding: 11px 13px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.local-ai-setup select { max-width: 100%; }
+.local-ai-setup .checkbox-label { margin: 2px 0; }
+.local-ai-setup .primary, .local-ai-setup .secondary { min-height: 40px; }
+.local-test-transcript { max-height: 270px; min-height: 104px; overflow: auto; padding: 14px; border: 1px solid var(--border); border-radius: 11px; background: var(--bg); }
+.local-test-transcript > p { margin: 0; font-size: 12px; }
+.local-test-transcript article { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.local-test-transcript article:last-child { border-bottom: 0; }
+.local-test-transcript article strong { color: var(--accent); font-size: 10px; letter-spacing: .07em; }
+.local-test-transcript article p { margin: 4px 0 0; line-height: 1.55; overflow-wrap: anywhere; }
+.local-test-transcript article.partial p { color: var(--muted); }
+.local-model-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.local-model-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 17px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.local-model-card h3 { margin: 0; font-size: 14px; line-height: 1.45; }
+.local-model-card p { margin: 0; font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
 .local-model-card progress { width: 100%; accent-color: var(--accent); }
-.local-model-actions { display: flex; gap: 12px; }
+.local-model-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: auto; }
+.local-model-actions button { padding: 8px; font-size: 11px; }
 .local-ai-setup code { overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  .settings-page { padding: 0 16px 28px; }
+  .settings-content { margin-top: 20px; }
+  .settings-tabs { overflow-x: auto; }
+  .settings-tabs button { flex: 0 0 auto; }
+  .settings-page .settings-section { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 17px; }
+  .local-model-list { grid-template-columns: minmax(0, 1fr); }
+}
 .interview-page { flex: 1; min-width: 0; height: 100%; overflow: auto; padding: 24px; }
 .interview-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; }
 .interview-toolbar h1 { flex: 1; }

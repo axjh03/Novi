@@ -49,12 +49,6 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     finally { if (current === attempt.current) { setBusy(false); setChecking(false); } }
   }
 
-  useEffect(() => {
-    if (state.settings?.autoStartEmptySession && modelReady && !busy && folders.length === 0 && !purpose) {
-      void startEmpty();
-    }
-  }, [state.settings?.autoStartEmptySession, modelReady]);
-
   async function start() {
     if (!canStart) return;
     const current = ++attempt.current;
@@ -66,13 +60,6 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
       onSaved(await unwrap(window.novi.startContext({ folderIds: folders.map((f) => f.id), purpose, fields })));
     } catch (err) { if (current === attempt.current) setError(errorText(err)); }
     finally { if (current === attempt.current) { setBusy(false); setChecking(false); } }
-  }
-
-  async function toggleAutoEmpty(checked: boolean) {
-    try {
-      const updated = await unwrap(window.novi.saveSettings({ ...state.settings!, autoStartEmptySession: checked }));
-      onSaved(updated);
-    } catch (err) { setError(errorText(err)); }
   }
 
   if (settings) return <SettingsPage state={state} onSaved={onSaved} onBack={() => setSettings(false)} onSignOut={onSignOut} onCleared={() => {}} />;

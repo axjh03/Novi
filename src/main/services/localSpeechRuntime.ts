@@ -35,16 +35,16 @@ export async function createSpeechEngine(options: SpeechRuntimeOptions, emit: (e
     }
     const windows: StreamingASR = {
       createStream: () => new WindowStream(),
-      isReady: stream => { const current = stream as WindowStream; return !current.decoding && (current.final ? current.pending > 0 : current.pending >= 32_000); },
+      isReady: stream => { const current = stream as WindowStream; return !current.decoding && (current.final ? current.pending > 0 : current.pending >= 16_000); },
       decode: async stream => {
         await ready;
         const current = stream as WindowStream; current.decoding = true;
         try {
           const all = new Float32Array(current.samples.reduce((sum, chunk) => sum + chunk.length, 0));
           let offset = 0; for (const chunk of current.samples) { all.set(chunk, offset); offset += chunk.length; }
-          // Every two seconds, decode a bounded six-second window for interim text;
-          // decode the full (max 20 s) utterance once VAD/end-pointing finalizes it.
-          const audio = current.final ? all : all.slice(Math.max(0, all.length - 96_000));
+          // Offline models still emit interim text: decode a rolling four-second
+          // window every second, then the full (max 20 s) utterance on finalization.
+          const audio = current.final ? all : all.slice(Math.max(0, all.length - 64_000));
           const streamForDecode = recognizer!.createStream(); streamForDecode.acceptWaveform({ samples: audio, sampleRate: 16000 });
           await recognizer!.decodeAsync(streamForDecode);
           current.text = recognizer!.getResult(streamForDecode).text;

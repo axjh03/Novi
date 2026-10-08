@@ -21,6 +21,7 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
   const [testSegments, setTestSegments] = useState<TranscriptSegment[]>([]), [testWarning, setTestWarning] = useState('');
   const [testLatency, setTestLatency] = useState<number | null>(null);
   const testAudio = useRef<InterviewAudio | null>(null), testSessionId = useRef('');
+  const testScroller = useRef<HTMLDivElement>(null);
   const mounted = useRef(false);
   const cancelled = useRef(false);
   const refresh = useCallback(async () => {
@@ -46,6 +47,7 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
     void refresh().catch(cause => { if (mounted.current) setError(errorText(cause)); });
     return () => { mounted.current = false; cancelled.current = true; unsubscribe(); stopTranscriptEvents(); testAudio.current?.close(); if (testSessionId.current) void window.novi.stopInterview(); };
   }, [refresh]);
+  useEffect(() => { if (testScroller.current) testScroller.current.scrollTop = testScroller.current.scrollHeight; }, [testSegments]);
 
   async function download(ids: string[]) {
     setBusy(true); setError(''); cancelled.current = false;
@@ -140,7 +142,10 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
         <button type="button" className={testBusy ? 'danger-button' : 'primary'} disabled={!testBusy && (!selectedASR || selectedASR.state !== 'READY' || (testVad && !setup.models.some(model => model.type === 'vad' && model.state === 'READY')))} onClick={() => void (testBusy ? stopTest() : startTest())}>{testBusy ? 'Stop live test' : 'Start live test'}</button>
         {testLatency !== null && <p role="status">Recognition: {Math.round(testLatency)} ms per 100 ms audio frame · {testLatency > 100 ? 'behind real time' : 'keeping up so far'}</p>}
         {testWarning && <p role="alert" className="muted">{testWarning}</p>}
-        {testSegments.map(segment => <p key={segment.segmentId}><strong>{segment.role === 'candidate' ? 'MICROPHONE' : 'SYSTEM AUDIO'}{segment.isFinal ? '' : ' · live'}</strong> {segment.text}</p>)}
+        <div className="local-test-transcript" ref={testScroller} role="log" aria-label="Live local transcription results" aria-live="off">
+          {!testSegments.length && <p className="muted">Your words will appear here while you speak.</p>}
+          {testSegments.map(segment => <article key={segment.segmentId} className={segment.isFinal ? 'final' : 'partial'}><strong>{segment.role === 'candidate' ? 'MICROPHONE' : 'SYSTEM AUDIO'}{segment.isFinal ? '' : ' · LIVE'}</strong><p>{segment.text}{segment.isFinal ? '' : ' …'}</p></article>)}
+        </div>
       </div>
     </section>
     {error && <p className="error" role="alert">{error}</p>}

@@ -23,7 +23,6 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
     autoSendOnAudioStop: state.settings!.autoSendOnAudioStop ?? false,
     fastInterviewModel: state.settings!.fastInterviewModel ?? false,
     checkUpdatesAtStartup: state.settings!.checkUpdatesAtStartup ?? true,
-    autoStartEmptySession: state.settings!.autoStartEmptySession ?? false,
   });
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(false), [confirm, setConfirm] = useState(false);
   const [recordingShortcut, setRecordingShortcut] = useState(false), [shortcutHint, setShortcutHint] = useState('');
@@ -283,20 +282,6 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                       </div>
                     </label>
 
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 4 }}>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(value.autoStartEmptySession)}
-                        onChange={(e) => change({ ...value, autoStartEmptySession: e.target.checked })}
-                        style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
-                      />
-                      <div>
-                        <strong>Auto-start empty session on sign-in</strong>
-                        <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
-                          Jump straight into chat with your active model when you sign in, without requiring source folders.
-                        </div>
-                      </div>
-                    </label>
                   </div>
                 </section>
 
