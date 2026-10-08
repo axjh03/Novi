@@ -6,11 +6,11 @@ import { RemoteCompanionService } from '../src/main/services/remoteCompanion';
 
 test('generateQRCodeSVG produces valid SVG markup', () => {
   const url = 'http://192.168.1.50:4890?pin=1234';
-  const svg = generateQRCodeSVG(url, { size: 240, margin: 3, darkColor: '#000000', lightColor: '#ffffff' });
+  const svg = generateQRCodeSVG(url, { size: 200, margin: 4, darkColor: '#000000', lightColor: '#ffffff' });
 
   assert.ok(svg.startsWith('<svg'), 'Should start with svg tag');
-  assert.ok(svg.includes('width="240"'), 'Should contain width attribute');
-  assert.ok(svg.includes('height="240"'), 'Should contain height attribute');
+  assert.ok(svg.includes('width="200"'), 'Should contain width attribute');
+  assert.ok(svg.includes('height="200"'), 'Should contain height attribute');
   assert.ok(svg.includes('<rect'), 'Should contain rect elements');
   assert.ok(svg.endsWith('</svg>'), 'Should end with closing svg tag');
 });

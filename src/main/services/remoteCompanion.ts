@@ -68,7 +68,7 @@ export class RemoteCompanionService {
   getStatus(): RemoteCompanionStatus {
     const running = Boolean(this.server && this.server.listening);
     const bestUrl = this.getBestUrl();
-    const qrSvg = generateQRCodeSVG(bestUrl, { size: 240, margin: 3, darkColor: '#000000', lightColor: '#ffffff' });
+    const qrSvg = generateQRCodeSVG(bestUrl, { size: 200, margin: 4, darkColor: '#000000', lightColor: '#ffffff' });
     return {
       running,
       port: this.port,
@@ -180,7 +180,7 @@ export class RemoteCompanionService {
     // 3. Dynamic QR code SVG endpoint
     if (pathname === '/api/qr') {
       const bestUrl = this.getBestUrl();
-      const svg = generateQRCodeSVG(bestUrl, { size: 240, margin: 3, darkColor: '#000000', lightColor: '#ffffff' });
+      const svg = generateQRCodeSVG(bestUrl, { size: 200, margin: 4, darkColor: '#000000', lightColor: '#ffffff' });
       res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
       res.end(svg);
       return;

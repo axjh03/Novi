@@ -223,7 +223,7 @@ export function RemoteCompanionModal({ isOpen, onClose }: RemoteCompanionModalPr
         {/* Footer */}
         <div className="companion-modal-footer">
           <small>Screen gestures & pull-to-refresh are automatically locked on your phone for flawless control.</small>
-          <button type="button" className="primary companion-dismiss-btn" onClick={onClose}>
+          <button type="button" className="companion-dismiss-btn" onClick={onClose}>
             Got it
           </button>
         </div>

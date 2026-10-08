@@ -213,7 +213,7 @@ export function generateQRCodeSVG(text: string, options: { size?: number; margin
   }
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalSize} ${totalSize}" width="${sizePx}" height="${sizePx}" shape-rendering="crispEdges">
-  <rect width="100%" height="100%" fill="${light}" rx="8" />
+  <rect width="100%" height="100%" fill="${light}" />
   ${rects.join('\n  ')}
 </svg>`;
 }
