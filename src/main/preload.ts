@@ -117,7 +117,6 @@ const api: NoviAPI = {
   checkPermissions: () => ipcRenderer.invoke('check-permissions'),
   requestPermissions: (types) => ipcRenderer.invoke('request-permissions', types),
   getRemoteCompanionStatus: () => ipcRenderer.invoke('get-remote-companion-status'),
-  regenerateRemotePin: () => ipcRenderer.invoke('regenerate-remote-pin'),
   toggleRemoteTunnel: (enable?: boolean) => ipcRenderer.invoke('toggle-remote-tunnel', { enable }),
 };
 contextBridge.exposeInMainWorld('novi', api);

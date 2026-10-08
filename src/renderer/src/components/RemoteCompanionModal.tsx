@@ -1,279 +1,57 @@
-import { useEffect, useState } from 'react';
-import { Check, Copy, Globe, RefreshCw, Smartphone, Wifi, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Check, Copy, Smartphone, X } from 'lucide-react';
 import type { RemoteCompanionStatus } from '../../../shared/types';
-import { unwrap } from '../services/api';
+import { errorText, unwrap } from '../services/api';
 
-interface RemoteCompanionModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-export function RemoteCompanionModal({ isOpen, onClose }: RemoteCompanionModalProps) {
+export function RemoteCompanionModal({ onClose }: { onClose: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
   const [status, setStatus] = useState<RemoteCompanionStatus | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [tunnelToggling, setTunnelToggling] = useState(false);
+  const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) return;
-
+    dialog.current?.showModal();
     let active = true;
-    const fetchStatus = async () => {
-      try {
-        const res = await unwrap(window.novi.getRemoteCompanionStatus());
-        if (active) setStatus(res);
-      } catch (err) {
-        console.error('Failed to get remote companion status:', err);
-      }
-    };
+    void unwrap(window.novi.getRemoteCompanionStatus()).then(value => {
+      if (active) setStatus(value);
+    }).catch(cause => { if (active) setError(errorText(cause)); });
+    return () => { active = false; };
+  }, []);
 
-    void fetchStatus();
-    const interval = setInterval(fetchStatus, 2500);
+  async function toggleTunnel(enable: boolean) {
+    setBusy(true); setError(''); setCopied(false);
+    try { setStatus(await unwrap(window.novi.toggleRemoteTunnel(enable))); }
+    catch (cause) { setError(errorText(cause)); }
+    finally { setBusy(false); }
+  }
 
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-
-    return () => {
-      active = false;
-      clearInterval(interval);
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [isOpen, onClose]);
-
-  const [pinCopied, setPinCopied] = useState(false);
-
-  const handleCopyUrl = async () => {
+  async function copy() {
     if (!status?.bestUrl) return;
-    try {
-      if (window.novi?.copyText) {
-        await unwrap(window.novi.copyText(status.bestUrl));
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(status.bestUrl);
-      }
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      try {
-        await navigator.clipboard?.writeText(status.bestUrl);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } catch (err) {
-        console.error('Failed to copy URL:', err);
-      }
-    }
-  };
+    try { await navigator.clipboard.writeText(status.bestUrl); setCopied(true); }
+    catch (cause) { setError(errorText(cause)); }
+  }
 
-  const handleCopyPin = async () => {
-    if (!status?.pin) return;
-    try {
-      if (window.novi?.copyText) {
-        await unwrap(window.novi.copyText(status.pin));
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(status.pin);
-      }
-      setPinCopied(true);
-      setTimeout(() => setPinCopied(false), 2000);
-    } catch {
-      try {
-        await navigator.clipboard?.writeText(status.pin);
-        setPinCopied(true);
-        setTimeout(() => setPinCopied(false), 2000);
-      } catch (err) {
-        console.error('Failed to copy PIN:', err);
-      }
-    }
-  };
-
-
-  const handleRegeneratePin = async () => {
-    setLoading(true);
-    try {
-      const res = await unwrap(window.novi.regenerateRemotePin());
-      setStatus(res);
-    } catch (err) {
-      console.error('Failed to regenerate pin:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleToggleTunnel = async (enable: boolean) => {
-    if (status?.tunnelActive === enable || tunnelToggling) return;
-    setTunnelToggling(true);
-    try {
-      const res = await unwrap(window.novi.toggleRemoteTunnel(enable));
-      setStatus(res);
-    } catch (err) {
-      console.error('Failed to toggle tunnel:', err);
-    } finally {
-      setTunnelToggling(false);
-    }
-  };
-
-  return (
-    <div className="companion-modal-overlay" onClick={onClose}>
-      <div className="companion-modal-card" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="companion-modal-header">
-          <div className="companion-modal-title-group">
-            <div className="companion-modal-icon-badge">
-              <Smartphone size={18} />
-            </div>
-            <div>
-              <h3>Phone Remote Controller</h3>
-              <p>Scan with your phone to control chat, modes & snapshots remotely</p>
-            </div>
-          </div>
-          <button type="button" className="companion-modal-close" onClick={onClose} aria-label="Close">
-            <X size={16} />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="companion-modal-body">
-          {/* Left: QR Code */}
-          <div className="companion-qr-wrapper">
-            {tunnelToggling || status?.tunnelLoading ? (
-              <div className="companion-qr-loading">
-                <RefreshCw size={24} className="spinning" />
-                <span>Creating Cloudflare Tunnel…</span>
-              </div>
-            ) : status?.qrSvg ? (
-              <div
-                className="companion-qr-svg"
-                dangerouslySetInnerHTML={{ __html: status.qrSvg }}
-              />
-            ) : (
-              <div className="companion-qr-loading">Loading QR code…</div>
-            )}
-            <div className="companion-scan-hint">
-              <span>Scan using phone Camera</span>
-            </div>
-          </div>
-
-          {/* Right: Network Mode, PIN & URL */}
-          <div className="companion-details">
-            {/* Network Selector Tabs: Local Wi-Fi vs Cloudflare Tunnel */}
-            <div className="companion-mode-switch">
-              <button
-                type="button"
-                className={`companion-mode-btn ${!status?.tunnelActive ? 'active' : ''}`}
-                onClick={() => void handleToggleTunnel(false)}
-                disabled={tunnelToggling || status?.tunnelLoading}
-              >
-                <Wifi size={13} />
-                <span>Local Wi-Fi (1ms)</span>
-              </button>
-              <button
-                type="button"
-                className={`companion-mode-btn ${status?.tunnelActive ? 'active' : ''}`}
-                onClick={() => void handleToggleTunnel(true)}
-                disabled={tunnelToggling || status?.tunnelLoading}
-              >
-                <Globe size={13} />
-                <span>Cloudflare (5G/Anywhere)</span>
-              </button>
-            </div>
-
-            {/* 4-Digit PIN Highlight */}
-            <div className="companion-pin-box">
-              <div className="companion-pin-label">
-                <span>4-DIGIT PAIRING PIN</span>
-                <button
-                  type="button"
-                  className="companion-regen-btn"
-                  onClick={() => void handleRegeneratePin()}
-                  disabled={loading}
-                  title="Generate new PIN"
-                >
-                  <RefreshCw size={12} className={loading ? 'spinning' : ''} />
-                  <span>New PIN</span>
-                </button>
-              </div>
-              <div
-                className="companion-pin-display"
-                onClick={() => void handleCopyPin()}
-                title="Click to copy PIN"
-                style={{ cursor: 'pointer' }}
-              >
-                {status?.pin ? (
-                  status.pin.split('').map((digit, idx) => (
-                    <span key={idx} className="companion-pin-digit">{digit}</span>
-                  ))
-                ) : (
-                  <span>••••</span>
-                )}
-                {pinCopied && (
-                  <span style={{ fontSize: 11, color: '#93c5fd', marginLeft: 8 }}>Copied!</span>
-                )}
-              </div>
-            </div>
-
-            {/* Direct URL input with Copy button */}
-            <div className="companion-url-section">
-              <label>
-                {status?.tunnelActive ? 'Cloudflare Encrypted Tunnel URL:' : 'Or open browser on your phone:'}
-              </label>
-              <div className="companion-url-input-row">
-                <input
-                  type="text"
-                  readOnly
-                  value={status?.bestUrl || 'Loading…'}
-                  className="companion-url-input"
-                  onClick={(e) => {
-                    (e.target as HTMLInputElement).select();
-                    void handleCopyUrl();
-                  }}
-                />
-                <button
-                  type="button"
-                  className={`companion-copy-btn ${copied ? 'copied' : ''}`}
-                  onClick={() => void handleCopyUrl()}
-                  title="Copy URL"
-                >
-                  {copied ? <Check size={14} /> : <Copy size={14} />}
-                  <span>{copied ? 'Copied' : 'Copy'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Connection Status Indicator */}
-            <div className="companion-status-indicator">
-              <div className="companion-status-pill">
-                <span className={`status-dot ${status && status.connectedClients > 0 ? 'online' : 'waiting'}`} />
-                <span>
-                  {status && status.connectedClients > 0
-                    ? `${status.connectedClients} phone connected`
-                    : 'Waiting for phone connection…'}
-                </span>
-              </div>
-              <div className="companion-net-hint">
-                {status?.tunnelActive ? (
-                  <>
-                    <Globe size={13} />
-                    <span>Cloudflare Anycast Tunnel active (Encrypted HTTPS)</span>
-                  </>
-                ) : (
-                  <>
-                    <Wifi size={13} />
-                    <span>Direct Local Link (Zero-lag ~1ms response)</span>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="companion-modal-footer">
-          <small>Screen gestures & pull-to-refresh are automatically locked on your phone for flawless control.</small>
-          <button type="button" className="companion-dismiss-btn" onClick={onClose}>
-            Got it
-          </button>
-        </div>
+  return <dialog ref={dialog} className="companion-dialog" aria-labelledby="companion-title"
+    onCancel={onClose} onClose={onClose} onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="companion-card">
+      <header><div><Smartphone size={18} /><h2 id="companion-title">Phone companion</h2></div>
+        <button type="button" onClick={onClose} aria-label="Close phone companion"><X size={18} /></button></header>
+      <p>Scan to control Novi. One connection across your chat sessions.</p>
+      <div className="companion-network" aria-label="Connection type">
+        {[false, true].map(remote => <button key={String(remote)} type="button" disabled={busy || !status}
+          aria-pressed={Boolean(status?.tunnelActive) === remote} onClick={() => void toggleTunnel(remote)}>
+          {remote ? 'Anywhere' : 'Same Wi-Fi'}</button>)}
       </div>
+      <div className="companion-code">
+        {busy ? <p role="status">Updating link…</p> : status?.running && status.qrSvg
+          ? <div role="img" aria-label="Scan to open phone companion" dangerouslySetInnerHTML={{ __html: status.qrSvg }} />
+          : <p role="status">{status ? 'Phone companion is unavailable.' : 'Loading link…'}</p>}
+      </div>
+      <p>{status?.tunnelActive ? 'Open your phone camera and scan.' : 'Connect your phone to the same Wi-Fi, then scan.'}</p>
+      <div className="companion-link"><input aria-label="Phone companion link" readOnly value={status?.bestUrl || ''} />
+        <button type="button" disabled={!status?.running || busy} onClick={() => void copy()}>{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? 'Copied' : 'Copy'}</button></div>
+      {error && <p role="alert">{error}</p>}
+      <footer><small>Keep Novi open on your desktop.</small><button type="button" onClick={onClose}>Close</button></footer>
     </div>
-  );
+  </dialog>;
 }

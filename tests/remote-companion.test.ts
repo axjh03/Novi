@@ -1,79 +1,42 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import http from 'node:http';
 import { generateQRCodeSVG } from '../src/main/services/qrCode';
 import { RemoteCompanionService } from '../src/main/services/remoteCompanion';
 
-test('generateQRCodeSVG produces valid SVG markup', () => {
-  const url = 'http://192.168.1.50:4890?pin=1234';
-  const svg = generateQRCodeSVG(url, { size: 200, margin: 4, darkColor: '#000000', lightColor: '#ffffff' });
-
-  assert.ok(svg.startsWith('<svg'), 'Should start with svg tag');
-  assert.ok(svg.includes('width="200"'), 'Should contain width attribute');
-  assert.ok(svg.includes('height="200"'), 'Should contain height attribute');
-  assert.ok(svg.includes('<rect'), 'Should contain rect elements');
-  assert.ok(svg.endsWith('</svg>'), 'Should end with closing svg tag');
-});
-
-test('RemoteCompanionService starts with 4-digit PIN and handles mobile controller requests', async () => {
-  const mockStealth: any = {
+test('QR link connects without a PIN and stays valid across modes and repeated starts', async () => {
+  const actions: unknown[] = [];
+  const service = new RemoteCompanionService({
     getState: () => ({ transparent: false, clickThrough: false }),
-    toggleTransparent: () => ({ transparent: true, clickThrough: false }),
-    toggleClickThrough: () => ({ transparent: false, clickThrough: true }),
-  };
-  const mockGetWindow: any = () => null;
-
-  const service = new RemoteCompanionService(mockStealth, mockGetWindow);
-  const status = await service.start(4990);
-
+  } as any, () => ({ isDestroyed: () => false, webContents: { send: (...args: unknown[]) => actions.push(args) } }) as any);
+  const status = await service.start(0);
   try {
-    assert.equal(status.running, true);
-    assert.equal(status.pin.length, 4, 'PIN must be exactly 4 digits');
-    assert.ok(/^\d{4}$/.test(status.pin), 'PIN must be numeric');
-    assert.ok(status.bestUrl.includes(status.pin), 'Best URL must include 4-digit PIN');
-    assert.ok(status.qrSvg.startsWith('<svg'), 'QR SVG must be rendered');
-
-    // 1. Fetch mobile controller HTML
-    const html = await new Promise<string>((resolve, reject) => {
-      http.get(`http://127.0.0.1:${status.port}/`, (res) => {
-        assert.equal(res.statusCode, 200);
-        assert.ok(res.headers['content-type']?.includes('text/html'));
-        let data = '';
-        res.on('data', chunk => { data += chunk; });
-        res.on('end', () => resolve(data));
-      }).on('error', reject);
-    });
-    assert.ok(html.includes('Astra Companion'));
-    assert.ok(html.includes('ONE-CLICK SEND'));
-    assert.ok(html.includes('touchmove'));
-
-    // 2. Test status endpoint without PIN -> 401
-    const unauthStatus = await new Promise<number>((resolve, reject) => {
-      http.get(`http://127.0.0.1:${status.port}/api/status`, (res) => {
-        resolve(res.statusCode || 0);
-      }).on('error', reject);
-    });
-    assert.equal(unauthStatus, 401);
-
-    // 3. Test status endpoint with correct PIN -> 200
-    const authStatus = await new Promise<any>((resolve, reject) => {
-      http.get(`http://127.0.0.1:${status.port}/api/status?pin=${status.pin}`, (res) => {
-        assert.equal(res.statusCode, 200);
-        let data = '';
-        res.on('data', chunk => { data += chunk; });
-        res.on('end', () => resolve(JSON.parse(data)));
-      }).on('error', reject);
-    });
-    assert.equal(authStatus.ok, true);
-    assert.equal(service.getStatus().connectedClients, 1, 'Connected clients count should be 1');
-
-    // 4. Test PIN regeneration
-    const oldPin = status.pin;
-    const newPin = service.regeneratePIN();
-    assert.equal(newPin.length, 4);
-    assert.equal(service.getStatus().pin, newPin);
-
-  } finally {
-    service.stop();
-  }
+    const url = new URL(status.bestUrl);
+    const token = new URLSearchParams(url.hash.slice(1)).get('token');
+    assert.match(token!, /^[a-f0-9]{48}$/);
+    assert.ok(!('pin' in status));
+    assert.ok(status.qrSvg.startsWith('<svg'));
+    assert.ok(generateQRCodeSVG(url.href).endsWith('</svg>'));
+    const base = `http://127.0.0.1:${status.port}`;
+    const html = await (await fetch(base)).text();
+    assert.ok(html.includes('Novi Companion'));
+    assert.ok(html.includes('Send prompt'));
+    assert.ok(!html.includes('pinModal'));
+    assert.ok(!html.includes(token!), 'Public page must not reveal authorization');
+    assert.equal((await fetch(base + '/api/status')).status, 401);
+    assert.equal((await fetch(base + '/api/qr')).status, 401);
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    assert.equal((await fetch(base + '/api/status', { headers: { Authorization: 'Bearer wrong' } })).status, 401);
+    assert.equal((await fetch(base + '/api/action', { method: 'POST', body: JSON.stringify({ action: 'send-prompt' }) })).status, 401);
+    assert.equal(actions.length, 0);
+    assert.equal((await (await fetch(base + '/api/status', { headers })).json()).ok, true);
+    assert.equal(service.getStatus().connectedClients, 1);
+    for (const mode of ['coding', 'normal', 'behavioral']) {
+      const response = await fetch(base + '/api/action', { method: 'POST', headers, body: JSON.stringify({ action: 'set-app-mode', payload: mode }) });
+      assert.equal((await response.json()).currentMode, mode);
+      assert.equal(service.getStatus().bestUrl, status.bestUrl);
+    }
+    await fetch(base + '/api/action', { method: 'POST', headers, body: JSON.stringify({ action: 'send-prompt' }) });
+    assert.deepEqual(actions.at(-1), ['global-action', { type: 'submit-prompt' }]);
+    assert.equal((await service.start()).bestUrl, status.bestUrl);
+  } finally { service.stop(); }
 });

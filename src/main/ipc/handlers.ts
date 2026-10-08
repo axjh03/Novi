@@ -94,7 +94,7 @@ export function registerIPC(
           'close-window', 'is-window-maximized', 'get-stealth-state', 'check-for-updates',
           'install-update', 'check-permissions', 'request-permissions',
           'get-saved-credentials', 'save-credentials', 'open-external', 'open-audio-midi-setup',
-          'get-remote-companion-status', 'regenerate-remote-pin', 'toggle-remote-tunnel'
+          'get-remote-companion-status', 'toggle-remote-tunnel'
         ];
         if (!publicChannels.includes(channel)) {
           const wasSignedIn = get().auth.signedIn;
@@ -532,10 +532,6 @@ export function registerIPC(
     });
   });
   handle('get-remote-companion-status', async () => {
-    return get().remoteCompanion.getStatus();
-  });
-  handle('regenerate-remote-pin', async () => {
-    get().remoteCompanion.regeneratePIN();
     return get().remoteCompanion.getStatus();
   });
   handle('toggle-remote-tunnel', async (value) => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Copy, Eye, EyeOff, Minus, QrCode, Square, X } from 'lucide-react';
 import { useStealth } from '../hooks/useStealth';
 import { useAppMode } from '../context/AppModeContext';
@@ -11,21 +11,10 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
   const { transparentOpacity, setTransparentOpacity, transparentBg, setTransparentBg } = useAppMode();
   const [maximized, setMaximized] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
-  const autoShownRef = useRef(false);
 
   useEffect(() => {
     void unwrap(window.novi.isWindowMaximized()).then(setMaximized).catch(() => {});
   }, []);
-
-  // Auto-show QR code modal once when session begins
-  useEffect(() => {
-    if (sessionActive && !autoShownRef.current) {
-      autoShownRef.current = true;
-      setShowQRModal(true);
-    } else if (!sessionActive) {
-      autoShownRef.current = false;
-    }
-  }, [sessionActive]);
 
   return (
     <>
@@ -42,15 +31,6 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
               title={transparent ? 'Turn off transparent window' : 'Turn on transparent window'}>
               {transparent ? <Eye size={14} /> : <EyeOff size={14} />}
               <span>{transparent ? 'Transparent' : 'Transparency'}</span>
-            </button>
-            <button
-              type="button"
-              className="stealth-toggle-btn titlebar-qr-btn"
-              onClick={() => setShowQRModal(true)}
-              title="Open Phone Remote Controller (QR Code)"
-            >
-              <QrCode size={14} />
-              <span>Phone Remote</span>
             </button>
           {transparent && (
             <details className="titlebar-appearance">
@@ -71,6 +51,11 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
         </div>
       )}
 
+      <button type="button" className="stealth-toggle-btn titlebar-qr-btn"
+        onClick={() => setShowQRModal(true)} title="Open phone companion">
+        <QrCode size={14} /><span>Phone Remote</span>
+      </button>
+
       <div className="titlebar-controls">
         <button type="button" className="titlebar-btn minimize" aria-label="Minimize" title="Minimize"
           onClick={() => void unwrap(window.novi.minimizeWindow()).catch(console.error)}><Minus size={14} /></button>
@@ -82,7 +67,7 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
           onClick={() => void unwrap(window.novi.closeWindow()).catch(console.error)}><X size={14} /></button>
       </div>
     </header>
-    <RemoteCompanionModal isOpen={showQRModal} onClose={() => setShowQRModal(false)} />
+    {showQRModal && <RemoteCompanionModal onClose={() => setShowQRModal(false)} />}
   </>
   );
 }

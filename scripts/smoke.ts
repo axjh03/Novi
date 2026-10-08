@@ -67,6 +67,17 @@ async function main() {
     app = await launch();
     let page = await app.firstWindow();
     await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
+    assert.equal(await page.getByRole('dialog', { name: 'Phone companion' }).count(), 0);
+    for (const close of ['Close', 'Close phone companion', 'Escape', 'backdrop']) {
+      await page.getByRole('button', { name: 'Phone Remote', exact: true }).click();
+      const companion = page.getByRole('dialog', { name: 'Phone companion' });
+      await companion.waitFor();
+      if (close === 'Escape') await page.keyboard.press('Escape');
+      else if (close === 'backdrop') await page.mouse.click(5, 100);
+      else await companion.getByRole('button', { name: close, exact: true }).click();
+      await companion.waitFor({ state: 'detached' });
+    }
+
     assert.equal(await page.locator('.global-error').count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Transparency' }).count(), 0);
     assert.equal(await page.getByRole('navigation', { name: 'Conversation mode' }).count(), 0);
@@ -75,6 +86,7 @@ async function main() {
     await page.getByLabel('Password', { exact: true }).fill('novi-test-password');
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await page.getByRole('heading', { name: 'Temporary session' }).waitFor();
+    assert.equal(await page.getByRole('dialog', { name: 'Phone companion' }).count(), 0);
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'API Management', exact: true }).click();
     await page.getByText('Shared by Test owner · Key hidden').waitFor();
@@ -116,6 +128,7 @@ async function main() {
     rejectPing = false;
     await page.getByRole('button', { name: 'Start session', exact: true }).click();
     await page.getByText('Understood the loaded context. Cedar uses blue buttons.', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('dialog', { name: 'Phone companion' }).count(), 0, 'Starting a session must not open the QR dialog');
     assert.equal(await page.getByRole('button', { name: 'Expand sidebar' }).count(), 1);
     assert.equal(await page.getByRole('navigation', { name: 'Conversation mode' }).getByRole('button').count(), 3);
     assert.equal(await page.getByRole('button', { name: 'Whiteboard' }).count(), 0);

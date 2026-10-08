@@ -1,27 +1,16 @@
 import http from 'node:http';
 import os from 'node:os';
+import { randomBytes } from 'node:crypto';
 import type { BrowserWindow } from 'electron';
 import type { StealthService } from './stealth';
 import { generateQRCodeSVG } from './qrCode';
 import { CloudflareTunnelService } from './cloudflareTunnel';
-
-export interface RemoteCompanionStatus {
-  running: boolean;
-  port: number;
-  pin: string;
-  localIps: string[];
-  bestUrl: string;
-  qrSvg: string;
-  connectedClients: number;
-  tunnelActive: boolean;
-  tunnelUrl: string | null;
-  tunnelLoading: boolean;
-}
+import type { RemoteCompanionStatus } from '../../shared/types';
 
 export class RemoteCompanionService {
   private server: http.Server | null = null;
   private port = 4890;
-  private pin = '';
+  private readonly token = randomBytes(24).toString('hex');
   private activeClients = new Map<string, number>();
   private stealth: StealthService;
   private getWindow: () => BrowserWindow | null;
@@ -33,13 +22,6 @@ export class RemoteCompanionService {
   constructor(stealth: StealthService, getWindow: () => BrowserWindow | null) {
     this.stealth = stealth;
     this.getWindow = getWindow;
-    this.regeneratePIN();
-  }
-
-  regeneratePIN(): string {
-    // Generate a secure, user-friendly 4-digit pairing code (1000 - 9999)
-    this.pin = String(Math.floor(1000 + Math.random() * 9000));
-    return this.pin;
   }
 
   getLocalIPs(): string[] {
@@ -57,12 +39,12 @@ export class RemoteCompanionService {
 
   getBestUrl(): string {
     if (this.tunnel.isActive() && this.tunnel.getUrl()) {
-      return `${this.tunnel.getUrl()}?pin=${this.pin}`;
+      return `${this.tunnel.getUrl()}/#token=${this.token}`;
     }
     const ips = this.getLocalIPs();
     // Prioritize standard local subnets (192.168.x.x, 10.x.x.x, 172.x.x.x)
     const preferred = ips.find(ip => ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.')) || ips[0];
-    return `http://${preferred}:${this.port}?pin=${this.pin}`;
+    return `http://${preferred}:${this.port}/#token=${this.token}`;
   }
 
   getConnectedClientsCount(): number {
@@ -82,7 +64,6 @@ export class RemoteCompanionService {
     return {
       running,
       port: this.port,
-      pin: this.pin,
       localIps: this.getLocalIPs(),
       bestUrl,
       qrSvg,
@@ -130,6 +111,8 @@ export class RemoteCompanionService {
 
       srv.listen(this.port, () => {
         this.server = srv;
+        const address = srv.address();
+        if (address && typeof address !== 'string') this.port = address.port;
         resolve(this.getStatus());
       });
     });
@@ -155,7 +138,7 @@ export class RemoteCompanionService {
     // CORS headers for local LAN communication
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Client-Id');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Client-Id, Authorization');
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
@@ -166,6 +149,16 @@ export class RemoteCompanionService {
     const parsedUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     const pathname = parsedUrl.pathname;
 
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+
+    // The scanned link authorizes the phone without a PIN prompt.
+    if (pathname.startsWith('/api/') && req.headers.authorization !== `Bearer ${this.token}`) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Open the link from Novi to connect.' }));
+      return;
+    }
+
     // 1. Mobile App Controller HTML
     if (pathname === '/' || pathname === '/index.html') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -175,12 +168,6 @@ export class RemoteCompanionService {
 
     // 2. Status verification
     if (pathname === '/api/status') {
-      const pin = parsedUrl.searchParams.get('pin');
-      if (pin !== this.pin) {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid or expired 4-digit PIN' }));
-        return;
-      }
       this.recordClient(req);
       const stealthState = this.stealth.getState();
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -196,27 +183,16 @@ export class RemoteCompanionService {
       return;
     }
 
-    // 3. Dynamic QR code SVG endpoint
-    if (pathname === '/api/qr') {
-      const bestUrl = this.getBestUrl();
-      const svg = generateQRCodeSVG(bestUrl, { size: 200, margin: 4, darkColor: '#000000', lightColor: '#ffffff' });
-      res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
-      res.end(svg);
-      return;
-    }
-
     // 4. Remote Action Execution
     if (pathname === '/api/action' && req.method === 'POST') {
       let body = '';
-      req.on('data', chunk => { body += chunk; });
+      req.on('data', chunk => {
+        body += chunk;
+        if (body.length > 65536) req.destroy();
+      });
       req.on('end', () => {
         try {
           const data = JSON.parse(body || '{}');
-          if (data.pin !== this.pin) {
-            res.writeHead(401, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Invalid 4-digit PIN' }));
-            return;
-          }
           this.recordClient(req);
           this.executeAction(data.action, data.payload);
           const stealthState = this.stealth.getState();
@@ -312,339 +288,62 @@ export class RemoteCompanionService {
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="theme-color" content="#0a0a0c" />
-  <title>Astra Remote Controller</title>
+  <meta name="theme-color" content="#111111" />
+  <title>Novi Phone Companion</title>
   <style>
-    * {
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-      outline: none;
-    }
-    /* COMPLETE SCREEN LOCK - Disables pull-to-refresh and swipe navigation */
-    html, body {
-      position: fixed;
-      width: 100vw;
-      height: 100vh;
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      overscroll-behavior: none;
-      overscroll-behavior-y: none;
-      overscroll-behavior-x: none;
-      touch-action: manipulation;
-      user-select: none;
-      -webkit-user-select: none;
-      -webkit-touch-callout: none;
-      background: #0a0a0c;
-      color: #f1f3f5;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
-    .app-container {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      padding: env(safe-area-inset-top, 10px) 14px env(safe-area-inset-bottom, 12px) 14px;
-      gap: 10px;
-    }
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 4px 2px;
-      flex-shrink: 0;
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-weight: 700;
-      font-size: 15px;
-      letter-spacing: -0.02em;
-    }
-    .brand-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #345fc5;
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 11px;
-      font-weight: 600;
-      padding: 3px 8px;
-      border-radius: 20px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.1);
-      color: #8e94a0;
-    }
-    .badge.connected {
-      color: #93c5fd;
-      border-color: rgba(147,197,253,0.3);
-      background: rgba(147,197,253,0.08);
-    }
-    .badge.error {
-      color: #ff4d4f;
-      border-color: rgba(255,77,79,0.3);
-      background: rgba(255,77,79,0.08);
-    }
-
-    /* CONTROLS SCROLLER/CONTAINER */
-    .controls-grid {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      gap: 9px;
-      justify-content: space-between;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    /* 1. HERO ONE-CLICK SEND */
-    .hero-btn {
-      width: 100%;
-      min-height: 68px;
-      border-radius: 14px;
-      border: 1px solid #345fc5;
-      background: linear-gradient(135deg, #345fc5 0%, #23489e 100%);
-      color: #ffffff;
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      box-shadow: 0 4px 18px rgba(52, 95, 197, 0.3);
-      cursor: pointer;
-      transition: transform 60ms ease, filter 60ms ease;
-      flex-shrink: 0;
-    }
-    .hero-btn:active {
-      transform: scale(0.97);
-      filter: brightness(0.9);
-    }
-
-    /* 2. MODE SELECTOR SEGMENT */
-    .mode-segment {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 6px;
-      background: #171c24;
-      padding: 4px;
-      border-radius: 12px;
-      border: 1px solid #354050;
-      flex-shrink: 0;
-    }
-    .mode-tab-btn {
-      background: transparent;
-      border: none;
-      color: #8b929e;
-      font-size: 12px;
-      font-weight: 600;
-      padding: 10px 4px;
-      border-radius: 8px;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 3px;
-      transition: all 80ms ease;
-    }
-    .mode-tab-btn.active {
-      background: #25344e;
-      color: #a3c1ff;
-      font-weight: 700;
-      border: 1px solid rgba(163, 193, 255, 0.2);
-    }
-    .mode-tab-btn:active {
-      transform: scale(0.96);
-    }
-
-    /* BUTTON ROWS */
-    .button-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-    .ctrl-btn {
-      background: #171c24;
-      border: 1px solid #354050;
-      border-radius: 12px;
-      color: #e5e7eb;
-      padding: 12px 8px;
-      min-height: 56px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 60ms ease;
-    }
-    .ctrl-btn:active {
-      transform: scale(0.96);
-      background: #25344e;
-    }
-    .ctrl-btn.active-state {
-      background: #25344e;
-      border-color: #a3c1ff;
-      color: #a3c1ff;
-    }
-    .ctrl-btn.danger-active {
-      background: rgba(255,77,79,0.14);
-      border-color: #ff4d4f;
-      color: #ff7875;
-    }
-    .ctrl-btn .icon {
-      font-size: 17px;
-    }
-
-    /* STOP AI BUTTON */
-    .stop-btn {
-      width: 100%;
-      min-height: 42px;
-      border-radius: 12px;
-      border: 1px solid rgba(255,77,79,0.4);
-      background: rgba(255,77,79,0.1);
-      color: #ff7875;
-      font-size: 13px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      cursor: pointer;
-      transition: all 60ms ease;
-      flex-shrink: 0;
-    }
-    .stop-btn:active {
-      transform: scale(0.97);
-      background: rgba(255,77,79,0.25);
-    }
-
-    /* QUICK PROMPTS */
-    .quick-section {
-      background: #111215;
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 13px;
-      padding: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      flex-shrink: 0;
-    }
-    .quick-title {
-      font-size: 10px;
-      font-weight: 700;
-      color: #717784;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-    .quick-chips {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-    }
-    .chip-btn {
-      background: #1a1c22;
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 9px;
-      color: #d1d5db;
-      font-size: 11px;
-      font-weight: 500;
-      padding: 8px 6px;
-      text-align: center;
-      cursor: pointer;
-      transition: transform 60ms ease;
-    }
-    .chip-btn:active {
-      transform: scale(0.96);
-      background: #262932;
-    }
-
-    /* PIN OVERLAY - 4 DIGIT PIN */
-    .pin-overlay {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(10,10,12,0.96);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      gap: 18px;
-      z-index: 100;
-    }
-    .pin-title {
-      font-size: 22px;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      margin: 0;
-    }
-    .pin-desc {
-      color: #8e94a0;
-      font-size: 14px;
-      text-align: center;
-      max-width: 280px;
-      margin: 0;
-      line-height: 1.4;
-    }
-    .pin-input {
-      font-size: 38px;
-      font-weight: 800;
-      letter-spacing: 14px;
-      text-align: center;
-      background: #171c24;
-      border: 2px solid #354050;
-      border-radius: 12px;
-      color: #fff;
-      padding: 12px 10px;
-      width: 200px;
-      outline: none;
-    }
-    .pin-input:focus {
-      border-color: #a3c1ff;
-      box-shadow: 0 0 16px rgba(163, 193, 255, 0.2);
-    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #111; color: #eee; }
+    body { margin: 0; padding: max(16px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom)); overscroll-behavior-y: contain; }
+    button { font: inherit; cursor: pointer; touch-action: manipulation; }
+    button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+    button:active { opacity: .7; }
+    .app-container { max-width: 420px; margin: 0 auto; border: 1px solid #363636; border-radius: 18px; background: #191919; overflow: hidden; }
+    .header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 18px 16px; border-bottom: 1px solid #333; }
+    .brand { font-size: 15px; font-weight: 650; letter-spacing: -.03em; }
+    .badge { font-size: 10px; color: #aaa; border: 1px solid #444; padding: 4px 7px; border-radius: 20px; }
+    .badge.connected { color: #eee; }
+    .badge.error { border-style: dashed; }
+    .controls-grid { display: grid; gap: 10px; padding: 14px; }
+    .hero-btn, .stop-btn, .ctrl-btn, .chip-btn, .mode-tab-btn { border: 1px solid #3b3b3b; border-radius: 8px; background: #222; color: #ddd; min-height: 44px; font-size: 12px; padding: 10px 8px; }
+    .hero-btn { background: #eee; color: #111; border-color: #eee; font-size: 14px; font-weight: 650; min-height: 50px; }
+    .mode-segment { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; background: #111; border: 1px solid #333; border-radius: 10px; }
+    .mode-tab-btn { border-color: transparent; background: transparent; min-height: 40px; }
+    .mode-tab-btn.active, .ctrl-btn.active-state { background: #eee; border-color: #eee; color: #111; }
+    .button-row, .quick-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stop-btn { background: transparent; }
+    .quick-section { border-top: 1px solid #333; padding-top: 12px; margin-top: 2px; }
+    .quick-title { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: #999; margin-bottom: 8px; }
+    .chip-btn { background: #1c1c1c; font-size: 11px; }
   </style>
 </head>
 <body>
   <div class="app-container">
     <div class="header">
       <div class="brand">
-        <span class="brand-dot"></span> Astra Companion
+        Novi Companion
       </div>
-      <div id="connBadge" class="badge">Connecting…</div>
+      <div id="connBadge" class="badge">Ready</div>
     </div>
 
     <div class="controls-grid">
-      <!-- 1. HERO ONE-CLICK SEND CHAT -->
+      <!-- 1. HERO Send prompt CHAT -->
       <button type="button" class="hero-btn" onclick="triggerAction('send-prompt')">
-        <span>🚀 ONE-CLICK SEND</span>
+        <span>Send prompt</span>
       </button>
 
       <!-- 2. MODE SELECTION (CHAT / INTERVIEW / CODE) -->
       <div class="mode-segment">
         <button type="button" id="tabChat" class="mode-tab-btn active" onclick="triggerAction('set-app-mode', 'normal')">
-          <span>💬</span>
           <span>Chat</span>
         </button>
         <button type="button" id="tabInterview" class="mode-tab-btn" onclick="triggerAction('set-app-mode', 'behavioral')">
-          <span>👔</span>
           <span>Interview</span>
         </button>
         <button type="button" id="tabCode" class="mode-tab-btn" onclick="triggerAction('set-app-mode', 'coding')">
-          <span>💻</span>
           <span>Code</span>
         </button>
       </div>
@@ -652,11 +351,9 @@ export class RemoteCompanionService {
       <!-- 3. SNAPSHOT CONTROLS -->
       <div class="button-row">
         <button type="button" class="ctrl-btn" onclick="triggerAction('capture-screen')">
-          <span class="icon">📸</span>
           <span>Take Snapshot</span>
         </button>
         <button type="button" class="ctrl-btn" onclick="triggerAction('delete-last-snapshot')">
-          <span class="icon">🗑️</span>
           <span>Delete Last</span>
         </button>
       </div>
@@ -664,11 +361,9 @@ export class RemoteCompanionService {
       <!-- 4. AUDIO CONTROLS (RECORD & SOURCE SWITCH) -->
       <div class="button-row">
         <button type="button" class="ctrl-btn" onclick="triggerAction('toggle-audio')">
-          <span class="icon">🎙️</span>
           <span>Toggle Audio</span>
         </button>
         <button type="button" id="btnAudioSource" class="ctrl-btn" onclick="toggleAudioSource()">
-          <span class="icon" id="iconAudioSource">🔊</span>
           <span id="txtAudioSource">System Audio</span>
         </button>
       </div>
@@ -676,58 +371,37 @@ export class RemoteCompanionService {
       <!-- 5. TRANSPARENT & INTERACTIVE TOGGLES -->
       <div class="button-row">
         <button type="button" id="btnGhost" class="ctrl-btn" onclick="triggerAction('toggle-transparent')">
-          <span class="icon">👻</span>
           <span id="txtGhost">Transparent</span>
         </button>
         <button type="button" id="btnInteract" class="ctrl-btn" onclick="triggerAction('toggle-clickthrough')">
-          <span class="icon">🖱️</span>
           <span id="txtInteract">Interactive</span>
         </button>
       </div>
 
       <!-- 6. STOP AI GENERATION -->
       <button type="button" class="stop-btn" onclick="triggerAction('stop-generation')">
-        <span>⏹️ Stop AI Generation</span>
+        <span>Stop AI Generation</span>
       </button>
 
       <!-- 7. QUICK PROMPT CHIPS -->
       <div class="quick-section">
         <div class="quick-title">Quick Prompts</div>
         <div class="quick-chips">
-          <button type="button" class="chip-btn" onclick="triggerPrompt('Summarize this clearly and highlight key points.')">⚡ Summarize</button>
-          <button type="button" class="chip-btn" onclick="triggerPrompt('Explain simply in plain language.')">💡 Explain simply</button>
-          <button type="button" class="chip-btn" onclick="triggerPrompt('What is the optimal next step?')">🎯 Next step</button>
-          <button type="button" class="chip-btn" onclick="triggerPrompt('Structure this using STAR interview framework.')">⭐ STAR Method</button>
+          <button type="button" class="chip-btn" onclick="triggerPrompt('Summarize this clearly and highlight key points.')">Summarize</button>
+          <button type="button" class="chip-btn" onclick="triggerPrompt('Explain simply in plain language.')">Explain simply</button>
+          <button type="button" class="chip-btn" onclick="triggerPrompt('What is the optimal next step?')">Next step</button>
+          <button type="button" class="chip-btn" onclick="triggerPrompt('Structure this using STAR interview framework.')">STAR Method</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- 4-DIGIT PIN ENTRY MODAL -->
-  <div id="pinModal" class="pin-overlay" style="display: none;">
-    <h2 class="pin-title">Pair with Desktop</h2>
-    <p class="pin-desc">Enter the 4-digit code shown on your desktop screen:</p>
-    <div id="pinError" style="display: none; color: #ff7875; font-size: 13px; font-weight: 600;">Incorrect PIN. Check desktop screen.</div>
-    <input type="tel" id="pinInput" class="pin-input" pattern="[0-9]*" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="one-time-code" oninput="handlePinInput(this)" />
-    <button type="button" class="hero-btn" style="min-height: 50px; font-size: 16px;" onclick="savePin()">Pair & Connect</button>
-  </div>
-
   <script>
-    let clientId = localStorage.getItem('astra_companion_cid');
+    let clientId = localStorage.getItem('novi_companion_cid');
     if (!clientId) {
       clientId = 'phone_' + Math.random().toString(36).substring(2, 9);
-      localStorage.setItem('astra_companion_cid', clientId);
+      localStorage.setItem('novi_companion_cid', clientId);
     }
-
-    // 1. MOBILE GESTURE LOCK - Blocks pull-to-refresh & swipe back/forward
-    document.addEventListener('touchmove', function(e) {
-      // Allow internal scrolling in controls grid if content overflows
-      const target = e.target;
-      if (target && target.closest && target.closest('.controls-grid')) {
-        return;
-      }
-      e.preventDefault();
-    }, { passive: false });
 
     // 2. SCREEN WAKE LOCK - Keeps phone awake during active session
     async function initWakeLock() {
@@ -746,51 +420,11 @@ export class RemoteCompanionService {
       if (navigator.vibrate) navigator.vibrate(25);
     }
 
-    // 4. 4-DIGIT SESSION PIN HANDLING
-    const params = new URLSearchParams(window.location.search);
-    let sessionPin = params.get('pin') || localStorage.getItem('astra_remote_pin') || '';
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    const token = params.get('token') || localStorage.getItem('novi_companion_token') || '';
+    if (token) localStorage.setItem('novi_companion_token', token);
+    history.replaceState(null, '', window.location.pathname);
     let currentAudioSource = 'system';
-
-    function showPinModal(hasError = false) {
-      const modal = document.getElementById('pinModal');
-      const err = document.getElementById('pinError');
-      const input = document.getElementById('pinInput');
-      if (err) err.style.display = hasError ? 'block' : 'none';
-      modal.style.display = 'flex';
-      input.value = '';
-      setTimeout(() => input.focus(), 150);
-    }
-
-    function checkPin() {
-      if (!sessionPin || sessionPin.length < 4) {
-        showPinModal(false);
-      } else {
-        document.getElementById('pinModal').style.display = 'none';
-        pollStatus();
-      }
-    }
-
-    function handlePinInput(input) {
-      input.value = input.value.replace(/\D/g, '');
-      if (input.value.length > 4) input.value = input.value.slice(0, 4);
-      if (input.value.length === 4) {
-        savePin();
-      }
-    }
-
-    function savePin() {
-      const val = document.getElementById('pinInput').value.trim();
-      if (val.length === 4) {
-        sessionPin = val;
-        localStorage.setItem('astra_remote_pin', val);
-        document.getElementById('pinModal').style.display = 'none';
-        pollStatus();
-      }
-    }
-
-    document.getElementById('connBadge').addEventListener('click', () => {
-      showPinModal(false);
-    });
 
     // 5. AUDIO SOURCE TOGGLE (System vs Mic)
     function toggleAudioSource() {
@@ -806,21 +440,19 @@ export class RemoteCompanionService {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Client-Id': clientId
+            'X-Client-Id': clientId, 'Authorization': 'Bearer ' + token
           },
-          body: JSON.stringify({ pin: sessionPin, action, payload }),
+          body: JSON.stringify({ action, payload }),
           keepalive: true
         });
         const data = await res.json();
         if (data.ok) {
           updateUI(data);
-        } else if (data.error && data.error.includes('PIN')) {
-          localStorage.removeItem('astra_remote_pin');
-          sessionPin = '';
-          showPinModal(true);
+        } else {
+          document.getElementById('connBadge').innerText = data.error || 'Action unavailable';
         }
       } catch (err) {
-        console.warn('Action dispatch stutter:', err);
+        document.getElementById('connBadge').innerText = 'Desktop unavailable';
       }
     }
 
@@ -855,13 +487,10 @@ export class RemoteCompanionService {
       // Audio Source
       if (status.currentAudioSource) {
         currentAudioSource = status.currentAudioSource;
-        const iconSrc = document.getElementById('iconAudioSource');
         const txtSrc = document.getElementById('txtAudioSource');
         if (currentAudioSource === 'mic') {
-          iconSrc.innerText = '🎙️';
           txtSrc.innerText = 'Mic Audio';
         } else {
-          iconSrc.innerText = '🔊';
           txtSrc.innerText = 'System Audio';
         }
       }
@@ -875,34 +504,29 @@ export class RemoteCompanionService {
     }
 
     async function pollStatus() {
-      if (!sessionPin) return;
       const badge = document.getElementById('connBadge');
       try {
-        const res = await fetch('/api/status?pin=' + encodeURIComponent(sessionPin), {
-          headers: { 'X-Client-Id': clientId }
+        const res = await fetch('/api/status', {
+          headers: { 'X-Client-Id': clientId, 'Authorization': 'Bearer ' + token }
         });
         if (res.ok) {
           const data = await res.json();
           badge.className = 'badge connected';
           badge.innerText = '● Connected';
-          badge.title = 'Connected. Tap to change PIN.';
+          badge.title = 'Connected to Novi.';
           updateUI(data);
         } else {
           badge.className = 'badge error';
-          badge.innerText = '● Invalid PIN';
-          badge.title = 'Invalid PIN. Tap to re-enter PIN.';
-          localStorage.removeItem('astra_remote_pin');
-          sessionPin = '';
-          showPinModal(true);
+          badge.innerText = 'Scan the QR in Novi';
         }
       } catch (e) {
         badge.className = 'badge error';
-        badge.innerText = '● Reconnecting';
+        badge.innerText = 'Desktop unavailable';
       }
     }
 
     setInterval(pollStatus, 1800);
-    checkPin();
+    pollStatus();
   </script>
 </body>
 </html>`;
