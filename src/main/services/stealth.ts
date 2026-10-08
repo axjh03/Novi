@@ -251,12 +251,13 @@ export class StealthService {
     }
   }
 
-  private toggleClickThrough() {
-    if (!this.transparent) return;
+  public toggleClickThrough(): StealthState {
+    if (!this.transparent) return this.getState();
     this.clickThrough = !this.clickThrough;
     const win = this.getWindow();
     if (win && !win.isDestroyed()) this.applyMouseMode(win, !this.clickThrough);
     this.broadcastState();
+    return this.getState();
   }
 
   private stopMonitoring() {

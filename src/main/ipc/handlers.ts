@@ -1,4 +1,5 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, screen, shell } from 'electron';
+import { execFile } from 'node:child_process';
 import type { CodeViewerBlock, Snapshot } from '../../shared/types';
 import { Storage } from '../services/storage';
 import { ManagedAuthService } from '../services/managedAuth';
@@ -18,6 +19,7 @@ import { AppUpdater } from '../services/updater';
 import { PermissionService } from '../services/permissions';
 import { detectHardware, ModelManager } from '../services/localModels.mjs';
 import { InterviewService } from '../services/interviewService';
+import { RemoteCompanionService } from '../services/remoteCompanion';
 import { dirname, join } from 'node:path';
 
 export function registerIPC(
@@ -48,7 +50,9 @@ export function registerIPC(
       const window = BrowserWindow.fromId(windowId);
       if (window && !window.isDestroyed()) window.webContents.send('interview-event', event);
     });
-    return { storage, credentials, images, context, audio, transcription, localModels, interview, connections: new ConnectionService(storage, credentials), auth: new ManagedAuthService(storage, credentials), chat: new ChatService(storage, credentials, images, context), overlay, stealth };
+    const remoteCompanion = new RemoteCompanionService(stealth, getMainWindow);
+    remoteCompanion.start().catch((err) => console.error('Failed to start remote companion:', err));
+    return { storage, credentials, images, context, audio, transcription, localModels, interview, connections: new ConnectionService(storage, credentials), auth: new ManagedAuthService(storage, credentials), chat: new ChatService(storage, credentials, images, context), overlay, stealth, remoteCompanion };
   }
   const get = () => services ||= initialize();
   const requireNoContext = () => { if (get().context.session) throw new UserError('End this session before changing accounts or AI providers.'); };
@@ -89,7 +93,8 @@ export function registerIPC(
           'session', 'sign-in', 'sign-out', 'minimize-window', 'maximize-window',
           'close-window', 'is-window-maximized', 'get-stealth-state', 'check-for-updates',
           'install-update', 'check-permissions', 'request-permissions',
-          'get-saved-credentials', 'save-credentials'
+          'get-saved-credentials', 'save-credentials', 'open-external', 'open-audio-midi-setup',
+          'get-remote-companion-status', 'regenerate-remote-pin'
         ];
         if (!publicChannels.includes(channel)) {
           const wasSignedIn = get().auth.signedIn;
@@ -320,6 +325,13 @@ export function registerIPC(
   handle('drop-images', (value) => get().images.import(value));
   handle('preview-image', (value) => get().images.preview(text(value, 'image ID', 100)));
   handle('copy-text', (value) => { get().storage.current(); text(value, 'clipboard text', 1_000_000, true); clipboard.writeText(value as string); });
+  handle('open-external', (value) => {
+    const url = String(value || '');
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
+  });
+  handle('open-audio-midi-setup', () => {
+    if (process.platform === 'darwin') execFile('open', ['-a', 'Audio MIDI Setup'], () => {});
+  });
   handle('send', (value, event) => {
     const { chat } = get();
     if (get().context.assertActive().status !== 'ready') throw new UserError('Wait for context confirmation, or end this session and retry loading.');
@@ -519,10 +531,18 @@ export function registerIPC(
       }
     });
   });
+  handle('get-remote-companion-status', async () => {
+    return get().remoteCompanion.getStatus();
+  });
+  handle('regenerate-remote-pin', async () => {
+    get().remoteCompanion.regeneratePIN();
+    return get().remoteCompanion.getStatus();
+  });
   let quitting = false;
   app.on('before-quit', (event) => {
     clearInterval(heartbeat);
     void services?.localModels.shutdown();
+    services?.remoteCompanion.stop();
     if (services?.auth.signedIn && !quitting) {
       event.preventDefault(); quitting = true;
       void services.interview.stop(true).finally(() => services!.auth.signOut()).finally(() => app.quit());

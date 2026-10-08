@@ -157,6 +157,23 @@ export function Composer({ busy, onSend }: Props) {
     }
   }, [pendingAttachment, consumePendingAttachment]);
 
+  // Listen for remote companion actions
+  useEffect(() => {
+    const cleanup = window.novi.onGlobalAction((action) => {
+      if (action.type === 'submit-prompt') {
+        void submit();
+      } else if (action.type === 'delete-last-snapshot') {
+        setImages((prev) => prev.slice(0, -1));
+      } else if (action.type === 'stop-generation') {
+        void window.novi.stop();
+      } else if (action.type === 'quick-prompt' && typeof action.payload === 'string') {
+        setText(action.payload);
+        void onSend(action.payload, images);
+      }
+    });
+    return cleanup;
+  }, [submit, onSend, images]);
+
   async function attach(files?: File[]) {
     if (busy || attaching) return;
     setError('');

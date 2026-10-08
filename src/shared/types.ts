@@ -157,6 +157,8 @@ export interface NoviAPI {
   dropImages(files: File[]): Promise<Result<ImageAttachment[]>>;
   previewImage(id: string): Promise<Result<string>>;
   copyText(text: string): Promise<Result<void>>;
+  openExternal(url: string): Promise<Result<void>>;
+  openAudioMidiSetup(): Promise<Result<void>>;
   send(input: SendInput): Promise<Result<void>>;
   stop(): Promise<Result<void>>;
   onChat(callback: (event: ChatEvent) => void): () => void;
@@ -191,6 +193,17 @@ export interface NoviAPI {
   onUpdateProgress(callback: (progress: UpdateProgress) => void): () => void;
   checkPermissions(): Promise<Result<PermissionStatus>>;
   requestPermissions(types?: Array<'storage' | 'camera' | 'microphone' | 'screen' | 'accessibility'>): Promise<Result<PermissionStatus>>;
+  getRemoteCompanionStatus(): Promise<Result<RemoteCompanionStatus>>;
+  regenerateRemotePin(): Promise<Result<RemoteCompanionStatus>>;
+}
+export interface RemoteCompanionStatus {
+  running: boolean;
+  port: number;
+  pin: string;
+  localIps: string[];
+  bestUrl: string;
+  qrSvg: string;
+  connectedClients: number;
 }
 export interface PermissionStatus {
   storage: boolean;

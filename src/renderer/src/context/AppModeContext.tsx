@@ -327,10 +327,14 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
         void captureScreenshot();
       } else if (action.type === 'toggle-audio-record') {
         if (!localTranscriptionActive) audioRec.toggleRecording();
+      } else if (action.type === 'set-app-mode' && typeof action.payload === 'string') {
+        setAppMode(action.payload as any);
+      } else if (action.type === 'set-audio-source' && typeof action.payload === 'string') {
+        setAudioSource(action.payload as any);
       }
     });
     return cleanup;
-  }, [sessionActive, appMode, setAppMode, captureScreenshot, audioRec, localTranscriptionActive]);
+  }, [sessionActive, appMode, setAppMode, captureScreenshot, audioRec, localTranscriptionActive, setAudioSource]);
 
   // Window-level keydown handler for in-app shortcut execution
   useEffect(() => {

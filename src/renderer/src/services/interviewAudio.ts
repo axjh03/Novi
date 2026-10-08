@@ -12,7 +12,18 @@ export class AudioCaptureProvider {
     return navigator.mediaDevices.getUserMedia({ video: false, audio: { ...(deviceId ? { deviceId: { exact: deviceId } } : {}), echoCancellation: true, noiseSuppression: true } });
   }
 }
-export class MacAudioCapture extends AudioCaptureProvider { protected systemHelp = 'System audio is unavailable. Grant screen/audio capture permission, or select a BlackHole loopback input configured in Audio MIDI Setup.'; }
+export class MacAudioCapture extends AudioCaptureProvider {
+  protected systemHelp = 'System audio is unavailable. macOS does not capture system audio via screen capture without a loopback driver. Grant screen recording permissions, or select a BlackHole loopback input configured in Audio MIDI Setup.';
+  override async system(deviceId: string): Promise<MediaStream> {
+    if (deviceId) return super.system(deviceId);
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const loopback = devices.find(d => d.kind === 'audioinput' && /blackhole|loopback|soundflower|stereo mix|virtual/i.test(d.label));
+      if (loopback) return super.system(loopback.deviceId);
+    } catch { /* ignore */ }
+    return super.system('');
+  }
+}
 export class WindowsAudioCapture extends AudioCaptureProvider { protected systemHelp = 'WASAPI loopback is unavailable. Check system audio sharing or select an enabled loopback input.'; }
 export class LinuxAudioCapture extends AudioCaptureProvider { protected systemHelp = 'System audio is unavailable. Select a PipeWire/PulseAudio monitor input or route playback to a loopback input using your sound controls.'; }
 
@@ -26,6 +37,7 @@ export class InterviewAudio {
     const provider = /Mac/.test(navigator.platform) ? new MacAudioCapture() : /Win/.test(navigator.platform) ? new WindowsAudioCapture() : new LinuxAudioCapture();
     if (systemId && microphoneId === systemId && mode !== 'interviewer') throw new Error('Choose different inputs for system audio and your microphone.');
     let count = 0;
+    const errors: string[] = [];
     const sources: AudioSource[] = onlySources || (mode === 'interviewer' ? ['system'] : ['system', 'microphone']);
     for (const source of sources) {
       if (this.cancelled) break;
@@ -58,10 +70,12 @@ export class InterviewAudio {
       } catch (cause) {
         stream?.getTracks().forEach(track => track.stop());
         if (context && context.state !== 'closed') await context.close();
-        this.onWarning(`${source === 'system' ? 'System audio' : 'Microphone'}: ${cause instanceof Error ? cause.message : 'Capture unavailable.'}`);
+        const msg = `${source === 'system' ? 'System audio' : 'Microphone'}: ${cause instanceof Error ? cause.message : 'Capture unavailable.'}`;
+        errors.push(msg);
+        this.onWarning(msg);
       }
     }
-    if (!count) throw new Error('No interview audio input is available. Check permissions and input selection.');
+    if (!count) throw new Error(errors.length ? errors.join('; ') : 'No interview audio input is available. Check permissions and input selection.');
   }
   close() { this.cancelled = true; this.releases.splice(0).forEach(release => release()); }
   async stop() { this.close(); await Promise.allSettled([...this.pending]); }

@@ -52,6 +52,8 @@ const api: NoviAPI = {
   dropImages: (files) => ipcRenderer.invoke('drop-images', files.map((file) => webUtils.getPathForFile(file))),
   previewImage: (id) => ipcRenderer.invoke('preview-image', id),
   copyText: (text) => ipcRenderer.invoke('copy-text', text),
+  openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
+  openAudioMidiSetup: () => ipcRenderer.invoke('open-audio-midi-setup'),
   send: (input) => ipcRenderer.invoke('send', input),
   stop: () => ipcRenderer.invoke('stop'),
   onChat: (callback) => {
@@ -114,5 +116,7 @@ const api: NoviAPI = {
   },
   checkPermissions: () => ipcRenderer.invoke('check-permissions'),
   requestPermissions: (types) => ipcRenderer.invoke('request-permissions', types),
+  getRemoteCompanionStatus: () => ipcRenderer.invoke('get-remote-companion-status'),
+  regenerateRemotePin: () => ipcRenderer.invoke('regenerate-remote-pin'),
 };
 contextBridge.exposeInMainWorld('novi', api);
