@@ -65,12 +65,14 @@ test('RemoteCompanionService starts with 4-digit PIN and handles mobile controll
       }).on('error', reject);
     });
     assert.equal(authStatus.ok, true);
+    assert.equal(service.getStatus().connectedClients, 1, 'Connected clients count should be 1');
 
     // 4. Test PIN regeneration
     const oldPin = status.pin;
     const newPin = service.regeneratePIN();
     assert.equal(newPin.length, 4);
     assert.equal(service.getStatus().pin, newPin);
+
   } finally {
     service.stop();
   }

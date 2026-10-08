@@ -42,15 +42,50 @@ export function RemoteCompanionModal({ isOpen, onClose }: RemoteCompanionModalPr
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  const [pinCopied, setPinCopied] = useState(false);
 
-  const handleCopyUrl = () => {
+  const handleCopyUrl = async () => {
     if (!status?.bestUrl) return;
-    navigator.clipboard.writeText(status.bestUrl).then(() => {
+    try {
+      if (window.novi?.copyText) {
+        await unwrap(window.novi.copyText(status.bestUrl));
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(status.bestUrl);
+      }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {});
+    } catch {
+      try {
+        await navigator.clipboard?.writeText(status.bestUrl);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy URL:', err);
+      }
+    }
   };
+
+  const handleCopyPin = async () => {
+    if (!status?.pin) return;
+    try {
+      if (window.novi?.copyText) {
+        await unwrap(window.novi.copyText(status.pin));
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(status.pin);
+      }
+      setPinCopied(true);
+      setTimeout(() => setPinCopied(false), 2000);
+    } catch {
+      try {
+        await navigator.clipboard?.writeText(status.pin);
+        setPinCopied(true);
+        setTimeout(() => setPinCopied(false), 2000);
+      } catch (err) {
+        console.error('Failed to copy PIN:', err);
+      }
+    }
+  };
+
 
   const handleRegeneratePin = async () => {
     setLoading(true);
@@ -157,13 +192,21 @@ export function RemoteCompanionModal({ isOpen, onClose }: RemoteCompanionModalPr
                   <span>New PIN</span>
                 </button>
               </div>
-              <div className="companion-pin-display">
+              <div
+                className="companion-pin-display"
+                onClick={() => void handleCopyPin()}
+                title="Click to copy PIN"
+                style={{ cursor: 'pointer' }}
+              >
                 {status?.pin ? (
                   status.pin.split('').map((digit, idx) => (
                     <span key={idx} className="companion-pin-digit">{digit}</span>
                   ))
                 ) : (
                   <span>••••</span>
+                )}
+                {pinCopied && (
+                  <span style={{ fontSize: 11, color: '#93c5fd', marginLeft: 8 }}>Copied!</span>
                 )}
               </div>
             </div>
@@ -179,12 +222,15 @@ export function RemoteCompanionModal({ isOpen, onClose }: RemoteCompanionModalPr
                   readOnly
                   value={status?.bestUrl || 'Loading…'}
                   className="companion-url-input"
-                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                  onClick={(e) => {
+                    (e.target as HTMLInputElement).select();
+                    void handleCopyUrl();
+                  }}
                 />
                 <button
                   type="button"
                   className={`companion-copy-btn ${copied ? 'copied' : ''}`}
-                  onClick={handleCopyUrl}
+                  onClick={() => void handleCopyUrl()}
                   title="Copy URL"
                 >
                   {copied ? <Check size={14} /> : <Copy size={14} />}

@@ -22,7 +22,7 @@ export class RemoteCompanionService {
   private server: http.Server | null = null;
   private port = 4890;
   private pin = '';
-  private clients = new Set<http.ServerResponse>();
+  private activeClients = new Map<string, number>();
   private stealth: StealthService;
   private getWindow: () => BrowserWindow | null;
   private currentMode: 'normal' | 'behavioral' | 'coding' = 'normal';
@@ -65,6 +65,16 @@ export class RemoteCompanionService {
     return `http://${preferred}:${this.port}?pin=${this.pin}`;
   }
 
+  getConnectedClientsCount(): number {
+    const now = Date.now();
+    for (const [clientId, lastSeen] of this.activeClients.entries()) {
+      if (now - lastSeen > 6000) {
+        this.activeClients.delete(clientId);
+      }
+    }
+    return this.activeClients.size;
+  }
+
   getStatus(): RemoteCompanionStatus {
     const running = Boolean(this.server && this.server.listening);
     const bestUrl = this.getBestUrl();
@@ -76,12 +86,13 @@ export class RemoteCompanionService {
       localIps: this.getLocalIPs(),
       bestUrl,
       qrSvg,
-      connectedClients: this.clients.size,
+      connectedClients: this.getConnectedClientsCount(),
       tunnelActive: this.tunnel.isActive(),
       tunnelUrl: this.tunnel.getUrl(),
       tunnelLoading: this.tunnelLoading,
     };
   }
+
 
   async toggleTunnel(enable?: boolean): Promise<RemoteCompanionStatus> {
     const shouldEnable = enable !== undefined ? enable : !this.tunnel.isActive();
@@ -130,14 +141,21 @@ export class RemoteCompanionService {
       this.server.close();
       this.server = null;
     }
-    this.clients.clear();
+    this.activeClients.clear();
+  }
+
+  private recordClient(req: http.IncomingMessage) {
+    const ip = req.socket.remoteAddress || 'client';
+    const clientHeader = (req.headers['x-client-id'] as string) || '';
+    const id = clientHeader ? `${ip}-${clientHeader}` : ip;
+    this.activeClients.set(id, Date.now());
   }
 
   private handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
     // CORS headers for local LAN communication
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Client-Id');
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
@@ -163,6 +181,7 @@ export class RemoteCompanionService {
         res.end(JSON.stringify({ error: 'Invalid or expired 4-digit PIN' }));
         return;
       }
+      this.recordClient(req);
       const stealthState = this.stealth.getState();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
@@ -198,6 +217,7 @@ export class RemoteCompanionService {
             res.end(JSON.stringify({ error: 'Invalid 4-digit PIN' }));
             return;
           }
+          this.recordClient(req);
           this.executeAction(data.action, data.payload);
           const stealthState = this.stealth.getState();
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -216,6 +236,7 @@ export class RemoteCompanionService {
       });
       return;
     }
+
 
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not Found');
@@ -686,11 +707,18 @@ export class RemoteCompanionService {
   <div id="pinModal" class="pin-overlay" style="display: none;">
     <h2 class="pin-title">Pair with Desktop</h2>
     <p class="pin-desc">Enter the 4-digit code shown on your desktop screen:</p>
-    <input type="number" id="pinInput" class="pin-input" pattern="[0-9]*" inputmode="numeric" maxlength="4" placeholder="••••" oninput="handlePinInput(this)" />
+    <div id="pinError" style="display: none; color: #ff7875; font-size: 13px; font-weight: 600;">Incorrect PIN. Check desktop screen.</div>
+    <input type="tel" id="pinInput" class="pin-input" pattern="[0-9]*" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="one-time-code" oninput="handlePinInput(this)" />
     <button type="button" class="hero-btn" style="min-height: 50px; font-size: 16px;" onclick="savePin()">Pair & Connect</button>
   </div>
 
   <script>
+    let clientId = localStorage.getItem('astra_companion_cid');
+    if (!clientId) {
+      clientId = 'phone_' + Math.random().toString(36).substring(2, 9);
+      localStorage.setItem('astra_companion_cid', clientId);
+    }
+
     // 1. MOBILE GESTURE LOCK - Blocks pull-to-refresh & swipe back/forward
     document.addEventListener('touchmove', function(e) {
       // Allow internal scrolling in controls grid if content overflows
@@ -723,10 +751,19 @@ export class RemoteCompanionService {
     let sessionPin = params.get('pin') || localStorage.getItem('astra_remote_pin') || '';
     let currentAudioSource = 'system';
 
+    function showPinModal(hasError = false) {
+      const modal = document.getElementById('pinModal');
+      const err = document.getElementById('pinError');
+      const input = document.getElementById('pinInput');
+      if (err) err.style.display = hasError ? 'block' : 'none';
+      modal.style.display = 'flex';
+      input.value = '';
+      setTimeout(() => input.focus(), 150);
+    }
+
     function checkPin() {
       if (!sessionPin || sessionPin.length < 4) {
-        document.getElementById('pinModal').style.display = 'flex';
-        setTimeout(() => document.getElementById('pinInput').focus(), 150);
+        showPinModal(false);
       } else {
         document.getElementById('pinModal').style.display = 'none';
         pollStatus();
@@ -734,6 +771,7 @@ export class RemoteCompanionService {
     }
 
     function handlePinInput(input) {
+      input.value = input.value.replace(/\D/g, '');
       if (input.value.length > 4) input.value = input.value.slice(0, 4);
       if (input.value.length === 4) {
         savePin();
@@ -750,6 +788,10 @@ export class RemoteCompanionService {
       }
     }
 
+    document.getElementById('connBadge').addEventListener('click', () => {
+      showPinModal(false);
+    });
+
     // 5. AUDIO SOURCE TOGGLE (System vs Mic)
     function toggleAudioSource() {
       const nextSource = currentAudioSource === 'system' ? 'mic' : 'system';
@@ -762,7 +804,10 @@ export class RemoteCompanionService {
       try {
         const res = await fetch('/api/action', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Client-Id': clientId
+          },
           body: JSON.stringify({ pin: sessionPin, action, payload }),
           keepalive: true
         });
@@ -772,7 +817,7 @@ export class RemoteCompanionService {
         } else if (data.error && data.error.includes('PIN')) {
           localStorage.removeItem('astra_remote_pin');
           sessionPin = '';
-          checkPin();
+          showPinModal(true);
         }
       } catch (err) {
         console.warn('Action dispatch stutter:', err);
@@ -833,15 +878,22 @@ export class RemoteCompanionService {
       if (!sessionPin) return;
       const badge = document.getElementById('connBadge');
       try {
-        const res = await fetch('/api/status?pin=' + encodeURIComponent(sessionPin));
+        const res = await fetch('/api/status?pin=' + encodeURIComponent(sessionPin), {
+          headers: { 'X-Client-Id': clientId }
+        });
         if (res.ok) {
           const data = await res.json();
           badge.className = 'badge connected';
           badge.innerText = '● Connected';
+          badge.title = 'Connected. Tap to change PIN.';
           updateUI(data);
         } else {
           badge.className = 'badge error';
           badge.innerText = '● Invalid PIN';
+          badge.title = 'Invalid PIN. Tap to re-enter PIN.';
+          localStorage.removeItem('astra_remote_pin');
+          sessionPin = '';
+          showPinModal(true);
         }
       } catch (e) {
         badge.className = 'badge error';
