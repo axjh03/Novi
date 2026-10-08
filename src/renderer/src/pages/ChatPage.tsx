@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Award, Code2, MessageSquare, X } from 'lucide-react';
-import type { Snapshot } from '../../../shared/types';
+import type { ModelOption, Snapshot } from '../../../shared/types';
 import { Sidebar } from '../components/chat/Sidebar';
 import { Composer } from '../components/chat/Composer';
 import { Message } from '../components/chat/Message';
 import { Brand } from '../components/Brand';
 import { useChat } from '../hooks/useChat';
-import { activeConnection, getFastInterviewModel } from '../../../shared/providers';
+import { activeConnection, DEFAULT_PROVIDER_MODELS, getFastInterviewModel } from '../../../shared/providers';
 import { SettingsPage } from './SettingsPage';
 import { useEyeTracking } from '../hooks/useEyeTracking';
 import { EyeTrackingPanel } from '../components/EyeTrackingPanel';
-import { GazeCalibration } from '../components/GazeCalibration';
 import { unwrap, errorText } from '../services/api';
 import { useAppMode } from '../context/AppModeContext';
 import { codeFromMessages } from '../components/CodingModeHUD';
@@ -143,6 +142,47 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     }
   }
 
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+
+  useEffect(() => {
+    if (!connection) return;
+    let cancelled = false;
+    setLoadingModels(true);
+    void unwrap(window.novi.listModels({ id: connection.id, name: connection.name, ai: connection }))
+      .then((models) => {
+        if (!cancelled && Array.isArray(models) && models.length > 0) {
+          setAvailableModels(models);
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to fetch models for header dropdown:', err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingModels(false);
+      });
+    return () => { cancelled = true; };
+  }, [connection?.id, connection?.provider, connection?.baseUrl]);
+
+  const enabledConnections = config.connections.filter((c) => c.enabled !== false);
+  const currentProviderDefaults = connection ? (DEFAULT_PROVIDER_MODELS[connection.provider] || []) : [];
+
+  const modelOptions = (() => {
+    const map = new Map<string, string>();
+    if (connection?.model) {
+      map.set(connection.model, connection.model);
+    }
+    for (const m of availableModels) {
+      map.set(m.id, m.name || m.id);
+    }
+    for (const d of currentProviderDefaults) {
+      if (!map.has(d)) {
+        map.set(d, d);
+      }
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  })();
+
   return (
     <div className={`chat-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <Sidebar
@@ -167,16 +207,33 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
               <span className="header-title">{chat.selected?.title || 'A new conversation'}</span>
               <div className="header-model-select-wrapper">
                 <span className="status-dot" />
+                {enabledConnections.length > 1 && (
+                  <select
+                    aria-label="Change provider connection"
+                    className="header-model-picker header-conn-picker"
+                    disabled={sidebarBusy || syncingModel}
+                    value={connection?.id || ''}
+                    onChange={(e) => void handleModelChange(e.target.value)}
+                    title={`Connection: ${connection?.name || 'None'}`}
+                  >
+                    {enabledConnections.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <select
                   aria-label="Change session model"
                   className="header-model-picker"
                   disabled={sidebarBusy || syncingModel}
-                  value={connection?.id || ''}
-                  onChange={(e) => void handleModelChange(e.target.value)}
+                  value={connection?.model || ''}
+                  onChange={(e) => void handleModelChange(connection?.id || '', e.target.value)}
+                  title={`Active model: ${connection?.model || 'None'}`}
                 >
-                  {config.connections.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.model})
+                  {modelOptions.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name === m.id ? m.id : `${m.name} (${m.id})`}
                     </option>
                   ))}
                 </select>
@@ -201,6 +258,8 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
               error={et.error}
               isCalibrated={et.isCalibrated}
               showDebugDot={showDebugDot}
+              sensitivity={et.sensitivity}
+              onSetSensitivity={et.setSensitivity}
               cameras={et.cameras}
               selectedCameraId={et.selectedCameraId}
               monitors={et.monitors}
@@ -282,9 +341,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
 
       {/* Delete dialog */}
       {confirmEnd && <div className="session-confirm" role="alertdialog" aria-modal="true" aria-label="End context session"><div><h2>End this session?</h2><p>Your conversations and attachments stay saved. The temporary AI Context.md file will be removed; source folders stay in place.</p><button className="text-button" disabled={ending} onClick={() => setConfirmEnd(false)}>Keep session</button><button className="danger-button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div></div>}
-      {et.state === 'calibrating' && (
-        <GazeCalibration key={`${et.selectedCameraId}:${et.selectedDisplayId}`} onAddSample={et.addCalibrationSample} onFinish={et.finishCalibration} onCancel={et.stop} onSkip={et.startUncalibrated} />
-      )}
       {deleting && (
         <dialog ref={deleteDialog} className="dialog" aria-labelledby="delete-title" onCancel={() => setDeleting(null)}>
           <h2 id="delete-title">Delete this conversation?</h2>

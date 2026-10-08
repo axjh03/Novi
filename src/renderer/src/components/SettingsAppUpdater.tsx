@@ -72,8 +72,8 @@ export function SettingsAppUpdater({ value, onChange, disabled }: Props) {
           </div>
         </div>
 
-        <div className="updater-actions">
-          {hasUpdate && !isDownloading ? (
+        <div className="updater-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {hasUpdate && !isDownloading && (
             <button
               type="button"
               className="primary updater-action-btn"
@@ -82,17 +82,16 @@ export function SettingsAppUpdater({ value, onChange, disabled }: Props) {
             >
               <Download size={14} /> Update & Restart
             </button>
-          ) : (
-            <button
-              type="button"
-              className="secondary updater-action-btn"
-              onClick={handleManualCheck}
-              disabled={disabled || isChecking || isDownloading}
-            >
-              <RefreshCw size={13} className={isChecking ? 'spin' : ''} />
-              {isChecking ? 'Checking…' : 'Check for updates'}
-            </button>
           )}
+          <button
+            type="button"
+            className="secondary updater-action-btn"
+            onClick={handleManualCheck}
+            disabled={disabled || isChecking || isDownloading}
+          >
+            <RefreshCw size={13} className={isChecking ? 'spin' : ''} />
+            {isChecking ? 'Checking…' : 'Check for updates'}
+          </button>
         </div>
       </div>
 

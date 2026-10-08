@@ -32,18 +32,11 @@ export function EyeTrackingOverlay() {
     source: 'Eye Tracking Active',
   });
 
-  const [calibrationPoint, setCalibrationPoint] = useState<{ x: number; y: number; index: number } | null>(null);
   const [copied, setCopied] = useState(false);
   const isDragging = useRef(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const endDrag = useRef<(() => void) | null>(null);
   const input = useRef<ReturnType<typeof createOverlayInput> | null>(null);
-
-  useEffect(() => {
-    if (calibrationPoint) {
-      void window.novi.sendOverlayEvent({ type: 'calibration-target-shown', index: calibrationPoint.index });
-    }
-  }, [calibrationPoint?.index]);
 
   useLayoutEffect(() => {
     const controller = createOverlayInput(
@@ -147,12 +140,6 @@ export function EyeTrackingOverlay() {
         }));
       } else if (event.type === 'set-indicator') {
         setGaze((prev) => ({ ...prev, visible: event.show }));
-      } else if (event.type === 'calibration-step') {
-        const x = (event.x ?? 0.5) * window.innerWidth;
-        const y = (event.y ?? 0.5) * window.innerHeight;
-        setCalibrationPoint({ x, y, index: event.index });
-      } else if (event.type === 'calibration-stop') {
-        setCalibrationPoint(null);
       } else if (event.type === 'close') {
         setSticky((prev) => ({ ...prev, visible: false }));
       }
@@ -210,7 +197,7 @@ export function EyeTrackingOverlay() {
   return (
     <div className="overlay-root">
       {/* 1. Real-time Gaze Target Reticle */}
-      {!calibrationPoint && gaze.visible && gaze.x >= 0 && (
+      {gaze.visible && gaze.x >= 0 && (
         <div
           className="overlay-gaze-reticle"
           style={{
@@ -227,26 +214,8 @@ export function EyeTrackingOverlay() {
         </div>
       )}
 
-      {/* 2. Full-Screen Calibration Target Dot (if calibrating on this monitor) */}
-      {calibrationPoint && (
-        <div
-          className="overlay-calibration-target"
-          style={{
-            pointerEvents: 'none',
-            left: `${calibrationPoint.x}px`,
-            top: `${calibrationPoint.y}px`,
-          }}
-        >
-          <div className="calibration-pulse-ring" />
-          <div className="calibration-inner-dot">
-            <span>{calibrationPoint.index + 1}</span>
-          </div>
-          <div className="calibration-tip">Keep looking here · {calibrationPoint.index + 1}/25</div>
-        </div>
-      )}
-
-      {/* 3. Floating Sticky Response Box */}
-      {!calibrationPoint && sticky.visible && (
+      {/* 2. Floating Sticky Response Box */}
+      {sticky.visible && (
         <div
           className={`overlay-sticky-card ${sticky.pinned ? 'is-pinned' : ''}`}
           style={{

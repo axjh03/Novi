@@ -1,5 +1,5 @@
 import type { BrowserWindow } from 'electron';
-import { DEFAULT_CLICK_THROUGH_SHORTCUT } from '../../shared/types';
+import { DEFAULT_CLICK_THROUGH_SHORTCUT, DEFAULT_TRANSPARENT_SHORTCUT } from '../../shared/types';
 import type { OverlayService } from './overlay';
 import { UserError } from './validation';
 import { createRequire } from 'node:module';
@@ -27,6 +27,7 @@ export class StealthService {
   private clickThrough = false;
   private clickThroughShortcut = DEFAULT_CLICK_THROUGH_SHORTCUT;
   private registeredClickThroughShortcut: string | null = null;
+  private transparentShortcut = DEFAULT_TRANSPARENT_SHORTCUT;
   private codingModeShortcut = 'Alt+C';
   private behavioralModeShortcut = 'Alt+B';
   private screenshotShortcut = 'Alt+3';
@@ -55,6 +56,12 @@ export class StealthService {
   private registerGlobalHotkeys() {
     const shortcut = getGlobalShortcut();
     if (!shortcut) return;
+
+    try {
+      shortcut.register(this.transparentShortcut, () => {
+        this.toggleTransparent();
+      });
+    } catch { /* ignore */ }
 
     if (process.platform === 'darwin') {
       try {
@@ -296,10 +303,18 @@ export class StealthService {
     return [...windows];
   }
 
-  setShortcuts(shortcuts: { coding?: string; behavioral?: string; screenshot?: string; audio?: string }) {
+  setShortcuts(shortcuts: { coding?: string; behavioral?: string; screenshot?: string; audio?: string; transparent?: string }) {
     const globalShortcuts = getGlobalShortcut();
     if (!globalShortcuts) return;
 
+    if (shortcuts.transparent && shortcuts.transparent !== this.transparentShortcut) {
+      try { globalShortcuts.unregister(this.transparentShortcut); } catch {}
+      try {
+        if (globalShortcuts.register(shortcuts.transparent, () => this.toggleTransparent())) {
+          this.transparentShortcut = shortcuts.transparent;
+        }
+      } catch {}
+    }
     if (shortcuts.coding && shortcuts.coding !== this.codingModeShortcut) {
       try { globalShortcuts.unregister(this.codingModeShortcut); } catch {}
       try {
@@ -338,6 +353,7 @@ export class StealthService {
     this.stopMonitoring();
     const shortcut = getGlobalShortcut();
     if (shortcut) {
+      try { shortcut.unregister(this.transparentShortcut); } catch { /* ignore */ }
       try { shortcut.unregister('Option+Control+T'); } catch { /* ignore */ }
       try { shortcut.unregister('Home+PageUp'); } catch { /* ignore */ }
       try { shortcut.unregister('Shift+PageDown'); } catch { /* ignore */ }

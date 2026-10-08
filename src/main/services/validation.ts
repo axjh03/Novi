@@ -1,4 +1,4 @@
-import { DEFAULT_CLICK_THROUGH_SHORTCUT, type ConnectionInput, type ProviderKind, type SettingsInput, type SendInput } from '../../shared/types';
+import { DEFAULT_CLICK_THROUGH_SHORTCUT, DEFAULT_TRANSPARENT_SHORTCUT, type ConnectionInput, type ProviderKind, type SettingsInput, type SendInput } from '../../shared/types';
 import { PROVIDERS } from '../../shared/providers.ts';
 
 export class UserError extends Error {}
@@ -56,6 +56,7 @@ export function settingsInput(value: unknown): SettingsInput {
     behavioralModeShortcut: typeof input.behavioralModeShortcut === 'string' && input.behavioralModeShortcut.trim() ? input.behavioralModeShortcut.trim() : 'Alt+B',
     screenshotShortcut: typeof input.screenshotShortcut === 'string' && input.screenshotShortcut.trim() ? input.screenshotShortcut.trim() : 'Alt+3',
     audioRecordShortcut: typeof input.audioRecordShortcut === 'string' && input.audioRecordShortcut.trim() ? input.audioRecordShortcut.trim() : 'Alt+A',
+    transparentShortcut: typeof input.transparentShortcut === 'string' && input.transparentShortcut.trim() ? input.transparentShortcut.trim() : DEFAULT_TRANSPARENT_SHORTCUT,
     autoSendOnAudioStop: typeof input.autoSendOnAudioStop === 'boolean' ? input.autoSendOnAudioStop : false,
     fastInterviewModel: typeof input.fastInterviewModel === 'boolean' ? input.fastInterviewModel : false,
     transparentOpacity: typeof input.transparentOpacity === 'number' ? Math.max(20, Math.min(100, input.transparentOpacity)) : 35,

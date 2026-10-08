@@ -3,6 +3,7 @@ export type ProviderKind = SupportedProviderKind | 'compatible';
 export type AudioPipelineMode = 'local_stt' | 'live_stream';
 const isMacPlatform = typeof process !== 'undefined' && process.platform ? process.platform === 'darwin' : (typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform));
 export const DEFAULT_CLICK_THROUGH_SHORTCUT = isMacPlatform ? 'Option+Control+I' : 'Shift+Home';
+export const DEFAULT_TRANSPARENT_SHORTCUT = isMacPlatform ? 'Option+Control+T' : 'Home+PageUp';
 export type AppMode = 'normal' | 'coding' | 'behavioral';
 export type BehavioralFramework = 'smart' | 'star' | 'car' | 'par' | 'soar';
 export const DEFAULT_CODING_SHORTCUT = 'Alt+C';
@@ -28,6 +29,7 @@ export interface AppSettings {
   behavioralModeShortcut?: string;
   screenshotShortcut?: string;
   audioRecordShortcut?: string;
+  transparentShortcut?: string;
   autoSendOnAudioStop?: boolean;
   fastInterviewModel?: boolean;
   transparentOpacity?: number;
@@ -68,6 +70,7 @@ export interface SettingsInput {
   behavioralModeShortcut?: string;
   screenshotShortcut?: string;
   audioRecordShortcut?: string;
+  transparentShortcut?: string;
   autoSendOnAudioStop?: boolean;
   fastInterviewModel?: boolean;
   transparentOpacity?: number;

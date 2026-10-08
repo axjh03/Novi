@@ -11,6 +11,8 @@ export interface UseEyeTrackingReturn {
   dwellPoint: { x: number; y: number } | null;
   isCalibrated: boolean;
   calibrationSamples: number;
+  sensitivity: number;
+  setSensitivity: (val: number) => void;
   cameras: CameraDevice[];
   selectedCameraId: string | undefined;
   monitors: MonitorDisplay[];
@@ -38,6 +40,7 @@ export function useEyeTracking(): UseEyeTrackingReturn {
   const [dwellPoint, setDwellPoint] = useState<{ x: number; y: number } | null>(null);
   const [isCalibrated, setIsCalibrated] = useState(eyeTracking.isCalibrated);
   const [calibrationSamples, setCalibrationSamples] = useState(eyeTracking.calibrationSamples);
+  const [sensitivity, setSensitivityState] = useState<number>(eyeTracking.sensitivity);
   const [cameras, setCameras] = useState<CameraDevice[]>(eyeTracking.cameras);
   const [selectedCameraId, setSelectedCameraId] = useState<string | undefined>(eyeTracking.selectedCameraId);
   const [monitors, setMonitors] = useState<MonitorDisplay[]>(eyeTracking.monitors);
@@ -50,6 +53,7 @@ export function useEyeTracking(): UseEyeTrackingReturn {
     setError(eyeTracking.error);
     setIsCalibrated(eyeTracking.isCalibrated);
     setCalibrationSamples(eyeTracking.calibrationSamples);
+    setSensitivityState(eyeTracking.sensitivity);
     setSelectedCameraId(eyeTracking.selectedCameraId);
     setOverlayActive(eyeTracking.overlayActive);
     setSelectedDisplayId(eyeTracking.selectedDisplayId);
@@ -154,8 +158,14 @@ export function useEyeTracking(): UseEyeTrackingReturn {
     syncState();
   }, [syncState]);
 
+  const setSensitivity = useCallback((val: number) => {
+    eyeTracking.setSensitivity(val);
+    setSensitivityState(eyeTracking.sensitivity);
+  }, []);
+
   return {
     state, error, gaze, dwellPoint, isCalibrated, calibrationSamples,
+    sensitivity, setSensitivity,
     cameras, selectedCameraId,
     monitors, selectedDisplayId, overlayActive,
     start, stop, listCameras, switchCamera,

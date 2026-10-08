@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Cpu, FileText, FolderOpen, Play, X } from 'lucide-react';
+import { Check, Cpu, FastForward, FileText, FolderOpen, Play, X } from 'lucide-react';
 import type { ContextFolder, Snapshot } from '../../../shared/types';
 import { activeConnection } from '../../../shared/providers';
 import { Brand } from '../components/Brand';
@@ -77,7 +77,20 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
   return <main className="context-page">
     <header className="context-header">
       <div className="context-header-identity"><Brand /><span>Session setup</span></div>
-      <div className="context-header-actions"><button className="text-button" disabled={busy} onClick={() => setSettings(true)}>Settings</button><button className="text-button" disabled={busy} onClick={onSignOut}>Sign out</button></div>
+      <div className="context-header-actions">
+        <button
+          type="button"
+          className="secondary skip-session-btn"
+          disabled={busy || !modelReady}
+          onClick={() => void startEmpty()}
+          title="Skip session setup and start chatting immediately"
+        >
+          <FastForward size={14} />
+          <span>Skip new session</span>
+        </button>
+        <button className="text-button" disabled={busy} onClick={() => setSettings(true)}>Settings</button>
+        <button className="text-button" disabled={busy} onClick={onSignOut}>Sign out</button>
+      </div>
     </header>
 
     <div className="context-workspace">
@@ -93,15 +106,22 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
           </button>)}
         </nav>
         <p className="context-rail-note">Conversations are saved across sessions. Ending a session removes only its temporary context file; source folders stay in place.</p>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginTop: 12, fontSize: 12, color: 'var(--muted)', userSelect: 'none' }}>
-          <input
-            type="checkbox"
-            checked={Boolean(state.settings?.autoStartEmptySession)}
-            onChange={(e) => void toggleAutoEmpty(e.target.checked)}
-            style={{ width: 14, height: 14, accentColor: 'var(--accent)' }}
-          />
-          <span>Auto-start empty session on sign-in</span>
-        </label>
+        <div className="context-skip-container" style={{ marginTop: 14 }}>
+          <button
+            type="button"
+            className="secondary wide"
+            disabled={busy || !modelReady}
+            onClick={() => void startEmpty()}
+            style={{ gap: 8, justifyContent: 'center' }}
+            title="Start an empty session immediately without source documents"
+          >
+            <FastForward size={14} />
+            <span>Skip new session</span>
+          </button>
+          <small style={{ display: 'block', marginTop: 6, textAlign: 'center' }}>
+            Jump straight into chat without loading files
+          </small>
+        </div>
       </aside>
 
       <div className="context-main-panel">
@@ -155,7 +175,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     <footer className="context-footer">
       <div className="context-footer-status" role="status">{error ? <span className="error" role="alert">{error}</span> : checking ? 'Checking connection…' : busy ? 'Starting session…' : !modelReady ? 'Choose an available model' : !folders.length ? 'Add a source folder, or start an empty session directly' : !purpose.trim() ? 'Add session instructions, or start an empty session' : `${folders.length} ${folders.length === 1 ? 'folder' : 'folders'} ready · ${connection?.model || 'Model ready'}`}</div>
       <div className="context-footer-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button type="button" className="secondary context-start-empty" disabled={busy || !modelReady} title="Start an empty session without loading source documents" onClick={() => void startEmpty()}><Play size={15} />{busy ? 'Starting…' : 'Start empty session'}</button>
+        <button type="button" className="secondary context-start-empty" disabled={busy || !modelReady} title="Skip setup and start an empty session directly" onClick={() => void startEmpty()}><FastForward size={15} />{busy ? 'Starting…' : 'Skip new session'}</button>
         <button type="button" className="primary context-start" disabled={!canStart} onClick={() => void start()}><Play size={15} />{busy ? 'Starting…' : 'Start with context'}</button>
       </div>
     </footer>

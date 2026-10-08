@@ -507,6 +507,66 @@ svg { flex-shrink: 0; }
   color: var(--accent);
 }
 
+/* Sensitivity Dropdown & Slider */
+.et-sensitivity-dropdown {
+  min-width: 250px;
+}
+.et-sensitivity-body {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.et-sensitivity-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.et-sensitivity-current {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+.et-sensitivity-default-note {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.et-sensitivity-reset-btn {
+  margin-left: auto;
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 120ms;
+}
+.et-sensitivity-reset-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.et-sensitivity-slider {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+  height: 5px;
+  margin: 4px 0 2px;
+}
+.et-sensitivity-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.et-sensitivity-ticks .et-tick-default {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 /* Error detail panel */
 .et-error-wrap {
   position: relative;

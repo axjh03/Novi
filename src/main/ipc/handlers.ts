@@ -48,7 +48,8 @@ export function registerIPC(
       coding: account.settings.codingModeShortcut,
       behavioral: account.settings.behavioralModeShortcut,
       screenshot: account.settings.screenshotShortcut,
-      audio: account.settings.audioRecordShortcut
+      audio: account.settings.audioRecordShortcut,
+      transparent: account.settings.transparentShortcut,
     });
     return { user, settings: account.settings, credentialIds: account.settings.connections.filter((c) => credentials.has(user.id, c)).map((c) => c.id), conversations: get().storage.conversations, contextSession: get().context.session };
   }
@@ -124,9 +125,15 @@ export function registerIPC(
   });
   handle('refresh-managed', async () => { await get().auth.refresh(true); return snapshot(); });
   handle('enable-connection', async (value) => {
-    requireNoContext(); get().chat.assertIdle();
+    get().chat.assertIdle();
     const input = object(value);
     get().connections.selectManaged(input.id, input.enabled);
+    const user = get().storage.current();
+    const active = user.settings.connections.find((c) => c.id === user.settings.activeConnectionId);
+    const session = get().context.session;
+    if (session && active) {
+      session.connection = active;
+    }
     return snapshot();
   });
   async function endContext() {
@@ -210,15 +217,43 @@ export function registerIPC(
       coding: input.codingModeShortcut,
       behavioral: input.behavioralModeShortcut,
       screenshot: input.screenshotShortcut,
-      audio: input.audioRecordShortcut
+      audio: input.audioRecordShortcut,
+      transparent: input.transparentShortcut,
     });
     user.name = input.displayName;
     user.settings = { ...user.settings, ...input, onboardingComplete: true };
     storage.save(); return snapshot();
   });
-  handle('save-connection', async (value) => { requireNoContext(); get().chat.assertIdle(); get().connections.save(value); return snapshot(); });
-  handle('remove-connection', async (value) => { requireNoContext(); get().chat.assertIdle(); get().connections.remove(value); return snapshot(); });
-  handle('select-connection', async (value) => { requireNoContext(); get().chat.assertIdle(); const input = object(value); get().connections.select(input.id, input.model); return snapshot(); });
+  handle('save-connection', async (value) => {
+    get().chat.assertIdle();
+    get().connections.save(value);
+    const user = get().storage.current();
+    const active = user.settings.connections.find((c) => c.id === user.settings.activeConnectionId);
+    const session = get().context.session;
+    if (session && active) session.connection = active;
+    return snapshot();
+  });
+  handle('remove-connection', async (value) => {
+    get().chat.assertIdle();
+    get().connections.remove(value);
+    const user = get().storage.current();
+    const active = user.settings.connections.find((c) => c.id === user.settings.activeConnectionId);
+    const session = get().context.session;
+    if (session && active) session.connection = active;
+    return snapshot();
+  });
+  handle('select-connection', async (value) => {
+    get().chat.assertIdle();
+    const input = object(value);
+    get().connections.select(input.id, input.model);
+    const user = get().storage.current();
+    const active = user.settings.connections.find((c) => c.id === user.settings.activeConnectionId);
+    const session = get().context.session;
+    if (session && active) {
+      session.connection = active;
+    }
+    return snapshot();
+  });
   handle('list-models', (value) => { const input = connectionInput(value); return listModels(input.ai, get().connections.resolveKey(input)); });
   handle('delete-conversation', (value) => {
     const { storage, images, chat } = get(); chat.assertIdle();

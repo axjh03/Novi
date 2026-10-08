@@ -28,12 +28,17 @@ export class GazeEstimator {
   private _faceDetected = false;
   private _headYaw = 0;
   private _headPitch = 0;
+  private sensitivity = 3.0;
   readonly calibration = new GazeCalibrationModel();
 
   get lastLandmarks(): LandmarkPoint[] | null { return this._lastLandmarks; }
   get faceDetected(): boolean { return this._faceDetected; }
   get headYaw(): number { return this._headYaw; }
   get headPitch(): number { return this._headPitch; }
+  getSensitivity(): number { return this.sensitivity; }
+  setSensitivity(val: number): void {
+    this.sensitivity = Math.max(0.5, Math.min(6.0, Number(val) || 3.0));
+  }
 
   async init(modelUrl: string): Promise<void> {
     const baseUrl = typeof window !== 'undefined' && window.location ? window.location.href : 'http://localhost/';
@@ -148,7 +153,7 @@ export class GazeEstimator {
       const avgRelY = (features[1] + features[3]) / 2;
       
       // Amplify movement so it reaches edges (since uncalibrated range is small)
-      const sensitivityX = 3.0;
+      const sensitivityX = this.sensitivity;
       const rawFx = (avgRelX - 0.5) * sensitivityX + 0.5;
       
       // Capture baseline on first few frames assuming user is looking roughly at the screen
@@ -159,7 +164,7 @@ export class GazeEstimator {
       // Adapt baseline faster so it doesn't get stuck if posture changes
       (this as any).baselineY = (this as any).baselineY * 0.995 + avgRelY * 0.005;
 
-      const sensitivityY = 3.0; // Lowered to prevent clamping and sticking to top
+      const sensitivityY = this.sensitivity;
       // Normal Y calculation (not inverted)
       const rawFy = 0.5 + ((avgRelY - (this as any).baselineY) * sensitivityY);
 
@@ -168,7 +173,7 @@ export class GazeEstimator {
       fy = Math.max(0, Math.min(1, rawFy));
       screenX = fx * window.innerWidth;
       screenY = fy * window.innerHeight;
-      confidence = 0.40;
+      confidence = 0.85;
     }
 
     return { x: screenX, y: screenY, fractionX: fx, fractionY: fy, confidence, timestamp: now };

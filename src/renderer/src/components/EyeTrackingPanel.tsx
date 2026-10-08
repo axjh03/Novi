@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Eye, EyeOff, RefreshCw, Loader, Camera, ChevronDown,
-  AlertCircle, Monitor, Send, Check
+  AlertCircle, Monitor, Send, Check, SlidersHorizontal
 } from 'lucide-react';
 import type { EyeTrackingState } from '../eye-tracking/EyeTrackingService';
 import type { CameraDevice } from '../eye-tracking/CameraService';
@@ -12,6 +12,8 @@ interface Props {
   error: string;
   isCalibrated: boolean;
   showDebugDot: boolean;
+  sensitivity: number;
+  onSetSensitivity: (val: number) => void;
   cameras: CameraDevice[];
   selectedCameraId: string | undefined;
   monitors: MonitorDisplay[];
@@ -31,13 +33,14 @@ interface Props {
 const STATE_LABELS: Record<EyeTrackingState, string> = {
   idle: 'Eye Track',
   initializing: 'Loading…',
-  calibrating: 'Calibrating…',
+  calibrating: 'Active',
   running: 'Active',
   error: 'Error',
 };
 
 export function EyeTrackingPanel({
   state, error, isCalibrated, showDebugDot,
+  sensitivity, onSetSensitivity,
   cameras, selectedCameraId,
   monitors, selectedDisplayId, overlayActive,
   onToggle, onToggleDebug,
@@ -49,6 +52,7 @@ export function EyeTrackingPanel({
 
   const [cameraPickerOpen, setCameraPickerOpen] = useState(false);
   const [monitorPickerOpen, setMonitorPickerOpen] = useState(false);
+  const [sensitivityPickerOpen, setSensitivityPickerOpen] = useState(false);
   const [loadingCameras, setLoadingCameras] = useState(false);
   const [loadingMonitors, setLoadingMonitors] = useState(false);
   const [errorExpanded, setErrorExpanded] = useState(false);
@@ -58,6 +62,7 @@ export function EyeTrackingPanel({
 
   const cameraPickerRef = useRef<HTMLDivElement>(null);
   const monitorPickerRef = useRef<HTMLDivElement>(null);
+  const sensitivityPickerRef = useRef<HTMLDivElement>(null);
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
   const previewStreamRef = useRef<MediaStream | null>(null);
 
@@ -109,6 +114,9 @@ export function EyeTrackingPanel({
       }
       if (monitorPickerRef.current && !monitorPickerRef.current.contains(e.target as Node)) {
         setMonitorPickerOpen(false);
+      }
+      if (sensitivityPickerRef.current && !sensitivityPickerRef.current.contains(e.target as Node)) {
+        setSensitivityPickerOpen(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -193,7 +201,7 @@ export function EyeTrackingPanel({
       </button>
 
       {/* 2. Camera Picker Dropdown */}
-      {(isOn || state === 'error') && <div className="et-camera-picker" ref={cameraPickerRef}>
+      <div className="et-camera-picker" ref={cameraPickerRef}>
         <button
           className={`et-camera-btn ${cameraPickerOpen ? 'et-camera-btn--open' : ''}`}
           onClick={() => void handleOpenCameras()}
@@ -218,7 +226,7 @@ export function EyeTrackingPanel({
               </div>
             ) : cameras.length === 0 ? (
               <div className="et-camera-empty">
-                No cameras found.<br />Check Windows permissions.
+                No cameras found.<br />Check camera permissions.
               </div>
             ) : (
               cameras.map((cam) => (
@@ -252,7 +260,7 @@ export function EyeTrackingPanel({
             )}
           </div>
         )}
-      </div>}
+      </div>
 
       {/* 3. Multi-Monitor Overlay Picker & Controls */}
       <div className="et-camera-picker" ref={monitorPickerRef}>
@@ -347,7 +355,70 @@ export function EyeTrackingPanel({
         )}
       </div>
 
-      {/* 4. Running Controls */}
+      {/* 4. Eye Tracker Sensitivity Slider */}
+      <div className="et-camera-picker" ref={sensitivityPickerRef}>
+        <button
+          className={`et-camera-btn ${sensitivityPickerOpen ? 'et-camera-btn--open' : ''}`}
+          onClick={() => {
+            setCameraPickerOpen(false);
+            setMonitorPickerOpen(false);
+            setSensitivityPickerOpen((v) => !v);
+          }}
+          title={`Eye tracker sensitivity: ${sensitivity.toFixed(1)}x (Default: 3.0)`}
+          aria-label="Eye tracker sensitivity"
+        >
+          <SlidersHorizontal size={13} />
+          <span className="et-camera-label">
+            {sensitivity.toFixed(1)}x
+          </span>
+          <ChevronDown size={11} />
+        </button>
+
+        {sensitivityPickerOpen && (
+          <div className="et-camera-dropdown et-sensitivity-dropdown">
+            <div className="et-camera-dropdown-header">
+              <span>Sensitivity Level</span>
+              <span className="overlay-desc-tag">Default: 3.0</span>
+            </div>
+
+            <div className="et-sensitivity-body">
+              <div className="et-sensitivity-value-row">
+                <span className="et-sensitivity-current">{sensitivity.toFixed(1)}x</span>
+                <span className="et-sensitivity-default-note">(Default: 3.0)</span>
+                {Math.abs(sensitivity - 3.0) > 0.05 && (
+                  <button
+                    type="button"
+                    className="et-sensitivity-reset-btn"
+                    onClick={() => onSetSensitivity(3.0)}
+                    title="Reset sensitivity to 3.0 default"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+
+              <input
+                type="range"
+                min="0.5"
+                max="6.0"
+                step="0.1"
+                value={sensitivity}
+                onChange={(e) => onSetSensitivity(parseFloat(e.target.value))}
+                className="et-sensitivity-slider"
+                aria-label="Eye tracker sensitivity slider"
+              />
+
+              <div className="et-sensitivity-ticks">
+                <span>0.5x (Slow)</span>
+                <span className="et-tick-default">3.0x (Default)</span>
+                <span>6.0x (Fast)</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 5. Running Controls */}
       {state === 'running' && (
         <>
           <button

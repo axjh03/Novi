@@ -78,6 +78,7 @@ test('settingsInput validates coding, behavioral, screenshot, audio shortcuts, a
     behavioralModeShortcut: 'Alt+B',
     screenshotShortcut: 'Alt+3',
     audioRecordShortcut: 'Alt+A',
+    transparentShortcut: 'Option+Control+T',
     autoSendOnAudioStop: true,
     fastInterviewModel: true,
     transparentOpacity: 75,
@@ -90,6 +91,7 @@ test('settingsInput validates coding, behavioral, screenshot, audio shortcuts, a
   assert.equal(validated.behavioralModeShortcut, 'Alt+B');
   assert.equal(validated.screenshotShortcut, 'Alt+3');
   assert.equal(validated.audioRecordShortcut, 'Alt+A');
+  assert.equal(validated.transparentShortcut, 'Option+Control+T');
   assert.equal(validated.autoSendOnAudioStop, true);
   assert.equal(validated.fastInterviewModel, true);
   assert.equal(validated.transparentOpacity, 75);
@@ -129,6 +131,7 @@ test('StealthService registers and updates coding, behavioral, and audio shortcu
     behavioral: 'Alt+B',
     screenshot: 'Alt+3',
     audio: 'Alt+A',
+    transparent: 'Option+Control+T',
   });
 
   stealth.cleanup();

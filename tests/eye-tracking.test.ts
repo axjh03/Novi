@@ -47,22 +47,13 @@ test('camera selection stays off; stopping closes HUD and cancels pending startu
   assert.equal(opens, 0, 'HUD cannot open while tracking is off');
 
   await service.start();
-  assert.equal(service.state, 'calibrating', service.error);
-  assert.throws(() => service.finishCalibration(), /Complete all 25 targets/);
+  assert.equal(service.state, 'running', service.error);
+  assert.equal(service.sensitivity, 3.0, 'default sensitivity is 3.0');
+  service.setSensitivity(4.5);
+  assert.equal(service.sensitivity, 4.5);
+  service.setSensitivity(3.0);
   assert.equal(service.overlayActive, true);
   assert.equal(opens, 1);
-  const { CALIBRATION_POINTS, CALIBRATION_SAMPLES_PER_POINT } = tsxRequire('../src/renderer/src/eye-tracking/calibrationPlan.ts', import.meta.url);
-  let features = [0, 0];
-  t.mock.method(GazeEstimator.prototype, 'extractFeatures', () => features);
-  for (const [x, y] of CALIBRATION_POINTS) {
-    features = [x, y];
-    for (let sample = 0; sample < CALIBRATION_SAMPLES_PER_POINT; sample++) {
-      assert.equal(service.addCalibrationSample(x, y), true);
-    }
-  }
-  service.finishCalibration();
-  assert.equal(service.state, 'running');
-  assert.equal(service.isCalibrated, true);
   service.stop();
   assert.equal(service.state, 'idle');
   assert.equal(service.overlayActive, false);

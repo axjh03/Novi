@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { ArrowLeft, Check, LogOut, Trash2 } from 'lucide-react';
-import { DEFAULT_CLICK_THROUGH_SHORTCUT, type SettingsInput, type Snapshot } from '../../../shared/types';
+import { DEFAULT_CLICK_THROUGH_SHORTCUT, DEFAULT_TRANSPARENT_SHORTCUT, type SettingsInput, type Snapshot } from '../../../shared/types';
 import { ProviderManager } from '../components/ProviderManager';
 import { DeviceTester } from '../components/DeviceTester';
 import { SettingsAppUpdater } from '../components/SettingsAppUpdater';
@@ -13,6 +13,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
   const [value, setValue] = useState<SettingsInput>({
     ...state.settings!,
     clickThroughShortcut: state.settings!.clickThroughShortcut || DEFAULT_CLICK_THROUGH_SHORTCUT,
+    transparentShortcut: state.settings!.transparentShortcut || DEFAULT_TRANSPARENT_SHORTCUT,
     audioPipelineMode: state.settings!.audioPipelineMode || 'local_stt',
     codingModeShortcut: state.settings!.codingModeShortcut || 'Alt+C',
     behavioralModeShortcut: state.settings!.behavioralModeShortcut || 'Alt+B',
@@ -189,6 +190,17 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                       <small>
                         {shortcutHint || 'Press once to enable click-through, then press it again to restore interaction. Works while transparent mode is on. Save changes to apply.'}
                       </small>
+                    </label>
+
+                    <label>
+                      Transparency toggle shortcut
+                      <input
+                        className="shortcut-input"
+                        value={value.transparentShortcut || DEFAULT_TRANSPARENT_SHORTCUT}
+                        onChange={(e) => change({ ...value, transparentShortcut: e.target.value })}
+                        placeholder="e.g. Option+Control+T or Home+PageUp"
+                      />
+                      <small>Toggles transparent stealth mode on or off. Default: {DEFAULT_TRANSPARENT_SHORTCUT}.</small>
                     </label>
 
                     <label>

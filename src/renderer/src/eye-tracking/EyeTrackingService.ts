@@ -34,12 +34,33 @@ export class EyeTrackingService {
   private _monitors: MonitorDisplay[] = [];
   private _selectedDisplayId: number | null = null;
   private _overlayActive = false;
+  private _sensitivity: number = (() => {
+    try {
+      const val = typeof localStorage !== 'undefined' ? localStorage.getItem('novi_gaze_sensitivity') : null;
+      return val ? Number(val) || 3.0 : 3.0;
+    } catch {
+      return 3.0;
+    }
+  })();
   private session = 0;
 
   get state(): EyeTrackingState { return this._state; }
   get error(): string { return this._error; }
   get isCalibrated(): boolean { return this.estimator?.calibration.isCalibrated ?? false; }
   get calibrationSamples(): number { return this.estimator?.calibration.sampleCount ?? 0; }
+  get sensitivity(): number { return this._sensitivity; }
+  setSensitivity(val: number): void {
+    const clamped = Math.max(0.5, Math.min(6.0, Number(val) || 3.0));
+    this._sensitivity = clamped;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('novi_gaze_sensitivity', String(clamped));
+      }
+    } catch {}
+    if (this.estimator) {
+      this.estimator.setSensitivity(clamped);
+    }
+  }
   get cameras(): CameraDevice[] { return this._cameras; }
   get selectedCameraId(): string | undefined { return this._selectedCameraId; }
   get monitors(): MonitorDisplay[] { return this._monitors; }
@@ -171,11 +192,13 @@ export class EyeTrackingService {
       if (session !== this.session) { camera.stop(); return; }
 
       const estimator = this.estimator = new GazeEstimator();
+      estimator.setSensitivity(this._sensitivity);
       // The model is served from the renderer's public folder
       await estimator.init('/eye-tracking/face_landmarker.task');
       if (session !== this.session) { estimator.destroy(); return; }
 
-      this._state = 'calibrating';
+      // Direct eye tracking starts immediately without calibration steps
+      this._state = 'running';
 
       if (!this._overlayActive) {
         if (this._monitors.length === 0) await this.listMonitors();
@@ -184,6 +207,7 @@ export class EyeTrackingService {
       }
 
       if (session !== this.session) return;
+      this.sendStickyToOverlay('Eye tracking active. Look around to position your response.');
       this.startLoop();
     } catch (err) {
       if (session !== this.session) return;
@@ -224,18 +248,18 @@ export class EyeTrackingService {
     return true;
   }
 
-  /** Train the model and transition to 'running'. */
+  /** Graceful completion of calibration into 'running'. */
   finishCalibration(): void {
-    if (!this.estimator || this._state !== 'calibrating') return;
-    if (this.calibrationSamples < CALIBRATION_POINTS.length * CALIBRATION_SAMPLES_PER_POINT) {
-      throw new Error('Complete all 25 targets before starting calibrated tracking.');
+    if (!this.estimator) return;
+    if (this.estimator.calibration.sampleCount > 0) {
+      try {
+        this.estimator.calibration.train();
+      } catch {}
     }
-    this.estimator.calibration.train();
     this.stopCalibrationStep();
     this.smoother.reset();
     this.dwell.reset();
     this._state = 'running';
-    this.sendStickyToOverlay('Extreme calibration complete. Look around to position your response.');
     this.startLoop();
   }
 
@@ -250,13 +274,13 @@ export class EyeTrackingService {
     this.startLoop();
   }
 
-  /** Restart calibration without stopping the camera. */
+  /** Reset gaze smoother and baseline without blocking tracking. */
   recalibrate(): void {
     if (!this.estimator || !this.camera) return;
-    this.estimator?.calibration.clearSamples();
+    this.estimator.calibration.clearSamples();
     this.smoother.reset();
     this.dwell.reset();
-    this._state = 'calibrating';
+    this._state = 'running';
     this.startLoop();
   }
 
