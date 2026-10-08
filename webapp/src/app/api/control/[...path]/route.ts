@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { activity, credentialModels, desktop, login, mutate, state } from '@/lib/access';
 import { AccessError } from '@/lib/access-policy';
-import { getReleaseStatus, triggerRelease } from '@/lib/release-manager';
+import { getReleaseStatus, triggerRelease, manageReleaseArtifacts } from '@/lib/release-manager';
 import { handleFileExplorerAdmin, handleFileExplorerClient } from '@/lib/remote-file-explorer';
 
 export const runtime = 'nodejs';
@@ -64,6 +64,7 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
     else if (path.join('/') === 'state' && req.method === 'GET') data = await state(req);
     else if (path.join('/') === 'activity' && req.method === 'GET') data = await activity(req);
     else if (path.join('/') === 'desktop' && req.method === 'GET') data = await desktop(req);
+    else if (path.join('/') === 'release/artifacts') data = await manageReleaseArtifacts(req, body);
     else if (path.join('/') === 'release' && req.method === 'GET') data = await getReleaseStatus(req);
     else if (path.join('/') === 'release' && req.method === 'POST') data = await triggerRelease(req, body);
     else if (path.length === 3 && path[0] === 'credentials' && path[2] === 'models' && req.method === 'GET') data = await credentialModels(req, path[1]);

@@ -22,6 +22,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import TuxPenguinLogo from './TuxPenguinLogo';
+import ArtifactCleanup from './ArtifactCleanup';
 
 interface CommitItem {
   sha: string;
@@ -231,6 +232,8 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       
+      {admin && <ArtifactCleanup />}
+
       {/* Dynamic Health State Banner */}
       {data && (
         <div>

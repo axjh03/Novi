@@ -1,7 +1,7 @@
 import { AccessError } from './access-policy';
 import { authenticate } from './access';
-
-const GITHUB_REPO = 'axjh03/Novi';
+import { GITHUB_REPO, githubFetch } from './github';
+import { listArtifacts, deleteArtifacts } from './github-artifacts';
 
 interface GitHubCommit {
   sha: string;
@@ -50,30 +50,6 @@ export function computeSemVerOptions(rawVersion: string): SemVerOptions {
     nextMajor,
     defaultNext: nextPatch,
   };
-}
-
-function getGitHubToken(): string {
-  const token = process.env.GITHUB_PAT || process.env.GITHUB_TOKEN;
-  if (!token) {
-    throw new AccessError('GITHUB_PAT is not configured in .env', 500);
-  }
-  return token.trim();
-}
-
-export async function githubFetch(endpoint: string, options: RequestInit = {}) {
-  const token = getGitHubToken();
-  const url = endpoint.startsWith('https://') ? endpoint : `https://api.github.com${endpoint}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      Accept: 'application/vnd.github.v3+json',
-      Authorization: `Bearer ${token}`,
-      'User-Agent': 'Novi-Admin-Portal',
-      ...(options.headers || {}),
-    },
-    cache: 'no-store',
-  });
-  return res;
 }
 
 export interface WorkflowJobSummary {
@@ -332,4 +308,17 @@ export async function triggerRelease(req: Request, body: Record<string, unknown>
     message: `Release ${tagName} triggered! GitHub Actions is building installers sequentially for macOS, Windows, and Linux.`,
     actionsUrl: `https://github.com/${GITHUB_REPO}/actions`,
   };
+}
+
+export async function manageReleaseArtifacts(req: Request, body: Record<string, unknown>) {
+  const { account, session } = await authenticate(req);
+  if (account.role !== 'ADMIN' || session.audience !== 'portal') {
+    throw new AccessError('Administrator portal access required.', 403);
+  }
+  if (req.method === 'GET') {
+    const page = Number(new URL(req.url).searchParams.get('page') || '1');
+    return listArtifacts(page);
+  }
+  if (req.method === 'DELETE') return deleteArtifacts(body);
+  throw new AccessError('Method not allowed.', 405);
 }

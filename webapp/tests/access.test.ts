@@ -33,6 +33,11 @@ test('access lifecycle: hierarchy, isolation, permanent licenses and exclusive d
     const c = (await sign(corp.username)).token;
     const subcorp = await create(c, 'subcorp', 'SUBCORP', corp.id);
     const s = (await sign(standalone.username)).token;
+    const { manageReleaseArtifacts } = await import('../src/lib/release-manager');
+    await assert.rejects(manageReleaseArtifacts(req(s, 'GET'), {}), /Administrator portal access required/);
+    await assert.rejects(manageReleaseArtifacts(req(s, 'DELETE'), { confirm: 'delete-artifacts', ids: [1] }), /Administrator portal access required/);
+    await assert.rejects(manageReleaseArtifacts(req('', 'GET'), {}));
+
     const sub = (await sign(subcorp.username)).token;
     await assert.rejects(create(s, 'illegalcorp', 'CORP'), /cannot create/);
     await assert.rejects(create(c, 'illegaldesktop', 'LICENSE', corp.id), /Invalid parent/);
