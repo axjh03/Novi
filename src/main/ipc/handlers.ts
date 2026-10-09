@@ -311,10 +311,20 @@ export function registerIPC(
   handle('list-models', (value) => { const input = connectionInput(value); return listModels(input.ai, get().connections.resolveKey(input)); });
   handle('delete-conversation', (value) => {
     const { storage, images, chat } = get(); chat.assertIdle();
-    const id = text(value, 'conversation ID', 100); storage.current();
-    storage.conversations = storage.conversations.filter((item) => item.id !== id); storage.save(); images.prune();
+    const id = text(value, 'conversation ID', 100);
+    const account = storage.current();
+    account.conversations = account.conversations.filter((item) => item.id !== id);
+    if (storage.sessionConversations !== null) {
+      storage.sessionConversations = storage.sessionConversations.filter((item) => item.id !== id);
+    }
+    storage.save(); images.prune();
   });
-  handle('clear-history', () => { const { storage, images, chat } = get(); chat.assertIdle(); storage.current().conversations = []; storage.save(); images.prune(); });
+  handle('clear-history', () => {
+    const { storage, images, chat } = get(); chat.assertIdle();
+    storage.current().conversations = [];
+    if (storage.sessionConversations !== null) storage.sessionConversations = [];
+    storage.save(); images.prune();
+  });
   handle('pick-images', async (_value, event) => {
     get().storage.current();
     const window = BrowserWindow.fromWebContents(event.sender);

@@ -46,6 +46,10 @@ export class StealthService {
     this.registerGlobalHotkeys();
   }
 
+  getOverlayService(): OverlayService | null {
+    return this.overlayService;
+  }
+
   private sendAction(type: string, payload?: any) {
     const win = this.getWindow();
     if (win && !win.isDestroyed()) {

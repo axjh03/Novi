@@ -8,6 +8,17 @@ import type { StealthService } from './stealth';
 import { generateQRCodeSVG } from './qrCode';
 import { CloudflareTunnelService } from './cloudflareTunnel';
 import type { RemoteCompanionStatus } from '../../shared/types';
+import { createRequire } from 'node:module';
+
+const req = typeof require === 'function' ? require : createRequire(import.meta.url);
+function getScreen(): { getDisplayMatching: (bounds: any) => { workArea: { x: number; y: number; width: number; height: number } } } | null {
+  try {
+    const electron = req('electron');
+    return typeof electron === 'object' && electron ? electron.screen : null;
+  } catch {
+    return null;
+  }
+}
 
 export class RemoteCompanionService {
   private server: http.Server | null = null;
@@ -290,6 +301,48 @@ export class RemoteCompanionService {
           win.webContents.send('global-action', { type: 'quick-prompt', payload: payload.trim() });
         }
         break;
+
+      case 'rewindow': {
+        const sc = getScreen();
+        if (sc && typeof (win as any).getBounds === 'function') {
+          const display = sc.getDisplayMatching(win.getBounds());
+          const area = display.workArea;
+          const bounds = win.getBounds();
+          if (payload === 'left') {
+            win.setBounds({ x: area.x, y: area.y, width: Math.min(bounds.width, Math.round(area.width * 0.5)), height: area.height });
+          } else if (payload === 'right') {
+            const w = Math.min(bounds.width, Math.round(area.width * 0.5));
+            win.setBounds({ x: area.x + area.width - w, y: area.y, width: w, height: area.height });
+          } else if (payload === 'center') {
+            const w = Math.min(bounds.width, area.width);
+            const h = Math.min(bounds.height, area.height);
+            win.setBounds({ x: Math.round(area.x + (area.width - w) / 2), y: Math.round(area.y + (area.height - h) / 2), width: w, height: h });
+          }
+        }
+        win.webContents.send('global-action', { type: 'rewindow', payload });
+        break;
+      }
+
+      case 'reposition-window': {
+        const sc = getScreen();
+        if (sc && typeof payload === 'object' && payload !== null && typeof (win as any).getBounds === 'function') {
+          const display = sc.getDisplayMatching(win.getBounds());
+          const area = display.workArea;
+          const bounds = win.getBounds();
+          const targetX = Math.round(area.x + (payload.xRatio ?? 0.5) * Math.max(0, area.width - bounds.width));
+          const targetY = Math.round(area.y + (payload.yRatio ?? 0.5) * Math.max(0, area.height - bounds.height));
+          win.setPosition(targetX, targetY);
+        }
+        win.webContents.send('global-action', { type: 'reposition-window', payload });
+        break;
+      }
+
+      case 'scroll-hud': {
+        const delta = typeof payload === 'number' ? payload : Number(payload?.deltaY) || 50;
+        this.stealth.getOverlayService?.()?.forwardToAllWindows({ type: 'scroll', deltaY: delta } as any);
+        win.webContents.send('global-action', { type: 'scroll-hud', payload: { deltaY: delta } });
+        break;
+      }
     }
   }
 
@@ -307,58 +360,97 @@ export class RemoteCompanionService {
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #111; color: #eee; }
-    body { margin: 0; padding: max(16px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom)); overscroll-behavior-y: contain; }
+    body { margin: 0; padding: max(12px, env(safe-area-inset-top)) 10px max(14px, env(safe-area-inset-bottom)); overscroll-behavior-y: contain; }
     button { font: inherit; cursor: pointer; touch-action: manipulation; }
     button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
     button:active { opacity: .7; }
-    .app-container { max-width: 420px; margin: 0 auto; border: 1px solid #363636; border-radius: 18px; background: #191919; overflow: hidden; }
-    .header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 18px 16px; border-bottom: 1px solid #333; }
-    .brand { font-size: 15px; font-weight: 650; letter-spacing: -.03em; }
-    .badge { font-size: 10px; color: #aaa; border: 1px solid #444; padding: 4px 7px; border-radius: 20px; }
+    .app-container { max-width: 420px; margin: 0 auto; border: 1px solid #363636; border-radius: 16px; background: #191919; overflow: hidden; }
+    .header-compact { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #282828; }
+    .brand-compact { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #888; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; display: inline-block; }
+    .badge { font-size: 10px; color: #aaa; border: 1px solid #444; padding: 3px 7px; border-radius: 20px; }
     .badge.connected { color: #eee; }
     .badge.error { border-style: dashed; }
-    .controls-grid { display: grid; gap: 10px; padding: 14px; }
-    .hero-btn, .stop-btn, .ctrl-btn, .chip-btn, .mode-tab-btn { border: 1px solid #3b3b3b; border-radius: 8px; background: #222; color: #ddd; min-height: 44px; font-size: 12px; padding: 10px 8px; }
-    .hero-btn { background: #eee; color: #111; border-color: #eee; font-size: 14px; font-weight: 650; min-height: 50px; }
+    .controls-grid { display: grid; gap: 9px; padding: 12px; }
+    .hero-row { display: grid; grid-template-columns: 1.25fr .95fr; gap: 8px; }
+    .hero-btn, .stop-btn, .ctrl-btn, .mode-tab-btn { border: 1px solid #3b3b3b; border-radius: 8px; background: #222; color: #ddd; min-height: 42px; font-size: 12px; padding: 9px 8px; }
+    .hero-btn { background: #eee; color: #111; border-color: #eee; font-size: 13px; font-weight: 650; }
+    .stop-btn { background: #281919; color: #fca5a5; border-color: #552727; font-weight: 600; }
     .mode-segment { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; background: #111; border: 1px solid #333; border-radius: 10px; }
-    .mode-tab-btn { border-color: transparent; background: transparent; min-height: 40px; }
+    .mode-tab-btn { border-color: transparent; background: transparent; min-height: 38px; font-weight: 550; }
     .mode-tab-btn.active, .ctrl-btn.active-state { background: #eee; border-color: #eee; color: #111; }
-    .button-row, .quick-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .stop-btn { background: transparent; }
-    .quick-section { border-top: 1px solid #333; padding-top: 12px; margin-top: 2px; }
-    .quick-title { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: #999; margin-bottom: 8px; }
-    .chip-btn { background: #1c1c1c; font-size: 11px; }
+    .button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .section-box { border: 1px solid #2d2d2d; border-radius: 10px; padding: 9px 10px; background: #141414; display: grid; gap: 8px; }
+    .section-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #777; font-weight: 600; display: flex; justify-content: space-between; }
+    .rewindow-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .rewindow-row button { min-height: 34px; font-size: 11px; padding: 6px 4px; border-radius: 6px; }
+    .mockup-container { position: relative; height: 74px; border: 1px dashed #3a3a3a; border-radius: 8px; background: #0c0c0c; display: flex; align-items: center; justify-content: center; cursor: crosshair; touch-action: none; }
+    .mockup-screen { position: absolute; inset: 6px; border: 1px solid #2e2e2e; border-radius: 5px; pointer-events: none; }
+    .mockup-puck { position: absolute; width: 34px; height: 26px; border: 2px solid #a3c1ff; border-radius: 5px; background: rgba(163, 193, 255, 0.25); transform: translate(-50%, -50%); transition: left 80ms, top 80ms; pointer-events: none; }
+    .hud-wheel { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+    .wheel-surface { flex: 1; height: 38px; background: #1f1f1f; border: 1px solid #363636; border-radius: 8px; display: flex; align-items: center; justify-content: center; touch-action: none; cursor: ns-resize; font-size: 11px; color: #aaa; user-select: none; }
+    .wheel-btn { padding: 6px 12px; min-height: 38px; border: 1px solid #363636; border-radius: 8px; background: #222; color: #ddd; font-size: 11px; }
   </style>
 </head>
 <body>
   <div class="app-container">
-    <div class="header">
-      <div class="brand">
-        Novi Companion
+    <div class="header-compact">
+      <div class="brand-compact" title="Novi Companion">
+        <span class="status-dot"></span>
+        <span>Companion</span>
       </div>
       <div id="connBadge" class="badge">Ready</div>
     </div>
 
     <div class="controls-grid">
-      <!-- 1. HERO Send prompt CHAT -->
-      <button type="button" class="hero-btn" onclick="triggerAction('send-prompt')">
-        <span>Send prompt</span>
-      </button>
+      <!-- 1. HERO: SEND PROMPT & STOP GENERATION IN SAME LINE -->
+      <div class="hero-row">
+        <button type="button" class="hero-btn" onclick="triggerAction('send-prompt')">
+          <span>Send prompt</span>
+        </button>
+        <button type="button" class="stop-btn" onclick="triggerAction('stop-generation')">
+          <span>Stop generate</span>
+        </button>
+      </div>
 
-      <!-- 2. MODE SELECTION (CHAT / INTERVIEW / CODE) -->
+      <!-- 2. MODE SELECTION (CHAT / CODE / INTERVIEW) -->
       <div class="mode-segment">
         <button type="button" id="tabChat" class="mode-tab-btn active" onclick="triggerAction('set-app-mode', 'normal')">
           <span>Chat</span>
         </button>
-        <button type="button" id="tabInterview" class="mode-tab-btn" onclick="triggerAction('set-app-mode', 'behavioral')">
-          <span>Interview</span>
-        </button>
         <button type="button" id="tabCode" class="mode-tab-btn" onclick="triggerAction('set-app-mode', 'coding')">
           <span>Code</span>
         </button>
+        <button type="button" id="tabInterview" class="mode-tab-btn" onclick="triggerAction('set-app-mode', 'behavioral')">
+          <span>Interview</span>
+        </button>
       </div>
 
-      <!-- 3. SNAPSHOT CONTROLS -->
+      <!-- 3. REWINDOW & POSITION CONTROL WITH SCREEN MOCKUP -->
+      <div class="section-box">
+        <div class="section-label"><span>Window Position</span><span>Reposition</span></div>
+        <div class="rewindow-row">
+          <button type="button" class="ctrl-btn" onclick="triggerAction('rewindow', 'left')">◧ Left</button>
+          <button type="button" class="ctrl-btn" onclick="triggerAction('rewindow', 'center')">▣ Center</button>
+          <button type="button" class="ctrl-btn" onclick="triggerAction('rewindow', 'right')">◨ Right</button>
+        </div>
+        <div class="mockup-container" id="mockupPad" title="Tap or drag to reposition window">
+          <div class="mockup-screen"></div>
+          <div class="mockup-puck" id="mockupPuck" style="left: 50%; top: 50%;"></div>
+        </div>
+      </div>
+
+      <!-- 4. HUD SCROLL WHEEL -->
+      <div class="section-box">
+        <div class="section-label"><span>HUD Scroll</span><span>Drag / Tap</span></div>
+        <div class="hud-wheel">
+          <button type="button" class="wheel-btn" onclick="triggerAction('scroll-hud', -80)">▲ Up</button>
+          <div class="wheel-surface" id="hudWheelSurface">↕ Drag to scroll</div>
+          <button type="button" class="wheel-btn" onclick="triggerAction('scroll-hud', 80)">▼ Down</button>
+        </div>
+      </div>
+
+      <!-- 5. SNAPSHOT CONTROLS -->
       <div class="button-row">
         <button type="button" class="ctrl-btn" onclick="triggerAction('capture-screen')">
           <span>Take Snapshot</span>
@@ -368,7 +460,7 @@ export class RemoteCompanionService {
         </button>
       </div>
 
-      <!-- 4. LIVE LISTENING -->
+      <!-- 6. LIVE LISTENING -->
       <div class="button-row">
         <button type="button" class="ctrl-btn" onclick="triggerAction('toggle-listening', document.getElementById('listeningMode').value)">
           <span>Start / stop listening</span>
@@ -380,30 +472,14 @@ export class RemoteCompanionService {
         </select>
       </div>
 
-      <!-- 5. TRANSPARENT & INTERACTIVE TOGGLES -->
+      <!-- 7. TRANSPARENT & INTERACTIVE TOGGLES (WITH CONFIRM ON NON-TRANSPARENT) -->
       <div class="button-row">
-        <button type="button" id="btnGhost" class="ctrl-btn" onclick="triggerAction('toggle-transparent')">
+        <button type="button" id="btnGhost" class="ctrl-btn" onclick="toggleTransparentSafe()">
           <span id="txtGhost">Transparent</span>
         </button>
         <button type="button" id="btnInteract" class="ctrl-btn" onclick="triggerAction('toggle-clickthrough')">
           <span id="txtInteract">Interactive</span>
         </button>
-      </div>
-
-      <!-- 6. STOP AI GENERATION -->
-      <button type="button" class="stop-btn" onclick="triggerAction('stop-generation')">
-        <span>Stop AI Generation</span>
-      </button>
-
-      <!-- 7. QUICK PROMPT CHIPS -->
-      <div class="quick-section">
-        <div class="quick-title">Quick Prompts</div>
-        <div class="quick-chips">
-          <button type="button" class="chip-btn" onclick="triggerPrompt('Summarize this clearly and highlight key points.')">Summarize</button>
-          <button type="button" class="chip-btn" onclick="triggerPrompt('Explain simply in plain language.')">Explain simply</button>
-          <button type="button" class="chip-btn" onclick="triggerPrompt('What is the optimal next step?')">Next step</button>
-          <button type="button" class="chip-btn" onclick="triggerPrompt('Structure this using STAR interview framework.')">STAR Method</button>
-        </div>
       </div>
     </div>
   </div>
@@ -415,7 +491,7 @@ export class RemoteCompanionService {
       localStorage.setItem('novi_companion_cid', clientId);
     }
 
-    // 2. SCREEN WAKE LOCK - Keeps phone awake during active session
+    // 2. SCREEN WAKE LOCK
     async function initWakeLock() {
       if ('wakeLock' in navigator) {
         try { await navigator.wakeLock.request('screen'); }
@@ -436,7 +512,10 @@ export class RemoteCompanionService {
     const token = params.get('token') || localStorage.getItem('novi_companion_token') || '';
     if (token) localStorage.setItem('novi_companion_token', token);
     history.replaceState(null, '', window.location.pathname);
-    // 6. ACTION DISPATCH WITH LOW LATENCY
+
+    let isTransparent = false;
+
+    // 4. ACTION DISPATCH WITH LOW LATENCY
     async function triggerAction(action, payload) {
       haptic();
       try {
@@ -460,13 +539,51 @@ export class RemoteCompanionService {
       }
     }
 
-    function triggerPrompt(text) {
-      triggerAction('quick-prompt', text);
+    function toggleTransparentSafe() {
+      if (isTransparent) {
+        if (!confirm('Make desktop window visible (turn off transparent mode)?')) {
+          return;
+        }
+      }
+      triggerAction('toggle-transparent');
     }
+
+    // 5. INTERACTIVE SCREEN MOCKUP DRAG / TAP
+    const pad = document.getElementById('mockupPad');
+    const puck = document.getElementById('mockupPuck');
+    function updatePuck(e) {
+      const rect = pad.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const xRatio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      const yRatio = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+      puck.style.left = (xRatio * 100) + '%';
+      puck.style.top = (yRatio * 100) + '%';
+      triggerAction('reposition-window', { xRatio, yRatio });
+    }
+    let padDragging = false;
+    pad.addEventListener('pointerdown', (e) => { padDragging = true; updatePuck(e); });
+    window.addEventListener('pointermove', (e) => { if (padDragging) updatePuck(e); });
+    window.addEventListener('pointerup', () => { padDragging = false; });
+
+    // 6. HUD SCROLL WHEEL DRAG
+    const wheel = document.getElementById('hudWheelSurface');
+    let lastWheelY = 0;
+    let wheelDragging = false;
+    wheel.addEventListener('pointerdown', (e) => { wheelDragging = true; lastWheelY = e.clientY; });
+    window.addEventListener('pointermove', (e) => {
+      if (!wheelDragging) return;
+      const diff = e.clientY - lastWheelY;
+      if (Math.abs(diff) >= 8) {
+        triggerAction('scroll-hud', diff * 3);
+        lastWheelY = e.clientY;
+      }
+    });
+    window.addEventListener('pointerup', () => { wheelDragging = false; });
 
     // 7. REALTIME STATUS SYNC
     function updateUI(status) {
-      // Transparency
+      isTransparent = Boolean(status.transparent);
       const btnGhost = document.getElementById('btnGhost');
       const txtGhost = document.getElementById('txtGhost');
       if (status.transparent) {
@@ -477,7 +594,6 @@ export class RemoteCompanionService {
         txtGhost.innerText = 'Transparent: OFF';
       }
 
-      // Interactive Pass-Through
       const btnInteract = document.getElementById('btnInteract');
       const txtInteract = document.getElementById('txtInteract');
       if (status.clickThrough) {
@@ -488,11 +604,10 @@ export class RemoteCompanionService {
         txtInteract.innerText = 'Interactive';
       }
 
-      // App Mode Tabs
       if (status.currentMode) {
         document.getElementById('tabChat').classList.toggle('active', status.currentMode === 'normal');
-        document.getElementById('tabInterview').classList.toggle('active', status.currentMode === 'behavioral');
         document.getElementById('tabCode').classList.toggle('active', status.currentMode === 'coding');
+        document.getElementById('tabInterview').classList.toggle('active', status.currentMode === 'behavioral');
       }
     }
 
@@ -510,11 +625,11 @@ export class RemoteCompanionService {
           updateUI(data);
         } else {
           badge.className = 'badge error';
-          badge.innerText = 'Scan the QR in Novi';
+          badge.innerText = 'Scan QR';
         }
       } catch (e) {
         badge.className = 'badge error';
-        badge.innerText = 'Desktop unavailable';
+        badge.innerText = 'Unavailable';
       }
     }
 

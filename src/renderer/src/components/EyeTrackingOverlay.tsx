@@ -33,6 +33,7 @@ export function EyeTrackingOverlay() {
   });
 
   const [copied, setCopied] = useState(false);
+  const cardBodyRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const endDrag = useRef<(() => void) | null>(null);
@@ -140,6 +141,8 @@ export function EyeTrackingOverlay() {
         }));
       } else if (event.type === 'set-indicator') {
         setGaze((prev) => ({ ...prev, visible: event.show }));
+      } else if (event.type === 'scroll') {
+        cardBodyRef.current?.scrollBy({ top: event.deltaY, behavior: 'smooth' });
       } else if (event.type === 'close') {
         setSticky((prev) => ({ ...prev, visible: false }));
       }
@@ -250,7 +253,7 @@ export function EyeTrackingOverlay() {
           </div>
 
           {/* Card Body */}
-          <div className="overlay-card-body">
+          <div className="overlay-card-body" ref={cardBodyRef}>
             <p className="overlay-card-text">{sticky.text}</p>
           </div>
 

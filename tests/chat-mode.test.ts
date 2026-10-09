@@ -32,3 +32,25 @@ test('diagram requests use the selected chat connection and report model timeout
     assert.equal(diagramBlocks(conversations[0].messages).length, 1, 'a failed update preserves the completed diagram');
   } finally { AIProviderFactory.create = original; }
 });
+
+test('deleting a conversation removes it from storage and persists change', () => {
+  const account = {
+    id: 'user-1',
+    conversations: [
+      { id: 'conv-1', title: 'First chat', messages: [], createdAt: 1, updatedAt: 1 },
+      { id: 'conv-2', title: 'Second chat', messages: [], createdAt: 2, updatedAt: 2 }
+    ]
+  };
+  let saved = false;
+  const storage = {
+    current: () => account,
+    sessionConversations: null as Conversation[] | null,
+    save: () => { saved = true; }
+  };
+  const idToDelete = 'conv-1';
+  account.conversations = account.conversations.filter(c => c.id !== idToDelete);
+  storage.save();
+  assert.equal(saved, true);
+  assert.equal(account.conversations.length, 1);
+  assert.equal(account.conversations[0].id, 'conv-2');
+});

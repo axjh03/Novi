@@ -109,6 +109,7 @@ export type OverlayEvent =
   | { type: 'calibration-target-shown'; index: number }
   | { type: 'calibration-stop' }
   | { type: 'calibration-sample-collected'; index: number }
+  | { type: 'scroll'; deltaY: number }
   | { type: 'close' };
 
 export interface StealthState {

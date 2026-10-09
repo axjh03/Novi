@@ -148,7 +148,7 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
   const selectedASR = selectedSpeechModel(setup);
   const required = setup.models.filter(model => !model.reason && (model.id === selectedASR?.id || (model.type === 'vad' && model.recommended)) && model.state !== 'READY');
   const requiredBytes = required.reduce((sum, model) => sum + model.totalBytes, 0);
-  const enoughDisk = setup.device.diskFree !== null && setup.device.diskFree >= requiredBytes + 256 * 1024 ** 2;
+  const enoughDisk = setup.device.diskFree === null || setup.device.diskFree >= requiredBytes + 256 * 1024 ** 2;
   const vadReady = setup.models.some(model => model.type === 'vad' && model.state === 'READY');
   const speakersReady = setup.models.some(model => model.type === 'diarization' && model.state === 'READY');
   const modelLocked = busy || inProgress || testBusy || savingModel;

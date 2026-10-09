@@ -406,7 +406,6 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
         </div>
       </form>
 
-      <small role="status">{engine === 'local' ? `Speech model: ${localActive ? activeModel : speechModelId === 'auto' ? 'Automatic' : speechModelId}. Local transcription appears live.` : 'Cloud transcription sends short audio chunks to your configured transcription provider.'} Send from here or your phone whenever ready. Listening continues until you stop it.</small>
       {(error || localWarning) && (
         <div className="error composer-error" role="alert">
           {error || localWarning}
