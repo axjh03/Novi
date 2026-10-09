@@ -48,3 +48,10 @@ export interface LocalAISetup {
   estimatedRequiredRamBytes: number;
   selectedASR: string;
 }
+
+export function selectedSpeechModel(setup: LocalAISetup) {
+  if (setup.selectedASR && setup.selectedASR !== 'auto') return setup.models.find(model => model.type === 'asr' && model.id === setup.selectedASR);
+  const supported = setup.models.filter(model => model.type === 'asr' && !model.reason)
+    .sort((a, b) => Number(b.recommended) - Number(a.recommended) || a.estimatedRamBytes - b.estimatedRamBytes);
+  return supported.find(model => model.state === 'READY') || supported[0];
+}

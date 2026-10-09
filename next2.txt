@@ -1,0 +1,9 @@
+in phoen companion [remove QUICK prompts]. Send Prompt and stop generate should be in same line, If In protrait mode, have a
+  scrren mockup where I can maybe, like Restructur it's position in my screen. like a ball o rjoystick used to reposition,and
+  rewindow too, amek it smart, rewindow like right most, left most or center, and sepearte code and chat. THEN if HUD active a wheel
+  i can scrool which would scroll the HUD scroll, make it compact, remove NOVI COMPANION and connected text from thre.. ALSO in
+  electron app .. remove this text [Speech model: zipformer-en-small. Local transcription appears live. Send from here or your phone
+  whenever ready. Listening continues until you stop it.] bECAYSE these shoud be shown in settings and is irrelevant here... .. and
+  in companion app, confirm if I want to make it non transparent..uk, for non accidents..
+  codex resume 01a11e60-19d5-76f2-80fe-13ceb39e4618
+ 

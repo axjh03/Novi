@@ -311,7 +311,7 @@ export function registerIPC(
   handle('list-models', (value) => { const input = connectionInput(value); return listModels(input.ai, get().connections.resolveKey(input)); });
   handle('delete-conversation', (value) => {
     const { storage, images, chat } = get(); chat.assertIdle();
-    const id = text(value, 'conversation ID', 100); get().context.assertActive();
+    const id = text(value, 'conversation ID', 100); storage.current();
     storage.conversations = storage.conversations.filter((item) => item.id !== id); storage.save(); images.prune();
   });
   handle('clear-history', () => { const { storage, images, chat } = get(); chat.assertIdle(); storage.current().conversations = []; storage.save(); images.prune(); });

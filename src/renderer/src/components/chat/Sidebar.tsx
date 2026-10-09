@@ -28,7 +28,7 @@ export function Sidebar({ conversations, selectedId, displayName, busy, collapse
             <MessageSquare size={14} />
             {!collapsed && <span>{conversation.title}</span>}
           </button>
-          {!collapsed && <button className="history-delete icon-button" disabled={busy} onClick={() => onDelete(conversation.id)} aria-label={`Delete ${conversation.title}`}><Trash2 size={13} /></button>}
+          {!collapsed && <button className="history-delete icon-button" disabled={busy} onClick={() => onDelete(conversation.id)} title="Delete conversation" aria-label={`Delete ${conversation.title}`}><Trash2 size={15} /></button>}
         </div>
       ))}
     </nav>
