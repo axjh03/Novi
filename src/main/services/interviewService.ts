@@ -16,6 +16,7 @@ export class InterviewService {
   private owner = '';
   private windowId = 0;
   private busy = false;
+  private starting?: Promise<InterviewSession>;
   private stopping?: Promise<InterviewSession | null>;
   private leases: Lease[] = [];
   private nextRequest = 0;
@@ -32,7 +33,14 @@ export class InterviewService {
     private emit: (windowId: number, event: InterviewEvent) => void) { this.store = new InterviewStore(storage.directory); }
 
   async start(input: unknown, windowId: number) {
-    if (this.busy || this.session || this.stopping) throw new UserError('Stop the current interview before starting another.');
+    if (this.stopping) await this.stopping;
+    if (this.busy || this.session) throw new UserError('Stop the current interview before starting another.');
+    this.starting = this.initialize(input, windowId);
+    try { return await this.starting; }
+    finally { this.starting = undefined; }
+  }
+
+  private async initialize(input: unknown, windowId: number) {
     const value = object(input);
     if (!['interviewer', 'conversation', 'multiple'].includes(String(value.mode)) || typeof value.diarization !== 'boolean' ||
       typeof value.vadThreshold !== 'number' || !Number.isFinite(value.vadThreshold) || value.vadThreshold < 0.001 || value.vadThreshold > 0.05 || (value.useVad !== undefined && typeof value.useVad !== 'boolean')) throw new UserError('Invalid interview options.');
@@ -46,16 +54,20 @@ export class InterviewService {
       const setup = await this.models.snapshot(device);
       if (generation !== this.generation) throw new UserError('Interview startup was cancelled.');
       const preferred = this.storage.current().settings.localASRModelId || 'auto';
-      const candidates = setup.models.filter(model => model.type === 'asr' && model.state === 'READY' && !model.reason)
-        .sort((a, b) => Number(b.id === preferred) - Number(a.id === preferred) || Number(b.recommended) - Number(a.recommended) || a.estimatedRamBytes - b.estimatedRamBytes);
-      if (preferred !== 'auto' && !candidates.some(model => model.id === preferred)) throw new UserError('Download the selected speech model in Local AI setup first, or choose Automatic.');
+      const candidates = setup.models.filter(model => model.type === 'asr' && model.state === 'READY' && !model.reason && (preferred === 'auto' || model.id === preferred))
+        .sort((a, b) => Number(b.recommended) - Number(a.recommended) || a.estimatedRamBytes - b.estimatedRamBytes);
+      if (preferred !== 'auto' && !candidates.length) throw new UserError('Download the selected speech model in Local AI setup first, or choose Automatic.');
       if (!candidates.length) throw new UserError('Download a speech model in Local AI setup first.');
       const vad = options.useVad === false ? undefined : setup.models.find(model => model.type === 'vad' && model.state === 'READY' && !model.reason);
       const speakerModel = options.mode !== 'interviewer' && options.diarization ? setup.models.find(model => model.type === 'diarization' && model.state === 'READY' && !model.reason) : undefined;
       let loaded = false;
       for (const model of candidates) {
+        if (generation !== this.generation) throw new UserError('Interview startup was cancelled.');
         if (this.storage.current().id !== owner) throw new UserError('Your account changed. Start the interview again.');
-        if (device.availableMemory < model.estimatedRamBytes + 768 * 1024 ** 2) continue;
+        if (device.availableMemory < model.estimatedRamBytes + 768 * 1024 ** 2) {
+          if (preferred !== 'auto') throw new UserError(`Not enough free memory to load ${model.name}. Close other apps or select a smaller speech model.`);
+          continue;
+        }
         const lease = await this.models.acquire(model.id);
         this.leases.push(lease);
         if (generation !== this.generation) throw new UserError('Interview startup was cancelled.');
@@ -79,10 +91,12 @@ export class InterviewService {
           if (options.mode !== 'interviewer' && options.diarization) this.warn(speakerLease ? 'Lite speaker detection is active: labels update after each turn. Overlap and within-turn speaker changes are not separated.' : 'Interviewer separation is off. Install the speaker model and enable Lite speaker detection; sufficient free memory is required.');
           if (generation !== this.generation) throw new UserError('Interview startup was cancelled.');
           loaded = true; break;
-        } catch {
+        } catch (cause) {
           this.worker?.kill(); this.worker = undefined;
           for (const item of this.leases.splice(0)) item.release();
           session.status = 'interrupted'; this.store.metadata(owner, session); this.session = undefined;
+          if (generation !== this.generation) throw new UserError('Interview startup was cancelled.');
+          if (preferred !== 'auto') throw new UserError(`${model.name} could not start. ${cause instanceof Error ? cause.message : 'Try reinstalling this model.'}`);
           console.info(JSON.stringify({ scope: 'local-ai', event: 'asr_fallback', modelId: model.id, backend: 'cpu' }));
         }
       }
@@ -207,9 +221,12 @@ export class InterviewService {
     this.generation++;
     if (this.stopping) return this.stopping;
     this.stopping = this.finish(interrupted).finally(() => { this.stopping = undefined; });
+    if (this.busy) this.worker?.kill();
     return this.stopping;
   }
   private async finish(interrupted: boolean) {
+    // Startup may still be acquiring models when Settings closes the recorder.
+    await this.starting?.catch(() => {});
     clearInterval(this.monitor);
     const session = this.session, worker = this.worker;
     if (!session) return null;

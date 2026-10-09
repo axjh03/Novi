@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Cpu, FastForward, FileText, FolderOpen, Play, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Cpu, FastForward, FileText, FolderOpen, Play, X } from 'lucide-react';
 import type { AppMode, ContextFolder, Snapshot } from '../../../shared/types';
 import { activeConnection } from '../../../shared/providers';
 import { Brand } from '../components/Brand';
@@ -15,7 +15,7 @@ type Section = 'model' | 'sources' | 'brief';
 
 export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; onSaved: (state: Snapshot) => void; onSignOut: () => void }) {
   const { setAppMode } = useAppMode();
-  const [startMode, setStartMode] = useState<AppMode>('normal');
+  const [startMode, setStartMode] = useState<AppMode | null>(null);
   const [settings, setSettings] = useState(false);
   const [section, setSection] = useState<Section>('model');
   const [folders, setFolders] = useState<ContextFolder[]>([]);
@@ -30,7 +30,9 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
   const attempt = useRef(0);
   useEffect(() => () => { attempt.current++; }, []);
   const connection = activeConnection(state.settings!);
-  const canStart = !busy && modelReady;
+  const sourcesReady = folders.some(folder => folder.files.length > 0);
+  const briefReady = Boolean(purpose.trim() && startMode);
+  const canStart = !busy && modelReady && sourcesReady && briefReady && section === 'brief';
 
   async function loadFolders() {
     setBusy(true); setError('');
@@ -55,18 +57,14 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
   }
 
   async function start() {
-    if (!canStart) return;
+    if (!canStart || !startMode) return;
     const current = ++attempt.current;
     setBusy(true); setChecking(true); setError('');
     try {
       await unwrap(window.novi.testConnection());
       if (current !== attempt.current) return;
       setChecking(false);
-      const selected = SESSION_MODES.find((mode) => mode.id === startMode)!;
-      const hasContext = folders.length > 0 || purpose.trim() || fields.some((field) => field.value.trim());
-      const next = await unwrap(hasContext
-        ? window.novi.startContext({ folderIds: folders.map((f) => f.id), purpose: purpose.trim() || selected.name, fields })
-        : window.novi.startEmptySession());
+      const next = await unwrap(window.novi.startContext({ folderIds: folders.map((f) => f.id), purpose: purpose.trim(), fields }));
       setAppMode(startMode);
       onSaved(next);
     } catch (err) { if (current === attempt.current) setError(errorText(err)); }
@@ -89,9 +87,9 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
         <nav className="context-section-nav" aria-label="Session setup">
           {([
             ['model', 'Model', Cpu, modelReady],
-            ['sources', 'Sources', FolderOpen, folders.length > 0],
-            ['brief', 'Instructions', FileText, Boolean(purpose.trim())],
-          ] as const).map(([id, label, Icon, done]) => <button key={id} id={`context-tab-${id}`} type="button" aria-current={section === id ? 'page' : undefined} aria-controls={`context-panel-${id}`} className={`context-nav-item ${section === id ? 'active' : ''}`} onClick={() => setSection(id)}>
+            ['sources', 'Sources', FolderOpen, sourcesReady],
+            ['brief', 'Instructions', FileText, briefReady],
+          ] as const).map(([id, label, Icon, done]) => <button key={id} id={`context-tab-${id}`} type="button" aria-current={section === id ? 'page' : undefined} aria-controls={`context-panel-${id}`} className={`context-nav-item ${section === id ? 'active' : ''}`} disabled={busy || (id !== 'model' && !modelReady) || (id === 'brief' && !sourcesReady)} onClick={() => setSection(id)}>
             <Icon size={16} /><span>{label}</span>{done && <Check className="context-nav-check" size={14} aria-label="Complete" />}
           </button>)}
         </nav>
@@ -101,10 +99,6 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
       <div className="context-main-panel">
         <section id="context-panel-model" aria-labelledby="context-tab-model" className="context-panel-content" hidden={section !== 'model'}>
           <div className="context-panel-heading"><div className="context-panel-icon"><Cpu size={19} /></div><div><span className="context-overline">01 / CONNECTION</span><h2>Choose a model</h2><p>Select the connection Novi will use for this session.</p></div></div>
-          <fieldset className="context-presets" disabled={busy}><legend>Start in a mode</legend>
-            <div className="context-preset-options">{SESSION_MODES.map((mode) => <button type="button" key={mode.id} aria-pressed={startMode === mode.id} onClick={() => setStartMode(mode.id)}><strong>{mode.name}</strong><span>{mode.description}</span></button>)}</div>
-            {startMode !== 'normal' && <details className="context-preset-preview"><summary>How AI will answer</summary><p>{modeInstructions(startMode)}</p></details>}
-          </fieldset>
           <div className="context-control-block"><ProviderPicker state={state} disabled={busy} onSaved={onSaved} onError={setError} onReady={setModelReady} />
             {!connection && <p className="managed-note">No enabled connection is available. Enable one in Settings.</p>}
           </div>
@@ -120,7 +114,11 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
 
         {section === 'brief' && <section id="context-panel-brief" aria-labelledby="context-tab-brief" className="context-panel-content">
           <div className="context-panel-heading"><div className="context-panel-icon"><FileText size={19} /></div><div><span className="context-overline">03 / TASK</span><h2>Session instructions</h2><p>Describe what you want to do with these sources.</p></div></div>
-          <div className="context-brief-editor"><label htmlFor="context-purpose">Purpose <span>Optional</span></label><textarea id="context-purpose" maxLength={2000} value={purpose} disabled={busy} onChange={(e) => setPurpose(e.target.value)} placeholder="What should Novi help you accomplish?" />
+          <fieldset className="context-presets" disabled={busy}><legend>Start in a mode</legend>
+            <div className="context-preset-options">{SESSION_MODES.map((mode) => <button type="button" key={mode.id} aria-pressed={startMode === mode.id} onClick={() => setStartMode(mode.id)}><strong>{mode.name}</strong><span>{mode.description}</span></button>)}</div>
+            {startMode && startMode !== 'normal' && <details className="context-preset-preview"><summary>How AI will answer</summary><p>{modeInstructions(startMode)}</p></details>}
+          </fieldset>
+          <div className="context-brief-editor"><label htmlFor="context-purpose">Purpose <span>Required</span></label><textarea id="context-purpose" required maxLength={2000} value={purpose} disabled={busy} onChange={(e) => setPurpose(e.target.value)} placeholder="What should Novi help you accomplish?" />
             <fieldset className="context-presets" disabled={busy}>
               <legend>Start from a role preset</legend>
               <p>Optional starting points for this session. Preview a preset, then apply and edit its instructions.</p>
@@ -152,10 +150,13 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     </div>
 
     <footer className="context-footer">
-      <div className="context-footer-status" role="status">{error ? <span className="error" role="alert">{error}</span> : checking ? 'Checking connection…' : busy ? 'Starting session…' : !modelReady ? 'Choose an available model' : !folders.length ? 'Sources are optional. Start in your selected mode.' : `${folders.length} ${folders.length === 1 ? 'folder' : 'folders'} ready · ${connection?.model || 'Model ready'}`}</div>
+      <div className="context-footer-status" role="status">{error ? <span className="error" role="alert">{error}</span> : checking ? 'Checking connection…' : busy ? 'Starting session…' : !modelReady ? 'Choose an available model' : !sourcesReady ? 'Add source documents in step 2, or skip setup for an empty chat.' : !briefReady ? 'Enter a purpose and choose a mode in step 3.' : `${folders.length} ${folders.length === 1 ? 'folder' : 'folders'} ready · ${connection?.model || 'Model ready'}`}</div>
       <div className="context-footer-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button type="button" className="secondary context-start-empty" disabled={busy || !modelReady} title="Skip setup and start an empty session directly" onClick={() => void startEmpty()}><FastForward size={15} />{busy ? 'Starting…' : 'Skip new session'}</button>
-        <button type="button" className="primary context-start" disabled={!canStart} onClick={() => void start()}><Play size={15} />{busy ? 'Starting…' : `Start ${SESSION_MODES.find((mode) => mode.id === startMode)!.name}`}</button>
+        <button type="button" className="secondary context-start-empty" disabled={busy || !modelReady} title="Open an empty chat in Chat mode without these sources or instructions" onClick={() => void startEmpty()}><FastForward size={15} />{busy ? 'Starting…' : 'Skip session setup'}</button>
+        {section !== 'model' && <button type="button" className="text-button" disabled={busy} onClick={() => setSection(section === 'brief' ? 'sources' : 'model')}><ArrowLeft size={15} />Back</button>}
+        {section === 'brief'
+          ? <button type="button" className="primary context-start" disabled={!canStart} onClick={() => void start()}><Play size={15} />{busy ? 'Starting…' : 'Start session'}</button>
+          : <button type="button" className="primary context-start" disabled={busy || !modelReady || (section === 'sources' && !sourcesReady)} onClick={() => setSection(section === 'model' ? 'sources' : 'brief')}>Next<ArrowRight size={15} /></button>}
       </div>
     </footer>
   </main>;

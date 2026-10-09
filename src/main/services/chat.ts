@@ -63,7 +63,9 @@ export class ChatService {
       assistant.status = 'complete';
     } catch (error) {
       assistant.status = controller.signal.aborted ? 'stopped' : 'error';
-      if (assistant.status === 'error') assistant.error = error instanceof UserError ? error.message : 'Unable to connect to the AI provider.';
+      if (assistant.status === 'error') assistant.error = error instanceof UserError ? error.message
+        : error instanceof Error && error.name === 'TimeoutError' ? 'The model took too long to respond. Try a smaller request or a faster model.'
+        : 'Unable to connect to the AI provider.';
       if (process.env.NODE_ENV === 'development') console.warn('[Novi] Provider request ended:', assistant.status, error instanceof Error ? error.name : 'UnknownError');
     } finally {
       this.controller = null;

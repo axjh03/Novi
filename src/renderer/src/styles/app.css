@@ -233,9 +233,9 @@ svg { flex-shrink: 0; }
 .composer:focus-within { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
 .composer textarea { background: transparent; border: 0; outline: none; resize: none; color: var(--text); width: 100%; min-height: 30px; max-height: 180px; line-height: 1.7; font-size: 13px; padding: 0 3px; }
 .composer textarea:focus-visible { outline: none; }
-.composer-controls { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.composer-controls { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: 8px; }
 .attach-control { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; position: relative; min-width: 0; }
-.send-button { background: var(--button); color: var(--accent-ink); width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+.send-button { flex: 0 0 32px; background: var(--button); color: var(--accent-ink); width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
 .send-button:disabled { opacity: .35; }
 .send-button.stop { background: var(--selected); color: var(--accent); }
 .attachment-tray { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
@@ -2037,7 +2037,7 @@ html.transparent-mode #root {
   border-bottom: 1px solid var(--border);
 }
 .chat-header .header-title-area { flex: 1 1 230px; flex-direction: row; align-items: center; min-width: 0; gap: 8px; }
-.chat-mode-tabs { display: flex; gap: 4px; flex: 0 0 auto; }
+.chat-mode-tabs { display: flex; gap: 4px; flex: 1 1 100%; order: 1; min-width: 0; }
 .chat-header .session-controls { flex: 0 0 auto; gap: 6px; }
 .chat-header .eye-tracking-panel {
   flex: 0 0 auto;
@@ -2610,7 +2610,9 @@ html.transparent-mode #root {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 7px;
+  min-height: 32px;
+  padding: 5px 8px;
+  white-space: nowrap;
   border-radius: 6px;
   font-size: 11px;
   font-weight: 500;
@@ -3136,13 +3138,11 @@ html.transparent-mode #root {
 .companion-card small { font-size: 11px; color: #aaa; }
 .companion-card footer button { background: #eee; color: #111; }
 
-/* The diagram window keeps its native transparent background even outside stealth mode. */
-.diagram-viewer { background: color-mix(in srgb, var(--transparent-bg, #0f172a) var(--transparent-opacity, 35%), transparent); color: #e5e7eb; }
-.diagram-viewer .code-viewer-file, .diagram-viewer .code-viewer-header, .diagram-viewer .code-viewer-file-header { background: #0f172a55; color: #e5e7eb; }
 .mermaid-diagram { padding: 12px; overflow: auto; }
 .mermaid-diagram svg { display: block; min-width: 360px; width: 100%; height: auto; background: transparent; }
 .chat-mode-tabs { flex-wrap: wrap; }
-html:has(.diagram-viewer), body:has(.diagram-viewer), #root:has(.diagram-viewer) { background: transparent; }
-.transcription-engine { display: inline-flex; align-items: center; gap: 5px; margin: 0; }
-.composer-local-control > select, .transcription-engine select { width: auto; min-height: 30px; padding: 4px 6px; font-size: 12px; }
-.composer-local-control { flex-wrap: wrap; }
+.transcription-engine { display: inline-flex; flex-direction: row; align-items: center; gap: 4px; margin: 0; }
+.composer-local-control > select, .transcription-engine select { width: auto; min-height: 32px; padding: 5px 8px; font-size: 11px; }
+.composer-local-control { flex-wrap: wrap; gap: 6px; min-width: 0; }
+.composer-wrap > small { display: block; margin-top: 6px; }
+.context-footer-actions { flex-wrap: wrap; justify-content: flex-end; }

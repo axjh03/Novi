@@ -13,23 +13,28 @@ import { InterviewAudio } from '../../services/interviewAudio';
 
 interface Props {
   busy: boolean;
+  speechModelId?: string;
   onSend: (content: string, images: ImageAttachment[]) => Promise<boolean>;
 }
 
-export function Composer({ busy, onSend }: Props) {
+export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
   const [text, setText] = useState('');
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [error, setError] = useState('');
   const [dragging, setDragging] = useState(false);
   const [attaching, setAttaching] = useState(false);
   const [localActive, setLocalActive] = useState(false);
-  const [source, setSource] = useState<ListeningSource>('system');
-  const [engine, setEngine] = useState<'local' | 'cloud'>('local');
+  const [source, setSource] = useState<ListeningSource>(() => {
+    const saved = localStorage.getItem('novi_listening_source');
+    return saved === 'both' || saved === 'microphone' ? saved : 'system';
+  });
+  const [engine, setEngine] = useState<'local' | 'cloud'>(() => localStorage.getItem('novi_listening_engine') === 'cloud' ? 'cloud' : 'local');
   const cloud = useRef<CloudListening | null>(null);
   const draft = useRef(new LiveTranscriptDraft());
   const [localStarting, setLocalStarting] = useState(false);
   const [localStopping, setLocalStopping] = useState(false);
   const [localLevel, setLocalLevel] = useState(0);
+  const [activeModel, setActiveModel] = useState('');
   const localTransition = useRef(false);
   const sending = useRef(false);
   const mounted = useRef(true);
@@ -49,6 +54,8 @@ export function Composer({ busy, onSend }: Props) {
   } = useAppMode();
 
   useEffect(() => { textRef.current = text; }, [text]);
+  useEffect(() => { localStorage.setItem('novi_listening_source', source); }, [source]);
+  useEffect(() => { localStorage.setItem('novi_listening_engine', engine); }, [engine]);
 
   useEffect(() => {
     mounted.current = true;
@@ -117,8 +124,7 @@ export function Composer({ busy, onSend }: Props) {
           if (event.type === 'transcript:partial' || event.type === 'transcript:final') updateDraft(event.segment);
           else if ('sessionId' in event && (event.sessionId === sessionId.current || !sessionId.current)) {
             if (event.type === 'warning') setLocalWarning(event.message);
-            if (event.type === 'audio:level') setLocalLevel(event.level);
-            if (event.type === 'status' && event.status !== 'recording') {
+            if (event.type === 'status' && event.sessionId === sessionId.current && event.status !== 'recording') {
               localAudio.current?.close();
               sessionId.current = '';
               unsubscribeInterview.current?.();
@@ -128,8 +134,9 @@ export function Composer({ busy, onSend }: Props) {
           }
         });
         const session = await unwrap(window.novi.startInterview({ mode, vadThreshold: 0.006, diarization: selectedSource === 'both', useVad: true }));
-        if (!mounted.current) { await window.novi.stopInterview(); return; }
+        if (!mounted.current) return;
         id = session.id; startedAt = session.startedAt;
+        setActiveModel(session.modelId);
       } else {
         id = crypto.randomUUID(); startedAt = Date.now();
         cloud.current = new CloudListening(async wav => {
@@ -141,17 +148,19 @@ export function Composer({ busy, onSend }: Props) {
       }
       sessionId.current = id;
       const capture = new InterviewAudio(async frame => {
+        if (!mounted.current || frame.sessionId !== sessionId.current) return;
+        setLocalLevel(Math.min(1, Math.sqrt(frame.samples.reduce((sum, value) => sum + value * value, 0) / frame.samples.length) * 8) * 100);
         if (cloud.current) {
-          setLocalLevel(Math.min(1, Math.sqrt(frame.samples.reduce((sum, value) => sum + value * value, 0) / frame.samples.length) * 8));
           cloud.current.frame(frame);
         } else await unwrap(window.novi.interviewFrame(frame));
       }, warning => { if (mounted.current) setLocalWarning(warning); });
       localAudio.current = capture;
       await capture.start(id, startedAt, mode, '', '', listeningSources(selectedSource));
-      if (!mounted.current) { await stopListening(); return; }
+      if (!mounted.current) { capture.close(); return; }
       setLocalActive(true);
       textarea.current?.focus();
     } catch (cause) {
+      if (!mounted.current) return;
       try { await stopListening(); } catch { /* Keep the original startup error. */ }
       if (mounted.current) setLocalWarning(errorText(cause));
     } finally {
@@ -343,11 +352,15 @@ export function Composer({ busy, onSend }: Props) {
         <div className="composer-controls">
           <div className="attach-control">
             <button className="composer-quick-btn" type="button" disabled={busy || attaching}
+              onClick={() => void attach()} aria-label="Attach image" title="Attach image">
+              <ImagePlus size={14} />
+            </button>
+            <button className="composer-quick-btn" type="button" disabled={busy || attaching}
               onClick={() => void handleQuickScreenshot()} title="Snap entire screen (Alt+3)">
               <Camera size={14} /><span>Snapshot</span>
             </button>
 
-            {appMode === 'system-design' && <button type="button" className="secondary" disabled={busy || attaching || localStarting || localStopping} onClick={() => void submit(undefined, true)}>Draw / update diagram</button>}
+            {appMode === 'system-design' && <button type="button" className="composer-quick-btn" disabled={busy || attaching || localStarting || localStopping} onClick={() => void submit(undefined, true)}>Draw / update diagram</button>}
             <div className="composer-audio-source composer-local-control">
               <button type="button" className={`composer-quick-btn ${localActive ? 'recording' : ''}`} onClick={() => void toggleListening()}
                 disabled={localStarting || localStopping}>
@@ -393,7 +406,7 @@ export function Composer({ busy, onSend }: Props) {
         </div>
       </form>
 
-      <small>{engine === 'local' ? 'Local transcription appears live.' : 'Cloud transcription sends short audio chunks to your configured transcription provider.'} Send from here or your phone whenever ready. Listening continues until you stop it.</small>
+      <small role="status">{engine === 'local' ? `Speech model: ${localActive ? activeModel : speechModelId === 'auto' ? 'Automatic' : speechModelId}. Local transcription appears live.` : 'Cloud transcription sends short audio chunks to your configured transcription provider.'} Send from here or your phone whenever ready. Listening continues until you stop it.</small>
       {(error || localWarning) && (
         <div className="error composer-error" role="alert">
           {error || localWarning}

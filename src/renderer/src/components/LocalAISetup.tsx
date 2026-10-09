@@ -27,6 +27,7 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
   const [testSegments, setTestSegments] = useState<TranscriptSegment[]>([]), [testWarning, setTestWarning] = useState('');
   const [testLatency, setTestLatency] = useState<number | null>(null);
   const testAudio = useRef<InterviewAudio | null>(null), testSessionId = useRef('');
+  const testStarting = useRef(false);
   const testScroller = useRef<HTMLDivElement>(null);
   const mounted = useRef(false);
   const cancelled = useRef(false);
@@ -65,7 +66,7 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
       if (event.type === 'status') { setTestSession(current => current ? { ...current, status: event.status } : current); testAudio.current?.close(); testAudio.current = null; setTestBusy(false); }
     });
     void refresh().catch(cause => { if (mounted.current) setError(errorText(cause)); });
-    return () => { mounted.current = false; cancelled.current = true; navigator.mediaDevices?.removeEventListener('devicechange', handleDeviceChange); unsubscribe(); stopTranscriptEvents(); testAudio.current?.close(); if (testSessionId.current) void window.novi.stopInterview(); };
+    return () => { mounted.current = false; cancelled.current = true; navigator.mediaDevices?.removeEventListener('devicechange', handleDeviceChange); unsubscribe(); stopTranscriptEvents(); testAudio.current?.close(); if (testSessionId.current || testStarting.current) void window.novi.stopInterview(); };
   }, [refresh]);
   useEffect(() => { if (testScroller.current) testScroller.current.scrollTop = testScroller.current.scrollHeight; }, [testSegments]);
 
@@ -103,18 +104,20 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
   }
 
   async function startTest() {
-    if (!setup || !selectedASR || selectedASR.state !== 'READY') return;
+    if (!setup || !selectedASR || selectedASR.state !== 'READY' || testStarting.current) return;
+    testStarting.current = true;
     setTestBusy(true); setTestSegments([]); setTestWarning(''); setTestLatency(null); testSessionId.current = '';
     try {
       const session = await unwrap(window.novi.startInterview({ mode: testSpeakers ? 'multiple' : 'conversation', vadThreshold: 0.006, diarization: testSpeakers, useVad: testVad }));
-      if (!mounted.current) { await window.novi.stopInterview(); return; }
+      if (!mounted.current) return;
       testSessionId.current = session.id; setTestSession(session);
       const capture = new InterviewAudio(frame => unwrap(window.novi.interviewFrame(frame)), setTestWarning); testAudio.current = capture;
       await capture.start(session.id, session.startedAt, 'conversation', testMicId, testSystemId, [testSource]);
     } catch (cause) {
+      if (!mounted.current) return;
       testAudio.current?.close(); testAudio.current = null; await window.novi.stopInterview();
       if (mounted.current) { setTestWarning(errorText(cause)); setTestBusy(false); }
-    }
+    } finally { testStarting.current = false; }
   }
   async function stopTest() {
     setTestBusy(true);

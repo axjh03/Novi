@@ -7,12 +7,12 @@ import { useAppMode } from '../context/AppModeContext';
 export function useChat(initial: Conversation[]) {
   const { appMode, behavioralFramework } = useAppMode();
   const [conversations, setConversations] = useState(initial);
-  const [selectedId, setSelectedId] = useState<string | null>(initial[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false), [activeId, setActiveId] = useState<string | null>(null);
   const [error, setError] = useState('');
   useEffect(() => {
     setConversations(initial);
-    setSelectedId((id) => initial.some((conversation) => conversation.id === id) ? id : initial.at(-1)?.id ?? null);
+    setSelectedId((id) => initial.some((conversation) => conversation.id === id) ? id : null);
   }, [initial]);
   useEffect(() => window.novi.onChat((event) => {
     if (event.type === 'delta') {

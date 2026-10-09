@@ -6,7 +6,7 @@ import type { NoviAPI, Snapshot } from '../src/shared/types';
 
 // Run after npm run build. Uses the installed Edge browser and a mocked IPC boundary.
 async function main() {
-  const browser = await chromium.launch({ channel: 'msedge', headless: true });
+  const browser = await chromium.launch({ ...(process.env.NOVI_BROWSER_PATH ? { executablePath: process.env.NOVI_BROWSER_PATH } : { channel: 'msedge' }), headless: true });
   try {
     const page = await browser.newPage();
     page.on('pageerror', error => console.error(error.message));
@@ -46,24 +46,33 @@ async function main() {
     await page.getByText('The previous model is unavailable. Choose a model from the list.').waitFor();
     assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), '');
     assert.equal(await page.getByRole('option', { name: 'gemini3.8', exact: true }).count(), 0);
-    await page.getByRole('button', { name: 'Instructions', exact: true }).click();
-    await page.getByLabel('Purpose').fill('Review the reference');
-    await page.getByRole('button', { name: 'Model', exact: true }).click();
-    assert(await page.getByRole('button', { name: 'Start Chat', exact: true }).isDisabled());
+    assert(await page.getByRole('button', { name: 'Next', exact: true }).isDisabled());
+    assert(await page.getByRole('button', { name: 'Instructions', exact: true }).isDisabled());
+    assert.equal(await page.getByText('Start in a mode', { exact: true }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Start session', exact: true }).count(), 0);
     await page.getByLabel('Choose model', { exact: true }).selectOption('gemini-chat');
-    await page.getByRole('button', { name: 'Start Chat', exact: true }).click();
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    assert(await page.getByRole('button', { name: 'Next', exact: true }).isDisabled());
+    await page.getByRole('button', { name: 'Choose folders', exact: true }).click();
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    assert(await page.getByRole('button', { name: 'Start session', exact: true }).isDisabled());
+    await page.getByLabel('Purpose').fill('Review the reference');
+    assert(await page.getByRole('button', { name: 'Start session', exact: true }).isDisabled());
+    await page.getByRole('button', { name: /^Chat General questions/ }).click();
+    await page.getByRole('button', { name: 'Start session', exact: true }).click();
     await page.getByRole('alert').filter({ hasText: 'Your API key was rejected.' }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Cancel start' }).count(), 0);
     await page.evaluate(() => { (window as any).fixture.reject = false; });
-    await page.getByRole('button', { name: 'Start Chat', exact: true }).click();
+    await page.getByRole('button', { name: 'Start session', exact: true }).click();
     await page.getByRole('alert').filter({ hasText: 'TEST_SESSION_STARTED' }).waitFor();
     const result = await page.evaluate(() => (window as any).fixture);
     assert.equal(result.starts, 1);
     assert(result.started >= result.confirmed);
+    await page.getByRole('button', { name: 'Model', exact: true }).click();
     await page.evaluate(() => { (window as any).fixture.discoveryFails = true; });
     await page.getByRole('button', { name: 'Refresh models', exact: true }).click();
     await page.getByText('Cannot load models. Try again.', { exact: true }).waitFor();
-    assert(await page.getByRole('button', { name: 'Start Chat', exact: true }).isDisabled());
+    assert(await page.getByRole('button', { name: 'Next', exact: true }).isDisabled());
     await page.evaluate(() => { (window as any).fixture.discoveryFails = false; });
     await page.getByRole('button', { name: 'Refresh models', exact: true }).click();
     await page.waitForFunction(() => !(document.querySelector('select[aria-label="Choose model"]') as HTMLSelectElement).disabled);

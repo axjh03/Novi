@@ -323,6 +323,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             )}
             <Composer
               key={composerKey}
+              speechModelId={config.localASRModelId}
               busy={chat.busy || contextBusy || ending || syncingModel}
               onSend={(content, images) => chat.send({ content, imageIds: images.map((image) => image.id) })}
             />

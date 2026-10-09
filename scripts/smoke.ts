@@ -106,9 +106,9 @@ async function main() {
     await app.evaluate(({ dialog }, source) => {
       dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [source] })) as typeof dialog.showOpenDialog;
     }, source);
-    await page.getByRole('button', { name: 'Sources' }).click();
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.getByRole('button', { name: 'Choose folders' }).click();
-    await page.getByRole('button', { name: 'Instructions' }).click();
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.getByLabel('Purpose').fill('Review the Cedar interface.');
     for (const label of ['Software Engineer', 'Data Analyst', 'Data Scientist', 'Data Engineer']) {
       await page.getByLabel('Role', { exact: true }).selectOption({ label });
@@ -124,12 +124,12 @@ async function main() {
     assert.equal(await page.getByLabel('Purpose').inputValue(), 'Review the Cedar interface.');
     await page.getByLabel('Role / perspective details').fill('Keep the answer concise.');
     rejectPing = true;
-    await page.getByRole('button', { name: 'Start Code', exact: true }).click();
+    await page.getByRole('button', { name: 'Start session', exact: true }).click();
     await page.getByRole('alert').filter({ hasText: 'Your API key was rejected' }).waitFor();
     assert.equal(requests.length, 0, 'failed ping sends no context');
     rejectPing = false;
     const viewerEvent = app.waitForEvent('window');
-    await page.getByRole('button', { name: 'Start Code', exact: true }).click();
+    await page.getByRole('button', { name: 'Start session', exact: true }).click();
     await page.getByText('Understood the loaded context. Cedar uses blue buttons.', { exact: true }).waitFor();
     assert.equal(await page.getByRole('dialog', { name: 'Phone companion' }).count(), 0, 'Starting a session must not open the QR dialog');
     assert.equal(await page.getByRole('button', { name: 'Expand sidebar' }).count(), 1);
@@ -142,8 +142,12 @@ async function main() {
     await viewer.getByRole('button', { name: 'Close code viewer' }).click();
     assert.equal(await page.getByRole('button', { name: 'Transparency' }).count(), 1);
     assert.equal(await page.getByRole('button', { name: 'Camera', exact: true }).count(), 0);
-    await page.getByLabel('Recording output').selectOption('live_stream');
-    assert.equal(await page.getByLabel('Recording output').inputValue(), 'live_stream');
+    await page.getByLabel('Audio transcription engine').selectOption('cloud');
+    await page.getByLabel('Audio input').selectOption('microphone');
+    await page.getByTitle('Settings', { exact: true }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    assert.equal(await page.getByLabel('Audio transcription engine').inputValue(), 'cloud');
+    assert.equal(await page.getByLabel('Audio input').inputValue(), 'microphone');
     assert.equal(pings, 2);
     assert(contextSentAt >= confirmedAt, 'context follows a successful connection check');
     assert.equal(requests.length, 1);
@@ -174,8 +178,9 @@ async function main() {
     await page.getByLabel('Message Novi').fill('Design a chat service with an API and database.');
     await page.getByRole('button', { name: 'Draw / update diagram', exact: true }).click();
     await diagramWindow.locator('.mermaid-diagram svg').waitFor();
+    assert.equal(await diagramWindow.locator('.diagram-viewer').evaluate(el => getComputedStyle(el).backgroundColor.startsWith('rgb(')), true);
     assert.equal(await diagramWindow.locator('.mermaid-diagram svg').count(), 1);
-    assert.equal(await diagramWindow.evaluate(() => getComputedStyle(document.documentElement).backgroundColor), 'rgba(0, 0, 0, 0)');
+    assert.equal(await diagramWindow.evaluate(() => getComputedStyle(document.documentElement).backgroundColor.startsWith('rgb(')), true);
     await page.getByRole('button', { name: 'Draw / update diagram', exact: true }).click();
     await page.getByText('No diagram changes needed', { exact: true }).waitFor();
     assert.equal(await diagramWindow.locator('.mermaid-diagram svg').count(), 1);
@@ -183,6 +188,7 @@ async function main() {
     assert.equal(await diagramWindow.locator('.mermaid-diagram svg').count(), 0);
     await diagramWindow.getByRole('button', { name: 'Reopen closed diagrams' }).click();
     await diagramWindow.locator('.mermaid-diagram svg').waitFor();
+    assert.equal(await diagramWindow.locator('.diagram-viewer').evaluate(el => getComputedStyle(el).backgroundColor.startsWith('rgb(')), true);
     await diagramWindow.getByRole('button', { name: 'Close diagram window' }).click();
     assert.equal(await page.getByRole('button', { name: 'System Design', exact: true }).getAttribute('aria-pressed'), 'true');
     const reopenedEvent = app.waitForEvent('window');
@@ -206,19 +212,25 @@ async function main() {
     assert.match(readFileSync(join(env.NOVI_DATA_DIR, 'data.json'), 'utf8'), /What color should this button be\?/);
     assert.match(readFileSync(join(source, 'brief.txt'), 'utf8'), /SESSION_SOURCE/);
     assert.equal(await page.getByLabel('Message Novi').count(), 0);
-    assert.equal(await page.getByRole('button', { name: 'Skip new session', exact: true }).count(), 1);
+    assert.equal(await page.getByRole('button', { name: 'Skip session setup', exact: true }).count(), 1);
     for (const mode of ['Recruiter Call', 'Technical Phone/Video Screen', 'Behavioral Interview', 'System Design', 'Code', 'Chat']) {
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
+      await app.evaluate(({ dialog }, source) => { dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [source] })) as typeof dialog.showOpenDialog; }, source);
+      await page.getByRole('button', { name: 'Choose folders', exact: true }).click();
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
+      await page.getByLabel('Purpose').fill('Review Cedar');
       await page.locator('.context-preset-options').getByRole('button', { name: new RegExp('^' + mode) }).click();
-      await page.getByRole('button', { name: `Start ${mode}`, exact: true }).click();
+      await page.getByRole('button', { name: 'Start session', exact: true }).click();
       await page.getByRole('navigation', { name: 'Conversation mode' }).waitFor();
       assert.equal(await page.getByRole('button', { name: mode, exact: true }).getAttribute('aria-pressed'), 'true');
       await page.getByRole('button', { name: 'End session', exact: true }).click();
       await page.getByRole('alertdialog', { name: 'End context session' }).getByRole('button', { name: 'End session', exact: true }).click();
       await page.getByRole('heading', { name: 'Temporary session' }).waitFor();
     }
-    await page.getByRole('button', { name: 'Skip new session', exact: true }).click();
+    await page.getByRole('button', { name: 'Skip session setup', exact: true }).click();
     await page.getByRole('navigation', { name: 'Conversation mode' }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Chat', exact: true }).getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('.message').count(), 0, 'Skipping setup opens a fresh chat, while saved chats remain available');
     await page.getByRole('button', { name: 'End session', exact: true }).click();
     await page.getByRole('alertdialog', { name: 'End context session' }).getByRole('button', { name: 'End session', exact: true }).click();
     await page.getByRole('heading', { name: 'Temporary session' }).waitFor();
