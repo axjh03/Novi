@@ -1,4 +1,4 @@
-import type { AIProviderConfig, ChatMessage } from '../../shared/types';
+import type { AIProviderConfig, ChatMessage, TokenUsage } from '../../shared/types';
 import { UserError } from './validation.ts';
 import { endpoint, providerFetch, readResponse } from './providerTransport.ts';
 import { AnthropicProvider, GeminiProvider, OpenAIProvider } from './nativeProviders.ts';
@@ -10,13 +10,15 @@ export interface ChatRequest {
   signal: AbortSignal;
   imageData: (id: string) => string;
   onDelta: (text: string) => void;
+  instructions?: string;
+  onUsage?: (usage: TokenUsage) => void;
 }
 export interface ChatResponse { content: string }
 export interface AIProvider { sendMessage(request: ChatRequest): Promise<ChatResponse> }
 
 export class OpenAICompatibleProvider implements AIProvider {
   constructor(private config: AIProviderConfig, private key: string) {}
-  async sendMessage({ messages, signal, imageData, onDelta }: ChatRequest): Promise<ChatResponse> {
+  async sendMessage({ messages, signal, imageData, onDelta, instructions, onUsage }: ChatRequest): Promise<ChatResponse> {
     const payload = messages.filter((message) => message.content || message.images?.length).map((message) => ({
       role: message.role,
       content: message.images?.length ? [
@@ -25,8 +27,9 @@ export class OpenAICompatibleProvider implements AIProvider {
       ] : message.content,
     }));
     const response = await providerFetch(endpoint(this.config) + '/chat/completions', this.config, this.key,
-      AbortSignal.any([signal, AbortSignal.timeout(180_000)]), { model: this.config.model, messages: payload, stream: this.config.stream });
+      AbortSignal.any([signal, AbortSignal.timeout(180_000)]), { model: this.config.model, messages: [...(instructions ? [{ role: 'system', content: instructions }] : []), ...payload], stream: this.config.stream });
     return readResponse(response, onDelta, (event, streaming) => {
+      if (event.usage) onUsage?.({ input: event.usage.prompt_tokens, cachedInput: event.usage.prompt_tokens_details?.cached_tokens, reasoning: event.usage.completion_tokens_details?.reasoning_tokens, output: event.usage.completion_tokens });
       const choice = event.choices?.[0];
       return { text: streaming ? choice?.delta?.content || choice?.delta?.refusal : choice?.message?.content || choice?.message?.refusal, done: Boolean(choice?.finish_reason) };
     });

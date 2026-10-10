@@ -42,6 +42,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
   const textarea = useRef<HTMLTextAreaElement>(null);
   const textRef = useRef(text);
   const sessionId = useRef('');
+  const listeningTiming = useRef(new Map<string, { captured: number; partial: boolean; final: boolean }>());
   const localAudio = useRef<InterviewAudio | null>(null);
   const unsubscribeInterview = useRef<(() => void) | null>(null);
   const depth = useRef(0);
@@ -71,6 +72,12 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
 
   function updateDraft(segment: TranscriptSegment) {
     if (!mounted.current || segment.sessionId !== sessionId.current) return;
+    const timing = listeningTiming.current.get(segment.source);
+    const stage = segment.isFinal ? 'final' : 'partial';
+    if (timing && !timing[stage]) {
+      timing[stage] = true;
+      console.info('[Novi latency]', { stage: `listening-first-${stage}`, source: segment.source, captureToTranscriptMs: performance.now() - timing.captured });
+    }
     textRef.current = draft.current.update(segment);
     setText(textRef.current);
     if (textarea.current) {
@@ -113,6 +120,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
     }
     setLocalStarting(true);
     setLocalWarning('');
+    listeningTiming.current.clear();
     draft.current = new LiveTranscriptDraft();
     draft.current.edit(textRef.current);
     try {
@@ -149,6 +157,10 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
       sessionId.current = id;
       const capture = new InterviewAudio(async frame => {
         if (!mounted.current || frame.sessionId !== sessionId.current) return;
+        if (!listeningTiming.current.has(frame.source)) {
+          listeningTiming.current.set(frame.source, { captured: performance.now(), partial: false, final: false });
+          console.info('[Novi latency]', { stage: 'listening-first-frame', source: frame.source, captureElapsedMs: frame.startTime });
+        }
         setLocalLevel(Math.min(1, Math.sqrt(frame.samples.reduce((sum, value) => sum + value * value, 0) / frame.samples.length) * 8) * 100);
         if (cloud.current) {
           cloud.current.frame(frame);

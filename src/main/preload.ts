@@ -44,6 +44,7 @@ const api: NoviAPI = {
   saveConnection: (input) => ipcRenderer.invoke('save-connection', input),
   removeConnection: (id) => ipcRenderer.invoke('remove-connection', id),
   selectConnection: (id, model) => ipcRenderer.invoke('select-connection', { id, model }),
+  setModelRole: (id, role, model) => ipcRenderer.invoke('set-model-role', { id, role, model }),
   listModels: (input) => ipcRenderer.invoke('list-models', input),
   testConnection: () => ipcRenderer.invoke('test-connection'),
   deleteConversation: (id) => ipcRenderer.invoke('delete-conversation', id),

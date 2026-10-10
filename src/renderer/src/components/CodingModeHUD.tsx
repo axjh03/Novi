@@ -107,7 +107,7 @@ function CodingModeHUD({ blocks }: { blocks: CodeViewerBlock[] }) {
     <header className="code-viewer-header"><Code2 size={15} /><strong>{diagrams ? 'Diagrams' : 'Code viewer'}</strong>{!diagrams && <select className="code-viewer-language" aria-label="Code language" value={language} onChange={(event) => { setLanguage(event.target.value); localStorage.setItem('novi_code_language', event.target.value); }}>
       <option value="auto">Auto (Smart)</option>{['javascript', 'typescript', 'python', 'java', 'c', 'cpp', 'csharp', 'go', 'rust', 'html', 'css', 'json', 'sql', 'shell', 'yaml'].map((item) => <option key={item} value={item}>{item}</option>)}
     </select>}<span>{blocks.length ? `${blocks.length} ${diagrams ? 'diagrams' : 'blocks'}` : ''}</span><button className="code-viewer-close" type="button" aria-label={diagrams ? 'Close diagram window' : 'Close code viewer'} onClick={() => void unwrap(window.novi.closeWindow())}><X size={15} /></button></header>
-    <div className="code-viewer-scroll">
+    <div className="code-viewer-scroll" tabIndex={0} role="region" aria-label={diagrams ? 'Scrollable diagrams' : 'Scrollable code'}>
       {diagrams && <p>Diagrams are saved in chat. Close a diagram below to hide it here; reopen it from this list.</p>}
       {diagrams && hidden.length > 0 && <button type="button" className="secondary" onClick={() => setHidden([])}>Reopen closed diagrams</button>}
       {diagrams && !blocks.length && <p>Use “Draw / update diagram” in chat after adding your question, audio transcript, or images.</p>}

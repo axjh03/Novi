@@ -61,7 +61,9 @@ test('managed desktop keeps tokens and keys out of renderer state, preserves sel
   connections.selectManaged('key-two', false);
   assert.equal(storage.current().settings.activeConnectionId, 'key-three');
   connections.selectManaged('key-two', true);
+  storage.current().settings.modelRoles = { 'key-two': { fast: 'my-fast-model', deep: 'my-deep-model' }, removed: { fast: 'old-model' } };
   await auth.refresh(true);
+  assert.deepEqual(storage.current().settings.modelRoles, { 'key-two': { fast: 'my-fast-model', deep: 'my-deep-model' } });
   assert.equal(storage.current().settings.activeConnectionId, 'key-two');
   assert.equal(storage.current().settings.connections[0].enabled, false);
   assert.equal(storage.current().settings.connections[0].model, 'other-model');

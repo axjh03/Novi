@@ -5,6 +5,7 @@ import { activeConnection } from '../../../shared/providers';
 import { Brand } from '../components/Brand';
 import { ProviderPicker } from '../components/chat/ProviderPicker';
 import { SettingsPage } from './SettingsPage';
+import { SessionPreflight } from '../components/SessionPreflight';
 import { errorText, unwrap } from '../services/api';
 import { SESSION_ROLES, presetFields, presetMode } from '../context/sessionPresets';
 
@@ -17,6 +18,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
   const { setAppMode } = useAppMode();
   const [startMode, setStartMode] = useState<AppMode | null>(null);
   const [settings, setSettings] = useState(false);
+  const [preflightDone, setPreflightDone] = useState(false);
   const [section, setSection] = useState<Section>('model');
   const [folders, setFolders] = useState<ContextFolder[]>([]);
   const [purpose, setPurpose] = useState('');
@@ -72,6 +74,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
   }
 
   if (settings) return <SettingsPage state={state} onSaved={onSaved} onBack={() => setSettings(false)} onSignOut={onSignOut} onCleared={() => {}} />;
+  if (!preflightDone) return <SessionPreflight onContinue={() => setPreflightDone(true)} onSettings={() => setSettings(true)} onFolders={setFolders} />;
   return <main className="context-page">
     <header className="context-header">
       <div className="context-header-identity"><Brand /><span>Session setup</span></div>
@@ -93,7 +96,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
             <Icon size={16} /><span>{label}</span>{done && <Check className="context-nav-check" size={14} aria-label="Complete" />}
           </button>)}
         </nav>
-        <p className="context-rail-note">Conversations are saved across sessions. Ending a session removes only its temporary context file; source folders stay in place.</p>
+        <p className="context-rail-note">Conversations and a copy of their source text are saved locally for later questions. Ending a session removes only its temporary context file; source folders stay in place.</p>
       </aside>
 
       <div className="context-main-panel">

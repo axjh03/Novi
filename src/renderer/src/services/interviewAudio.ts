@@ -13,7 +13,7 @@ export class AudioCaptureProvider {
   }
 }
 export class MacAudioCapture extends AudioCaptureProvider {
-  protected systemHelp = 'System audio is unavailable. macOS does not capture system audio via screen capture without a loopback driver. Grant screen recording permissions, or select a BlackHole loopback input configured in Audio MIDI Setup.';
+  protected systemHelp = 'System audio is unavailable. Allow Novi in macOS Privacy & Security audio/screen recording settings, then restart Novi. Older macOS versions may require a BlackHole loopback input configured in Audio MIDI Setup.';
   override async system(deviceId: string): Promise<MediaStream> {
     if (deviceId) return super.system(deviceId);
     try {

@@ -95,8 +95,12 @@ export function sendInput(value: unknown): SendInput {
   if (!content && !imageIds.length) throw new UserError('Write a message or attach an image.');
   if (input.appMode !== undefined && !isAppMode(input.appMode)) throw new UserError('Choose a valid mode.');
   if (input.behavioralFramework !== undefined && !['smart', 'star', 'car', 'par', 'soar'].includes(String(input.behavioralFramework))) throw new UserError('Choose a valid interview framework.');
+  if (input.compactContext !== undefined && typeof input.compactContext !== 'boolean') throw new UserError('Choose a valid context option.');
   return {
     content, imageIds,
+    compactContext: input.compactContext === true,
+    ...(input.pinnedContext === undefined ? {} : { pinnedContext: text(input.pinnedContext, 'pinned constraints', 8000, true) }),
+    ...(typeof input.sentAt === 'number' && Number.isFinite(input.sentAt) ? { sentAt: input.sentAt } : {}),
     conversationId: input.conversationId === null ? null : text(input.conversationId, 'conversation ID', 100),
     ...(input.appMode === undefined ? {} : { appMode: input.appMode as SendInput['appMode'] }),
     ...(input.behavioralFramework === undefined ? {} : { behavioralFramework: input.behavioralFramework as SendInput['behavioralFramework'] }),

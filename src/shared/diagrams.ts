@@ -1,11 +1,11 @@
 import type { ChatMessage, CodeViewerBlock } from './types';
 
-export function diagramBlocks(messages: ChatMessage[]): CodeViewerBlock[] {
+export function diagramBlocks(messages: ChatMessage[], streamingMessageId?: string): CodeViewerBlock[] {
   const blocks: CodeViewerBlock[] = [];
   const seen = new Set<string>();
   for (const message of messages) {
-    if (message.role !== 'assistant' || message.status !== 'complete') continue;
-    for (const match of message.content.matchAll(/```mermaid\s*\r?\n([\s\S]*?)```/gi)) {
+    if (message.role !== 'assistant' || (message.status !== 'complete' && !(message.id === streamingMessageId && message.status === undefined))) continue;
+    for (const match of message.content.matchAll(/^```mermaid[\t ]*\r?\n([\s\S]*?)^[\t ]*```[\t ]*\r?$/gim)) {
       const code = match[1].trim();
       if (!code || seen.has(code)) continue;
       seen.add(code);

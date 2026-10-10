@@ -24,10 +24,6 @@ interface AppModeContextType {
   setWorkingMonitor: (displayId: number) => Promise<void>;
   monitors: MonitorDisplay[];
   refreshMonitors: () => Promise<MonitorDisplay[]>;
-  // Fast Interview Model
-  fastInterviewModel: boolean;
-  setFastInterviewModel: (val: boolean) => Promise<void>;
-  toggleFastInterviewModel: () => void;
   // Transparency customization
   transparentOpacity: number;
   setTransparentOpacity: (val: number) => void;
@@ -176,42 +172,6 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
   const [latestScreenshot, setLatestScreenshot] = useState<ImageAttachment | null>(null);
   const [pendingAttachment, setPendingAttachment] = useState<ImageAttachment | null>(null);
 
-  // 6. Fast Interview Model toggle
-  const [fastInterviewModel, setFastInterviewModelState] = useState<boolean>(() => {
-    return snapshot?.settings?.fastInterviewModel ?? (localStorage.getItem('novi_fast_interview_model') === 'true');
-  });
-
-  useEffect(() => {
-    if (typeof snapshot?.settings?.fastInterviewModel === 'boolean') {
-      setFastInterviewModelState(snapshot.settings.fastInterviewModel);
-    }
-  }, [snapshot?.settings?.fastInterviewModel]);
-
-  const setFastInterviewModel = useCallback(
-    async (val: boolean) => {
-      setFastInterviewModelState(val);
-      localStorage.setItem('novi_fast_interview_model', String(val));
-      if (snapshot?.settings) {
-        try {
-          const updated = await unwrap(
-            window.novi.saveSettings({
-              ...snapshot.settings,
-              fastInterviewModel: val,
-            })
-          );
-          if (onSnapshotUpdated) onSnapshotUpdated(updated);
-        } catch (err) {
-          console.warn('[AppMode] Failed to save fastInterviewModel setting:', err);
-        }
-      }
-    },
-    [snapshot?.settings, onSnapshotUpdated]
-  );
-
-  const toggleFastInterviewModel = useCallback(() => {
-    void setFastInterviewModel(!fastInterviewModel);
-  }, [fastInterviewModel, setFastInterviewModel]);
-
   const captureScreenshot = useCallback(async (): Promise<ImageAttachment | null> => {
     try {
       const result = await unwrap(window.novi.captureScreen());
@@ -301,9 +261,6 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
         setWorkingMonitor,
         monitors,
         refreshMonitors,
-        fastInterviewModel,
-        setFastInterviewModel,
-        toggleFastInterviewModel,
         transparentOpacity,
         setTransparentOpacity,
         transparentBg,

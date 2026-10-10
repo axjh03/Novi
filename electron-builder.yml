@@ -1,6 +1,7 @@
 appId: com.novi.app
 productName: Novi
-afterPack: scripts/bundle-cloudflared.mjs
+beforePack: scripts/prepare-speech-runtime.mjs
+afterPack: scripts/bundle-runtime.mjs
 directories:
   output: dist
   buildResources: build

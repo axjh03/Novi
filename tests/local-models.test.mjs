@@ -33,6 +33,36 @@ test('catalog has immutable publisher revisions, unique safe output names and do
   }
 });
 
+test('bundled speech installs offline, survives restart and respects removal', async t => {
+  const { manager, dir } = await fixture(t);
+  await manager.download(model.id);
+  const userData = join(dir, 'fresh-user');
+  const options = { registry: [model], bundledRoot: manager.root, fetcher: () => { throw new Error('Unexpected network'); } };
+  const installed = new ModelManager(userData, options);
+  const lease = await installed.acquire(model.id);
+  assert.deepEqual(await readFile(lease.files['model.onnx']), bytes);
+  lease.release();
+  assert.equal((await new ModelManager(userData, options).inspect(model)).state, 'READY');
+  await installed.remove(model.id);
+  assert.equal((await new ModelManager(userData, options).inspect(model)).state, 'NOT_INSTALLED');
+  assert.equal((await manager.inspect(model)).state, 'READY', 'Removal must leave the installer assets intact');
+});
+
+test('bundled speech rejects corrupt files and unsafe destinations', async t => {
+  const { manager, location, dir } = await fixture(t);
+  await manager.download(model.id);
+  await writeFile(join(location, 'model.onnx'), Buffer.alloc(bytes.length));
+  const installed = new ModelManager(join(dir, 'fresh-user'), { registry: [model], bundledRoot: manager.root });
+  await assert.rejects(installed.acquire(model.id), /Bundled model checksum/);
+  await writeFile(join(location, 'model.onnx'), bytes);
+  const destination = join(installed.root, model.type, model.id, model.version, 'model.onnx');
+  const protectedFile = join(dir, 'keep.txt');
+  await writeFile(protectedFile, 'keep');
+  await symlink(protectedFile, destination);
+  await assert.rejects(installed.acquire(model.id), /unsafe file/);
+  assert.equal(await readFile(protectedFile, 'utf8'), 'keep');
+});
+
 test('selector uses installed RAM for recommendations and warns without blocking downloads', () => {
   const device = { platform: 'darwin', arch: 'arm64', totalMemory: 8 * GiB, availableMemory: 4 * GiB, cores: 8 };
   assert.deepEqual(selectModels(device).required, ['zipformer-en-small', 'silero-vad']);

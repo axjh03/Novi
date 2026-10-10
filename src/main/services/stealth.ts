@@ -204,7 +204,8 @@ export class StealthService {
   }
 
   private applyMouseMode(win: BrowserWindow, isNumLockOn: boolean) {
-    if (!this.transparent) {
+    // Detached code/diagram viewers remain scrollable while the main HUD passes clicks through.
+    if (!this.transparent || win.webContents.getURL?.().endsWith('#/code-viewer')) {
       win.setIgnoreMouseEvents(false);
       return;
     }

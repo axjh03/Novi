@@ -3,7 +3,7 @@ export function detectHardware(directory: string, gpuInfo?: unknown): Promise<De
 export function availableSystemMemory(): Promise<number>;
 export function modelDownloadURL(value: string): string;
 export class ModelManager {
-  constructor(userData: string, options?: { fetcher?: typeof fetch; onProgress?: (status: LocalModelStatus) => void; log?: (event: Record<string, unknown>) => void });
+  constructor(userData: string, options?: { bundledRoot?: string; fetcher?: typeof fetch; onProgress?: (status: LocalModelStatus) => void; log?: (event: Record<string, unknown>) => void });
   root: string;
   registry: LocalModelDefinition[];
   prepare(): Promise<void>;

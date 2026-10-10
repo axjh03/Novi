@@ -1,14 +1,10 @@
-import { Eye, Zap } from 'lucide-react';
+import { Eye } from 'lucide-react';
 import type { BehavioralFramework } from '../../../shared/types';
 
 interface Props {
   showFramework?: boolean;
   framework: BehavioralFramework;
   onSelectFramework: (framework: BehavioralFramework) => void;
-  fastModelActive: boolean;
-  onToggleFastModel: () => void;
-  fastModelName: string;
-  busy: boolean;
   isEyeTrackingActive?: boolean;
   onToggleEyeTracking?: () => void;
 }
@@ -49,10 +45,6 @@ export function BehavioralModeHUD({
   showFramework = true,
   framework,
   onSelectFramework,
-  fastModelActive,
-  onToggleFastModel,
-  fastModelName,
-  busy,
   isEyeTrackingActive = false,
   onToggleEyeTracking,
 }: Props) {
@@ -85,21 +77,6 @@ export function BehavioralModeHUD({
             </button>
           )}
 
-          {/* Fast Interview Model Toggle */}
-          <button
-            type="button"
-            className={`fast-model-pill ${fastModelActive ? 'active' : ''}`}
-            onClick={onToggleFastModel}
-            disabled={busy}
-            title={
-              fastModelActive
-                ? `Fast Interview Model is ON (${fastModelName}). Lowest latency spoken replies.`
-                : 'Enable Fast Interview Model for ~300ms ultra-low latency response'
-            }
-          >
-            <Zap size={12} color={fastModelActive ? '#f59e0b' : 'var(--muted)'} />
-            <span>{fastModelActive ? `Fast: ${fastModelName}` : 'Fast Model: OFF'}</span>
-          </button>
 
         </div>
     </div>

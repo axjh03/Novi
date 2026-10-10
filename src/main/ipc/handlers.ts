@@ -1,6 +1,6 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, screen, shell } from 'electron';
 import { execFile } from 'node:child_process';
-import type { CodeViewerBlock, Snapshot } from '../../shared/types';
+import type { ChatLatency, CodeViewerBlock, Snapshot } from '../../shared/types';
 import { Storage } from '../services/storage';
 import { ManagedAuthService } from '../services/managedAuth';
 import { CredentialStore } from '../services/credentials';
@@ -40,6 +40,7 @@ export function registerIPC(
     const audio = new AudioService(storage.directory);
     const transcription = new AudioTranscriptionService(storage, credentials);
     const localModels = new ModelManager(storage.directory, {
+      bundledRoot: app.isPackaged ? join(process.resourcesPath, 'models') : undefined,
       onProgress: status => {
         const window = getMainWindow();
         if (window && !window.isDestroyed()) window.webContents.send('local-model-progress', status);
@@ -71,8 +72,10 @@ export function registerIPC(
     });
     return { user, settings: account.settings, credentialIds: account.settings.connections.filter((c) => credentials.has(user.id, c)).map((c) => c.id), conversations: get().storage.conversations, contextSession: get().context.session };
   }
-  const handle = (channel: string, callback: (value: unknown, event: Electron.IpcMainInvokeEvent) => unknown) => {
+  const handle = (channel: string, callback: (value: unknown, event: Electron.IpcMainInvokeEvent, timing: ChatLatency) => unknown) => {
     ipcMain.handle(channel, async (event, value: unknown) => {
+      const receivedAt = Date.now();
+      const timing: ChatLatency = {};
       try {
         const frameUrl = event.senderFrame?.url || '';
         const baseTarget = rendererUrl.split('#')[0];
@@ -97,6 +100,7 @@ export function registerIPC(
           'get-remote-companion-status', 'toggle-remote-tunnel'
         ];
         if (!publicChannels.includes(channel)) {
+          const accessStart = performance.now();
           const wasSignedIn = get().auth.signedIn;
           try { await get().auth.refresh(['send', 'initialize-context', 'start-context', 'start-empty-session', 'list-models', 'test-connection'].includes(channel)); }
           catch (error) {
@@ -107,8 +111,13 @@ export function registerIPC(
             }
             throw error;
           }
+          finally { timing.accessMs = performance.now() - accessStart; }
         }
-        return { ok: true, value: await callback(value, event) };
+        if (channel === 'send' && value && typeof value === 'object' && 'sentAt' in value && typeof value.sentAt === 'number' && Number.isFinite(value.sentAt)) {
+          const elapsed = receivedAt - value.sentAt;
+          if (elapsed >= 0 && elapsed < 180_000) timing.uiToMainMs = elapsed;
+        }
+        return { ok: true, value: await callback(value, event, timing) };
       } catch (error: any) {
         console.warn(`[Novi Error] ${channel}:`, error?.message || error);
         const userMsg = error instanceof UserError
@@ -236,7 +245,7 @@ export function registerIPC(
     context.beginEmpty();
     return snapshot();
   });
-  handle('initialize-context', async (_value, event) => {
+  handle('initialize-context', async (_value, event, timing) => {
     const { context, chat } = get();
     const session = context.assertActive();
     if (!context.initialization && session.status === 'pending') {
@@ -245,7 +254,7 @@ export function registerIPC(
       event.sender.once('destroyed', stop);
       context.initialization = chat.send({ conversationId: null, content: context.prompt, imageIds: [] }, (data) => {
         if (!event.sender.isDestroyed()) event.sender.send('chat-event', data);
-      }).then(() => context.completeInitialization()).catch((error) => { session.status = 'error'; throw error; })
+      }, timing).then(() => context.completeInitialization()).catch((error) => { session.status = 'error'; throw error; })
         .finally(() => event.sender.removeListener('destroyed', stop));
     }
     await context.initialization;
@@ -309,6 +318,23 @@ export function registerIPC(
     return snapshot();
   });
   handle('list-models', (value) => { const input = connectionInput(value); return listModels(input.ai, get().connections.resolveKey(input)); });
+  handle('set-model-role', async value => {
+    const { storage, chat, connections } = get(); chat.assertIdle();
+    const input = object(value), account = storage.current();
+    const id = text(input.id, 'connection ID', 100), model = text(input.model, 'model selection', 200);
+    if (input.role !== 'fast' && input.role !== 'deep') throw new UserError('Choose Fast or Deep.');
+    const connection = account.settings.connections.find(item => item.id === id && item.enabled !== false);
+    if (!connection) throw new UserError('Choose an enabled connection.');
+    const config = { ...connection };
+    const models = await listModels(config, connections.resolveKey({ id, name: config.name, ai: config }));
+    if (!models.some(item => item.id === model)) throw new UserError('Choose a model available from this provider.');
+    chat.assertIdle();
+    const current = account.settings.connections.find(item => item.id === id);
+    if (storage.current() !== account || !current || current.enabled === false || current.provider !== config.provider || current.baseUrl !== config.baseUrl) throw new UserError('Your connection changed. Choose the role again.');
+    account.settings.modelRoles ||= {};
+    account.settings.modelRoles[id] = { ...account.settings.modelRoles[id], [input.role]: model };
+    storage.save(); return snapshot();
+  });
   handle('delete-conversation', (value) => {
     const { storage, images, chat } = get(); chat.assertIdle();
     const id = text(value, 'conversation ID', 100);
@@ -342,12 +368,12 @@ export function registerIPC(
   handle('open-audio-midi-setup', () => {
     if (process.platform === 'darwin') execFile('open', ['-a', 'Audio MIDI Setup'], () => {});
   });
-  handle('send', (value, event) => {
+  handle('send', (value, event, timing) => {
     const { chat } = get();
     if (get().context.assertActive().status !== 'ready') throw new UserError('Wait for context confirmation, or end this session and retry loading.');
     const stop = () => chat.stop();
     event.sender.once('destroyed', stop);
-    return chat.send(value, (data) => { if (!event.sender.isDestroyed()) event.sender.send('chat-event', data); }).finally(() => event.sender.removeListener('destroyed', stop));
+    return chat.send(value, (data) => { if (!event.sender.isDestroyed()) event.sender.send('chat-event', data); }, timing).finally(() => event.sender.removeListener('destroyed', stop));
   });
   handle('stop', () => { get().storage.current(); get().chat.stop(); });
   handle('get-monitors', () => get().overlay.getDisplays());
@@ -418,6 +444,7 @@ export function registerIPC(
       viewer.setContentProtection(true);
     }
     codeViewerWindow = viewer;
+    viewer.setIgnoreMouseEvents(false);
     viewer.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     viewer.webContents.on('will-navigate', (navigation) => navigation.preventDefault());
     viewer.once('ready-to-show', () => { if (codeViewerVisible) viewer.show(); });

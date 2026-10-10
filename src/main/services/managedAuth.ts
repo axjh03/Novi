@@ -165,6 +165,10 @@ export class ManagedAuthService {
         const old = oldConnections.find(old => old.id === c.id && old.provider === c.provider && old.baseUrl === c.baseUrl);
         return { ...c, model: old?.model ?? c.model, managed: true, enabled: old?.enabled !== false };
       });
+      for (const id of Object.keys(account.settings.modelRoles || {})) {
+        const old = oldConnections.find(connection => connection.id === id);
+        if (!connections.some(connection => connection.id === id && connection.provider === old?.provider && connection.baseUrl === old?.baseUrl)) delete account.settings.modelRoles![id];
+      }
       for (const provider of new Set(connections.map(c => c.provider))) {
         const selected = connections.filter(c => c.provider === provider && c.enabled);
         const keep = selected.find(c => c.id === account!.settings.activeConnectionId) || selected[0];

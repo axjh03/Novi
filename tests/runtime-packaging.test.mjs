@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { createHash } from 'node:crypto';
+import { c as archiveFiles } from 'tar';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Arch } from 'builder-util';
+import prepareSpeechRuntime from '../scripts/prepare-speech-runtime.mjs';
+
+test('packaging supplies a missing target addon from the lockfile and rejects tampering', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'novi-runtime-test-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const source = join(root, 'package');
+  await mkdir(source);
+  await writeFile(join(source, 'package.json'), JSON.stringify({ name: 'sherpa-onnx-linux-x64', version: '1.13.8' }));
+  await writeFile(join(source, 'sherpa-onnx.node'), 'addon fixture');
+  await writeFile(join(source, 'libonnxruntime.so'), 'library fixture');
+  const archive = join(root, 'runtime.tgz');
+  await archiveFiles({ file: archive, cwd: root, gzip: true }, ['package']);
+  const bytes = await readFile(archive);
+  const lock = { version: '1.13.8', resolved: 'https://registry.npmjs.org/runtime.tgz', integrity: `sha512-${createHash('sha512').update(bytes).digest('base64')}` };
+  await writeFile(join(root, 'package-lock.json'), JSON.stringify({ packages: { 'node_modules/sherpa-onnx-linux-x64': lock } }));
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+  let requests = 0;
+  globalThis.fetch = async url => { assert.equal(url, lock.resolved); requests++; return new Response(bytes); };
+  const context = { electronPlatformName: 'linux', arch: Arch.x64, packager: { projectDir: root } };
+  await prepareSpeechRuntime(context);
+  const installed = join(root, 'node_modules', 'sherpa-onnx-linux-x64');
+  assert.equal(await readFile(join(installed, 'libonnxruntime.so'), 'utf8'), 'library fixture');
+  await prepareSpeechRuntime(context);
+  assert.equal(requests, 1, 'Reuse an installed matching runtime');
+  await rm(installed, { recursive: true });
+  globalThis.fetch = async () => new Response('corrupt');
+  await assert.rejects(prepareSpeechRuntime(context), /checksum mismatch/);
+});

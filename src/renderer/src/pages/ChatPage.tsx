@@ -6,7 +6,7 @@ import { Composer } from '../components/chat/Composer';
 import { Message } from '../components/chat/Message';
 import { Brand } from '../components/Brand';
 import { useChat } from '../hooks/useChat';
-import { activeConnection, DEFAULT_PROVIDER_MODELS, getFastInterviewModel } from '../../../shared/providers';
+import { activeConnection } from '../../../shared/providers';
 import { SettingsPage } from './SettingsPage';
 import { useEyeTracking } from '../hooks/useEyeTracking';
 import { EyeTrackingPanel } from '../components/EyeTrackingPanel';
@@ -24,8 +24,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const {
     appMode,
     setAppMode,
-    fastInterviewModel,
-    toggleFastInterviewModel,
     behavioralFramework,
     setBehavioralFramework,
     setWorkingMonitor,
@@ -35,6 +33,10 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   useEffect(() => { if (deleting) deleteDialog.current?.showModal(); }, [deleting]);
   const config = state.settings!;
   const connection = state.contextSession?.connection ?? activeConnection(config);
+  const [compactContext, setCompactContext] = useState(false);
+  const [pinnedContext, setPinnedContext] = useState('');
+  useEffect(() => { setPinnedContext(chat.selected?.pinnedContext || ''); }, [chat.selectedId, chat.selected?.pinnedContext]);
+  const streamingMessageId = chat.busy && chat.activeId === chat.selectedId ? chat.selected?.messages.at(-1)?.id : undefined;
   const contextBusy = Boolean(state.contextSession && state.contextSession.status !== 'ready');
   const [ending, setEnding] = useState(false);
   const sidebarBusy = chat.busy || ending || (contextBusy && state.contextSession?.status !== 'error');
@@ -59,8 +61,8 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   useEffect(() => { atBottom.current = true; if (scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight; }, [chat.selectedId]);
   useEffect(() => {
     if (appMode !== 'coding' && appMode !== 'system-design') return;
-    void unwrap(window.novi.updateCodeViewer(appMode === 'system-design' ? diagramBlocks(chat.selected?.messages || []) : codeFromMessages(chat.selected?.messages || []))).catch(console.error);
-  }, [appMode, chat.selected?.messages, chat.selectedId]);
+    void unwrap(window.novi.updateCodeViewer(appMode === 'system-design' ? diagramBlocks(chat.selected?.messages || [], streamingMessageId) : codeFromMessages(chat.selected?.messages || []))).catch(console.error);
+  }, [appMode, chat.selected?.messages, chat.selectedId, streamingMessageId]);
 
   // ── Eye tracking ──────────────────────────────────────────────────────────
   const et = useEyeTracking();
@@ -111,27 +113,14 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   // ──────────────────────────────────────────────────────────────────────────
 
   const [syncingModel, setSyncingModel] = useState(false);
-  const [syncedModel, setSyncedModel] = useState<string | null>(null);
 
   async function handleModelChange(connId: string, modelName?: string) {
     if (sidebarBusy || syncingModel) return;
     setSyncingModel(true);
-    setSyncedModel(null);
     chat.setError('');
     try {
       const updatedState = await unwrap(window.novi.selectConnection(connId, modelName));
       onSaved(updatedState);
-      const newConn = activeConnection(updatedState.settings!);
-      const targetModel = newConn?.model || modelName || 'new model';
-      
-      // If inside an active conversation or context session, send context sync prompt to the new model
-      if (chat.selectedId || state.contextSession) {
-        await chat.send({
-          content: `[System Notice: The session model has been changed to ${newConn?.name} / ${targetModel}. Read and verify the conversation history and context above. Reply ONLY with the single word UNDERSTOOD once you have ingested the context and are ready.]`,
-          imageIds: []
-        });
-      }
-      setSyncedModel(`${newConn?.name} / ${targetModel}`);
     } catch (err) {
       chat.setError(errorText(err));
     } finally {
@@ -141,10 +130,19 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
 
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const roles = connection ? config.modelRoles?.[connection.id] : undefined;
+  async function setRole(role: 'fast' | 'deep', model: string) {
+    if (!connection || !model || sidebarBusy || syncingModel) return;
+    setSyncingModel(true);
+    try { onSaved(await unwrap(window.novi.setModelRole(connection.id, role, model))); }
+    catch (error) { chat.setError(errorText(error)); }
+    finally { setSyncingModel(false); }
+  }
 
   useEffect(() => {
     if (!connection) return;
     let cancelled = false;
+    setAvailableModels([]);
     setLoadingModels(true);
     void unwrap(window.novi.listModels({ id: connection.id, name: connection.name, ai: connection }))
       .then((models) => {
@@ -153,7 +151,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
         }
       })
       .catch((err) => {
-        console.warn('Failed to fetch models for header dropdown:', err);
+        if (!cancelled) chat.setError(errorText(err));
       })
       .finally(() => {
         if (!cancelled) setLoadingModels(false);
@@ -162,7 +160,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   }, [connection?.id, connection?.provider, connection?.baseUrl]);
 
   const enabledConnections = config.connections.filter((c) => c.enabled !== false);
-  const currentProviderDefaults = connection ? (DEFAULT_PROVIDER_MODELS[connection.provider] || []) : [];
 
   const modelOptions = (() => {
     const map = new Map<string, string>();
@@ -171,11 +168,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     }
     for (const m of availableModels) {
       map.set(m.id, m.name || m.id);
-    }
-    for (const d of currentProviderDefaults) {
-      if (!map.has(d)) {
-        map.set(d, d);
-      }
     }
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   })();
@@ -234,6 +226,11 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
                     </option>
                   ))}
                 </select>
+                {(['fast', 'deep'] as const).map(role => <button type="button" key={role}
+                  className="text-button" disabled={sidebarBusy || syncingModel || loadingModels || !availableModels.some(model => model.id === roles?.[role])}
+                  aria-pressed={Boolean(roles?.[role] && connection?.model === roles[role])}
+                  title={roles?.[role] ? `${role === 'fast' ? 'Fast' : 'Deep'}: ${roles[role]}` : `Choose a ${role} model in Model roles below`}
+                  onClick={() => void handleModelChange(connection!.id, roles![role])}>{role === 'fast' ? 'Fast' : 'Deep'}</button>)}
               </div>
             </div>
             <nav className="chat-mode-tabs" aria-label="Conversation mode">
@@ -278,17 +275,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
               showFramework={appMode === 'behavioral'}
               framework={behavioralFramework}
               onSelectFramework={setBehavioralFramework}
-              fastModelActive={fastInterviewModel}
-              onToggleFastModel={async () => {
-                const willBeActive = !fastInterviewModel;
-                toggleFastInterviewModel();
-                if (willBeActive && connection) {
-                  const fastM = getFastInterviewModel(connection.provider, connection.model);
-                  await handleModelChange(connection.id, fastM);
-                }
-              }}
-              fastModelName={connection ? getFastInterviewModel(connection.provider, connection.model) : 'Fast Flash'}
-              busy={sidebarBusy || syncingModel}
               isEyeTrackingActive={et.state === 'running' || et.state === 'calibrating'}
               onToggleEyeTracking={handleToggleEyeTrackingBehavioral}
             />
@@ -313,8 +299,20 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
           )}
 
           <div className="composer-area">
-            {syncingModel && <div className="model-sync-badge">Ingesting context with {connection?.name} / {connection?.model}… (takes a moment)</div>}
-            {syncedModel && !syncingModel && <div className="model-sync-confirmed">✓ {syncedModel} ingested context (UNDERSTOOD)</div>}
+            {syncingModel && <div role="status">Saving model selection…</div>}
+            <details className="request-options"><summary>Model roles and context</summary>
+              <p>Fast for short follow-ups; Deep for new code, debugging, and design. You choose which model answers.</p>
+              {(['fast', 'deep'] as const).map(role => <label key={role}>{role === 'fast' ? 'Fast' : 'Deep'} model
+                <select value={roles?.[role] || ''} disabled={loadingModels || sidebarBusy || syncingModel} onChange={event => void setRole(role, event.target.value)}>
+                  <option value="" disabled>{loadingModels ? 'Loading models…' : 'Choose a model'}</option>
+                  {roles?.[role] && !availableModels.some(model => model.id === roles[role]) && <option value={roles[role]}>{roles[role]} (refresh availability)</option>}
+                  {availableModels.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
+                </select>
+              </label>)}
+              <label>Pinned constraints<textarea value={pinnedContext} maxLength={8000} disabled={chat.busy} onChange={event => setPinnedContext(event.target.value)} placeholder="Requirements to include verbatim in every request in this conversation" /></label>
+              <label><input type="checkbox" checked={compactContext} disabled={chat.busy} onChange={event => setCompactContext(event.target.checked)} />Use compact context (experimental)</label>
+              <small>{compactContext ? 'Sends the original problem, pinned constraints, recent turns, and matching older turns/source excerpts. Uncheck for full context if a detail is missing.' : 'Sends full saved conversation and source context.'} Conversations and sources stay saved locally.</small>
+            </details>
             {chat.error && (
               <div className="error dismissible" role="alert">
                 {chat.error}
@@ -325,7 +323,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
               key={composerKey}
               speechModelId={config.localASRModelId}
               busy={chat.busy || contextBusy || ending || syncingModel}
-              onSend={(content, images) => chat.send({ content, imageIds: images.map((image) => image.id) })}
+              onSend={(content, images) => chat.send({ content, imageIds: images.map((image) => image.id), compactContext, pinnedContext })}
             />
           </div>
         </main>

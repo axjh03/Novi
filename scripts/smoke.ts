@@ -87,6 +87,8 @@ async function main() {
     await page.getByLabel('Username', { exact: true }).fill('desktop.test');
     await page.getByLabel('Password', { exact: true }).fill('novi-test-password');
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.getByLabel(/^Continue with missing or untested features/).check();
+    await page.getByRole('button', { name: 'Continue to session setup' }).click();
     await page.getByRole('heading', { name: 'Temporary session' }).waitFor();
     assert.equal(await page.getByRole('dialog', { name: 'Phone companion' }).count(), 0);
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -157,7 +159,7 @@ async function main() {
     assert.match(JSON.stringify(requests[0]), /time and space complexity/);
     const summary = join(env.NOVI_DATA_DIR, 'context-session', 'AI Context.md');
     assert(existsSync(summary));
-    assert(!readFileSync(join(env.NOVI_DATA_DIR, 'data.json'), 'utf8').includes('SESSION_SOURCE'));
+    assert(readFileSync(join(env.NOVI_DATA_DIR, 'data.json'), 'utf8').includes('SESSION_SOURCE'));
     const isolation = await page.evaluate(() => ({ node: 'require' in window, process: 'process' in window }));
     assert.deepEqual(isolation, { node: false, process: false });
     await app.evaluate(({ dialog }, imagePath) => {
@@ -200,6 +202,8 @@ async function main() {
       return result.value.conversations;
     });
     await page.getByRole('button', { name: 'New session', exact: true }).click();
+    await page.getByLabel(/^Continue with missing or untested features/).check();
+    await page.getByRole('button', { name: 'Continue to session setup' }).click();
     await page.getByRole('heading', { name: 'Temporary session' }).waitFor();
     const setupSteps = page.getByRole('navigation', { name: 'Session setup' });
     for (const name of ['Model', 'Sources', 'Instructions']) await setupSteps.getByRole('button', { name }).waitFor();
@@ -225,6 +229,8 @@ async function main() {
       assert.equal(await page.getByRole('button', { name: mode, exact: true }).getAttribute('aria-pressed'), 'true');
       await page.getByRole('button', { name: 'End session', exact: true }).click();
       await page.getByRole('alertdialog', { name: 'End context session' }).getByRole('button', { name: 'End session', exact: true }).click();
+      await page.getByLabel(/^Continue with missing or untested features/).check();
+      await page.getByRole('button', { name: 'Continue to session setup' }).click();
       await page.getByRole('heading', { name: 'Temporary session' }).waitFor();
     }
     await page.getByRole('button', { name: 'Skip session setup', exact: true }).click();
@@ -233,6 +239,8 @@ async function main() {
     assert.equal(await page.locator('.message').count(), 0, 'Skipping setup opens a fresh chat, while saved chats remain available');
     await page.getByRole('button', { name: 'End session', exact: true }).click();
     await page.getByRole('alertdialog', { name: 'End context session' }).getByRole('button', { name: 'End session', exact: true }).click();
+    await page.getByLabel(/^Continue with missing or untested features/).check();
+    await page.getByRole('button', { name: 'Continue to session setup' }).click();
     await page.getByRole('heading', { name: 'Temporary session' }).waitFor();
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
     await app.close(); app = await launch(); page = await app.firstWindow();

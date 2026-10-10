@@ -8,7 +8,7 @@ import type { ChatMessage } from '../src/shared/types';
 
 test('all six modes have distinct guidance and respect session instructions', () => {
   assert.equal(SESSION_MODES.length, 6);
-  assert.equal(modeInstructions('normal'), '');
+  assert.match(modeInstructions('normal'), /direct answer/);
   for (const mode of SESSION_MODES.slice(1)) {
     assert(isAppMode(mode.id));
     assert.match(modeInstructions(mode.id), /additional instructions/);
@@ -23,6 +23,17 @@ test('all six modes have distinct guidance and respect session instructions', ()
   const fields = presetFields(SESSION_ROLES[0], SESSION_ROLES[0].presets[0]);
   assert.deepEqual(fields.map(f => f.label), ['Role / perspective', 'Level / experience', 'Output format', 'Additional instructions']);
   assert.match(DRAW_DIAGRAM_PROMPT, /No diagram changes needed/);
+});
+
+test('a closed diagram fence is available during its active stream but incomplete and failed diagrams are excluded', () => {
+  const message: ChatMessage = { id: 'live', role: 'assistant', createdAt: 0, content: '```mermaid\nflowchart LR\nA --> B' };
+  assert.equal(diagramBlocks([message], 'live').length, 0);
+  assert.equal(diagramBlocks([{ ...message, status: undefined, content: '```mermaid\nflowchart LR\nA["inline ``` is not a closing fence"]' }], 'live').length, 0);
+  message.content += '\n```\nMore explanation is still arriving';
+  assert.equal(diagramBlocks([message], 'live').length, 1);
+  assert.equal(diagramBlocks([message]).length, 0);
+  message.status = 'error';
+  assert.equal(diagramBlocks([message], 'live').length, 0);
 });
 
 test('diagram history keeps complete unique versions and ignores partial or failed answers', () => {

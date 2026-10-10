@@ -26,7 +26,9 @@ export class ConnectionService {
     const key = this.resolveKey(input);
     if (!input.id && user.settings.connections.length >= 20) throw new UserError('You can save up to 20 provider connections.');
     const connection: ProviderConnection = { ...input.ai, id: input.id || randomUUID(), name: input.name };
+    const previous = user.settings.connections.find(item => item.id === connection.id);
     this.credentials.set(user.id, connection, key);
+    if (previous && (previous.provider !== connection.provider || previous.baseUrl !== connection.baseUrl) && user.settings.modelRoles) delete user.settings.modelRoles[connection.id];
     user.settings.connections = [...user.settings.connections.filter((item) => item.id !== connection.id), connection];
     user.settings.activeConnectionId ||= connection.id;
     this.storage.save();
@@ -58,6 +60,7 @@ export class ConnectionService {
     if (!connection) throw new UserError('This provider connection could not be found.');
     if (user.settings.connections.length === 1) throw new UserError('Add another provider before removing your last connection.');
     user.settings.connections = user.settings.connections.filter((item) => item.id !== connection.id);
+    if (user.settings.modelRoles) delete user.settings.modelRoles[connection.id];
     if (user.settings.activeConnectionId === connection.id) user.settings.activeConnectionId = user.settings.connections[0].id;
     this.storage.save();
     this.credentials.set(user.id, connection, '');

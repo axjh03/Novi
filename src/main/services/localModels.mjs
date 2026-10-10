@@ -1,5 +1,5 @@
 import { cpus, freemem, totalmem, platform, arch, release, availableParallelism } from 'node:os';
-import { mkdir, lstat, statfs, readFile, open, rename, unlink, realpath } from 'node:fs/promises';
+import { mkdir, lstat, statfs, readFile, open, rename, unlink, realpath, copyFile } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -103,8 +103,9 @@ async function digestFile(path, expected, signal) {
 }
 
 export class ModelManager {
-  constructor(userData, { registry = MODEL_REGISTRY, fetcher = globalThis.fetch, diskFree = freeDisk, onProgress = () => {}, log = () => {}, retryDelay = 500 } = {}) {
+  constructor(userData, { registry = MODEL_REGISTRY, bundledRoot, fetcher = globalThis.fetch, diskFree = freeDisk, onProgress = () => {}, log = () => {}, retryDelay = 500 } = {}) {
     this.root = join(userData, 'models');
+    this.bundledRoot = bundledRoot;
     this.registry = registry;
     this.fetcher = fetcher;
     this.diskFree = diskFree;
@@ -131,7 +132,27 @@ export class ModelManager {
   async location(model) {
     await this.prepare();
     const dir = await directory(join(this.root, model.type, model.id));
-    return directory(join(dir, model.version));
+    const target = await directory(join(dir, model.version));
+    // Keep removed models removed; an interrupted first copy can safely resume.
+    if (this.bundledRoot && !await exists(join(target, 'bundle-imported.json')) && !await exists(join(target, 'model.json'))) {
+      const source = join(this.bundledRoot, model.type, model.id, model.version);
+      const metadata = await readMetadata(join(source, 'model.json'));
+      if (metadata) {
+        if (!this.validManifest(metadata, model) || metadata.status !== 'verified') throw new Error('Bundled model metadata is invalid. Reinstall Novi.');
+        const total = metadata.files.reduce((sum, file) => sum + file.size, 0);
+        if (await this.diskFree(target) < total + 256 * MiB) throw new Error('Not enough disk space to install bundled speech models.');
+        for (const file of metadata.files) {
+          const path = join(source, basename(file.name));
+          if (!await digestFile(path, file)) throw new Error('Bundled model checksum failed. Reinstall Novi.');
+          const destination = join(target, basename(file.name));
+          safeFile(await exists(destination));
+          await copyFile(path, destination);
+        }
+        await writeJSON(join(target, 'model.json'), metadata);
+        await writeJSON(join(target, 'bundle-imported.json'), { version: model.version });
+      }
+    }
+    return target;
   }
 
   update(id, state, downloadedBytes = 0, totalBytes = 0, error) {
@@ -353,6 +374,7 @@ export class ModelManager {
     const promise = (async () => {
       const dir = await this.location(model);
       // Delete only catalog-owned files. Never recursively remove a renderer path.
+      if (this.bundledRoot) await writeJSON(join(dir, 'bundle-imported.json'), { version: model.version });
       for (const name of [...model.files.flatMap(f => [basename(f), `${basename(f)}.part`]), 'model.json', 'model.json.tmp', 'download.json', 'download.json.tmp']) await removeFile(join(dir, name));
       return this.update(id, 'NOT_INSTALLED', 0, model.estimatedBytes);
     })().finally(() => this.jobs.delete(id));

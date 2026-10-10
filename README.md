@@ -79,6 +79,19 @@ and [inspected architecture](docs/existing-architecture.md).
 
 Run the dependency-free model checks with `npm run test:local-models`.
 
+Desktop packages include the lightweight English streaming speech model, neural
+VAD, the native speech runtime, and Cloudflared. The packaging hook downloads and
+verifies pinned assets, checks the target native addon, and smoke-tests speech
+and VAD on the build host. Packaging needs internet access; speech files are
+copied into each user's model storage on first setup without a download. Larger
+speech models, speaker detection, and local LLM weights remain optional.
+
+Before each session, setup checks writable storage and offers microphone,
+system-audio, screen, and source-folder access tests. Missing or untested features
+require an explicit acknowledgement to continue. OS permission changes may need
+an app restart, and capture pickers can reappear on later captures. The detached
+code/diagram viewer stays scrollable even when the main window passes clicks through.
+
 ```text
 src/
   main/

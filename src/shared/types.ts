@@ -42,6 +42,7 @@ export interface AppSettings {
   checkUpdatesAtStartup?: boolean;
   autoStartEmptySession?: boolean;
   localASRModelId?: string;
+  modelRoles?: Record<string, { fast?: string; deep?: string }>;
 }
 export interface ProviderConnection extends AIProviderConfig { id: string; name: string; managed?: boolean; ownerName?: string; enabled?: boolean }
 export interface ConnectionInput { id?: string; name: string; ai: AIProviderConfig; apiKey?: string }
@@ -57,8 +58,22 @@ export interface ChatMessage {
   error?: string;
   providerName?: string;
   model?: string;
+  latency?: ChatLatency;
 }
-export interface Conversation { id: string; title: string; createdAt: number; updatedAt: number; messages: ChatMessage[] }
+export interface TokenUsage { input?: number; cachedInput?: number; cacheWrite?: number; reasoning?: number; output?: number }
+export interface ChatLatency {
+  uiToMainMs?: number;
+  accessMs?: number;
+  providerFirstTextMs?: number;
+  providerFirstUsefulTextMs?: number;
+  firstToLastTextMs?: number;
+  providerTotalMs?: number;
+  requestCharacters?: number;
+  requestMessages?: number;
+  usage?: TokenUsage;
+}
+export interface SavedContext { instructions: string; summary: string; documents: Array<{ name: string; content: string }> }
+export interface Conversation { id: string; title: string; createdAt: number; updatedAt: number; messages: ChatMessage[]; context?: SavedContext; pinnedContext?: string }
 export interface ContextFolder { id: string; name: string; files: string[]; characters: number }
 export interface ContextInput { folderIds?: string[]; purpose?: string; fields?: Array<{ label: string; value: string }>; empty?: boolean }
 export interface ContextSession { id: string; connection: ProviderConnection; status: 'pending' | 'loading' | 'ready' | 'error' | 'ending'; summaryReady: boolean; isEmpty?: boolean }
@@ -84,7 +99,7 @@ export interface SettingsInput {
   autoStartEmptySession?: boolean;
   localASRModelId?: string;
 }
-export interface SendInput { appMode?: AppMode; behavioralFramework?: BehavioralFramework; conversationId: string | null; content: string; imageIds: string[] }
+export interface SendInput { appMode?: AppMode; behavioralFramework?: BehavioralFramework; conversationId: string | null; content: string; imageIds: string[]; sentAt?: number; compactContext?: boolean; pinnedContext?: string }
 export type ChatEvent =
   | { type: 'started'; conversation: Conversation }
   | { type: 'delta'; conversationId: string; messageId: string; text: string }
@@ -147,6 +162,7 @@ export interface NoviAPI {
   saveConnection(input: ConnectionInput): Promise<Result<Snapshot>>;
   removeConnection(id: string): Promise<Result<Snapshot>>;
   selectConnection(id: string, model?: string): Promise<Result<Snapshot>>;
+  setModelRole(id: string, role: 'fast' | 'deep', model: string): Promise<Result<Snapshot>>;
   enableConnection(id: string, enabled: boolean): Promise<Result<Snapshot>>;
   refreshManaged(): Promise<Result<Snapshot>>;
   onSessionEnded(callback: (message: string) => void): () => void;

@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { accessSync, constants, statSync } from 'node:fs';
+import { delimiter, join } from 'node:path';
 
 export class CloudflareTunnelService {
   private process: ChildProcess | null = null;
@@ -7,15 +8,17 @@ export class CloudflareTunnelService {
   private startingPromise: Promise<string> | null = null;
 
   findBinary(): string | null {
+    const name = process.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared';
     const candidates = [
+      ...(process.resourcesPath ? [join(process.resourcesPath, 'cloudflared', name)] : []),
       '/opt/homebrew/bin/cloudflared',
       '/usr/local/bin/cloudflared',
-      'cloudflared',
+      ...(process.env.PATH || '').split(delimiter).filter(Boolean).map(directory => join(directory, name)),
     ];
     for (const c of candidates) {
-      if (c.startsWith('/') && existsSync(c)) return c;
+      try { accessSync(c, constants.X_OK); if (statSync(c).isFile()) return c; } catch { /* Try the next installed location. */ }
     }
-    return 'cloudflared';
+    return null;
   }
 
   isAvailable(): boolean {
@@ -34,7 +37,8 @@ export class CloudflareTunnelService {
     if (this.isActive() && this.url) return this.url;
     if (this.startingPromise) return this.startingPromise;
 
-    const bin = this.findBinary() || 'cloudflared';
+    const bin = this.findBinary();
+    if (!bin) throw new Error('Cloudflared is missing. Reinstall Novi to restore its bundled tunnel helper.');
 
     this.startingPromise = new Promise((resolve, reject) => {
       let resolved = false;

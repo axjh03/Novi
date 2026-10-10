@@ -51,11 +51,11 @@ else void app.whenReady().then(async () => {
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowedPermissions.has(permission));
 
   // Handle getDisplayMedia for System Audio IN loopback capture
-  session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
+  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
     desktopCapturer.getSources({ types: ['screen'] })
       .then((sources) => {
         if (sources.length > 0) {
-          callback({ video: sources[0], audio: 'loopback' });
+          callback({ video: sources[0], ...(request.audioRequested ? { audio: 'loopback' as const } : {}) });
         } else {
           callback({});
         }

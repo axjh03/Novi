@@ -40,5 +40,15 @@ export function Message({ message, generating, displayName }: { message: ChatMes
     {generating && !message.content && <div className="activity" role="status" aria-label="Novi is thinking"><span /><span /><span /></div>}
     {message.error && <div className="error message-error" role="alert">{message.error}</div>}
     {message.status === 'stopped' && <small className="muted">Response stopped</small>}
+    {message.latency && !generating && <details className="response-latency"><summary>Response timing</summary>
+      <dl>{([
+        ['UI → main', message.latency.uiToMainMs], ['Access check', message.latency.accessMs],
+        ['Provider → first text', message.latency.providerFirstTextMs], ['Provider → first word/number', message.latency.providerFirstUsefulTextMs],
+        ['First → last text', message.latency.firstToLastTextMs], ['Provider total', message.latency.providerTotalMs],
+      ] as const).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value === undefined ? 'Not reported' : `${Math.round(value)} ms`}</dd></div>)}</dl>
+      <small>First word/number is a timing proxy, not a measure of answer quality. Non-streaming responses arrive all at once.</small>
+      <p>{message.latency.requestMessages} messages · {message.latency.requestCharacters} text characters (excludes attachments)</p>
+      <dl>{(['input', 'cachedInput', 'cacheWrite', 'reasoning', 'output'] as const).map(key => <div key={key}><dt>{({ input: 'Input tokens', cachedInput: 'Cached input tokens', cacheWrite: 'Cache write tokens', reasoning: 'Reasoning tokens', output: 'Output tokens' })[key]}</dt><dd>{message.latency?.usage?.[key] ?? 'Not reported'}</dd></div>)}</dl>
+    </details>}
   </div></article>;
 }

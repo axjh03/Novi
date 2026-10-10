@@ -65,3 +65,15 @@ test('StealthService manages transparent mode, content protection, and NumLock c
 
   stealth.cleanup();
 });
+
+test('detached viewers accept scrolling while the main window is click-through', () => {
+  let ignoredMouse = true;
+  const viewer: any = {
+    isDestroyed: () => false, setContentProtection() {}, setAlwaysOnTop() {},
+    setIgnoreMouseEvents: (ignore: boolean) => { ignoredMouse = ignore; },
+    webContents: { getURL: () => 'file:///app/index.html#/code-viewer', send() {} },
+  };
+  const stealth = new StealthService(() => viewer);
+  try { stealth.setTransparent(true); assert.equal(ignoredMouse, false); }
+  finally { stealth.cleanup(); }
+});

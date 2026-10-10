@@ -15,7 +15,7 @@ export function pcmWav(parts: Float32Array[]): Uint8Array {
 
 // Each request is a complete WAV; raw PCM and recordings are never saved to disk.
 export class CloudListening {
-  private channels = new Map<AudioSource, { parts: Float32Array[]; start: number; end: number; silence: number }>();
+  private channels = new Map<AudioSource, { parts: Float32Array[]; start: number; end: number; silence: number; capturedAt: number }>();
   private queue = Promise.resolve();
   private pending = 0;
   private closed = false;
@@ -24,7 +24,7 @@ export class CloudListening {
     if (this.closed) return;
     const speech = Math.sqrt(frame.samples.reduce((sum, sample) => sum + sample * sample, 0) / frame.samples.length) >= 0.006;
     let channel = this.channels.get(frame.source);
-    if (!channel) { if (!speech) return; channel = { parts: [], start: frame.startTime, end: frame.startTime, silence: 0 }; this.channels.set(frame.source, channel); }
+    if (!channel) { if (!speech) return; channel = { parts: [], start: frame.startTime, end: frame.startTime, silence: 0, capturedAt: performance.now() }; this.channels.set(frame.source, channel); }
     channel.parts.push(frame.samples); channel.end = frame.startTime + 100; channel.silence = speech ? 0 : channel.silence + 100;
     if (channel.silence >= 800 || channel.parts.length >= 50) this.flush(frame.sessionId, frame.source);
   }
@@ -34,10 +34,16 @@ export class CloudListening {
     this.channels.delete(source);
     if (this.pending >= 4) { this.warn('Cloud transcription is behind. Some audio was skipped; switch to Local or check your connection.'); return; }
     const wav = pcmWav(channel.parts);
+    const queuedAt = performance.now();
     this.pending++;
     this.queue = this.queue.then(async () => {
-      const text = await this.transcribe(wav);
-      if (text.trim()) this.emit({ sessionId, segmentId: crypto.randomUUID(), source, role: source === 'microphone' ? 'candidate' : 'interviewer', speakerId: source === 'microphone' ? 'microphone_1' : 'system_1', text: text.trim(), startTime: channel.start, endTime: channel.end, revision: 1, isFinal: true });
+      const requestedAt = performance.now();
+      try {
+        const text = await this.transcribe(wav);
+        if (text.trim()) this.emit({ sessionId, segmentId: crypto.randomUUID(), source, role: source === 'microphone' ? 'candidate' : 'interviewer', speakerId: source === 'microphone' ? 'microphone_1' : 'system_1', text: text.trim(), startTime: channel.start, endTime: channel.end, revision: 1, isFinal: true });
+      } finally {
+        console.info('[Novi latency]', { stage: 'cloud-transcription', source, bufferMs: queuedAt - channel.capturedAt, queueMs: requestedAt - queuedAt, requestMs: performance.now() - requestedAt });
+      }
     }).catch(cause => this.warn(cause instanceof Error ? cause.message : 'Cloud transcription failed.')).finally(() => { this.pending--; });
   }
   async stop(sessionId: string) { this.closed = true; for (const source of this.channels.keys()) this.flush(sessionId, source); await this.queue; }

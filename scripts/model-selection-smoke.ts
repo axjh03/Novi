@@ -29,6 +29,10 @@ async function main() {
       Object.assign(window, { fixture });
       window.novi = {
         session: async () => ok(structuredClone(state)),
+        checkPermissions: async () => ok({ storage: true, camera: false, microphone: false, screen: false, accessibility: false }),
+        localAISetup: async () => ok({ models: [], selectedASR: 'auto' }),
+        getCodeViewerBlocks: async () => ok([{ id: 'long', label: 'Long code', language: 'typescript', code: 'const value = 1;\n'.repeat(300) }]),
+        onCodeViewerBlocks: () => () => {},
         onSessionEnded: () => () => {}, onStealthState: () => () => {},
         onGlobalAction: () => () => {}, onCodeViewerClosed: () => () => {},
         setCodeViewerVisible: async () => ok(undefined),
@@ -43,6 +47,14 @@ async function main() {
       } as unknown as NoviAPI;
     });
     await page.goto('http://novi.test/index.html');
+    await page.getByRole('heading', { name: 'Before your session' }).waitFor();
+    assert(await page.getByRole('button', { name: 'Continue to session setup' }).isDisabled());
+    await page.evaluate(() => { Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: async () => { throw new Error('Microphone permission denied'); } }, configurable: true }); });
+    await page.getByRole('button', { name: 'Test microphone', exact: true }).click();
+    await page.getByText('Microphone: Microphone permission denied', { exact: true }).waitFor();
+    assert(await page.getByRole('button', { name: 'Continue to session setup' }).isDisabled());
+    await page.getByLabel(/^Continue with missing or untested features/).check();
+    await page.getByRole('button', { name: 'Continue to session setup' }).click();
     await page.getByText('The previous model is unavailable. Choose a model from the list.').waitFor();
     assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), '');
     assert.equal(await page.getByRole('option', { name: 'gemini3.8', exact: true }).count(), 0);
@@ -78,6 +90,18 @@ async function main() {
     await page.waitForFunction(() => !(document.querySelector('select[aria-label="Choose model"]') as HTMLSelectElement).disabled);
     assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), 'gemini-chat');
     console.log('Model UI passed: invalid legacy model, live dropdown, failed ping, immediate startup, discovery failure and retry.');
+    await page.goto('http://novi.test/index.html#/code-viewer');
+    await page.reload();
+    const scroll = page.getByRole('region', { name: 'Scrollable code' });
+    await scroll.waitFor();
+    await page.waitForFunction(() => { const el = document.querySelector('.code-viewer-scroll')!; return el.scrollHeight > el.clientHeight; });
+    await scroll.hover();
+    await page.mouse.wheel(0, 500);
+    await page.waitForFunction(() => document.querySelector('.code-viewer-scroll')!.scrollTop > 0);
+    await scroll.focus();
+    await page.keyboard.press('Control+End');
+    await page.waitForFunction(() => { const el = document.querySelector('.code-viewer-scroll')!; return el.scrollTop > 500; });
+    console.log('Preflight denial/acknowledgement and code viewer mouse/keyboard scrolling passed.');
   } finally { await browser.close(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -1,0 +1,100 @@
+› i giess you should ship or add the things required for Neurla net and all installed, live.. also you should, like first ask user
+  to give persmisisons like disk and folders and screen captiure and system audio and mic, so that they don't fin dout in between of
+  a sesion. also shup like the stuffs, Like VAD i mean whatever is required fo rlive trahscirpt.. also the cloudflare things, if not
+  in install script or package.. ALSO Fix the code viewer not scrollable,,..
+
+
+• I’ll check what the installer already includes for local transcription, VAD, and Cloudflare, then add any missing setup steps. I’ll
+  also move permission checks before sessions and fix scrolling in the code viewer. I’m using the Ponytail skill to keep this within
+  the existing setup and packaging flow.
+
+• Ran cat /home/axjh03/.codex/plugins/cache/ponytail/ponytail/5.1.0/skills/ponytail/SKILL.md; git status --short; rg --files -g
+  │ AGENTS.md -g '*builder*' -g '*install*' -g '*Permission*' -g '*LocalAI*' -g '*CodeViewer*' -g '*Setup*' -g '*package*' -g
+  │ '*cloudflare*' -g '*localModel*' -g '*localSpeech*' -g '*requirements*' -g '*.nsh'; cat package.json
+  └ ---
+    name: ponytail
+    description: >
+    +157 lines (^t to view transcript)
+
+• Ran cat electron-builder.yml scripts/bundle-cloudflared.mjs src/main/services/permissions.ts src/renderer/src/components/
+  │ LocalAISetup.tsx; rg -n 'Permission|LocalAISetup|CodeViewer|code-viewer|diagram-viewer' src/renderer/src/App.tsx src/renderer/
+  │ src/pages src/renderer/src/styles/app.css src/main/main.ts
+  └ appId: com.novi.app
+    productName: Novi
+    afterPack: scripts/bundle-cloudflared.mjs
+    +559 lines (^t to view transcript)
+
+• Ran cat src/main/services/localModelRegistry.mjs src/main/services/localSpeechRuntime.ts src/main/services/cloudflareTunnel.ts; cat
+  │ src/main/services/localModels.d.mts; rg -n 'bundl|install|vad|runtime|snapshot|download' src/main/services/localModels.mjs
+  │ scripts .github build
+  └ // Versioned, publisher-hosted weights. Resolve file digests at these immutable
+    // revisions; never accept model URLs, filenames, or checksums from the renderer.
+    const MiB = 1024 ** 2;
+    +357 lines (^t to view transcript)
+
+• Explored
+  └ Read App.tsx
+    Search Permission|permission|code-viewer|codeViewer in renderer
+    Read localModelRegistry.mjs
+    Read localModels.mjs
+    Read localModels.mjs
+    Read build.yml
+
+⚠ Heads up, you have less than 10% of your 5h limit left. Run /status for a breakdown.
+
+• Explored
+  └ Read interviewAudio.ts
+    Read main.ts
+    Read localModels.mjs
+    Read localModels.mjs
+    Read localModels.mjs
+    Read CodingModeHUD.tsx
+    Search code-viewer|code-window|diagram-viewer|app-region|pointer-events in app.css
+
+• Browsing the web
+
+• Searched the web for site.electronjs.org docs system audio macOS getDisplayMedia loopback permission screen, site.k2-fsa.github.io…
+
+• Ran cat src/renderer/src/main.tsx; head -70 src/renderer/src/styles/app.css; cat src/renderer/src/hooks/useStealth.ts; sed -n
+  │ '160,235p' src/renderer/src/components/LocalAISetup.tsx; sed -n '1,105p' src/main/services/interviewService.ts; cat src/shared/
+  │ localAI.ts; rg -n 'checkPermissions|requestPermissions|cloudflared|CloudflareTunnel' src tests
+  └ import React from 'react';
+    import { createRoot } from 'react-dom/client';
+    import { App } from './App';
+    +447 lines (^t to view transcript)
+
+⚠ Heads up, you have less than 5% of your 5h limit left. Run /status for a breakdown.
+
+• I found two packaging gaps: speech models are downloaded later, and the Cloudflare service does not look for the binary already
+  bundled by the installer.
+
+  I’ll bundle a lightweight streaming speech model plus neural VAD, make the app use bundled assets, and add a pre-session screen for
+  permissions and capture tests. The code viewer also needs a bounded scroll area and explicit mouse/keyboard interaction.
+
+◦ Browsing the web
+
+• Opened https://www.electronjs.org/docs/latest/api/desktop-capturer
+
+• Explored
+  └ Read model-selection-smoke.ts
+    Read package.json
+    Read app.css
+    Search getWindows|setIgnoreMouseEvents in stealth.ts
+    Read local-models.test.mjs
+    Read handlers.ts
+
+◦ Browsing the web
+
+• Opened https://k2-fsa.github.io/sherpa/onnx/vad/silero-vad.html
+
+• Explored
+  └ Read stealth.ts
+    Read stealth.ts
+    Read app.css
+    Read sherpa-onnx.js
+    List node_modules
+    Search sherpa-onnx.*(\.node$|\.so$|LICENSE$)
+    Read stealth.test.ts
+
+■ You’ve hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/settings/usage to purchase
+more credits or try again at 7:48 PM.

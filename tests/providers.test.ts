@@ -16,6 +16,26 @@ const messages = [{ id: 'm1', role: 'user' as const, content: 'Describe', create
 const request = { messages, signal: new AbortController().signal, imageData: () => 'data:image/png;base64,TEST', onDelta: (_text: string) => {} };
 const sse = (...events: unknown[]) => new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(''), { headers: { 'content-type': 'text/event-stream' } });
 
+test('stable instructions use native system fields and usage survives streaming terminal events', async t => {
+  const fixtures = [
+    { provider: 'openai' as const, events: [{ type: 'response.output_text.delta', delta: 'Hello' }, { type: 'response.completed', response: { usage: { input_tokens: 100, input_tokens_details: { cached_tokens: 80 }, output_tokens: 12, output_tokens_details: { reasoning_tokens: 5 } } } }], usage: { input: 100, cachedInput: 80, reasoning: 5, output: 12 } },
+    { provider: 'anthropic' as const, events: [{ type: 'message_start', message: { usage: { input_tokens: 10, cache_read_input_tokens: 70, cache_creation_input_tokens: 20, output_tokens: 1 } } }, { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hello' } }, { type: 'message_delta', usage: { output_tokens: 12 } }, { type: 'message_stop' }], usage: { input: 100, cachedInput: 70, cacheWrite: 20, output: 12 } },
+    { provider: 'gemini' as const, events: [{ candidates: [{ content: { parts: [{ text: 'Hello' }] }, finishReason: 'STOP' }] }, { usageMetadata: { promptTokenCount: 100, cachedContentTokenCount: 80, thoughtsTokenCount: 5, candidatesTokenCount: 12 } }], usage: { input: 100, cachedInput: 80, reasoning: 5, output: 12 } },
+    { provider: 'compatible' as const, events: [{ choices: [{ delta: { content: 'Hello' }, finish_reason: 'stop' }] }, { choices: [], usage: { prompt_tokens: 100, prompt_tokens_details: { cached_tokens: 80 }, completion_tokens: 12 } }], usage: { input: 100, cachedInput: 80, output: 12 } },
+  ];
+  for (const fixture of fixtures) {
+    let payload: any;
+    const mock = t.mock.method(globalThis, 'fetch', async (_url: unknown, options: RequestInit) => { payload = JSON.parse(options.body as string); return sse(...fixture.events); });
+    const usage: Record<string, number> = {};
+    await AIProviderFactory.create({ ...newConnection(fixture.provider).ai, model: 'custom-model' }, 'key').sendMessage({ ...request, instructions: 'Stable instructions', onUsage: values => {
+      for (const [key, value] of Object.entries(values)) if (typeof value === 'number') usage[key] = value;
+    } });
+    assert.deepEqual(usage, fixture.usage);
+    assert.equal(fixture.provider === 'openai' ? payload.instructions : fixture.provider === 'anthropic' ? payload.system : fixture.provider === 'gemini' ? payload.systemInstruction.parts[0].text : payload.messages[0].content, 'Stable instructions');
+    mock.mock.restore();
+  }
+});
+
 test('provider errors distinguish invalid keys from permission failures without exposing response secrets', async t => {
   let status = 403, reason = '';
   t.mock.method(globalThis, 'fetch', async () => Response.json({ error: {
@@ -157,11 +177,15 @@ test('multiple connections preserve keys, enforce account ownership, and clear k
     const first = service.save({ ...newConnection(), apiKey: 'openai-secret' });
     const second = service.save({ ...newConnection('anthropic'), apiKey: 'claude-secret' });
     const third = service.save({ ...newConnection(), name: 'Second OpenAI', apiKey: 'other-openai-secret' });
+    storage.current().settings.modelRoles = { [second.id]: { fast: 'custom-fast', deep: 'custom-deep' }, [third.id]: { fast: 'old-provider-model' } };
     service.select(second.id);
     assert.equal(storage.current().settings.activeConnectionId, second.id);
     assert.equal(service.resolveKey({ id: first.id, name: first.name, ai: first }), 'openai-secret');
     assert.equal(service.resolveKey({ id: third.id, name: third.name, ai: third }), 'other-openai-secret');
     service.save({ id: second.id, name: 'Claude personal', ai: { ...second, model: 'custom-claude' } });
+    assert.equal(storage.current().settings.modelRoles?.[second.id]?.fast, 'custom-fast');
+    service.save({ id: third.id, name: third.name, ai: { ...third, provider: 'compatible', baseUrl: 'http://localhost:1234/v1' }, apiKey: '' });
+    assert.equal(storage.current().settings.modelRoles?.[third.id], undefined);
     assert.equal(vault.get(user.id, second), 'claude-secret');
     assert.equal(service.resolveKey({ id: first.id, name: 'Local', ai: { ...first, provider: 'compatible', baseUrl: 'http://localhost:1234/v1' } }), '');
     assert(!readFileSync(storage.file, 'utf8').includes('secret'));
@@ -171,6 +195,7 @@ test('multiple connections preserve keys, enforce account ownership, and clear k
     assert.throws(() => service.resolveKey({ id: first.id, name: first.name, ai: first }), /could not be found/);
     await auth.signIn('ada@example.com', 'test-password');
     service.remove(second.id);
+    assert.equal(storage.current().settings.modelRoles?.[second.id], undefined);
     assert.equal(vault.get(user.id, second), '');
     service.remove(third.id);
     assert.throws(() => service.remove(first.id), /last connection/);

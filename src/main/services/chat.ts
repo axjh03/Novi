@@ -1,6 +1,6 @@
 import { modeInstructions } from '../../shared/sessionModes';
 import { randomUUID } from 'node:crypto';
-import type { ChatEvent, ChatMessage } from '../../shared/types';
+import type { ChatEvent, ChatMessage, ChatLatency } from '../../shared/types';
 import { Storage } from './storage';
 import { CredentialStore } from './credentials';
 import { ImageService } from './images';
@@ -8,6 +8,7 @@ import { AIProviderFactory } from './providers';
 import { conversationTitle, sendInput, UserError } from './validation';
 import { activeConnection } from '../../shared/providers';
 import type { ContextService } from './context';
+import { contextMessages, requestHistory } from './requestContext';
 
 export class ChatService {
   private controller: AbortController | null = null;
@@ -17,7 +18,7 @@ export class ChatService {
   assertIdle() { if (this.busy) throw new UserError('Stop the current response first.'); }
   stop() { this.controller?.abort(); }
   async stopAndWait() { this.stop(); await this.finished; }
-  async send(value: unknown, emit: (event: ChatEvent) => void) {
+  async send(value: unknown, emit: (event: ChatEvent) => void, timing: ChatLatency = {}) {
     this.assertIdle();
     const input = sendInput(value), user = this.storage.current();
     if (!user.settings.onboardingComplete) throw new UserError('Complete your AI setup first.');
@@ -35,14 +36,20 @@ export class ChatService {
       conversation = { id: randomUUID(), title: conversationTitle(input.content), createdAt: now, updatedAt: now, messages: [] };
       this.storage.conversations.push(conversation);
     }
+    if (!conversation.context && this.context?.session?.status === 'ready') conversation.context = this.context.savedContext;
+    if (input.pinnedContext !== undefined) conversation.pinnedContext = input.pinnedContext;
     conversation.messages.push({ id: randomUUID(), role: 'user', content: input.content, images, createdAt: now });
-    const history = this.context?.history([...conversation.messages], conversation.id) ?? [...conversation.messages];
-    const guidance = modeInstructions(input.appMode ?? 'normal', input.behavioralFramework);
-    if (guidance && history.length) {
-      const last = history.length - 1;
-      history[last] = { ...history[last], content: `[Mode guidance: ${guidance}]\n\n${history[last].content}` };
-    }
-    const assistant: ChatMessage = { id: randomUUID(), role: 'assistant', content: '', createdAt: now, providerName: connection.name, model: connection.model };
+    const context = conversation.context;
+    const history = [
+      ...(context ? contextMessages(context, input.content, input.compactContext === true) : []),
+      ...requestHistory(conversation.messages, input.compactContext),
+    ];
+    const instructions = [modeInstructions(input.appMode ?? 'normal', input.behavioralFramework),
+      conversation.pinnedContext ? `User-pinned constraints (retain verbatim):\n${conversation.pinnedContext}` : '',
+      input.compactContext ? 'Some older turns and source passages may be omitted. Do not infer missing facts from an overview. Ask for full context if needed.' : '',
+    ].filter(Boolean).join('\n\n');
+    const latency: ChatLatency = { ...timing, requestCharacters: instructions.length + history.reduce((sum, message) => sum + message.content.length, 0), requestMessages: history.length };
+    const assistant: ChatMessage = { id: randomUUID(), role: 'assistant', content: '', createdAt: now, providerName: connection.name, model: connection.model, latency };
     conversation.messages.push(assistant);
     conversation.updatedAt = now;
     this.storage.save();
@@ -52,10 +59,26 @@ export class ChatService {
     let complete!: () => void;
     this.finished = new Promise<void>((resolve) => { complete = resolve; });
     emit({ type: 'started', conversation });
+    const providerStart = performance.now();
+    let firstText: number | undefined, lastText: number | undefined;
     try {
       await AIProviderFactory.create(connection, key).sendMessage({
-        messages: history, signal: controller.signal, imageData: (id) => this.images.dataUrl(id),
+        messages: history, instructions, signal: controller.signal, imageData: (id) => this.images.dataUrl(id),
+        onUsage: usage => {
+          latency.usage ||= {};
+          for (const field of ['input', 'cachedInput', 'cacheWrite', 'reasoning', 'output'] as const) {
+            const count = usage[field];
+            if (typeof count === 'number' && Number.isSafeInteger(count) && count >= 0) latency.usage[field] = count;
+          }
+        },
         onDelta: (text) => {
+          if (text) {
+            lastText = performance.now();
+            firstText ??= lastText;
+            latency.providerFirstTextMs ??= firstText - providerStart;
+            // A Unicode letter/number is a reproducible proxy, not a semantic usefulness claim.
+            if (/[\p{L}\p{N}]/u.test(text)) latency.providerFirstUsefulTextMs ??= lastText - providerStart;
+          }
           assistant.content += text;
           emit({ type: 'delta', conversationId: conversation.id, messageId: assistant.id, text });
         },
@@ -68,6 +91,9 @@ export class ChatService {
         : 'Unable to connect to the AI provider.';
       if (process.env.NODE_ENV === 'development') console.warn('[Novi] Provider request ended:', assistant.status, error instanceof Error ? error.name : 'UnknownError');
     } finally {
+      latency.providerTotalMs = performance.now() - providerStart;
+      if (firstText !== undefined && lastText !== undefined) latency.firstToLastTextMs = lastText - firstText;
+      console.info('[Novi latency]', { stage: 'chat', outcome: assistant.status, ...latency });
       this.controller = null;
       conversation.updatedAt = Date.now();
       try { this.storage.save(); }
