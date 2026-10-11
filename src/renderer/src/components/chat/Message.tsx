@@ -1,5 +1,5 @@
-import { useEffect, useState, type ComponentPropsWithoutRef } from 'react';
-import Markdown from 'react-markdown';
+import { memo, useEffect, useState, type ComponentPropsWithoutRef } from 'react';
+import Markdown, { type Components } from 'react-markdown';
 import { Check, Copy, Mic, UserRound } from 'lucide-react';
 import type { ChatMessage, ImageAttachment } from '../../../../shared/types';
 import { Brand } from '../Brand';
@@ -27,16 +27,24 @@ export function ImagePreview({ image }: { image: ImageAttachment }) {
 }
 function CodeBlock({ children, className, ...props }: ComponentPropsWithoutRef<'code'>) {
   const [copied, setCopied] = useState(false), [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
   const code = String(children ?? '');
   const language = /language-(\S+)/.exec(className || '')?.[1];
   const block = Boolean(language) || code.includes('\n');
   if (!block) return <code className={className} {...props}>{children}</code>;
   return <span className="code-block"><span className="code-toolbar"><span>{language || 'code'}</span><button onClick={async () => { try { await unwrap(window.novi.copyText(code.replace(/\n$/, ''))); setCopied(true); setFailed(false); } catch { setFailed(true); } }} aria-label="Copy code">{copied ? <Check size={13} /> : <Copy size={13} />}{failed ? 'Select to copy' : copied ? 'Copied' : 'Copy'}</button></span><code className={className}>{children}</code></span>;
 }
-export function Message({ message, generating, displayName }: { message: ChatMessage; generating: boolean; displayName: string }) {
+// Module scope: a new map per render gives each renderer a new component type, remounting every code block.
+const markdownComponents: Components = { code: ({ node: _node, ...props }) => <CodeBlock {...props} />, img: () => null, a: ({ children }) => <span className="markdown-link">{children}</span> };
+// Streaming replaces only the active message object, so memo skips re-parsing finished messages.
+export const Message = memo(function Message({ message, generating, displayName }: { message: ChatMessage; generating: boolean; displayName: string }) {
   return <article className={`message ${message.role}`}><div className="message-avatar">{message.role === 'assistant' ? <Brand compact /> : <UserRound size={17} />}</div><div className="message-body"><div className="message-heading"><strong>{message.role === 'assistant' ? 'Novi' : displayName}</strong>{message.model && <span className="message-model" title={message.providerName}>{message.model}</span>}<time dateTime={new Date(message.createdAt).toISOString()}>{new Date(message.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div>
     {!!message.images?.length && <div className="message-images">{message.images.map((image) => <ImagePreview key={image.id} image={image} />)}</div>}
-    {message.role === 'assistant' ? <div className="markdown"><Markdown skipHtml components={{ code: ({ node: _node, ...props }) => <CodeBlock {...props} />, img: () => null, a: ({ children }) => <span className="markdown-link">{children}</span> }}>{message.content}</Markdown></div> : <p className="user-content">{message.content}</p>}
+    {message.role === 'assistant' ? <div className="markdown"><Markdown skipHtml components={markdownComponents}>{message.content}</Markdown></div> : <p className="user-content">{message.content}</p>}
     {generating && !message.content && <div className="activity" role="status" aria-label="Novi is thinking"><span /><span /><span /></div>}
     {message.error && <div className="error message-error" role="alert">{message.error}</div>}
     {message.status === 'stopped' && <small className="muted">Response stopped</small>}
@@ -51,4 +59,4 @@ export function Message({ message, generating, displayName }: { message: ChatMes
       <dl>{(['input', 'cachedInput', 'cacheWrite', 'reasoning', 'output'] as const).map(key => <div key={key}><dt>{({ input: 'Input tokens', cachedInput: 'Cached input tokens', cacheWrite: 'Cache write tokens', reasoning: 'Reasoning tokens', output: 'Output tokens' })[key]}</dt><dd>{message.latency?.usage?.[key] ?? 'Not reported'}</dd></div>)}</dl>
     </details>}
   </div></article>;
-}
+});
