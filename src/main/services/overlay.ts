@@ -5,6 +5,7 @@ export class OverlayService {
   private overlayWindow: BrowserWindow | null = null;
   private currentDisplayId: number | null = null;
   private contentProtectionEnabled = false;
+  private lastContent: OverlayEvent | null = null;
 
   setContentProtection(enable: boolean): void {
     this.contentProtectionEnabled = enable;
@@ -79,13 +80,18 @@ export class OverlayService {
     const targetUrl = rendererUrl.includes('#') ? rendererUrl : `${rendererUrl}#/overlay`;
     void this.overlayWindow.loadURL(targetUrl);
 
-    this.overlayWindow.on('closed', () => {
+    const win = this.overlayWindow;
+    // A late event from a replaced window must not orphan the current overlay.
+    win.on('closed', () => {
+      if (this.overlayWindow !== win) return;
       this.overlayWindow = null;
       this.currentDisplayId = null;
+      this.lastContent = null;
     });
   }
 
   closeOverlay(): void {
+    this.lastContent = null;
     if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
       this.overlayWindow.close();
       this.overlayWindow = null;
@@ -106,6 +112,12 @@ export class OverlayService {
   }
 
   forwardToAllWindows(event: OverlayEvent): void {
+    // The overlay page loads after openOverlay resolves, so content sent on open can arrive before it listens.
+    if (event.type === 'request-content') {
+      if (this.lastContent) this.sendToOverlay(this.lastContent);
+      return;
+    }
+    if (event.type === 'set-content') this.lastContent = event;
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) {
         win.webContents.send('overlay-event', event);

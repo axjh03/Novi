@@ -147,6 +147,8 @@ export function EyeTrackingOverlay() {
         setSticky((prev) => ({ ...prev, visible: false }));
       }
     });
+    // Content sent while this window was loading was missed; ask for the latest.
+    void window.novi.sendOverlayEvent({ type: 'request-content' });
 
     return () => {
       unsubStealth();

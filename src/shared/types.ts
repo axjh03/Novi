@@ -118,6 +118,7 @@ export type OverlayEvent =
   | { type: 'gaze'; x: number; y: number; confidence: number }
   | { type: 'dwell'; x: number; y: number; content?: string }
   | { type: 'set-content'; title?: string; text: string }
+  | { type: 'request-content' }
   | { type: 'set-indicator'; show: boolean }
   | { type: 'calibration-start'; points: Array<{ x: number; y: number }> }
   | { type: 'calibration-step'; index: number; x?: number; y?: number }

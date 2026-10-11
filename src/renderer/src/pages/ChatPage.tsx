@@ -68,7 +68,8 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const et = useEyeTracking();
   const [showDebugDot, setShowDebugDot] = useState(false);
 
-  // In behavioral mode, automatically route assistant answers into the HUD
+  // In behavioral mode, automatically route assistant answers into the HUD.
+  // Depend on stable fields: `et` is a new object on every gaze update (up to 30/s).
   useEffect(() => {
     if (!['behavioral', 'recruiter', 'technical'].includes(appMode)) return;
     const messages = chat.selected?.messages || [];
@@ -79,7 +80,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
         `${SESSION_MODES.find((mode) => mode.id === appMode)?.name} ${appMode === 'behavioral' ? `(${behavioralFramework.toUpperCase()})` : ''}`
       );
     }
-  }, [appMode, chat.selected?.messages, behavioralFramework, et]);
+  }, [appMode, chat.selected?.messages, behavioralFramework, et.sendStickyToOverlay, et.state, et.overlayActive]);
 
   const handleEyeToggle = useCallback(async () => {
     if (et.state === 'idle' || et.state === 'error') {
