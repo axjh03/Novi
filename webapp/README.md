@@ -70,7 +70,7 @@ A unique nullable `activeSlot` in `AccessSession` atomically reserves each deskt
 
 ## API management
 
-Owners can add multiple keys per provider, rename/rotate/remove them, and specify a model. Available providers: OpenAI, Anthropic, Gemini, DeepSeek, Groq, Mistral, and xAI. API secrets use AES-256-GCM with a separate 32-byte server key. Portal responses contain metadata and the last four characters only.
+Owners can add multiple keys per provider, rename/rotate/remove them, and specify a model. Available providers: OpenAI, Anthropic, Gemini, and Kimi (Moonshot AI). Keys saved for retired providers are no longer delivered to desktop accounts. API secrets use AES-256-GCM with a separate 32-byte server key. Portal responses contain metadata and the last four characters only.
 
 Standalone desktop accounts inherit the standalone owner's keys. Sub-corporation desktop accounts inherit both sub-corporation and parent corporation keys. Credentials are delivered over the authenticated desktop API into Electron main-process memory; the renderer receives only nickname, owner, provider, model, and availability. Settings has separate General and API management tabs. Desktop users can enable/disable connections and select one active connection; they cannot add/edit/delete owner keys or change destinations. Changes sync on heartbeat or Refresh. This is a managed credential distribution design; a server-side inference gateway would be needed if secrets must never reach the user's machine.
 
