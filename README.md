@@ -60,7 +60,7 @@ Optional seeded desktop accounts are `standalone.desktop` and `studio.desktop`, 
 
 The desktop reads `NOVI_ACCESS_URL` from its launch environment (defaults to `http://localhost:3000`). On PowerShell: `$env:NOVI_ACCESS_URL='https://your-access-server.example'`. Production servers require HTTPS. Normal sign-out releases the account immediately; crashed devices lose their lease after 90 seconds. The server must be reachable while using the app.
 
-The managed provider catalog supports OpenAI, Anthropic, Gemini, DeepSeek, Groq, Mistral, and xAI. Owners supply a model ID available to their provider account. Compatible providers use the existing Chat Completions transport; provider destinations are fixed by the server. Redirects are rejected.
+The managed provider catalog supports OpenAI, Anthropic, Gemini, and Kimi (Moonshot AI). Owners supply a model ID available to their provider account. Compatible providers use the existing Chat Completions transport; provider destinations are fixed by the server. Redirects are rejected.
 
 Image messages require a vision-capable model. Desktop accounts can select and disable connections; editing keys, destinations, and model IDs is restricted to the web owner portal.
 
@@ -165,6 +165,7 @@ To add a managed provider, extend the web catalog in `webapp/src/lib/access-poli
 - Markdown HTML is disabled. Remote Markdown images are not fetched, and response links are rendered as inert text so model output cannot trigger network requests.
 - Images are filtered by extension, signature, and native decoding. Up to six PNG/JPEG/WEBP images per message; 8 MB and 40 megapixels per image.
 - Messages and image data go directly to the selected provider when sending. Novi has no analytics, cloud storage, or background uploads. The chosen provider's own retention policy still applies.
+- To shorten the wait for an answer, Novi opens a connection to the selected provider shortly before a likely request (while you type, take a screenshot, stop listening, or send). This is an unauthenticated `GET …/models` request that carries no API key, message, or file content.
 - Technical development logs contain operation/error categories, not provider response bodies or credentials.
 
 ## Verification and current limits

@@ -57,6 +57,7 @@ const api: NoviAPI = {
   openAudioMidiSetup: () => ipcRenderer.invoke('open-audio-midi-setup'),
   send: (input) => ipcRenderer.invoke('send', input),
   stop: () => ipcRenderer.invoke('stop'),
+  warmConnection: () => ipcRenderer.invoke('warm-connection'),
   onChat: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, data: ChatEvent) => callback(data);
     ipcRenderer.on('chat-event', listener);

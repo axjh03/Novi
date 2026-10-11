@@ -20,6 +20,8 @@ import { PermissionService } from '../services/permissions';
 import { detectHardware, ModelManager } from '../services/localModels.mjs';
 import { InterviewService } from '../services/interviewService';
 import { RemoteCompanionService } from '../services/remoteCompanion';
+import { ConnectionWarmer, warmupUrl } from '../services/connectionWarmup';
+import { activeConnection } from '../../shared/providers';
 import { dirname, join } from 'node:path';
 
 export function registerIPC(
@@ -57,6 +59,16 @@ export function registerIPC(
   }
   const get = () => services ||= initialize();
   const requireNoContext = () => { if (get().context.session) throw new UserError('End this session before changing accounts or AI providers.'); };
+  const warmer = new ConnectionWarmer();
+  const warmBeforeAccessCheck = new Set(['send', 'initialize-context', 'start-context', 'start-empty-session', 'test-connection', 'capture-screen']);
+  // Opens a connection to the provider the next request will use. Sends no key or content.
+  function warmProvider() {
+    try {
+      const { auth, chat, context, storage } = get();
+      if (!auth.signedIn || chat.busy) return;
+      void warmer.warm(warmupUrl(context.currentConnection() ?? activeConnection(storage.current().settings)));
+    } catch { /* Warm-up is best effort. */ }
+  }
   async function snapshot(): Promise<Snapshot> {
     const { storage, auth, credentials } = get();
     const user = await auth.getCurrentUser();
@@ -92,12 +104,16 @@ export function registerIPC(
         if (get().interview.active && ['save-audio-recording', 'attach-audio-recording', 'transcribe-audio'].includes(channel)) {
           throw new UserError('Stop local listening before using cloud audio transcription or recording.');
         }
+        // Start the provider handshake before the access check so the two overlap.
+        if (warmBeforeAccessCheck.has(channel)) warmProvider();
         const publicChannels = [
           'session', 'sign-in', 'sign-out', 'minimize-window', 'maximize-window',
           'close-window', 'is-window-maximized', 'get-stealth-state', 'check-for-updates',
           'install-update', 'check-permissions', 'request-permissions',
           'get-saved-credentials', 'save-credentials', 'open-external', 'open-audio-midi-setup',
-          'get-remote-companion-status', 'toggle-remote-tunnel'
+          'get-remote-companion-status', 'toggle-remote-tunnel',
+          // Best effort and frequent: must never refresh, or sign out on, the managed session.
+          'warm-connection'
         ];
         if (!publicChannels.includes(channel)) {
           const accessStart = performance.now();
@@ -376,6 +392,7 @@ export function registerIPC(
     return chat.send(value, (data) => { if (!event.sender.isDestroyed()) event.sender.send('chat-event', data); }, timing).finally(() => event.sender.removeListener('destroyed', stop));
   });
   handle('stop', () => { get().storage.current(); get().chat.stop(); });
+  handle('warm-connection', () => { warmProvider(); });
   handle('get-monitors', () => get().overlay.getDisplays());
   handle('open-overlay', (value) => {
     const v = object(value);

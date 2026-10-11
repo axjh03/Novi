@@ -178,6 +178,7 @@ export interface NoviAPI {
   openAudioMidiSetup(): Promise<Result<void>>;
   send(input: SendInput): Promise<Result<void>>;
   stop(): Promise<Result<void>>;
+  warmConnection(): Promise<Result<void>>;
   onChat(callback: (event: ChatEvent) => void): () => void;
   getMonitors(): Promise<Result<MonitorDisplay[]>>;
   openOverlay(displayId: number): Promise<Result<void>>;

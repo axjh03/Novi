@@ -166,7 +166,8 @@ export async function desktop(req: Request) {
   const { account, session } = await authenticate(req);
   if (session.audience !== 'desktop') throw new AccessError('Desktop session required.', 403);
   const parents = await chain(prisma, account);
-  const credentials = await prisma.managedCredential.findMany({ where: { ownerId: { in: parents.slice(1).map(a => a.id) } } });
+  // Keys saved for providers since removed from the catalog are skipped instead of failing every desktop refresh.
+  const credentials = await prisma.managedCredential.findMany({ where: { ownerId: { in: parents.slice(1).map(a => a.id) }, provider: { in: Object.keys(providers) } } });
   const ipAddress = clientIp(req);
   await prisma.accessSession.update({ where: { id: session.id }, data: { lastSeenAt: new Date(), ...(ipAddress ? { ipAddress } : {}) } });
   return { user: { id: account.id, username: account.username, name: account.name }, license: await eligible(prisma, account), credentials: credentials.map(c => ({ id: c.id, name: c.nickname, ownerName: parents.find(a => a.id === c.ownerId)?.name, provider: providers[c.provider as keyof typeof providers].kind, baseUrl: providers[c.provider as keyof typeof providers].baseUrl, model: c.model, stream: true, apiKey: unseal(c.encryptedSecret) })) };

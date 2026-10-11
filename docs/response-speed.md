@@ -10,6 +10,16 @@ Main and renderer consoles emit `[Novi latency]` records containing fixed stage 
 
 Usage values are provider-reported, never estimated; absent values remain **Not reported**, distinct from zero. Anthropic input includes ordinary input plus cache reads and cache writes. Gemini candidate output and thoughts are reported separately; OpenAI reasoning is a subset of output. Compatible endpoints are parsed when they return usage, without forcing unsupported streaming options. Stable instructions occupy native system/instruction fields before changing turns. This does not guarantee a cache hit. No local cross-conversation prompt cache is introduced.
 
+## Connection warm-up
+
+Node's `fetch` in the main process closes idle sockets after about 4 seconds, so a question asked after a pause used to pay a new DNS, TCP, and TLS handshake. Main now opens the provider connection just before a likely request (`src/main/services/connectionWarmup.ts`):
+
+- **When:** while the user types in the composer, when listening stops, on screenshot capture, and at send. At send, the warm-up starts before the access check, so the handshake overlaps that request. Live transcript updates do not trigger it.
+- **What:** an unauthenticated `GET {provider base URL}/models` to the connection the next request will use, which is the context session's connection or the active one. No API key, message, or file content is sent; the small error response is read and discarded so the socket returns to the pool. `HEAD` is not used because providers answer it with `Connection: close`.
+- **Limits:** at most one warm-up per provider origin every 3 seconds, none while a response is streaming, HTTPS (or HTTP to a loopback host) only, and failures are ignored. The IPC channel never refreshes or ends the managed session.
+
+Measured on one broadband connection (unauthenticated probes, Oct 2026), a reused connection saved about 66 ms (Anthropic), 80 ms (Gemini), 100 ms (OpenAI), and 0.9 s (Kimi). Savings grow with network latency. Answer quality and token usage are unchanged. The real request reuses the socket only if it starts after the warm-up response arrives, so a send immediately after an unrelated warm-up can still open a new connection.
+
 ## Context
 
 Full context remains the default while quality is evaluated. **Model roles and context → Use compact context** opts into a recent-history window plus exact matching older exchanges and source paragraphs. Pinned constraints are included verbatim on every request. The original problem, latest question, selected exchanges, and fenced code are never cut in half. Saved histories are not edited by selection.
