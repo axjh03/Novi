@@ -49,7 +49,7 @@ export default function PricingPage() {
           </article>
         </section>
 
-        <p className={styles.bulk}><strong>Buying in bulk?</strong> Eligible bulk purchases can receive up to 40% off. Contact us for a quote.</p>
+        <p className={styles.bulk}><strong>Buying in bulk?</strong> Eligible bulk purchases can receive up to 40% off. <a href="mailto:getnoviapp@outlook.com?subject=Interested%20in%20Novi%20bulk%20licensing">Contact us</a> for a quote.</p>
 
         <section className={styles.terms} aria-labelledby="license-details">
           <div>
