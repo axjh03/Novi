@@ -79,12 +79,16 @@ export class ManagedAuthService {
     try {
       response = await fetch(`${this.baseUrl}/${path}`, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(path === 'logout' ? 3000 : 12_000), redirect: 'error' });
     } catch { throw new UserError('Cannot reach the access server. Reconnect to continue.'); }
-    const result = await response.json() as { data: T; error?: string };
+    // Proxies, gateways and captive portals can answer with HTML; never surface a raw JSON parse error.
+    const result: unknown = await response.json().catch(() => null);
+    const valid = typeof result === 'object' && result !== null && !Array.isArray(result);
+    const error = valid && 'error' in result && typeof result.error === 'string' ? result.error : '';
     if (!response.ok) {
       if ([401, 403].includes(response.status) && path !== 'login') this.clear();
-      throw new UserError(result.error || 'Access request failed.');
+      throw new UserError(error || 'Access request failed.');
     }
-    return result.data;
+    if (!valid || !('data' in result)) throw new UserError('The access server returned an unexpected response. Try again shortly.');
+    return result.data as T;
   }
   private clear() {
     this.remoteFiles.stop();

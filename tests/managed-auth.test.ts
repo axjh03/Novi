@@ -118,3 +118,37 @@ test('managed auth saves, retrieves, and clears credentials across sign-out', as
   restarted.setSavedCredentials(null);
   assert.equal(restarted.getSavedCredentials(), null);
 });
+
+test('managed auth reports HTML gateway and captive-portal replies without raw JSON parse errors', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'novi-html-test-'));
+  const keychain = { isEncryptionAvailable: () => true, getSelectedStorageBackend: () => 'test', encryptString: (value: string) => Buffer.from(value), decryptString: (value: Buffer) => value.toString() };
+  const { ManagedAuthService } = tsxRequire('../src/main/services/managedAuth.ts', import.meta.url);
+  const { CredentialStore } = tsxRequire('../src/main/services/credentials.ts', import.meta.url);
+  const { Storage } = tsxRequire('../src/main/services/storage.ts', import.meta.url);
+  const storage = new Storage(directory), credentials = new CredentialStore(directory);
+  const auth = new ManagedAuthService(storage, credentials, keychain);
+  let reply: 'json' | 'gateway' | 'portal' = 'json';
+  // Sign-in starts the remote file poller; stop it before removing the directory, even if an assertion fails.
+  t.after(async () => {
+    reply = 'json';
+    if (auth.signedIn) await auth.signOut();
+    rmSync(directory, { recursive: true, force: true });
+  });
+  const html = '<!DOCTYPE html><html><body>Bad gateway</body></html>';
+  t.mock.method(globalThis, 'fetch', async (url: string) => {
+    if (url.endsWith('/login')) return Response.json({ data: { token: 'jwt-token' } });
+    if (url.endsWith('/logout')) return Response.json({ data: {} });
+    if (reply === 'gateway') return new Response(html, { status: 502, headers: { 'Content-Type': 'text/html' } });
+    if (reply === 'portal') return new Response(html, { status: 200, headers: { 'Content-Type': 'text/html' } });
+    return Response.json({ data: { user: { id: 'u1', username: 'html.user', name: 'HTML User' }, license: { key: 'KEY', expiresAt: '2099-01-01' }, credentials: [] } });
+  });
+  await auth.signIn('html.user', 'secret-pass-123');
+  reply = 'gateway';
+  const gateway = await auth.refresh(true).then(() => null, (error: Error) => error);
+  assert.equal(gateway?.message, 'Access request failed.');
+  assert.equal(auth.signedIn, true, 'a gateway error is not a revocation');
+  reply = 'portal';
+  const portal = await auth.refresh(true).then(() => null, (error: Error) => error);
+  assert.match(portal?.message ?? '', /unexpected response/);
+  for (const error of [gateway, portal]) assert.doesNotMatch(error?.message ?? '', /JSON|Unexpected token/);
+});
