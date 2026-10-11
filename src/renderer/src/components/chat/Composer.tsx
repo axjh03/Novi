@@ -46,6 +46,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
   const localAudio = useRef<InterviewAudio | null>(null);
   const unsubscribeInterview = useRef<(() => void) | null>(null);
   const depth = useRef(0);
+  const lastWarm = useRef(0);
 
   const {
     pendingAttachment,
@@ -70,6 +71,14 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
     };
   }, []);
 
+  // A send is likely soon: let main open the provider connection ahead of it (main throttles too).
+  function warmConnection() {
+    const now = Date.now();
+    if (now - lastWarm.current < 1000) return;
+    lastWarm.current = now;
+    void window.novi.warmConnection().catch(() => {});
+  }
+
   function updateDraft(segment: TranscriptSegment) {
     if (!mounted.current || segment.sessionId !== sessionId.current) return;
     const timing = listeningTiming.current.get(segment.source);
@@ -87,6 +96,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
   }
 
   async function stopListening() {
+    warmConnection();
     setLocalStopping(true);
     try {
       await localAudio.current?.stop();
@@ -349,6 +359,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
             draft.current.edit(e.target.value);
             textRef.current = e.target.value;
             setText(e.target.value);
+            if (e.target.value.trim()) warmConnection();
             e.target.style.height = 'auto';
             e.target.style.height = `${Math.min(e.target.scrollHeight, 180)}px`;
           }}

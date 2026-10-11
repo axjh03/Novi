@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ContextFolder, ContextSession, SavedContext } from '../../shared/types';
+import type { ContextFolder, ContextSession, ProviderConnection, SavedContext } from '../../shared/types';
 import { activeConnection } from '../../shared/providers';
 import { Storage } from './storage';
 import { object, text, UserError } from './validation';
@@ -83,6 +83,10 @@ export class ContextService {
   assertActive(): ContextSession {
     if (!this.session || this.owner !== this.storage.current().id) throw new UserError('Start a context session first.');
     return this.session;
+  }
+  // Like assertActive(), but returns undefined instead of throwing when no owned session is active.
+  currentConnection(): ProviderConnection | undefined {
+    return this.session && this.owner === this.storage.current().id ? this.session.connection : undefined;
   }
   completeInitialization(): void {
     const session = this.assertActive();
