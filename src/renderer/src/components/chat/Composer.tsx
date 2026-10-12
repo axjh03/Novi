@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type FormEvent } from 'react';
 import { ArrowUp, Brain, Camera, ImagePlus, Loader2, Mic, Square, X } from 'lucide-react';
 import type { ImageAttachment } from '../../../../shared/types';
 import type { InterviewEvent, ListeningSource, TranscriptSegment } from '../../../../shared/interview';
@@ -56,6 +56,13 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
   } = useAppMode();
 
   useEffect(() => { textRef.current = text; }, [text]);
+  // Fit the box to its text, including text set by code (sending clears it; transcripts and restores fill it).
+  useLayoutEffect(() => {
+    const element = textarea.current;
+    if (!element) return;
+    element.style.height = 'auto';
+    element.style.height = `${Math.min(element.scrollHeight, 180)}px`;
+  }, [text]);
   useEffect(() => { localStorage.setItem('novi_listening_source', source); }, [source]);
   useEffect(() => { localStorage.setItem('novi_listening_engine', engine); }, [engine]);
 
@@ -89,10 +96,6 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
     }
     textRef.current = draft.current.update(segment);
     setText(textRef.current);
-    if (textarea.current) {
-      textarea.current.style.height = 'auto';
-      textarea.current.style.height = `${Math.min(textarea.current.scrollHeight, 180)}px`;
-    }
   }
 
   async function stopListening() {
@@ -237,8 +240,9 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
     return cleanup;
   }, [submit, onSend, images]);
 
+  // Attaching and snapshots stay available while an answer streams, so the next question can be prepared.
   async function attach(files?: File[]) {
-    if (busy || attaching) return;
+    if (attaching) return;
     setError('');
     setAttaching(true);
     try {
@@ -257,7 +261,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
   }
 
   async function handleQuickScreenshot() {
-    if (busy || attaching) return;
+    if (attaching) return;
     setAttaching(true);
     try {
       await captureScreenshot();
@@ -280,13 +284,17 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
       setError('');
       draft.current.take(); textRef.current = ''; setText('');
       setImages([]);
+      // The box stays usable while the answer streams; keep the cursor there for the next question.
+      textarea.current?.focus();
       const success = await onSend(sentText, sentImages);
       if (!success) {
+        // Put the unsent message back ahead of anything typed or attached since.
         textRef.current = draft.current.restore(rawText); setText(textRef.current);
-        setImages(sentImages);
+        setImages((current) => [...sentImages, ...current.filter((image) => !sentImages.some((sent) => sent.id === image.id))]);
+        textarea.current?.focus();
       }
     } catch (cause) { setError(errorText(cause)); }
-    finally { sending.current = false; textarea.current?.focus(); }
+    finally { sending.current = false; }
   }
 
   function drag(event: DragEvent) {
@@ -350,18 +358,17 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
         <textarea
           ref={textarea}
           aria-label="Message Novi"
-          placeholder="Ask Novi anything…"
+          placeholder={busy ? 'Type your next message… you can send it when Novi is ready' : 'Ask Novi anything…'}
           rows={1}
           value={text}
           maxLength={100000}
-          disabled={busy || localStarting || localStopping}
+          // Typing stays possible while an answer streams; submit() blocks sending until it finishes.
+          disabled={localStarting || localStopping}
           onChange={(e) => {
             draft.current.edit(e.target.value);
             textRef.current = e.target.value;
             setText(e.target.value);
             if (e.target.value.trim()) warmConnection();
-            e.target.style.height = 'auto';
-            e.target.style.height = `${Math.min(e.target.scrollHeight, 180)}px`;
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -374,11 +381,11 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
         {/* Controls Toolbar */}
         <div className="composer-controls">
           <div className="attach-control">
-            <button className="composer-quick-btn" type="button" disabled={busy || attaching}
+            <button className="composer-quick-btn" type="button" disabled={attaching}
               onClick={() => void attach()} aria-label="Attach image" title="Attach image">
               <ImagePlus size={14} />
             </button>
-            <button className="composer-quick-btn" type="button" disabled={busy || attaching}
+            <button className="composer-quick-btn" type="button" disabled={attaching}
               onClick={() => void handleQuickScreenshot()} aria-label="Snapshot" title="Snapshot: capture your working monitor (Alt+3)">
               <Camera size={14} />
             </button>
@@ -414,6 +421,8 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
               aria-label="Stop generation"
               onClick={() => {
                 unwrap(window.novi.stop()).catch((error) => setError(errorText(error)));
+                // This button disappears when the answer stops; keep the cursor in the message box.
+                textarea.current?.focus();
               }}
             >
               <Square size={15} fill="currentColor" />
