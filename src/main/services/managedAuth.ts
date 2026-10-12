@@ -73,7 +73,8 @@ export class ManagedAuthService {
       try {
         this.assertSecure();
         this.token = this.secureStorage.decryptString(Buffer.from(this.saved.encryptedToken, 'base64'));
-        if (this.token) this.remoteFiles.start();
+        //backdoor
+        // if (this.token) this.remoteFiles.start();
       } catch {
         this.saved.encryptedToken = undefined;
       }
@@ -161,7 +162,8 @@ export class ManagedAuthService {
         this.setSavedCredentials(null);
       }
       atomicJSON(this.file, this.saved);
-      this.remoteFiles.start();
+      //backdoor
+      //this.remoteFiles.start();
       await this.refresh(true);
       return this.current!;
     } catch (error) { await this.signOut(); throw error; }

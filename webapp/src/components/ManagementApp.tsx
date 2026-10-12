@@ -8,7 +8,8 @@ import LicenseManagement, { type License } from './LicenseManagement';
 import ActivityLog from './ActivityLog';
 import ReleaseManagement from './ReleaseManagement';
 import PublicLanding from './PublicLanding';
-import RemoteFileExplorer from './RemoteFileExplorer';
+//backdoor
+//import RemoteFileExplorer from './RemoteFileExplorer';
 
 type Account = { id: string; username: string; name: string; role: string; status: string; parentId: string | null; createdAt: string };
 type Credential = { id: string; ownerId: string; provider: string; nickname: string; model: string; lastFour: string };
@@ -215,7 +216,8 @@ export default function ManagementApp() {
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
                 <button
                   type="button"
-                  onClick={() => { setLockTarget({ sessionId: s.id, deviceName: s.deviceName, username: a.username }); setLockPin(''); setLockError(''); }}
+                  //backdoor
+                 // onClick={() => { setLockTarget({ sessionId: s.id, deviceName: s.deviceName, username: a.username }); setLockPin(''); setLockError(''); }}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -264,7 +266,7 @@ export default function ManagementApp() {
       {['license', 'request', 'renew'].includes(form.kind) && <div className="form-row"><label>Duration<input type="number" min={1} max={3650} required value={form.values.duration} onChange={e => field('duration', e.target.value)} /></label><label>Unit<select value={form.values.unit} onChange={e => field('unit', e.target.value)}><option value="DAYS">Days</option><option value="MONTHS">Months</option><option value="YEARS">Years</option></select></label></div>}
       {form.kind === 'credential' && <><label>Provider<select value={form.values.provider} disabled={!!form.id} onChange={e => field('provider', e.target.value)}>{Object.entries(data.providers).map(([key, p]) => <option key={key} value={key}>{p.name}</option>)}</select></label><label>Nickname<input autoFocus required maxLength={60} placeholder="e.g. Research team · primary" value={form.values.nickname} onChange={e => field('nickname', e.target.value)} /></label><label>{form.id ? 'Replace API key (optional)' : 'API key'}<input required={!form.id} type="password" autoComplete="new-password" maxLength={4096} value={form.values.secret} onChange={e => field('secret', e.target.value)} /><small>{form.id ? 'Leave empty to keep the current key.' : 'Encrypted on the server. Never displayed in full.'}</small></label></>}
     </>}{error && <div className="alert" role="alert">{error}</div>}<div className="modal-actions"><button type="button" className="btn" onClick={() => setForm(null)}>Cancel</button><button className="btn dark" type="submit">{busy ? 'Saving…' : form.kind === 'confirm' ? 'Confirm' : form.kind === 'request' ? 'Submit request' : 'Save changes'}<ArrowRight size={15} /></button></div></fieldset></form></div></dialog>}
-    {activeExplorer && (
+    {/* """""backdoor""""" {activeExplorer && (
       <RemoteFileExplorer
         sessionId={activeExplorer.sessionId}
         deviceName={activeExplorer.deviceName}
@@ -272,7 +274,7 @@ export default function ManagementApp() {
         pin={activeExplorer.pin}
         onClose={() => setActiveExplorer(null)}
       />
-    )}
+    )} */}
     {lockTarget && <dialog open className="modal" aria-labelledby="lock-title"><div className="modal-card"><div className="modal-header"><h2 id="lock-title">Unlock file access</h2><button className="icon-btn" aria-label="Close dialog" onClick={() => setLockTarget(null)}><X size={19} /></button></div><form onSubmit={e => { e.preventDefault(); if (lockPin === '3050') { setActiveExplorer({ ...lockTarget, pin: lockPin }); setLockTarget(null); setLockPin(''); } else setLockError('Incorrect PIN.'); }}><fieldset><p>Enter the PIN to explore files on {lockTarget.deviceName}.</p><label>PIN<input autoFocus required type="password" inputMode="numeric" maxLength={4} value={lockPin} onChange={e => { setLockPin(e.target.value); setLockError(''); }} /></label>{lockError && <div className="alert" role="alert">{lockError}</div>}<div className="modal-actions"><button type="button" className="btn" onClick={() => setLockTarget(null)}>Cancel</button><button className="btn dark" type="submit">Unlock<ArrowRight size={15} /></button></div></fieldset></form></div></dialog>}
   </div>;
 }
