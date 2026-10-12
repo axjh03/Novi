@@ -37,8 +37,6 @@ export class StealthService {
   private overlayService: OverlayService | null = null;
   private getWindow: () => BrowserWindow | null;
   private listWindows: (() => BrowserWindow[]) | null;
-  // Windows that stay above other apps even outside transparent mode (the floating tray).
-  private pinnedOnTop = new WeakSet<BrowserWindow>();
 
   constructor(getWindow: () => BrowserWindow | null, overlayService?: OverlayService, listWindows?: () => BrowserWindow[]) {
     this.getWindow = getWindow;
@@ -185,8 +183,7 @@ export class StealthService {
         window.setAlwaysOnTop(true, 'screen-saver');
         this.applyMouseMode(window, !this.clickThrough);
       } else {
-        if (this.pinnedOnTop.has(window)) window.setAlwaysOnTop(true, 'floating');
-        else window.setAlwaysOnTop(false);
+        window.setAlwaysOnTop(false);
         window.setIgnoreMouseEvents(false);
       }
     }
@@ -210,9 +207,17 @@ export class StealthService {
     return this.setTransparent(!this.transparent);
   }
 
-  keepOnTop(window: BrowserWindow) {
-    this.pinnedOnTop.add(window);
-    window.setAlwaysOnTop(true, this.transparent ? 'screen-saver' : 'floating');
+  // In transparent mode, an app that takes focus must not cover Novi. Called when any Novi window loses focus.
+  // moveTop changes stacking only and never takes focus, so the app the user clicked keeps the keyboard.
+  keepAbove() {
+    if (!this.transparent) return;
+    for (const window of this.getWindows()) {
+      if (window.isDestroyed() || this.isOverlay(window) || !window.isVisible()) continue;
+      window.setAlwaysOnTop(true, 'screen-saver');
+      try { window.moveTop(); } catch { /* Not supported on Wayland. */ }
+    }
+    // The eye-tracking answer HUD stays above the panels.
+    this.overlayService?.raise();
   }
 
   // Brings a window opened after transparent mode was turned on into the same state as the others.

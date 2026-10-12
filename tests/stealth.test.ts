@@ -79,11 +79,13 @@ test('detached viewers accept scrolling while the main window is click-through',
   finally { stealth.cleanup(); }
 });
 
-function fakeWindow(url = 'file:///app/index.html') {
-  const state = { protected: false, onTop: false, level: '' as string | undefined, ignored: false };
+function fakeWindow(url = 'file:///app/index.html', raised: string[] = [], name = url) {
+  const state = { protected: false, onTop: false, level: '' as string | undefined, ignored: false, visible: true };
   const window: any = {
     state,
     isDestroyed: () => false,
+    isVisible: () => state.visible,
+    moveTop: () => { raised.push(name); },
     setContentProtection: (value: boolean) => { state.protected = value; },
     setAlwaysOnTop: (value: boolean, level?: string) => { state.onTop = value; state.level = value ? level : undefined; },
     setIgnoreMouseEvents: (ignore: boolean) => { state.ignored = ignore; },
@@ -109,22 +111,41 @@ test('transparent mode leaves the eye-tracking overlay in charge of its own clic
   } finally { stealth.cleanup(); }
 });
 
-test('the floating tray follows transparent mode and click-through, and stays on top afterwards', () => {
+test('the floating tray follows transparent mode and click-through, and is an ordinary window otherwise', () => {
   const main = fakeWindow(), tray = fakeWindow('about:blank');
   const stealth = new StealthService(() => main, undefined, () => [main, tray]);
   try {
-    stealth.keepOnTop(tray);
-    assert.deepEqual([tray.state.onTop, tray.state.level], [true, 'floating']);
+    assert.equal(tray.state.onTop, false, 'outside transparent mode other apps may cover the tray');
     const on = stealth.setTransparent(true);
-    assert.deepEqual([tray.state.protected, tray.state.level], [true, 'screen-saver']);
+    assert.deepEqual([tray.state.protected, tray.state.onTop, tray.state.level], [true, true, 'screen-saver']);
     assert.equal(tray.state.ignored, on.clickThrough);
     const toggled = stealth.toggleClickThrough();
     assert.equal(toggled.clickThrough, !on.clickThrough);
     assert.equal(tray.state.ignored, toggled.clickThrough, 'click-through applies to the tray as well as the main window');
     assert.equal(main.state.ignored, toggled.clickThrough);
     stealth.setTransparent(false);
-    assert.deepEqual([tray.state.onTop, tray.state.level, tray.state.ignored, tray.state.protected], [true, 'floating', false, false]);
+    assert.deepEqual([tray.state.onTop, tray.state.ignored, tray.state.protected], [false, false, false]);
     assert.deepEqual([main.state.onTop, main.state.ignored], [false, false]);
+  } finally { stealth.cleanup(); }
+});
+
+test('in transparent mode Novi pushes its windows back above an app that took focus, with the eye-tracking HUD on top', () => {
+  const raised: string[] = [];
+  const main = fakeWindow('file:///app/index.html', raised, 'main');
+  const tray = fakeWindow('about:blank', raised, 'tray');
+  const viewer = fakeWindow('file:///app/index.html#/code-viewer', raised, 'viewer');
+  const overlay = fakeWindow('file:///app/index.html#/overlay', raised, 'overlay-window');
+  viewer.state.visible = false;
+  const overlayService: any = { setContentProtection() {}, owns: (window: unknown) => window === overlay, raise: () => raised.push('overlay') };
+  const stealth = new StealthService(() => main, overlayService, () => [main, tray, viewer, overlay]);
+  try {
+    stealth.keepAbove();
+    assert.deepEqual(raised, [], 'outside transparent mode nothing is raised');
+    stealth.setTransparent(true);
+    tray.state.onTop = false;
+    stealth.keepAbove();
+    assert.deepEqual(raised, ['main', 'tray', 'overlay'], 'visible panels first, hidden viewer skipped, overlay raised by its own service last');
+    assert.deepEqual([tray.state.onTop, tray.state.level], [true, 'screen-saver'], 'the top-most level is restored too');
   } finally { stealth.cleanup(); }
 });
 

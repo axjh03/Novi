@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react';
-import { ArrowUp, Brain, Camera, ImagePlus, Mic, Square, X } from 'lucide-react';
+import { ArrowUp, Brain, Camera, ImagePlus, Loader2, Mic, Square, X } from 'lucide-react';
 import type { ImageAttachment } from '../../../../shared/types';
 import type { InterviewEvent, ListeningSource, TranscriptSegment } from '../../../../shared/interview';
 import { LiveTranscriptDraft, listeningSources } from '../../../../shared/interview';
@@ -379,21 +379,23 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
               <ImagePlus size={14} />
             </button>
             <button className="composer-quick-btn" type="button" disabled={busy || attaching}
-              onClick={() => void handleQuickScreenshot()} title="Snap entire screen (Alt+3)">
-              <Camera size={14} /><span>Snapshot</span>
+              onClick={() => void handleQuickScreenshot()} aria-label="Snapshot" title="Snapshot: capture your working monitor (Alt+3)">
+              <Camera size={14} />
             </button>
 
             {appMode === 'system-design' && <button type="button" className="composer-quick-btn" disabled={busy || attaching || localStarting || localStopping} onClick={() => void submit(undefined, true)}>Draw / update diagram</button>}
             <div className="composer-audio-source composer-local-control">
               <button type="button" className={`composer-quick-btn ${localActive ? 'recording' : ''}`} onClick={() => void toggleListening()}
-                disabled={localStarting || localStopping}>
-                <Mic size={14} /><span>{localStarting ? 'Starting…' : localStopping ? 'Stopping…' : localActive ? 'Stop listening' : 'Start listening'}</span>
+                disabled={localStarting || localStopping} aria-pressed={localActive}
+                aria-label={localStarting ? 'Starting listening' : localStopping ? 'Stopping listening' : localActive ? 'Stop listening' : 'Start listening'}
+                title={`${localStarting ? 'Starting…' : localStopping ? 'Stopping…' : localActive ? 'Stop listening' : 'Start listening'} (Alt+A)`}>
+                {localStarting || localStopping ? <Loader2 size={14} className="spin" /> : <Mic size={14} />}
                 {localActive && <AudioMeter level={localLevel} />}
               </button>
               <select aria-label="Audio input" value={source} disabled={localActive || localStarting || localStopping}
                 onChange={(event) => setSource(event.target.value as ListeningSource)}>
                 <option value="system">System audio</option>
-                <option value="both">Mic + system audio</option>
+                <option value="both">Mic + system</option>
                 <option value="microphone">Mic only</option>
               </select>
               <label className="transcription-engine" title="Audio transcription engine"><Brain size={15} />

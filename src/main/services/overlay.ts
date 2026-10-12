@@ -29,6 +29,12 @@ export class OverlayService {
     return this.overlayWindow !== null && this.overlayWindow === window;
   }
 
+  raise(): void {
+    const window = this.overlayWindow;
+    if (!window || window.isDestroyed() || !window.isVisible()) return;
+    try { window.moveTop(); } catch { /* Not supported on Wayland. */ }
+  }
+
   get activeDisplayId(): number | null {
     return this.overlayWindow && !this.overlayWindow.isDestroyed() ? this.currentDisplayId : null;
   }

@@ -59,8 +59,8 @@ export function registerIPC(
     return { storage, credentials, images, context, audio, transcription, localModels, interview, connections: new ConnectionService(storage, credentials), auth: new ManagedAuthService(storage, credentials), chat: new ChatService(storage, credentials, images, context), overlay, stealth, remoteCompanion };
   }
   const get = () => services ||= initialize();
-  // The floating tray stays above other apps and follows transparent mode like the main window.
-  const workspace = new WorkspaceService(getMainWindow, (tray) => { const { stealth } = get(); stealth.keepOnTop(tray); stealth.applyWindowState(tray); });
+  // The floating tray follows transparent mode and click-through like the main window.
+  const workspace = new WorkspaceService(getMainWindow, (tray) => get().stealth.applyWindowState(tray));
   const requireNoContext = () => { if (get().context.session) throw new UserError('End this session before changing accounts or AI providers.'); };
   const warmer = new ConnectionWarmer();
   const warmBeforeAccessCheck = new Set(['send', 'initialize-context', 'start-context', 'start-empty-session', 'test-connection', 'capture-screen']);
@@ -669,6 +669,7 @@ export function registerIPC(
   heartbeat.unref();
   app.on('browser-window-created', (_event, window) => {
     if (services?.stealth.getState().transparent) window.setContentProtection(true);
+    window.on('blur', () => services?.stealth.keepAbove());
     // Only closing the main window ends the session; the tray, code viewer and overlay can close on their own.
     window.on('close', () => {
       if (window === getMainWindow()) void endContext().catch(() => { });

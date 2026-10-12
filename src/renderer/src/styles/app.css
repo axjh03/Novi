@@ -3229,16 +3229,34 @@ html.novi-tray, html.novi-tray body { height: auto; min-height: 0; overflow: hid
 .tray-shell { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; }
 .tray-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-width: 0; }
 .tray-grip { display: inline-flex; align-items: center; align-self: stretch; padding: 0 2px; color: var(--subtle); cursor: grab; -webkit-app-region: drag; }
-.tray-shell .chat-mode-tabs { flex: 1 1 auto; order: 0; }
-.tray-shell .chat-mode-tabs .mode-tab-btn { min-height: 30px; padding: 5px 9px; }
-/* Keep the labels: four modes share the same icon. */
+.tray-shell .chat-mode-tabs { flex: 0 1 auto; order: 0; gap: 2px; }
+.tray-shell .chat-mode-tabs .mode-tab-btn { min-height: 30px; padding: 5px 8px; }
+/* Only the active mode shows its name (see ChatPage); keep it visible at every tray width. */
 html.novi-tray .chat-mode-tabs .mode-tab-btn span { display: inline; }
 .tray-shell .header-model-select-wrapper { min-width: 0; }
 .tray-shell .header-model-picker { max-width: 200px; }
 .tray-shell .eye-tracking-panel { flex: 0 0 auto; margin-left: auto; }
-.tray-shell .eye-tracking-toggle, .tray-shell .et-camera-btn { min-height: 30px; border-radius: 7px; background: var(--surface); }
+.tray-shell .eye-tracking-panel { gap: 4px; }
+.tray-shell .eye-tracking-toggle, .tray-shell .et-camera-btn { min-height: 30px; min-width: 30px; justify-content: center; border-radius: 7px; background: var(--surface); }
+.tray-shell .eye-tracking-toggle { gap: 5px; padding: 0 8px; }
+.tray-shell .eye-tracker-hud-btn { height: 30px; border-radius: 7px; padding: 0 8px; }
+.tray-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--muted); }
+.tray-icon-btn:hover { color: var(--text); background: var(--hover); }
+.tray-icon-btn.active { color: var(--accent); border-color: var(--accent); }
+.tray-tools { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.tray-shell .tray-tools .eye-tracking-panel { margin-left: 0; }
+.tray-shell .mode-tab-btn.active span { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Model roles and context: compact two-column form instead of the full-size app form controls. */
+.tray-options { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; max-height: 260px; overflow-y: auto; padding: 2px 2px 4px; }
+.tray-options > p, .tray-options > small, .tray-options > label:has(textarea), .tray-options > label:has(input[type="checkbox"]) { grid-column: 1 / -1; }
+.tray-options p { margin: 0; }
+.tray-options label { margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 11px; }
+.tray-options label:has(input[type="checkbox"]) { flex-direction: row; align-items: center; gap: 8px; }
+.tray-options select { min-height: 30px; padding: 4px 8px; font-size: 12px; }
+.tray-options textarea { min-height: 44px; font-size: 12px; }
 .tray-shell .behavioral-copilot-bar { padding: 0; border: 0; background: transparent !important; }
 .tray-shell .behavioral-framework-picker { margin: 0; font-size: 11px; }
+.tray-shell .behavioral-framework-picker select { min-height: 30px; }
 .tray-shell .dismissible, .tray-shell .request-options { margin: 0; }
 .tray-shell .composer { box-shadow: none; }
 .tray-status { color: var(--muted); font-size: 11px; }
@@ -3253,8 +3271,8 @@ html.novi-tray .chat-mode-tabs .mode-tab-btn span { display: inline; }
 .transparent-mode.clickthrough-on .tray-shell { border-color: rgba(245, 158, 11, 0.55); }
 .transparent-mode.clickthrough-off .tray-shell { border-color: var(--accent); }
 
-/* The docked output panel is narrow: the expanded sidebar overlays the conversation instead of squeezing it. */
-@media (max-width: 700px) {
+/* In the docked output panel the expanded sidebar overlays the conversation instead of squeezing it. */
+@media (max-width: 1000px) {
   .chat-layout, .chat-layout.sidebar-collapsed { grid-template-columns: 48px minmax(0, 1fr); position: relative; }
   .chat-layout > .chat-main, .chat-layout > .settings-page { grid-column: 2; }
   .chat-layout:not(.sidebar-collapsed) > .sidebar { position: absolute; inset: 0 auto 0 0; width: 244px; z-index: 30; box-shadow: 12px 0 32px #0005; }

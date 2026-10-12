@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Award, Code2, GripVertical, MessageSquare, PanelTop, X } from 'lucide-react';
-import type { ModelOption, Snapshot } from '../../../shared/types';
+import { Award, Code2, GripVertical, MessageSquare, Network, PanelTop, Phone, Settings2, Video, X, type LucideIcon } from 'lucide-react';
+import type { AppMode, ModelOption, Snapshot } from '../../../shared/types';
 import { Sidebar } from '../components/chat/Sidebar';
 import { Composer } from '../components/chat/Composer';
 import { Message } from '../components/chat/Message';
@@ -18,12 +18,18 @@ import { diagramBlocks } from '../../../shared/diagrams';
 import { BehavioralModeHUD } from '../components/BehavioralModeHUD';
 import { TrayPortal } from '../components/TrayPortal';
 
+// Each mode has its own icon so the tray can show only the active mode's name.
+const MODE_ICONS: Record<AppMode, LucideIcon> = {
+  normal: MessageSquare, recruiter: Phone, coding: Code2, technical: Video, 'system-design': Network, behavioral: Award,
+};
+
 export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSaved: (state: Snapshot) => void; onSignOut: () => void }) {
   const chat = useChat(state.conversations), [settings, setSettings] = useState(false), [deleting, setDeleting] = useState<string | null>(null);
   const [composerKey, setComposerKey] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   // The input controls live in a floating tray window; this window docks on the right as the output panel.
   const [trayOpen, setTrayOpen] = useState(true), [trayKey, setTrayKey] = useState(0);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   useEffect(() => {
     void unwrap(window.novi.setWorkspaceDocked(true)).catch(console.error);
     return () => { void unwrap(window.novi.setWorkspaceDocked(false)).catch(console.error); };
@@ -99,24 +105,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     }
   }, [et]);
 
-  const handleToggleEyeTrackingBehavioral = useCallback(async () => {
-    if (et.state === 'idle' || et.state === 'error') {
-      if (et.state === 'error') et.stop();
-      await et.start(et.selectedCameraId);
-      await et.openOverlay();
-      const messages = chat.selected?.messages || [];
-      const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
-      if (lastAssistant?.content.trim()) {
-        et.sendStickyToOverlay(
-          lastAssistant.content,
-          `${SESSION_MODES.find((mode) => mode.id === appMode)?.name} ${appMode === 'behavioral' ? `(${behavioralFramework.toUpperCase()})` : ''}`
-        );
-      }
-    } else {
-      et.stop();
-      await et.closeOverlay();
-    }
-  }, [et, chat.selected?.messages, behavioralFramework, appMode]);
 
   // ──────────────────────────────────────────────────────────────────────────
 
@@ -240,16 +228,14 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             <span className="tray-grip" title="Drag to move the tray" aria-hidden="true"><GripVertical size={15} /></span>
             <nav className="chat-mode-tabs" aria-label="Conversation mode">
               {SESSION_MODES.map(({ id: mode, name: label }) => {
-                const Icon = mode === 'coding' ? Code2 : mode === 'normal' ? MessageSquare : Award;
+                const Icon = MODE_ICONS[mode];
                 return (
                 <button key={mode} type="button" className={`mode-tab-btn ${appMode === mode ? 'active' : ''}`}
                   aria-label={label} title={label} aria-pressed={appMode === mode} onClick={() => setAppMode(mode)}>
-                  <Icon size={14} /><span>{label}</span>
+                  <Icon size={14} />{appMode === mode && <span>{label}</span>}
                 </button>
               ); })}
             </nav>
-          </div>
-          <div className="tray-row">
             <div className="header-model-select-wrapper">
               <span className="status-dot" />
               {enabledConnections.length > 1 && (
@@ -282,43 +268,45 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
                   </option>
                 ))}
               </select>
-              {(['fast', 'deep'] as const).map(role => <button type="button" key={role}
+              {/* Shown once a model is chosen for the role in Model roles and context. */}
+              {(['fast', 'deep'] as const).filter(role => roles?.[role]).map(role => <button type="button" key={role}
                 className="text-button" disabled={sidebarBusy || syncingModel || loadingModels || !availableModels.some(model => model.id === roles?.[role])}
-                aria-pressed={Boolean(roles?.[role] && connection?.model === roles[role])}
-                title={roles?.[role] ? `${role === 'fast' ? 'Fast' : 'Deep'}: ${roles[role]}` : `Choose a ${role} model in Model roles below`}
+                aria-pressed={connection?.model === roles![role]}
+                title={`${role === 'fast' ? 'Fast' : 'Deep'}: ${roles![role]}`}
                 onClick={() => void handleModelChange(connection!.id, roles![role])}>{role === 'fast' ? 'Fast' : 'Deep'}</button>)}
             </div>
-            {['behavioral', 'recruiter', 'technical'].includes(appMode) && (
-              <BehavioralModeHUD
-                showFramework={appMode === 'behavioral'}
-                framework={behavioralFramework}
-                onSelectFramework={setBehavioralFramework}
-                isEyeTrackingActive={et.state === 'running' || et.state === 'calibrating'}
-                onToggleEyeTracking={handleToggleEyeTrackingBehavioral}
-              />
+            {/* Eye tracking opens the screen HUD, and the effect above sends it the latest answer in interview modes. */}
+            {appMode === 'behavioral' && (
+              <BehavioralModeHUD framework={behavioralFramework} onSelectFramework={setBehavioralFramework} />
             )}
-            <EyeTrackingPanel
-              state={et.state}
-              error={et.error}
-              isCalibrated={et.isCalibrated}
-              showDebugDot={showDebugDot}
-              sensitivity={et.sensitivity}
-              onSetSensitivity={et.setSensitivity}
-              cameras={et.cameras}
-              selectedCameraId={et.selectedCameraId}
-              monitors={et.monitors}
-              selectedDisplayId={et.selectedDisplayId}
-              overlayActive={et.overlayActive}
-              onToggle={() => void handleEyeToggle()}
-              onToggleDebug={() => setShowDebugDot((v) => !v)}
-              onListCameras={et.listCameras}
-              onSwitchCamera={et.switchCamera}
-              onListMonitors={et.listMonitors}
-              onOpenOverlay={et.openOverlay}
-              onCloseOverlay={et.closeOverlay}
-              onSetMonitor={setWorkingMonitor}
-              onSendSticky={et.sendStickyToOverlay}
-            />
+            <div className="tray-tools">
+              <EyeTrackingPanel
+                state={et.state}
+                error={et.error}
+                isCalibrated={et.isCalibrated}
+                showDebugDot={showDebugDot}
+                sensitivity={et.sensitivity}
+                onSetSensitivity={et.setSensitivity}
+                cameras={et.cameras}
+                selectedCameraId={et.selectedCameraId}
+                monitors={et.monitors}
+                selectedDisplayId={et.selectedDisplayId}
+                overlayActive={et.overlayActive}
+                onToggle={() => void handleEyeToggle()}
+                onToggleDebug={() => setShowDebugDot((v) => !v)}
+                onListCameras={et.listCameras}
+                onSwitchCamera={et.switchCamera}
+                onListMonitors={et.listMonitors}
+                onOpenOverlay={et.openOverlay}
+                onCloseOverlay={et.closeOverlay}
+                onSetMonitor={setWorkingMonitor}
+                onSendSticky={et.sendStickyToOverlay}
+              />
+              <button type="button" className={`tray-icon-btn ${optionsOpen ? 'active' : ''}`} aria-label="Model roles and context"
+                title="Model roles and context" aria-expanded={optionsOpen} aria-controls="tray-options" onClick={() => setOptionsOpen((open) => !open)}>
+                <Settings2 size={15} />
+              </button>
+            </div>
           </div>
           {syncingModel && <div className="tray-status" role="status">Saving model selection…</div>}
           {chat.error && (
@@ -333,7 +321,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             busy={chat.busy || contextBusy || ending || syncingModel}
             onSend={(content, images) => chat.send({ content, imageIds: images.map((image) => image.id), compactContext, pinnedContext })}
           />
-          <details className="request-options"><summary>Model roles and context</summary>
+          {optionsOpen && <section id="tray-options" className="request-options tray-options" aria-label="Model roles and context">
             <p>Fast for short follow-ups; Deep for new code, debugging, and design. You choose which model answers.</p>
             {(['fast', 'deep'] as const).map(role => <label key={role}>{role === 'fast' ? 'Fast' : 'Deep'} model
               <select value={roles?.[role] || ''} disabled={loadingModels || sidebarBusy || syncingModel} onChange={event => void setRole(role, event.target.value)}>
@@ -345,7 +333,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             <label>Pinned constraints<textarea value={pinnedContext} maxLength={8000} disabled={chat.busy} onChange={event => setPinnedContext(event.target.value)} placeholder="Requirements to include verbatim in every request in this conversation" /></label>
             <label><input type="checkbox" checked={compactContext} disabled={chat.busy} onChange={event => setCompactContext(event.target.checked)} />Use compact context (experimental)</label>
             <small>{compactContext ? 'Sends the original problem, pinned constraints, recent turns, and matching older turns/source excerpts. Uncheck for full context if a detail is missing.' : 'Sends full saved conversation and source context.'} Conversations and sources stay saved locally.</small>
-          </details>
+          </section>}
         </TrayPortal>
       )}
 

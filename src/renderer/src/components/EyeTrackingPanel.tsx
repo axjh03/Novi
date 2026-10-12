@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Eye, EyeOff, RefreshCw, Loader, Camera, ChevronDown,
-  AlertCircle, Monitor, Send, Check, SlidersHorizontal
+  AlertCircle, Monitor, Send, Check, SlidersHorizontal, Webcam
 } from 'lucide-react';
 import type { EyeTrackingState } from '../eye-tracking/EyeTrackingService';
 import type { CameraDevice } from '../eye-tracking/CameraService';
@@ -29,14 +29,6 @@ interface Props {
   onSetMonitor: (displayId: number) => Promise<void> | void;
   onSendSticky: (text: string, title?: string) => void;
 }
-
-const STATE_LABELS: Record<EyeTrackingState, string> = {
-  idle: 'Eye Track',
-  initializing: 'Loading…',
-  calibrating: 'Active',
-  running: 'Active',
-  error: 'Error',
-};
 
 export function EyeTrackingPanel({
   state, error, isCalibrated, showDebugDot,
@@ -185,8 +177,9 @@ export function EyeTrackingPanel({
       <button
         className={`eye-tracking-toggle ${isOn ? 'eye-tracking-toggle--on' : ''}`}
         onClick={onToggle}
+        aria-label="Eye tracking"
         aria-pressed={isOn}
-        title={isOn ? 'Disable eye tracking' : 'Enable eye tracking'}
+        title={isLoading ? 'Starting eye tracking…' : isOn ? 'Eye tracking and the on-screen answer HUD are on. Click to turn them off.' : 'Turn on eye tracking and the on-screen answer HUD'}
         disabled={isLoading}
       >
         {isLoading ? (
@@ -196,7 +189,6 @@ export function EyeTrackingPanel({
         ) : (
           <EyeOff size={14} />
         )}
-        <span>{STATE_LABELS[state]}</span>
         {state === 'running' && (
           <span className="eye-tracking-status-dot" aria-hidden="true" />
         )}
@@ -206,8 +198,8 @@ export function EyeTrackingPanel({
       <div className="et-camera-picker" ref={sensitivityPickerRef}>
         <button className={`et-camera-btn ${sensitivityPickerOpen ? 'et-camera-btn--open' : ''}`} onClick={() => {
           setCameraPickerOpen(false); setMonitorPickerOpen(false); setSensitivityPickerOpen(value => !value);
-        }} title={`Eye tracker sensitivity: ${sensitivity.toFixed(1)}x (Default: 3.0)`} aria-label="Eye tracker sensitivity">
-          <SlidersHorizontal size={13} /><span className="et-camera-label">{sensitivity.toFixed(1)}x</span><ChevronDown size={11} />
+        }} title={`Eye tracker sensitivity: ${sensitivity.toFixed(1)}x (Default: 3.0)`} aria-label="Eye tracker sensitivity" aria-expanded={sensitivityPickerOpen}>
+          <SlidersHorizontal size={13} /><span className="et-camera-label">{sensitivity.toFixed(1)}x</span>
         </button>
         {sensitivityPickerOpen && <div className="et-camera-dropdown et-sensitivity-dropdown">
           <div className="et-camera-dropdown-header"><span>Sensitivity Level</span><span className="overlay-desc-tag">Default: 3.0</span></div>
@@ -226,16 +218,12 @@ export function EyeTrackingPanel({
         <button
           className={`et-camera-btn ${cameraPickerOpen ? 'et-camera-btn--open' : ''}`}
           onClick={() => void handleOpenCameras()}
-          title={selectedCamera ? selectedCamera.label : 'Select camera'}
+          aria-label="Camera"
+          aria-expanded={cameraPickerOpen}
+          title={selectedCamera ? `Camera: ${selectedCamera.label}` : 'Choose a camera'}
           disabled={isLoading}
         >
-          <Camera size={13} />
-          <span className="et-camera-label">
-            {selectedCamera
-              ? selectedCamera.label.replace(/\(.*?\)/, '').trim().slice(0, 16) || 'Camera'
-              : 'Camera'}
-          </span>
-          <ChevronDown size={11} />
+          <Webcam size={14} />
         </button>
 
         {cameraPickerOpen && (
@@ -288,17 +276,11 @@ export function EyeTrackingPanel({
         <button
           className={`et-camera-btn ${overlayActive ? 'et-camera-btn--active' : ''} ${monitorPickerOpen ? 'et-camera-btn--open' : ''}`}
           onClick={() => void handleOpenMonitors()}
-          title="Choose Working Monitor: eye tracking, screenshots, and window placement target this screen"
+          aria-label="Working monitor"
+          aria-expanded={monitorPickerOpen}
+          title={`Working monitor${selectedMonitor ? `: ${selectedMonitor.label}` : ''}${overlayActive ? ' · screen HUD on' : ''}. Eye tracking, screenshots, and Novi's windows use this screen.`}
         >
-          <Monitor size={13} />
-          <span className="et-camera-label">
-            {overlayActive
-              ? `HUD (${selectedMonitor ? selectedMonitor.label.slice(0, 10) : 'Active'})`
-              : selectedMonitor
-              ? selectedMonitor.label.slice(0, 12)
-              : 'Monitor'}
-          </span>
-          <ChevronDown size={11} />
+          <Monitor size={14} />
         </button>
 
         {monitorPickerOpen && (

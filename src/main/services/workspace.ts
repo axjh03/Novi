@@ -10,13 +10,14 @@ const TRAY_GAP = 12;
 const TRAY_MIN_HEIGHT = 48;
 const TRAY_INITIAL_HEIGHT = 190;
 // Below this much free space beside the panel, the tray centers on the screen and may overlap it.
-const TRAY_MIN_SPACE = 520;
-const DOCKED_MIN = { width: 360, height: 480 };
+const TRAY_MIN_SPACE = 424;
 const NORMAL_SIZE = { width: 1200, height: 800 };
+/** The main window's minimum size, docked or not, so code and text stay readable. */
+export const MAIN_WINDOW_MIN = { width: 850, height: 600 };
 
-/** The output panel: full height on the right edge, 28% of the screen (400–600 px). */
+/** The output panel: full height on the right edge, 35% of the screen, at least 850 and at most 1000 px wide. */
 export function dockedBounds(area: Rectangle): Rectangle {
-  const width = Math.min(area.width, Math.max(400, Math.min(600, Math.round(area.width * 0.28))));
+  const width = Math.min(area.width, Math.max(MAIN_WINDOW_MIN.width, Math.min(1000, Math.round(area.width * 0.35))));
   return { x: area.x + area.width - width, y: area.y, width, height: area.height };
 }
 
@@ -65,6 +66,13 @@ export class WorkspaceService {
     window.webContents.on('did-start-navigation', (details) => { if (details.isMainFrame && !details.isSameDocument) this.closeTray(); });
     window.webContents.on('render-process-gone', () => this.closeTray());
     window.on('closed', () => this.closeTray());
+    // The panel and the tray come forward together. moveTop never takes focus.
+    window.on('focus', () => this.bringForward(this.tray));
+  }
+
+  private bringForward(window: BrowserWindow | null) {
+    if (!window || window.isDestroyed() || !window.isVisible() || window.isMinimized()) return;
+    try { window.moveTop(); } catch { /* Not supported on Wayland. */ }
   }
 
   private trayOptions(): BrowserWindowConstructorOptions {
@@ -72,7 +80,8 @@ export class WorkspaceService {
     return {
       ...bounds, show: false, frame: false, transparent: true, backgroundColor: '#00000000', hasShadow: false,
       resizable: false, minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true,
-      alwaysOnTop: true, title: 'Novi', autoHideMenuBar: true,
+      // Stays above other apps only in transparent mode (see StealthService).
+      title: 'Novi', autoHideMenuBar: true,
     };
   }
 
@@ -96,6 +105,7 @@ export class WorkspaceService {
     child.webContents.on('will-navigate', (event) => event.preventDefault());
     child.webContents.on('will-attach-webview', (event) => event.preventDefault());
     child.on('closed', () => { if (this.tray === child) { this.tray = null; this.trayShown = false; } });
+    child.on('focus', () => this.bringForward(this.getMainWindow()));
     this.onTrayCreated(child);
     // The window may be adopted after the panel docked; place it against the current layout.
     this.placeTray();
@@ -151,7 +161,7 @@ export class WorkspaceService {
     this.dockedState = true;
     if (window.isMinimized()) window.restore();
     if (window.isMaximized()) window.unmaximize();
-    window.setMinimumSize(DOCKED_MIN.width, DOCKED_MIN.height);
+    window.setMinimumSize(Math.min(MAIN_WINDOW_MIN.width, area.width), Math.min(MAIN_WINDOW_MIN.height, area.height));
     window.setBounds(dockedBounds(area));
     this.placeTray();
   }

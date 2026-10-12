@@ -2,6 +2,7 @@ import { app, BrowserWindow, session, desktopCapturer } from 'electron';
 import { join, resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { MAIN_WINDOW_MIN } from './services/workspace';
 
 app.setName('Novi');
 if (process.env.NOVI_DATA_DIR) {
@@ -19,7 +20,7 @@ let attachMainWindow: ((window: BrowserWindow) => void) | null = null;
 function createWindow() {
   const iconPath = join(__dirname, '../../build/icon.png');
   const window = new BrowserWindow({
-    width: 1200, height: 800, minWidth: 850, minHeight: 600,
+    width: 1200, height: 800, minWidth: MAIN_WINDOW_MIN.width, minHeight: MAIN_WINDOW_MIN.height,
     title: 'Novi',
     icon: iconPath,
     frame: false,
