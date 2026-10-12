@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowUpRight, Check, KeyRound, Laptop, ShieldCheck, Smartphone } from 'lucide-react';
+import { ArrowUpRight, Check, HardDrive, KeyRound, Laptop, Smartphone } from 'lucide-react';
 import PublicNavbar from '@/components/PublicNavbar';
+import SiteFooter from '@/components/SiteFooter';
 import styles from './pricing.module.css';
 
 export const metadata: Metadata = {
@@ -14,7 +15,7 @@ const features = [
   ['Phone companion', 'Connect your phone to control a Novi session and send actions remotely.'],
   ['Modes for the moment', 'Chat, recruiter call, coding, technical interview, system design, and behavioral interview modes.'],
   ['Your choice of AI', 'Bring your own key for OpenAI, Anthropic, Google Gemini, or a compatible endpoint; choose the model available through your provider.'],
-  ['Device-bound licensing', 'License checks use a hashed hardware fingerprint. Your prompts and files stay on your device.'],
+  ['One login, one computer', 'Each desktop login is active on one computer at a time. Your documents and history stay on your device.'],
 ];
 
 export default function PricingPage() {
@@ -33,19 +34,19 @@ export default function PricingPage() {
             <span className={styles.planLabel}>STUDENT</span>
             <h2>$79<span>/ month</span></h2>
             <p>For students preparing for interviews and important conversations.</p>
-            <Link href="mailto:getnoviapp@outlook.com?subject=Student%20Novi%20license" className={styles.planLink}>Ask about a student license <ArrowUpRight size={16} /></Link>
+            <Link href="/get-access?plan=student" className={styles.planLink}>Get the student plan <ArrowUpRight size={16} /></Link>
           </article>
           <article className={`${styles.plan} ${styles.featured}`}>
             <span className={styles.planLabel}>INDIVIDUAL</span>
             <h2>$99<span>/ month</span></h2>
             <p>For professionals who want a focused, private desktop workspace.</p>
-            <Link href="mailto:getnoviapp@outlook.com?subject=Novi%20individual%20license" className={styles.planLink}>Request a license <ArrowUpRight size={16} /></Link>
+            <Link href="/get-access?plan=individual" className={styles.planLink}>Get the individual plan <ArrowUpRight size={16} /></Link>
           </article>
           <article className={styles.plan}>
             <span className={styles.planLabel}>CONSULTANCY</span>
             <h2>$99<span>/ seat / month</span></h2>
-            <p>Per-person licensing with centralized seat and device management.</p>
-            <Link href="mailto:getnoviapp@outlook.com?subject=Novi%20consultancy%20licenses" className={styles.planLink}>Talk about team pricing <ArrowUpRight size={16} /></Link>
+            <p>One Novi account for your team, with a desktop login for each person.</p>
+            <Link href="/get-access?plan=consultancy" className={styles.planLink}>Get the consultancy plan <ArrowUpRight size={16} /></Link>
           </article>
         </section>
 
@@ -55,11 +56,11 @@ export default function PricingPage() {
           <div>
             <span className={styles.eyebrow}>HOW LICENSING WORKS</span>
             <h2 id="license-details">One person. One active device.</h2>
-            <p>Each consultancy seat is licensed for one device. Individual accounts can be active on one device at a time. Hardware identifiers are hashed for license verification.</p>
+            <p>Each license comes with one desktop login, and a login is active on one computer at a time. Consultancies manage every person&apos;s login from one Novi account.</p>
           </div>
           <div className={styles.details}>
-            <div><Laptop aria-hidden="true" /><span><strong>One device per consultancy seat</strong><small>Admins can manage seats and device assignments.</small></span></div>
-            <div><ShieldCheck aria-hidden="true" /><span><strong>Hashed hardware information</strong><small>A device fingerprint supports license checks.</small></span></div>
+            <div><Laptop aria-hidden="true" /><span><strong>One computer per login</strong><small>Sign out on one computer to sign in on another.</small></span></div>
+            <div><HardDrive aria-hidden="true" /><span><strong>Your files stay local</strong><small>Documents and conversations are stored on your computer.</small></span></div>
             <div><KeyRound aria-hidden="true" /><span><strong>Bring your own key (BYOK)</strong><small>AI provider usage is billed by your provider, separately from Novi.</small></span></div>
             <div><Smartphone aria-hidden="true" /><span><strong>Phone companion included</strong><small>Connect a phone to your desktop session.</small></span></div>
           </div>
@@ -83,11 +84,11 @@ export default function PricingPage() {
 
         <section className={styles.cta}>
           <h2>Ready to find your fit?</h2>
-          <p>Ask about an individual, student, or consultancy license.</p>
-          <Link href="/license">Request a private license <ArrowUpRight size={16} /></Link>
+          <p>Choose a plan and send one email. We set up your account.</p>
+          <Link href="/get-access">Get access <ArrowUpRight size={16} /></Link>
         </section>
       </main>
-      <footer className={styles.footer}><span>novi<span className={styles.dot}>.</span></span><p>Thoughtful help for moments that matter.</p><div><Link href="/how-it-works">How it works</Link><Link href="/api-keys">API guide</Link><Link href="/license">Private license</Link></div></footer>
+      <SiteFooter />
     </div>
   );
 }

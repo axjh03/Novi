@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { ArrowRight, ArrowUpRight, BookOpenText, Code2, FileText, LockKeyhole, Mic2, Sparkles } from 'lucide-react';
 import PublicNavbar from './PublicNavbar';
+import SiteFooter from './SiteFooter';
+import { JOURNEY } from '@/lib/site';
 import styles from './PublicLanding.module.css';
 
 export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
@@ -14,14 +15,14 @@ export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
       <main>
         <section className={styles.hero} aria-labelledby="landing-title">
           <div className={styles.heroCopy}>
-            <span className={styles.eyebrow}><span className={styles.eyebrowLine} /> A quieter kind of confidence</span>
+            <span className={styles.eyebrow}><span className={styles.eyebrowLine} /> A desktop AI assistant for interviews</span>
             <h1 id="landing-title">You did the work.<br /><em>Bring your whole story.</em></h1>
-            <p className={styles.heroLead}>The interview starts soon. Your best examples are scattered across a résumé, old projects, and notes you meant to organize. Novi brings the details together so you can speak from experience, not from a script.</p>
+            <p className={styles.heroLead}>Novi is a desktop app that answers interview questions with you, using your résumé, your project notes, and the AI model you choose. Your best examples stay close, so you can speak from experience, not from a script.</p>
             <div className={styles.actions}>
-              <Link className={styles.primaryLink} href="/download">Get Novi for desktop <ArrowUpRight size={18} aria-hidden="true" /></Link>
-              <Link className={styles.secondaryLink} href="#story">See the story <ArrowRight size={17} aria-hidden="true" /></Link>
+              <Link className={styles.primaryLink} href="/get-access">Get access <ArrowUpRight size={18} aria-hidden="true" /></Link>
+              <Link className={styles.secondaryLink} href="/how-it-works">How it works <ArrowRight size={17} aria-hidden="true" /></Link>
             </div>
-            <p className={styles.heroFootnote}>Your context. Your model. Your words. <Link href="/license">Available through private license.</Link></p>
+            <p className={styles.heroFootnote}>Available by private license. Already have a Novi account? <Link href="/download">Download the desktop app.</Link></p>
           </div>
 
           <div className={styles.heroArt} role="img" aria-label="Illustrative Novi workspace showing personal context beside an interview question and a response outline">
@@ -107,22 +108,31 @@ export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
           </div>
         </section>
 
+        <section className={`${styles.journey} ${styles.start}`} id="get-started" aria-labelledby="start-title">
+          <div className={styles.journeyIntro}><div><span className={styles.sectionTag}>GETTING STARTED</span><h2 id="start-title">Three steps from here<br />to your first session.</h2></div><Link className={styles.startLink} href="/get-access">Request access <ArrowUpRight size={17} aria-hidden="true" /></Link></div>
+          <ol className={styles.steps}>
+            {JOURNEY.map((step, index) => (
+              <li className={`${styles.step} ${styles.startStep}`} key={step.title}>
+                <span className={styles.stepNumber}>STEP {index + 1}</span>
+                <h3>{step.title}</h3>
+                <p>{step.text}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
         <section className={styles.closing} aria-labelledby="closing-title">
           <span className={styles.sectionTag}>WHEN YOU ARE READY</span>
           <h2 id="closing-title">Let your next conversation<br /><em>sound more like you.</em></h2>
           <p>Make space for the work you have done and the story only you can tell.</p>
           <div className={styles.closingActions}>
-            <Link className={styles.lightLink} href="/download">Download Novi <ArrowUpRight size={17} aria-hidden="true" /></Link>
-            <Link className={styles.quietLink} href="/license">Request a private license <ArrowRight size={17} aria-hidden="true" /></Link>
+            <Link className={styles.lightLink} href="/get-access">Get access <ArrowUpRight size={17} aria-hidden="true" /></Link>
+            <Link className={styles.quietLink} href="/pricing">See pricing <ArrowRight size={17} aria-hidden="true" /></Link>
           </div>
         </section>
       </main>
 
-      <footer className={styles.footer}>
-        <div className={styles.footerBrand}><Image src="/logo.svg" width={28} height={28} alt="" /> <span>novi<span className={styles.brandDot}>.</span></span></div>
-        <p>Thoughtful help for moments that matter.</p>
-        <div><Link href="/how-it-works">How it works</Link><Link href="/api-keys">API guide</Link><a href="mailto:getnoviapp@outlook.com">Get in touch</a></div>
-      </footer>
+      <SiteFooter onSignIn={onSignIn} />
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import PublicNavbar from '@/components/PublicNavbar';
+import SiteFooter from '@/components/SiteFooter';
 import TuxPenguinLogo from '@/components/TuxPenguinLogo';
 import { PlatformFlipGrid } from './PlatformFlipGrid';
 import {
@@ -299,6 +300,9 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
           <p style={{ fontSize: 15, color: '#666', lineHeight: 1.6, margin: '0 0 20px' }}>
             A calm, transparent, and private AI companion for your desktop. Choose your operating system below to get started.
           </p>
+          <p style={{ fontSize: 13, color: '#555', lineHeight: 1.6, margin: '0 0 20px' }}>
+            You sign in to the app with a desktop login from your Novi account. No account yet? <Link href="/get-access" style={{ color: '#111', fontWeight: 600 }}>Get access first</Link>.
+          </p>
 
           {/* Prominent LAST UPDATE DATE display */}
           <div style={{
@@ -565,16 +569,16 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
             </div>
             <div>
               <div style={{ fontWeight: 600, fontSize: 14, color: '#222' }}>
-                Desktop Access Requires a Private License Key
+                You need a desktop login to use the app
               </div>
               <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
-                Novi is only in private release. You will be prompted to enter your license key on first launch.
+                Sign in to your Novi account on this website to create one, then use it to sign in to the desktop app.
               </div>
             </div>
           </div>
 
           <Link
-            href="/license"
+            href="/get-access"
             style={{
               background: '#f4f4f4',
               color: '#222',
@@ -589,11 +593,11 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
               gap: 6,
             }}
           >
-            Learn About Private Licenses <ArrowUpRight size={14} />
+            Get access <ArrowUpRight size={14} />
           </Link>
         </div>
       </main>
-
+      <SiteFooter />
     </div>
   );
 }

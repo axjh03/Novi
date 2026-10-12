@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import PublicNavbar from '@/components/PublicNavbar';
+import SiteFooter from '@/components/SiteFooter';
 import {
   ArrowUpRight,
   Check,
@@ -87,7 +88,7 @@ export default function ApiGuideClient() {
       flexDirection: 'column',
     }}>
       {/* Top Header Navigation */}
-      <PublicNavbar active="api-keys" />
+      <PublicNavbar active="setup-guide" />
 
       <style dangerouslySetInnerHTML={{ __html: `
         .api-guide-shell {
@@ -261,30 +262,30 @@ export default function ApiGuideClient() {
 
           <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>
-              Deployment Methods
+              Connect to Novi
             </div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
               <li>
-                <a href="#admin-distribution" style={{
+                <a href="#add-key" style={{
                   display: 'block',
                   padding: '6px 10px',
                   borderRadius: 6,
-                  color: activeHeading === 'admin-distribution' ? '#111' : '#666',
-                  fontWeight: activeHeading === 'admin-distribution' ? 600 : 400,
-                  background: activeHeading === 'admin-distribution' ? '#f5f5f5' : 'transparent',
+                  color: activeHeading === 'add-key' ? '#111' : '#666',
+                  fontWeight: activeHeading === 'add-key' ? 600 : 400,
+                  background: activeHeading === 'add-key' ? '#f5f5f5' : 'transparent',
                   textDecoration: 'none'
-                }}>Admin Central Distribution</a>
+                }}>Add your key to Novi</a>
               </li>
               <li>
-                <a href="#desktop-import" style={{
+                <a href="#use-key" style={{
                   display: 'block',
                   padding: '6px 10px',
                   borderRadius: 6,
-                  color: activeHeading === 'desktop-import' ? '#111' : '#666',
-                  fontWeight: activeHeading === 'desktop-import' ? 600 : 400,
-                  background: activeHeading === 'desktop-import' ? '#f5f5f5' : 'transparent',
+                  color: activeHeading === 'use-key' ? '#111' : '#666',
+                  fontWeight: activeHeading === 'use-key' ? 600 : 400,
+                  background: activeHeading === 'use-key' ? '#f5f5f5' : 'transparent',
                   textDecoration: 'none'
-                }}>Desktop App BYOK Import</a>
+                }}>Use it in the desktop app</a>
               </li>
             </ul>
           </div>
@@ -313,7 +314,7 @@ export default function ApiGuideClient() {
         <main className="api-guide-main">
           {/* Breadcrumb */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#888', marginBottom: 16 }}>
-            <span>Docs</span>
+            <span>Setup guide</span>
             <ChevronRight size={13} />
             <span>Integrations</span>
             <ChevronRight size={13} />
@@ -376,7 +377,7 @@ export default function ApiGuideClient() {
               Supported Models &amp; Recommendations
             </h2>
             <p style={{ fontSize: 15, color: '#444', lineHeight: 1.7, marginBottom: 20 }}>
-              When you paste an API key in Novi, available models are auto-discovered. Here is how models compare for technical interview practice:
+              After you add a key, Novi lists the models your provider account can use. Here is how some common models compare for interview practice:
             </p>
 
             <div style={{ border: '1px solid #e5e5e5', borderRadius: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: 24 }}>
@@ -868,7 +869,7 @@ export default function ApiGuideClient() {
                 Assign a label and copy the generated <code>sk-...</code> key.
               </li>
               <li>
-                In Novi Desktop, configure your connection with Base URL <code>https://api.moonshot.cn/v1</code> and model <code>kimi-latest</code> or <code>moonshot-v1-8k</code>.
+                Add the key to your Novi account with the provider set to <b>Kimi (Moonshot AI)</b>. Novi connects to <code>https://api.moonshot.cn/v1</code> for you; choose a model such as <code>kimi-latest</code> when you start a session.
               </li>
             </ol>
 
@@ -912,67 +913,46 @@ export default function ApiGuideClient() {
 
           <hr style={{ border: 'none', borderTop: '1px solid #ebebeb', margin: '40px 0' }} />
 
-          {/* SECTION 7: NOVI CONFIGURATION MODES */}
-          <section id="admin-distribution" style={{ marginBottom: 60, scrollMarginTop: 100 }}>
+          {/* SECTION 7: CONNECTING A KEY TO NOVI */}
+          <section id="add-key" style={{ marginBottom: 60, scrollMarginTop: 100 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
               <Building2 size={24} style={{ color: '#059669' }} />
               <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.8px', color: '#111', margin: 0 }}>
-                Method 1: Centralized Admin Key Distribution
+                Add your key to your Novi account
               </h2>
             </div>
             <p style={{ fontSize: 15, color: '#444', lineHeight: 1.7, marginBottom: 16 }}>
-              For organizations, administrators input API keys once into the web dashboard. All licensed desktop users automatically inherit access without seeing or handling the raw keys:
+              Keys are added once on this website, in your Novi account. Every desktop login under your account can then use them without ever seeing the key itself.
             </p>
-
             <div style={{ border: '1px solid #e5e5e5', borderRadius: 8, padding: '24px', background: '#fafafa', marginBottom: 20 }}>
-              <h4 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600 }}>Administrator Setup Steps:</h4>
+              <h4 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600 }}>On this website:</h4>
               <ol style={{ paddingLeft: 20, margin: 0, fontSize: 14, color: '#444', lineHeight: 1.8 }}>
-                <li>Log in to the Novi Web Portal at <Link href="/#signin" style={{ textDecoration: 'underline', color: 'inherit', fontWeight: 600 }}>/#signin</Link> with your Admin, Corp, or Subcorp account.</li>
-                <li>Click the <b>API Management</b> tab in the sidebar navigation.</li>
-                <li>Click <b>+ Add API key</b>.</li>
-                <li>Choose the provider from the dropdown:
-                  <ul style={{ paddingLeft: 20, marginTop: 4 }}>
-                    <li><b>OpenAI</b> (<code>https://api.openai.com/v1</code>)</li>
-                    <li><b>Anthropic / Claude</b> (<code>https://api.anthropic.com/v1</code>)</li>
-                    <li><b>Google Gemini</b> (<code>https://generativelanguage.googleapis.com/v1beta</code>)</li>
-                    <li><b>Kimi (Moonshot AI)</b> (<code>https://api.moonshot.cn/v1</code>)</li>
-                  </ul>
-                </li>
-                <li>Give the connection a clear nickname (e.g. <em>&quot;Team Primary Claude 3.7&quot;</em>).</li>
-                <li>Paste your API key. The server encrypts it immediately with <b>AES-256-GCM</b> and masks it so only the last 4 characters are visible.</li>
-                <li>When desktop users sign in or sync, the connection is instantly delivered to their app memory.</li>
+                <li>Sign in to your Novi account using <Link href="/#signin" style={{ textDecoration: 'underline', color: 'inherit', fontWeight: 600 }}>Sign in</Link> at the top of any page.</li>
+                <li>Open <b>API management</b> in the sidebar and click <b>Add API key</b>.</li>
+                <li>Choose the provider: <b>OpenAI</b>, <b>Anthropic / Claude</b>, <b>Google Gemini</b>, or <b>Kimi (Moonshot AI)</b>.</li>
+                <li>Give the key a clear nickname (for example <em>&quot;Main Claude key&quot;</em>) and paste the key.</li>
+                <li>Save. The key is encrypted with <b>AES-256-GCM</b> and only its last 4 characters are shown from then on.</li>
               </ol>
             </div>
           </section>
 
-          <section id="desktop-import" style={{ marginBottom: 60, scrollMarginTop: 100 }}>
+          <section id="use-key" style={{ marginBottom: 60, scrollMarginTop: 100 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
               <Laptop size={24} style={{ color: '#2563eb' }} />
               <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.8px', color: '#111', margin: 0 }}>
-                Method 2: Desktop App BYOK Direct Import
+                Use it in the desktop app
               </h2>
             </div>
             <p style={{ fontSize: 15, color: '#444', lineHeight: 1.7, marginBottom: 16 }}>
-              Individual users can save their personal API keys directly inside the Novi Desktop App:
+              In the app, you choose which of your account&apos;s keys to use. Keys cannot be typed into the desktop app itself.
             </p>
-
             <div style={{ border: '1px solid #e5e5e5', borderRadius: 8, padding: '24px', background: '#fafafa', marginBottom: 20 }}>
-              <h4 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600 }}>Desktop App Step-by-Step:</h4>
+              <h4 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600 }}>In the desktop app:</h4>
               <ol style={{ paddingLeft: 20, margin: 0, fontSize: 14, color: '#444', lineHeight: 1.8 }}>
-                <li>Open the <b>Novi Desktop Application</b> on your computer.</li>
-                <li>Press <kbd style={{ background: '#e5e5e5', padding: '2px 6px', borderRadius: 4, fontFamily: 'monospace' }}>Alt + ,</kbd> or click the <b>Settings</b> gear icon in the header.</li>
-                <li>Navigate to <b>Provider Connections</b>.</li>
-                <li>Click <b>+ Add Connection</b>.</li>
-                <li>Select the provider:
-                  <ul style={{ paddingLeft: 20, marginTop: 4 }}>
-                    <li><b>Anthropic / Claude:</b> Auto-configured to <code>https://api.anthropic.com/v1</code></li>
-                    <li><b>OpenAI:</b> Auto-configured to <code>https://api.openai.com/v1</code></li>
-                    <li><b>Google Gemini:</b> Auto-configured to <code>https://generativelanguage.googleapis.com/v1beta</code></li>
-                    <li><b>OpenAI Compatible:</b> For Kimi, enter Base URL <code>https://api.moonshot.cn/v1</code></li>
-                  </ul>
-                </li>
-                <li>Paste your API key and click <b>Test Connection</b>. Novi will ping the provider and retrieve the live list of models available on your account.</li>
-                <li>Choose your default model and click <b>Save Connection</b>.</li>
+                <li>Sign in with your desktop login. Create one under <b>User management</b> in your Novi account if you have not yet.</li>
+                <li>Open <b>Settings</b>, then <b>API management</b>. Your account&apos;s keys are listed there.</li>
+                <li>Select the key you want to use, one per provider. Click <b>Refresh</b> if a key you just added is not shown yet.</li>
+                <li>Choose the model when you start a session.</li>
               </ol>
             </div>
           </section>
@@ -992,8 +972,8 @@ export default function ApiGuideClient() {
             </p>
             <ul style={{ fontSize: 14, color: '#444', lineHeight: 1.8, paddingLeft: 20 }}>
               <li><b>Zero Logging:</b> Prompts, live transcriptions, and screen snapshots are never recorded or stored on any intermediate server.</li>
-              <li><b>Server-Side Encryption:</b> Admin keys are encrypted at rest using AES-256-GCM authenticated cipher with unique per-credential initialization vectors.</li>
-              <li><b>Local OS Keychain:</b> Standalone desktop keys are protected using native OS secure enclaves (macOS Keychain, Windows DPAPI, and Linux Secret Service).</li>
+              <li><b>Server-Side Encryption:</b> Keys in your Novi account are encrypted at rest using AES-256-GCM authenticated cipher with unique per-credential initialization vectors.</li>
+              <li><b>In the desktop app:</b> Keys are held only in memory while you are signed in and are cleared when you sign out. The app&apos;s sign-in session is protected by your operating system&apos;s keychain.</li>
             </ul>
           </section>
 
@@ -1008,21 +988,22 @@ export default function ApiGuideClient() {
             gap: 20
           }}>
             <div>
-              <div style={{ fontWeight: 600, fontSize: 16 }}>Ready to start practicing?</div>
-              <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>Download the native desktop application and connect your key in under 60 seconds.</div>
+              <div style={{ fontWeight: 600, fontSize: 16 }}>Ready to start?</div>
+              <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>Add your key in your Novi account, then download the app. No account yet? Request access first.</div>
             </div>
             <div style={{ display: 'flex', gap: 12 }}>
               <Link href="/download" className="btn dark" style={{ textDecoration: 'none' }}>
                 Download Desktop App <ArrowUpRight size={15} />
               </Link>
-              <Link href="/license" className="btn" style={{ textDecoration: 'none' }}>
-                Private License
+              <Link href="/get-access" className="btn" style={{ textDecoration: 'none' }}>
+                Get access
               </Link>
             </div>
           </div>
 
         </main>
       </div>
+      <SiteFooter />
     </div>
   );
 }

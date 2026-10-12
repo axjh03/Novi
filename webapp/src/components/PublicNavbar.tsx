@@ -3,9 +3,10 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, Menu, X } from 'lucide-react';
+import { SITE_LINKS, type SiteLinkId } from '@/lib/site';
 
 export interface PublicNavbarProps {
-  active?: 'download' | 'how-it-works' | 'api-keys' | 'license' | 'pricing';
+  active?: SiteLinkId;
   onSignIn?: () => void;
 }
 
@@ -13,6 +14,12 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const closeMenu = () => setMenuOpen(false);
+  // Sign-in is for Novi account owners; the main action for everyone else is requesting access.
+  const signIn = (mobile: boolean) => onSignIn ? (
+    <button type="button" className="public-nav-signin" onClick={() => { closeMenu(); onSignIn(); }} style={mobile ? { padding: '10px 12px', fontSize: 15, textAlign: 'left' } : undefined}>Sign in</button>
+  ) : (
+    <Link href="/#signin" className="public-nav-signin" onClick={closeMenu} style={mobile ? { padding: '10px 12px', fontSize: 15 } : undefined}>Sign in</Link>
+  );
 
   return (
     <header style={{
@@ -24,7 +31,7 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
       top: 0,
       zIndex: 100,
     }}>
-      <nav className="public-nav" style={{ width: '100%', boxSizing: 'border-box' }}>
+      <nav className="public-nav" aria-label="Main" style={{ width: '100%', boxSizing: 'border-box' }}>
         <Link href="/" className="brand" onClick={closeMenu} style={{ textDecoration: 'none', color: 'inherit' }}>
           <img
             src="/logo.svg"
@@ -38,79 +45,24 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
 
         {/* Desktop Links */}
         <div className="public-nav-links">
-          <Link
-            href="/download"
-            style={{
-              textDecoration: 'none',
-              color: active === 'download' ? '#111' : 'inherit',
-              fontWeight: active === 'download' ? 600 : 400,
-            }}
-          >
-            Download
-          </Link>
-
-          <Link
-            href="/how-it-works"
-            style={{
-              textDecoration: 'none',
-              color: active === 'how-it-works' ? '#111' : 'inherit',
-              fontWeight: active === 'how-it-works' ? 600 : 400,
-            }}
-          >
-            How It Works
-          </Link>
-
-          <Link
-            href="/api-keys"
-            style={{
-              textDecoration: 'none',
-              color: active === 'api-keys' ? '#111' : 'inherit',
-              fontWeight: active === 'api-keys' ? 600 : 400,
-            }}
-          >
-            API Guide
-          </Link>
-
-          <Link
-            href="/pricing"
-            style={{
-              textDecoration: 'none',
-              color: active === 'pricing' ? '#111' : 'inherit',
-              fontWeight: active === 'pricing' ? 600 : 400,
-            }}
-          >
-            Pricing
-          </Link>
-
-          <Link
-            href="/license"
-            style={{
-              textDecoration: 'none',
-              color: active === 'license' ? '#111' : 'inherit',
-              fontWeight: active === 'license' ? 600 : 400,
-            }}
-          >
-            Private License
-          </Link>
-
-          {onSignIn ? (
-            <button
-              type="button"
-              className="btn dark"
-              onClick={onSignIn}
-              style={{ textDecoration: 'none', cursor: 'pointer' }}
-            >
-              Sign in <ArrowUpRight size={15} />
-            </button>
-          ) : (
+          {SITE_LINKS.map(link => (
             <Link
-              href="/#signin"
-              className="btn dark"
-              style={{ textDecoration: 'none' }}
+              key={link.id}
+              href={link.href}
+              aria-current={active === link.id ? 'page' : undefined}
+              style={{
+                textDecoration: 'none',
+                color: active === link.id ? '#111' : 'inherit',
+                fontWeight: active === link.id ? 600 : 400,
+              }}
             >
-              Sign in <ArrowUpRight size={15} />
+              {link.label}
             </Link>
-          )}
+          ))}
+          {signIn(false)}
+          <Link href="/get-access" className="btn dark" aria-current={active === 'get-access' ? 'page' : undefined} style={{ textDecoration: 'none' }}>
+            Get access <ArrowUpRight size={15} />
+          </Link>
         </div>
 
         {/* Mobile Burger Toggle Button */}
@@ -150,121 +102,43 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
             boxShadow: '0 12px 24px rgba(0,0,0,0.06)',
           }}
         >
-          <Link
-            href="/download"
-            onClick={closeMenu}
-            style={{
-              padding: '10px 12px',
-              borderRadius: 8,
-              textDecoration: 'none',
-              color: active === 'download' ? '#111' : '#444',
-              fontWeight: active === 'download' ? 600 : 500,
-              background: active === 'download' ? '#f4f4f4' : 'transparent',
-              fontSize: 15,
-            }}
-          >
-            Download
-          </Link>
-
-          <Link
-            href="/how-it-works"
-            onClick={closeMenu}
-            style={{
-              padding: '10px 12px',
-              borderRadius: 8,
-              textDecoration: 'none',
-              color: active === 'how-it-works' ? '#111' : '#444',
-              fontWeight: active === 'how-it-works' ? 600 : 500,
-              background: active === 'how-it-works' ? '#f4f4f4' : 'transparent',
-              fontSize: 15,
-            }}
-          >
-            How It Works
-          </Link>
-
-          <Link
-            href="/api-keys"
-            onClick={closeMenu}
-            style={{
-              padding: '10px 12px',
-              borderRadius: 8,
-              textDecoration: 'none',
-              color: active === 'api-keys' ? '#111' : '#444',
-              fontWeight: active === 'api-keys' ? 600 : 500,
-              background: active === 'api-keys' ? '#f4f4f4' : 'transparent',
-              fontSize: 15,
-            }}
-          >
-            API Guide
-          </Link>
-
-          <Link
-            href="/pricing"
-            onClick={closeMenu}
-            style={{
-              padding: '10px 12px',
-              borderRadius: 8,
-              textDecoration: 'none',
-              color: active === 'pricing' ? '#111' : '#444',
-              fontWeight: active === 'pricing' ? 600 : 500,
-              background: active === 'pricing' ? '#f4f4f4' : 'transparent',
-              fontSize: 15,
-            }}
-          >
-            Pricing
-          </Link>
-
-          <Link
-            href="/license"
-            onClick={closeMenu}
-            style={{
-              padding: '10px 12px',
-              borderRadius: 8,
-              textDecoration: 'none',
-              color: active === 'license' ? '#111' : '#444',
-              fontWeight: active === 'license' ? 600 : 500,
-              background: active === 'license' ? '#f4f4f4' : 'transparent',
-              fontSize: 15,
-            }}
-          >
-            Private License
-          </Link>
+          {SITE_LINKS.map(link => (
+            <Link
+              key={link.id}
+              href={link.href}
+              onClick={closeMenu}
+              aria-current={active === link.id ? 'page' : undefined}
+              style={{
+                padding: '10px 12px',
+                borderRadius: 8,
+                textDecoration: 'none',
+                color: active === link.id ? '#111' : '#444',
+                fontWeight: active === link.id ? 600 : 500,
+                background: active === link.id ? '#f4f4f4' : 'transparent',
+                fontSize: 15,
+              }}
+            >
+              {link.label}
+            </Link>
+          ))}
+          {signIn(true)}
 
           <div style={{ paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
-            {onSignIn ? (
-              <button
-                type="button"
-                className="btn dark full"
-                onClick={() => {
-                  closeMenu();
-                  onSignIn();
-                }}
-                style={{
-                  width: '100%',
-                  justifyContent: 'center',
-                  padding: '12px 16px',
-                  fontSize: 14,
-                }}
-              >
-                Sign in <ArrowUpRight size={16} />
-              </button>
-            ) : (
-              <Link
-                href="/#signin"
-                onClick={closeMenu}
-                className="btn dark full"
-                style={{
-                  width: '100%',
-                  justifyContent: 'center',
-                  padding: '12px 16px',
-                  fontSize: 14,
-                  display: 'inline-flex',
-                  textDecoration: 'none',
-                }}
-              >
-                Sign in <ArrowUpRight size={16} />
-              </Link>
-            )}
+            <Link
+              href="/get-access"
+              onClick={closeMenu}
+              className="btn dark full"
+              style={{
+                width: '100%',
+                justifyContent: 'center',
+                padding: '12px 16px',
+                fontSize: 14,
+                display: 'inline-flex',
+                textDecoration: 'none',
+              }}
+            >
+              Get access <ArrowUpRight size={16} />
+            </Link>
           </div>
         </div>
       )}
