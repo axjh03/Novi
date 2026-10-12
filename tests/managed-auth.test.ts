@@ -152,3 +152,102 @@ test('managed auth reports HTML gateway and captive-portal replies without raw J
   assert.match(portal?.message ?? '', /unexpected response/);
   for (const error of [gateway, portal]) assert.doesNotMatch(error?.message ?? '', /JSON|Unexpected token/);
 });
+
+test('managed auth keeps the session through outages and ends it only when the server rejects it', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'novi-outage-test-'));
+  const keychain = { isEncryptionAvailable: () => true, getSelectedStorageBackend: () => 'test', encryptString: (value: string) => Buffer.from(value), decryptString: (value: Buffer) => value.toString() };
+  const { ManagedAuthService, AccessUnavailableError, SessionChangedError, CONNECTION_LOST_MS } = tsxRequire('../src/main/services/managedAuth.ts', import.meta.url);
+  const { CredentialStore } = tsxRequire('../src/main/services/credentials.ts', import.meta.url);
+  const { Storage } = tsxRequire('../src/main/services/storage.ts', import.meta.url);
+  const storage = new Storage(directory), credentials = new CredentialStore(directory);
+  const auth = new ManagedAuthService(storage, credentials, keychain);
+  let now = Date.now();
+  t.mock.method(Date, 'now', () => now);
+  let mode: 'ok' | 'offline' | 'unavailable' | 'reject' = 'ok', desktopCalls = 0, logins = 0;
+  let hold: Promise<void> | null = null, rejectedToken = '';
+  t.after(async () => {
+    mode = 'ok'; hold = null;
+    if (auth.signedIn) await auth.signOut();
+    rmSync(directory, { recursive: true, force: true });
+  });
+  t.mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
+    if (url.endsWith('/login')) return Response.json({ data: { token: `jwt-${++logins}` } });
+    if (url.endsWith('/logout')) return Response.json({ data: {} });
+    if (!url.endsWith('/desktop')) return Response.json({ data: { command: null, active: false } });
+    desktopCalls++;
+    const wait = hold;
+    if (wait) await wait;
+    if (rejectedToken && (init.headers as Record<string, string>).Authorization === `Bearer ${rejectedToken}`) return Response.json({ error: 'Your session has ended. Sign in again.' }, { status: 401 });
+    if (mode === 'offline') throw new TypeError('fetch failed');
+    if (mode === 'unavailable') return Response.json({ error: 'Service unavailable.' }, { status: 503 });
+    if (mode === 'reject') return Response.json({ error: 'Your license is terminated.' }, { status: 403 });
+    return Response.json({ data: { user: { id: 'u1', username: 'outage.user', name: 'Outage User' }, license: { key: 'KEY', expiresAt: '2099-01-01' }, credentials: [] } });
+  });
+
+  await auth.signIn('outage.user', 'secret-pass-123');
+  assert.equal(auth.offline, false);
+  assert.equal(auth.heartbeatDue(), false, 'just checked in');
+  now += 20_000;
+  assert.equal(auth.heartbeatDue(), true, 'checks in every 20 seconds');
+
+  // Network failures and server errors are outages: the session and the verified account stay.
+  mode = 'offline';
+  await assert.rejects(auth.refresh(true), AccessUnavailableError);
+  assert.equal(auth.signedIn, true);
+  assert.equal(auth.offline, true);
+  assert.equal(auth.connectionLost, false);
+  assert.equal(auth.heartbeatDue(), true, 'retries on every tick while offline');
+  mode = 'unavailable';
+  await assert.rejects(auth.refresh(true), AccessUnavailableError);
+  assert.equal(auth.signedIn, true, 'a 503 is not a rejection');
+  const calls = desktopCalls;
+  now += 60_000;
+  await auth.refresh();
+  assert.equal(desktopCalls, calls, 'ordinary calls do not wait on the network during an outage');
+  assert.equal((await auth.getCurrentUser())?.id, 'u1');
+  assert.equal(storage.current().id, 'u1');
+
+  // The notice appears once the outage itself has lasted 90 seconds.
+  now += CONNECTION_LOST_MS - 60_000 - 1;
+  assert.equal(auth.connectionLost, false);
+  now += 1;
+  assert.equal(auth.connectionLost, true);
+  now += 10 * 60_000;
+  assert.equal(auth.signedIn, true, 'no local time limit ends the session');
+
+  mode = 'ok';
+  await auth.refresh(true);
+  assert.equal(auth.offline, false);
+  assert.equal(auth.connectionLost, false);
+
+  // Signing out and in while a check is in flight: the new sign-in gets its own request.
+  let release!: () => void;
+  hold = new Promise(resolve => { release = resolve; });
+  const staleSuccess = auth.refresh(true).then(() => null, (error: unknown) => error);
+  await auth.signOut();
+  hold = null;
+  await auth.signIn('outage.user', 'secret-pass-123');
+  release();
+  assert(await staleSuccess instanceof SessionChangedError);
+  assert.equal(auth.signedIn, true, 'a stale reply does not affect the new session');
+
+  // A rejection meant for a replaced session must not sign out the current one.
+  hold = new Promise(resolve => { release = resolve; });
+  const staleRejection = auth.refresh(true).then(() => null, (error: unknown) => error);
+  rejectedToken = `jwt-${logins}`;
+  await auth.signOut();
+  hold = null;
+  await auth.signIn('outage.user', 'secret-pass-123');
+  release();
+  assert(await staleRejection instanceof SessionChangedError);
+  assert.equal(auth.signedIn, true);
+  assert.equal(storage.current().id, 'u1');
+
+  // Only the server's rejection ends the session.
+  mode = 'reject';
+  const rejection = await auth.refresh(true).then(() => null, (error: unknown) => error);
+  assert.match((rejection as Error).message, /terminated/);
+  assert(!(rejection instanceof AccessUnavailableError));
+  assert.equal(auth.signedIn, false);
+  assert.equal(auth.offline, false);
+});

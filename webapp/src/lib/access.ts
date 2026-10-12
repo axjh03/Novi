@@ -83,7 +83,8 @@ export async function authenticate(req: Request, db: DB = prisma) {
   if (!session || session.accountId !== claims.accountId || session.audience !== audience || session.revokedAt || session.expiresAt <= new Date()) throw new AccessError('Your session has ended. Sign in again.', 401);
   await chain(db, session.account);
   if (audience === 'desktop') {
-    if (session.activeSlot !== session.accountId || +session.lastSeenAt < Date.now() - LEASE_MS) throw new AccessError('Your device session has expired. Sign in again.', 401);
+    // A lapsed lease only lets another device sign in (see login). Until one does, this session may resume after an outage.
+    if (session.activeSlot !== session.accountId) throw new AccessError('Your device session has expired. Sign in again.', 401);
     await eligible(db, session.account);
   }
   return { account: session.account, session };

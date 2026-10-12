@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import type { ChatEvent, CodeViewerBlock, NoviAPI } from '../shared/types';
+import type { AccessStatus, ChatEvent, CodeViewerBlock, NoviAPI } from '../shared/types';
 
 const api: NoviAPI = {
   startInterview: input => ipcRenderer.invoke('interview-start', input),
@@ -38,6 +38,11 @@ const api: NoviAPI = {
     const listener = (_event: Electron.IpcRendererEvent, message: string) => callback(message);
     ipcRenderer.on('session-ended', listener);
     return () => { ipcRenderer.removeListener('session-ended', listener); };
+  },
+  onAccessStatus: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: AccessStatus) => callback(status);
+    ipcRenderer.on('access-status', listener);
+    return () => { ipcRenderer.removeListener('access-status', listener); };
   },
   signOut: () => ipcRenderer.invoke('sign-out'),
   saveSettings: (input) => ipcRenderer.invoke('settings', input),

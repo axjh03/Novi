@@ -78,7 +78,9 @@ export interface ContextFolder { id: string; name: string; files: string[]; char
 export interface ContextInput { folderIds?: string[]; purpose?: string; fields?: Array<{ label: string; value: string }>; empty?: boolean }
 export interface ContextSession { id: string; connection: ProviderConnection; status: 'pending' | 'loading' | 'ready' | 'error' | 'ending'; summaryReady: boolean; isEmpty?: boolean }
 export interface SavedCredentials { username: string; password?: string }
-export interface Snapshot { user: User | null; settings: AppSettings | null; credentialIds: string[]; conversations: Conversation[]; contextSession?: ContextSession | null }
+/** Access server reachability. `connectionLost` means offline long enough to tell the user. */
+export interface AccessStatus { offline: boolean; connectionLost: boolean }
+export interface Snapshot { user: User | null; settings: AppSettings | null; credentialIds: string[]; conversations: Conversation[]; contextSession?: ContextSession | null; access?: AccessStatus }
 export interface SettingsInput {
   displayName: string;
   theme: AppSettings['theme'];
@@ -167,6 +169,7 @@ export interface NoviAPI {
   enableConnection(id: string, enabled: boolean): Promise<Result<Snapshot>>;
   refreshManaged(): Promise<Result<Snapshot>>;
   onSessionEnded(callback: (message: string) => void): () => void;
+  onAccessStatus(callback: (status: AccessStatus) => void): () => void;
   listModels(input: ConnectionInput): Promise<Result<ModelOption[]>>;
   testConnection(): Promise<Result<void>>;
   deleteConversation(id: string): Promise<Result<void>>;

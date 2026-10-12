@@ -1,5 +1,6 @@
 import { useEffect, useState, Component, type ReactNode } from 'react';
-import type { Snapshot } from '../../shared/types';
+import { Loader2 } from 'lucide-react';
+import type { AccessStatus, Snapshot } from '../../shared/types';
 import { AuthPage } from './pages/AuthPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { ChatPage } from './pages/ChatPage';
@@ -17,9 +18,17 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean
 }
 function Application() {
   const [state, setState] = useState<Snapshot | null>(null), [error, setError] = useState('');
-  async function load() { setError(''); try { setState(await unwrap(window.novi.session())); } catch (error) { setError(errorText(error)); } }
+  const [access, setAccess] = useState<AccessStatus>({ offline: false, connectionLost: false });
+  async function load() {
+    setError('');
+    try { const snapshot = await unwrap(window.novi.session()); setState(snapshot); if (snapshot.access) setAccess(snapshot.access); }
+    catch (error) { setError(errorText(error)); }
+  }
   useEffect(() => { void load(); }, []);
   useEffect(() => window.novi.onSessionEnded((message) => { setState({ user: null, settings: null, credentialIds: [], conversations: [] }); setError(message); }), []);
+  useEffect(() => window.novi.onAccessStatus(setAccess), []);
+  // If startup failed while offline, load again as soon as the access server answers.
+  useEffect(() => { if (!state && error && !access.offline) void load(); }, [access.offline]);
   useEffect(() => {
     if (state?.settings?.checkUpdatesAtStartup !== false) {
       void updaterService.initStartupCheck(true);
@@ -55,6 +64,7 @@ function Application() {
       <div className="app-shell">
         <TitleBar sessionActive={Boolean(state.user && state.settings?.onboardingComplete && state.contextSession)} />
         <div className="app-content">
+          {state.user && access.connectionLost && <div className="connection-status" role="status"><Loader2 size={14} className="spin" aria-hidden="true" />Connection lost. Reconnecting… Your session stays open.</div>}
           {error && <div className="global-error" role="alert">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
           {!state.user ? (
             <AuthPage onAuthenticated={setState} />

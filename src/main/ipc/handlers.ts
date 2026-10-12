@@ -1,8 +1,8 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, screen, shell } from 'electron';
 import { execFile } from 'node:child_process';
-import type { ChatLatency, CodeViewerBlock, Snapshot } from '../../shared/types';
+import type { AccessStatus, ChatLatency, CodeViewerBlock, Snapshot } from '../../shared/types';
 import { Storage } from '../services/storage';
-import { ManagedAuthService } from '../services/managedAuth';
+import { AccessUnavailableError, ManagedAuthService, SessionChangedError } from '../services/managedAuth';
 import { CredentialStore } from '../services/credentials';
 import { ImageService } from '../services/images';
 import { ChatService } from '../services/chat';
@@ -69,10 +69,27 @@ export function registerIPC(
       void warmer.warm(warmupUrl(context.currentConnection() ?? activeConnection(storage.current().settings)));
     } catch { /* Warm-up is best effort. */ }
   }
+  // Calls that can reach an AI provider need a fresh license check; outages fail only these.
+  const freshAccessChannels = new Set(['send', 'initialize-context', 'start-context', 'start-empty-session', 'list-models', 'test-connection']);
+  const accessStatus = (): AccessStatus => ({ offline: Boolean(services?.auth.offline), connectionLost: Boolean(services?.auth.connectionLost) });
+  let sentAccess = accessStatus();
+  function syncAccessStatus() {
+    const access = accessStatus();
+    if (access.offline === sentAccess.offline && access.connectionLost === sentAccess.connectionLost) return;
+    sentAccess = access;
+    for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('access-status', access);
+  }
+  // Only for a session the server rejected; outages never end a session.
+  async function endManagedSession(error: unknown, fallback: string) {
+    await endContext().catch(() => { });
+    await get().auth.signOut();
+    for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('session-ended', error instanceof UserError ? error.message : fallback);
+  }
   async function snapshot(): Promise<Snapshot> {
     const { storage, auth, credentials } = get();
     const user = await auth.getCurrentUser();
-    if (!user) return { user: null, settings: null, credentialIds: [], conversations: [] };
+    const access = accessStatus();
+    if (!user) return { user: null, settings: null, credentialIds: [], conversations: [], access };
     const account = storage.current();
     get().stealth.setClickThroughShortcut(account.settings.clickThroughShortcut);
     get().stealth.setShortcuts({
@@ -82,7 +99,7 @@ export function registerIPC(
       audio: account.settings.audioRecordShortcut,
       transparent: account.settings.transparentShortcut,
     });
-    return { user, settings: account.settings, credentialIds: account.settings.connections.filter((c) => credentials.has(user.id, c)).map((c) => c.id), conversations: get().storage.conversations, contextSession: get().context.session };
+    return { user, settings: account.settings, credentialIds: account.settings.connections.filter((c) => credentials.has(user.id, c)).map((c) => c.id), conversations: get().storage.conversations, contextSession: get().context.session, access };
   }
   const handle = (channel: string, callback: (value: unknown, event: Electron.IpcMainInvokeEvent, timing: ChatLatency) => unknown) => {
     ipcMain.handle(channel, async (event, value: unknown) => {
@@ -117,15 +134,15 @@ export function registerIPC(
         ];
         if (!publicChannels.includes(channel)) {
           const accessStart = performance.now();
-          const wasSignedIn = get().auth.signedIn;
-          try { await get().auth.refresh(['send', 'initialize-context', 'start-context', 'start-empty-session', 'list-models', 'test-connection'].includes(channel)); }
+          const auth = get().auth, wasSignedIn = auth.signedIn, fresh = freshAccessChannels.has(channel);
+          try { await auth.refresh(fresh); }
           catch (error) {
-            if (wasSignedIn) {
-              await endContext().catch(() => { });
-              await get().auth.signOut();
-              for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('session-ended', error instanceof UserError ? error.message : 'Your session has ended.');
+            // An outage keeps the session: local work continues on the last verified state.
+            if (error instanceof AccessUnavailableError) { if (fresh) throw error; }
+            else {
+              if (wasSignedIn && !(error instanceof SessionChangedError)) await endManagedSession(error, 'Your session has ended.');
+              throw error;
             }
-            throw error;
           }
           finally { timing.accessMs = performance.now() - accessStart; }
         }
@@ -140,7 +157,7 @@ export function registerIPC(
           ? error.message
           : (error?.message || 'Novi could not complete that action. Check file access and available disk space, then try again.');
         return { ok: false, error: userMsg };
-      }
+      } finally { syncAccessStatus(); }
     });
   };
   handle('interview-frame', () => {});
@@ -609,16 +626,18 @@ export function registerIPC(
     services?.stealth.cleanup();
   });
   let checkingSession = false;
+  // Ticks every 5 s: checks in every 20 s while connected and retries each tick during an outage.
   const heartbeat = setInterval(async () => {
-    if (!services?.auth.signedIn || checkingSession) return;
+    syncAccessStatus();
+    const auth = services?.auth;
+    if (!auth?.signedIn || checkingSession || !auth.heartbeatDue()) return;
     checkingSession = true;
-    try { await services.auth.refresh(true); }
+    try { await auth.refresh(true); }
     catch (error) {
-      await endContext().catch(() => { });
-      await services.auth.signOut();
-      for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('session-ended', error instanceof UserError ? error.message : 'Your session has ended. Sign in again.');
-    } finally { checkingSession = false; }
-  }, 20_000);
+      // Outages keep the session open until the user closes the window; only the server's rejection ends it.
+      if (!(error instanceof AccessUnavailableError) && !(error instanceof SessionChangedError)) await endManagedSession(error, 'Your session has ended. Sign in again.');
+    } finally { checkingSession = false; syncAccessStatus(); }
+  }, 5_000);
   heartbeat.unref();
   app.on('browser-window-created', (_event, window) => {
     if (services?.stealth.getState().transparent) window.setContentProtection(true);

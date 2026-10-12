@@ -77,6 +77,8 @@ test('access lifecycle: hierarchy, isolation, permanent licenses and exclusive d
     assert.equal(await db.accessSession.count({ where: { activeSlot: account.id } }), 1);
     const staleDesktop = concurrent.find(r => r.status === 'fulfilled')!.value.token;
     await db.accessSession.updateMany({ where: { activeSlot: account.id }, data: { lastSeenAt: new Date(Date.now() - LEASE_MS - 1000) } });
+    assert.equal((await desktop(req(staleDesktop, 'GET', true))).user.id, account.id, 'a lapsed lease resumes while no other device has signed in');
+    await db.accessSession.updateMany({ where: { activeSlot: account.id }, data: { lastSeenAt: new Date(Date.now() - LEASE_MS - 1000) } });
     const third = (await sign('desktop', 'desktop', 'device-three')).token;
     await assert.rejects(desktop(req(staleDesktop, 'GET', true)), /session has ended/);
     await mutate(req(a, 'PATCH'), 'accounts', account.id, { password: 'new password long enough' });

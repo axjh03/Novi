@@ -8,6 +8,14 @@ import { CredentialStore } from './credentials';
 import { text, UserError } from './validation';
 import { RemoteFileService } from './remoteFiles';
 
+/** The access server could not be reached or gave no usable answer. The session itself was not rejected. */
+export class AccessUnavailableError extends UserError {}
+/** The session was signed out or replaced while a request for it was in flight. */
+export class SessionChangedError extends UserError {}
+// An outage this long is shown to the user; the session stays open regardless.
+export const CONNECTION_LOST_MS = 90_000;
+const CHECK_INTERVAL_MS = 20_000;
+
 // Default production URL for packaged desktop releases.
 export const PRODUCTION_ACCESS_URL = process.env.NOVI_PRODUCTION_ACCESS_URL || 'https://novi-virid.vercel.app';
 
@@ -43,7 +51,8 @@ export class ManagedAuthService {
   private file: string;
   private saved: SavedSession;
   private lastChecked = 0;
-  private pending: Promise<void> | null = null;
+  private offlineSince: number | null = null;
+  private pending: { generation: number; promise: Promise<void> } | null = null;
   private generation = 0;
   private baseUrl: string;
   private remoteFiles: RemoteFileService;
@@ -75,24 +84,31 @@ export class ManagedAuthService {
     if (!this.secureStorage.isEncryptionAvailable() || (process.platform === 'linux' && this.secureStorage.getSelectedStorageBackend() === 'basic_text')) throw new UserError('Unlock your operating system keychain before signing in.');
   }
   private async request<T>(path: string, body?: object): Promise<T> {
+    const token = this.token;
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}/${path}`, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(path === 'logout' ? 3000 : 12_000), redirect: 'error' });
-    } catch { throw new UserError('Cannot reach the access server. Reconnect to continue.'); }
+      response = await fetch(`${this.baseUrl}/${path}`, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(path === 'logout' ? 3000 : 12_000), redirect: 'error' });
+    } catch { throw new AccessUnavailableError('Cannot reach the access server. Reconnect to continue.'); }
     // Proxies, gateways and captive portals can answer with HTML; never surface a raw JSON parse error.
     const result: unknown = await response.json().catch(() => null);
     const valid = typeof result === 'object' && result !== null && !Array.isArray(result);
     const error = valid && 'error' in result && typeof result.error === 'string' ? result.error : '';
     if (!response.ok) {
-      if ([401, 403].includes(response.status) && path !== 'login') this.clear();
+      // Only a 401/403 rejects the session; any other failure is an outage that keeps it open.
+      if (![401, 403].includes(response.status)) throw new AccessUnavailableError(error || 'Access request failed.');
+      if (path !== 'login') {
+        // A rejection of a replaced session must not sign out the current one.
+        if (token !== this.token) throw new SessionChangedError('Your account changed. Sign in again.');
+        this.clear();
+      }
       throw new UserError(error || 'Access request failed.');
     }
-    if (!valid || !('data' in result)) throw new UserError('The access server returned an unexpected response. Try again shortly.');
+    if (!valid || !('data' in result)) throw new AccessUnavailableError('The access server returned an unexpected response. Try again shortly.');
     return result.data as T;
   }
   private clear() {
     this.remoteFiles.stop();
-    this.generation++; this.token = ''; this.current = null; this.lastChecked = 0;
+    this.generation++; this.token = ''; this.current = null; this.lastChecked = 0; this.offlineSince = null;
     this.credentials.clearManaged(); this.storage.data.currentUserId = null; this.storage.save();
     delete this.saved.encryptedToken; atomicJSON(this.file, this.saved);
   }
@@ -152,12 +168,19 @@ export class ManagedAuthService {
   }
   async refresh(force = false) {
     if (!this.token) throw new UserError('Sign in with your licensed desktop account.');
-    if (!force && this.current && Date.now() - this.lastChecked < 15_000) return;
-    if (this.pending) return this.pending;
+    // During an outage, ordinary calls use the last verified state while the heartbeat retries.
+    if (!force && this.current && (this.offlineSince !== null || Date.now() - this.lastChecked < 15_000)) return;
+    // A request started for a previous session must not be shared with a new sign-in.
+    if (this.pending?.generation === this.generation) return this.pending.promise;
     const generation = this.generation;
-    this.pending = (async () => {
-      const result = await this.request<DesktopState>('desktop');
-      if (generation !== this.generation) throw new UserError('Your account changed. Sign in again.');
+    const promise = (async () => {
+      let result: DesktopState;
+      try { result = await this.request<DesktopState>('desktop'); }
+      catch (error) {
+        if (error instanceof AccessUnavailableError && generation === this.generation) this.offlineSince ??= Date.now();
+        throw error;
+      }
+      if (generation !== this.generation) throw new SessionChangedError('Your account changed. Sign in again.');
       const user: User = { id: result.user.id, name: result.user.name, email: result.user.username, username: result.user.username, managed: true, licenseKey: result.license.key, licenseExpiresAt: result.license.expiresAt };
       let account = this.storage.data.accounts.find(a => a.id === user.id);
       if (!account) {
@@ -184,14 +207,20 @@ export class ManagedAuthService {
       if (!connections.some(c => c.id === account!.settings.activeConnectionId && c.enabled)) account.settings.activeConnectionId = connections.find(c => c.enabled)?.id || null;
       this.credentials.setManaged(user.id, result.credentials);
       this.storage.data.currentUserId = user.id; this.storage.save();
-      this.current = user; this.lastChecked = Date.now();
-    })().finally(() => { this.pending = null; });
-    return this.pending;
+      this.current = user; this.lastChecked = Date.now(); this.offlineSince = null;
+    })().finally(() => { if (this.pending?.promise === promise) this.pending = null; });
+    this.pending = { generation, promise };
+    return promise;
   }
   async getCurrentUser() {
     if (!this.token) return null;
-    try { await this.refresh(); return { ...this.current!, name: this.storage.current().settings.displayName }; }
-    catch (error) { if (!this.token) return null; throw error; }
+    try { await this.refresh(); }
+    catch (error) {
+      if (!this.token) return null;
+      // Keep the verified account through an outage. Without one (offline at startup), report the error.
+      if (!(error instanceof AccessUnavailableError) || !this.current) throw error;
+    }
+    return { ...this.current!, name: this.storage.current().settings.displayName };
   }
   async signOut() {
     try { if (this.token) await this.request('logout', {}); }
@@ -199,4 +228,8 @@ export class ManagedAuthService {
     finally { this.clear(); }
   }
   get signedIn() { return Boolean(this.token); }
+  get offline() { return this.offlineSince !== null; }
+  get connectionLost() { return this.offlineSince !== null && Date.now() - this.offlineSince >= CONNECTION_LOST_MS; }
+  /** Check in every 20 s while connected, and retry on every heartbeat tick during an outage. */
+  heartbeatDue() { return this.offlineSince !== null || Date.now() - this.lastChecked >= CHECK_INTERVAL_MS; }
 }

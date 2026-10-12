@@ -58,7 +58,7 @@ PDF support requires `npm install` to install `pdfjs-dist` and its platform depe
 
 Optional seeded desktop accounts are `standalone.desktop` and `studio.desktop`, using `DEMO_PASSWORD`. Portal sample owners are `standalone`, `corporation`, and `subcorp`. See [webapp/README.md](webapp/README.md) for the role matrix, schema, API, and deployment instructions.
 
-The desktop reads `NOVI_ACCESS_URL` from its launch environment (defaults to `http://localhost:3000`). On PowerShell: `$env:NOVI_ACCESS_URL='https://your-access-server.example'`. Production servers require HTTPS. Normal sign-out releases the account immediately; crashed devices lose their lease after 90 seconds. The server must be reachable while using the app.
+The desktop reads `NOVI_ACCESS_URL` from its launch environment (defaults to `http://localhost:3000`). On PowerShell: `$env:NOVI_ACCESS_URL='https://your-access-server.example'`. Production servers require HTTPS. Normal sign-out releases the account immediately; crashed devices lose their lease after 90 seconds. If the server becomes unreachable, the session stays open and local features keep working; sending to an AI provider needs the server. After 90 seconds offline, Novi shows a reconnecting notice. Only a server rejection (revocation, password reset, license termination, another device signing in, or the 8-hour sign-in limit) ends the session.
 
 The managed provider catalog supports OpenAI, Anthropic, Gemini, and Kimi (Moonshot AI). Owners supply a model ID available to their provider account. Compatible providers use the existing Chat Completions transport; provider destinations are fixed by the server. Redirects are rejected.
 
