@@ -25,6 +25,10 @@ export class OverlayService {
     }));
   }
 
+  owns(window: BrowserWindow): boolean {
+    return this.overlayWindow !== null && this.overlayWindow === window;
+  }
+
   get activeDisplayId(): number | null {
     return this.overlayWindow && !this.overlayWindow.isDestroyed() ? this.currentDisplayId : null;
   }

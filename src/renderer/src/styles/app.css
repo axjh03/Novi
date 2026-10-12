@@ -3219,3 +3219,50 @@ html.transparent-mode #root {
 .composer-local-control { flex-wrap: wrap; gap: 6px; min-width: 0; }
 .composer-wrap > small { display: block; margin-top: 6px; }
 .context-footer-actions { flex-wrap: wrap; justify-content: flex-end; }
+
+/* ==========================================================================
+   Session layout: docked output panel + floating tray (src/renderer/src/components/TrayPortal.tsx)
+   ========================================================================== */
+
+/* The tray window sizes itself to the shell, so its document must not fill or scroll. */
+html.novi-tray, html.novi-tray body { height: auto; min-height: 0; overflow: hidden; background: transparent !important; }
+.tray-shell { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; }
+.tray-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-width: 0; }
+.tray-grip { display: inline-flex; align-items: center; align-self: stretch; padding: 0 2px; color: var(--subtle); cursor: grab; -webkit-app-region: drag; }
+.tray-shell .chat-mode-tabs { flex: 1 1 auto; order: 0; }
+.tray-shell .chat-mode-tabs .mode-tab-btn { min-height: 30px; padding: 5px 9px; }
+/* Keep the labels: four modes share the same icon. */
+html.novi-tray .chat-mode-tabs .mode-tab-btn span { display: inline; }
+.tray-shell .header-model-select-wrapper { min-width: 0; }
+.tray-shell .header-model-picker { max-width: 200px; }
+.tray-shell .eye-tracking-panel { flex: 0 0 auto; margin-left: auto; }
+.tray-shell .eye-tracking-toggle, .tray-shell .et-camera-btn { min-height: 30px; border-radius: 7px; background: var(--surface); }
+.tray-shell .behavioral-copilot-bar { padding: 0; border: 0; background: transparent !important; }
+.tray-shell .behavioral-framework-picker { margin: 0; font-size: 11px; }
+.tray-shell .dismissible, .tray-shell .request-options { margin: 0; }
+.tray-shell .composer { box-shadow: none; }
+.tray-status { color: var(--muted); font-size: 11px; }
+.tray-reopen { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; font-size: 11px; }
+.chat-header .header-title { max-width: 100%; }
+
+.transparent-mode .tray-shell {
+  background: color-mix(in srgb, var(--transparent-bg, var(--panel)) var(--transparent-opacity, 35%), transparent) !important;
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+}
+.transparent-mode.clickthrough-on .tray-shell { border-color: rgba(245, 158, 11, 0.55); }
+.transparent-mode.clickthrough-off .tray-shell { border-color: var(--accent); }
+
+/* The docked output panel is narrow: the expanded sidebar overlays the conversation instead of squeezing it. */
+@media (max-width: 700px) {
+  .chat-layout, .chat-layout.sidebar-collapsed { grid-template-columns: 48px minmax(0, 1fr); position: relative; }
+  .chat-layout > .chat-main, .chat-layout > .settings-page { grid-column: 2; }
+  .chat-layout:not(.sidebar-collapsed) > .sidebar { position: absolute; inset: 0 auto 0 0; width: 244px; z-index: 30; box-shadow: 12px 0 32px #0005; }
+  .chat-header { flex-wrap: nowrap; }
+  .chat-header .header-title-area { flex: 1 1 auto; }
+}
+@media (max-width: 620px) {
+  /* Visually hidden, so the buttons keep their names for assistive tech; titles still show on hover. */
+  .app-titlebar .stealth-toggle-btn > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .app-titlebar .titlebar-center { gap: 6px; padding: 0 6px; }
+}

@@ -36,10 +36,14 @@ export class StealthService {
   private getKeyStateFn: ((vk: number) => number) | null = null;
   private overlayService: OverlayService | null = null;
   private getWindow: () => BrowserWindow | null;
+  private listWindows: (() => BrowserWindow[]) | null;
+  // Windows that stay above other apps even outside transparent mode (the floating tray).
+  private pinnedOnTop = new WeakSet<BrowserWindow>();
 
-  constructor(getWindow: () => BrowserWindow | null, overlayService?: OverlayService) {
+  constructor(getWindow: () => BrowserWindow | null, overlayService?: OverlayService, listWindows?: () => BrowserWindow[]) {
     this.getWindow = getWindow;
     this.overlayService = overlayService || null;
+    this.listWindows = listWindows || null;
     this.initNativeKeyReader();
     // Initial check of NumLock state
     this.numLock = this.readNumLock();
@@ -175,11 +179,14 @@ export class StealthService {
 
     for (const window of this.getWindows()) {
       window.setContentProtection(enabled);
+      // The eye-tracking overlay manages its own click-through and stacking.
+      if (this.isOverlay(window)) continue;
       if (enabled) {
         window.setAlwaysOnTop(true, 'screen-saver');
         this.applyMouseMode(window, !this.clickThrough);
       } else {
-        window.setAlwaysOnTop(false);
+        if (this.pinnedOnTop.has(window)) window.setAlwaysOnTop(true, 'floating');
+        else window.setAlwaysOnTop(false);
         window.setIgnoreMouseEvents(false);
       }
     }
@@ -201,6 +208,24 @@ export class StealthService {
 
   toggleTransparent(): StealthState {
     return this.setTransparent(!this.transparent);
+  }
+
+  keepOnTop(window: BrowserWindow) {
+    this.pinnedOnTop.add(window);
+    window.setAlwaysOnTop(true, this.transparent ? 'screen-saver' : 'floating');
+  }
+
+  // Brings a window opened after transparent mode was turned on into the same state as the others.
+  applyWindowState(window: BrowserWindow) {
+    if (window.isDestroyed() || this.isOverlay(window)) return;
+    window.setContentProtection(this.transparent);
+    if (!this.transparent) return;
+    window.setAlwaysOnTop(true, 'screen-saver');
+    this.applyMouseMode(window, !this.clickThrough);
+  }
+
+  private isOverlay(window: BrowserWindow): boolean {
+    return Boolean(this.overlayService?.owns(window));
   }
 
   private applyMouseMode(win: BrowserWindow, isNumLockOn: boolean) {
@@ -259,8 +284,7 @@ export class StealthService {
   public toggleClickThrough(): StealthState {
     if (!this.transparent) return this.getState();
     this.clickThrough = !this.clickThrough;
-    const win = this.getWindow();
-    if (win && !win.isDestroyed()) this.applyMouseMode(win, !this.clickThrough);
+    for (const window of this.getWindows()) if (!this.isOverlay(window)) this.applyMouseMode(window, !this.clickThrough);
     this.broadcastState();
     return this.getState();
   }
@@ -290,7 +314,7 @@ export class StealthService {
       this.numLock = current;
       this.clickThrough = !this.numLock;
       for (const window of this.getWindows()) {
-        if (window && !window.isDestroyed() && this.transparent) {
+        if (window && !window.isDestroyed() && this.transparent && !this.isOverlay(window)) {
           this.applyMouseMode(window, !this.clickThrough);
         }
       }
@@ -305,7 +329,7 @@ export class StealthService {
   private getWindows(): BrowserWindow[] {
     const win = this.getWindow();
     const windows = new Set<BrowserWindow>(win && !win.isDestroyed() ? [win] : []);
-    try { for (const window of req('electron').BrowserWindow.getAllWindows()) if (!window.isDestroyed()) windows.add(window); } catch { /* tests and shutdown */ }
+    try { for (const window of this.listWindows ? this.listWindows() : req('electron').BrowserWindow.getAllWindows()) if (!window.isDestroyed()) windows.add(window); } catch { /* tests and shutdown */ }
     return [...windows];
   }
 

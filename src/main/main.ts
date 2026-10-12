@@ -14,6 +14,7 @@ const devUrl = process.env.ELECTRON_RENDERER_URL;
 const rendererUrl = new URL(devUrl || pathToFileURL(rendererPath).href).href;
 
 let mainWindow: BrowserWindow | null = null;
+let attachMainWindow: ((window: BrowserWindow) => void) | null = null;
 
 function createWindow() {
   const iconPath = join(__dirname, '../../build/icon.png');
@@ -36,6 +37,8 @@ function createWindow() {
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event) => event.preventDefault());
   window.webContents.on('will-attach-webview', (event) => event.preventDefault());
+  // Replaces the deny-all handler above with one that only allows the session tray.
+  attachMainWindow?.(window);
   if (devUrl) void window.loadURL(devUrl);
   else void window.loadFile(rendererPath);
 }
@@ -73,7 +76,7 @@ else void app.whenReady().then(async () => {
     callback({ cancel: !local });
   });
   const { registerIPC } = await import('./ipc/handlers');
-  registerIPC(rendererUrl, join(__dirname, '../preload/preload.js'), () => mainWindow);
+  ({ attachMainWindow } = registerIPC(rendererUrl, join(__dirname, '../preload/preload.js'), () => mainWindow));
   if (process.platform === 'darwin' && app.dock) {
     try { app.dock.setIcon(join(__dirname, '../../build/icon.png')); } catch { }
   }
@@ -81,7 +84,8 @@ else void app.whenReady().then(async () => {
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });
 app.on('second-instance', () => {
-  const window = BrowserWindow.getAllWindows()[0];
-  if (window) { if (window.isMinimized()) window.restore(); window.focus(); }
+  // The first window could be the tray or an overlay; always bring back the main window.
+  const window = mainWindow;
+  if (window && !window.isDestroyed()) { if (window.isMinimized()) window.restore(); window.focus(); }
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

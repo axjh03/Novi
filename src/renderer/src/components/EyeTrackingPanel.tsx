@@ -60,6 +60,7 @@ export function EyeTrackingPanel({
   const [stickySent, setStickySent] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
+  const panelRef = useRef<HTMLDivElement>(null);
   const cameraPickerRef = useRef<HTMLDivElement>(null);
   const monitorPickerRef = useRef<HTMLDivElement>(null);
   const sensitivityPickerRef = useRef<HTMLDivElement>(null);
@@ -106,8 +107,9 @@ export function EyeTrackingPanel({
     };
   }, [showPreview, cameraPickerOpen, selectedCameraId]);
 
-  // Close dropdowns when clicking outside
+  // Close dropdowns when clicking outside. The panel may live in the tray window, so listen on its own document.
   useEffect(() => {
+    const doc = panelRef.current?.ownerDocument ?? document;
     const handler = (e: MouseEvent) => {
       if (cameraPickerRef.current && !cameraPickerRef.current.contains(e.target as Node)) {
         setCameraPickerOpen(false);
@@ -119,8 +121,8 @@ export function EyeTrackingPanel({
         setSensitivityPickerOpen(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    doc.addEventListener('mousedown', handler);
+    return () => doc.removeEventListener('mousedown', handler);
   }, []);
 
   const handleOpenCameras = async () => {
@@ -178,7 +180,7 @@ export function EyeTrackingPanel({
   const selectedMonitor = monitors.find((m) => m.id === selectedDisplayId) || monitors[0];
 
   return (
-    <div className="eye-tracking-panel">
+    <div className="eye-tracking-panel" ref={panelRef}>
       {/* 1. Main Eye Tracking Toggle */}
       <button
         className={`eye-tracking-toggle ${isOn ? 'eye-tracking-toggle--on' : ''}`}

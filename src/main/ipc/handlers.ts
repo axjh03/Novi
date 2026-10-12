@@ -21,6 +21,7 @@ import { detectHardware, ModelManager } from '../services/localModels.mjs';
 import { InterviewService } from '../services/interviewService';
 import { RemoteCompanionService } from '../services/remoteCompanion';
 import { ConnectionWarmer, warmupUrl } from '../services/connectionWarmup';
+import { WorkspaceService } from '../services/workspace';
 import { activeConnection } from '../../shared/providers';
 import { dirname, join } from 'node:path';
 
@@ -58,6 +59,8 @@ export function registerIPC(
     return { storage, credentials, images, context, audio, transcription, localModels, interview, connections: new ConnectionService(storage, credentials), auth: new ManagedAuthService(storage, credentials), chat: new ChatService(storage, credentials, images, context), overlay, stealth, remoteCompanion };
   }
   const get = () => services ||= initialize();
+  // The floating tray stays above other apps and follows transparent mode like the main window.
+  const workspace = new WorkspaceService(getMainWindow, (tray) => { const { stealth } = get(); stealth.keepOnTop(tray); stealth.applyWindowState(tray); });
   const requireNoContext = () => { if (get().context.session) throw new UserError('End this session before changing accounts or AI providers.'); };
   const warmer = new ConnectionWarmer();
   const warmBeforeAccessCheck = new Set(['send', 'initialize-context', 'start-context', 'start-empty-session', 'test-connection', 'capture-screen']);
@@ -129,6 +132,8 @@ export function registerIPC(
           'install-update', 'check-permissions', 'request-permissions',
           'get-saved-credentials', 'save-credentials', 'open-external', 'open-audio-midi-setup',
           'get-remote-companion-status', 'toggle-remote-tunnel',
+          // Window layout only; the tray reports its size whenever its content changes.
+          'set-workspace-docked', 'set-tray-height',
           // Best effort and frequent: must never refresh, or sign out on, the managed session.
           'warm-connection'
         ];
@@ -452,6 +457,17 @@ export function registerIPC(
     const win = BrowserWindow.fromWebContents(event.sender);
     return win?.isMaximized() ?? false;
   });
+  handle('set-workspace-docked', (value, event) => {
+    if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can change the layout.');
+    if (object(value).docked === true) workspace.dock(workingDisplay().workArea);
+    else workspace.undock();
+  });
+  handle('set-tray-height', (value, event) => {
+    if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can size the tray.');
+    const height = Number(object(value).height);
+    if (!Number.isFinite(height) || height <= 0 || height > 10_000) throw new UserError('Invalid tray height.');
+    workspace.resizeTray(height);
+  });
   let codeViewerWindow: BrowserWindow | null = null;
   let codeViewerBlocks: CodeViewerBlock[] = [];
   let codeViewerVisible = false;
@@ -502,6 +518,34 @@ export function registerIPC(
   });
   handle('get-code-viewer-blocks', () => codeViewerBlocks);
   let workingMonitorId: number | null = null;
+  function currentWorkingMonitorId(): number {
+    if (workingMonitorId === null) {
+      try {
+        const user = get().storage.current();
+        if (typeof user?.settings?.workingMonitorId === 'number') {
+          workingMonitorId = user.settings.workingMonitorId;
+        }
+      } catch { }
+    }
+    if (workingMonitorId === null) {
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        const display = screen.getDisplayMatching(win.getBounds());
+        if (display) workingMonitorId = display.id;
+      }
+      if (workingMonitorId === null) {
+        workingMonitorId = screen.getPrimaryDisplay().id;
+      }
+    }
+    return workingMonitorId;
+  }
+  // A saved monitor may have been unplugged; fall back to the screen the window is on.
+  function workingDisplay() {
+    const id = currentWorkingMonitorId();
+    const win = getMainWindow();
+    return screen.getAllDisplays().find((display) => display.id === id)
+      ?? (win && !win.isDestroyed() ? screen.getDisplayMatching(win.getBounds()) : screen.getPrimaryDisplay());
+  }
   handle('capture-screen', async () => {
     if (workingMonitorId === null) {
       try {
@@ -531,7 +575,11 @@ export function registerIPC(
     const win = getMainWindow();
     const allDisplays = screen.getAllDisplays();
     const targetDisplay = allDisplays.find((d) => d.id === displayId);
-    if (win && !win.isDestroyed() && targetDisplay) {
+    if (win && !win.isDestroyed() && targetDisplay && workspace.docked) {
+      // During a session the output panel and the tray move to the chosen screen together.
+      workspace.dock(targetDisplay.workArea);
+      win.show();
+    } else if (win && !win.isDestroyed() && targetDisplay) {
       if (win.isMinimized()) win.restore();
       const wasMaximized = win.isMaximized();
       if (wasMaximized) win.unmaximize();
@@ -554,27 +602,7 @@ export function registerIPC(
 
     return { workingMonitorId: displayId };
   });
-  handle('get-working-monitor', () => {
-    if (workingMonitorId === null) {
-      try {
-        const user = get().storage.current();
-        if (typeof user?.settings?.workingMonitorId === 'number') {
-          workingMonitorId = user.settings.workingMonitorId;
-        }
-      } catch { }
-    }
-    if (workingMonitorId === null) {
-      const win = getMainWindow();
-      if (win && !win.isDestroyed()) {
-        const display = screen.getDisplayMatching(win.getBounds());
-        if (display) workingMonitorId = display.id;
-      }
-      if (workingMonitorId === null) {
-        workingMonitorId = screen.getPrimaryDisplay().id;
-      }
-    }
-    return { workingMonitorId };
-  });
+  handle('get-working-monitor', () => ({ workingMonitorId: currentWorkingMonitorId() }));
   handle('save-audio-recording', (value) => {
     const input = object(value);
     return get().audio.saveRecording(input.base64 as string, (input.mimeType as string) || 'audio/webm', input.filename as string | undefined);
@@ -641,8 +669,10 @@ export function registerIPC(
   heartbeat.unref();
   app.on('browser-window-created', (_event, window) => {
     if (services?.stealth.getState().transparent) window.setContentProtection(true);
+    // Only closing the main window ends the session; the tray, code viewer and overlay can close on their own.
     window.on('close', () => {
-      if (!window.webContents.getURL().includes('#/overlay')) void endContext().catch(() => { });
+      if (window === getMainWindow()) void endContext().catch(() => { });
     });
   });
+  return { attachMainWindow: (window: BrowserWindow) => workspace.attachMain(window) };
 }

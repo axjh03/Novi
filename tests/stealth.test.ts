@@ -21,6 +21,7 @@ test('StealthService manages transparent mode, content protection, and NumLock c
   let overlayProtected = false;
   const mockOverlay: any = {
     setContentProtection: (val: boolean) => { overlayProtected = val; },
+    owns: () => false,
   };
 
   const stealth = new StealthService(() => mockWindow, mockOverlay);
@@ -76,4 +77,65 @@ test('detached viewers accept scrolling while the main window is click-through',
   const stealth = new StealthService(() => viewer);
   try { stealth.setTransparent(true); assert.equal(ignoredMouse, false); }
   finally { stealth.cleanup(); }
+});
+
+function fakeWindow(url = 'file:///app/index.html') {
+  const state = { protected: false, onTop: false, level: '' as string | undefined, ignored: false };
+  const window: any = {
+    state,
+    isDestroyed: () => false,
+    setContentProtection: (value: boolean) => { state.protected = value; },
+    setAlwaysOnTop: (value: boolean, level?: string) => { state.onTop = value; state.level = value ? level : undefined; },
+    setIgnoreMouseEvents: (ignore: boolean) => { state.ignored = ignore; },
+    webContents: { getURL: () => url, send() {} },
+  };
+  return window;
+}
+
+test('transparent mode leaves the eye-tracking overlay in charge of its own clicks and stacking', () => {
+  const main = fakeWindow(), overlay = fakeWindow('file:///app/index.html#/overlay');
+  overlay.state.ignored = true; overlay.state.onTop = true; overlay.state.level = 'screen-saver';
+  const overlayService: any = { setContentProtection() {}, owns: (window: unknown) => window === overlay };
+  const stealth = new StealthService(() => main, overlayService, () => [main, overlay]);
+  try {
+    stealth.setTransparent(true);
+    assert.equal(overlay.state.protected, true, 'the overlay is still hidden from screen capture');
+    stealth.toggleClickThrough();
+    stealth.toggleClickThrough();
+    stealth.setTransparent(false);
+    assert.equal(overlay.state.ignored, true, 'the overlay never becomes an invisible click blocker');
+    assert.deepEqual([overlay.state.onTop, overlay.state.level], [true, 'screen-saver']);
+    assert.equal(overlay.state.protected, false);
+  } finally { stealth.cleanup(); }
+});
+
+test('the floating tray follows transparent mode and click-through, and stays on top afterwards', () => {
+  const main = fakeWindow(), tray = fakeWindow('about:blank');
+  const stealth = new StealthService(() => main, undefined, () => [main, tray]);
+  try {
+    stealth.keepOnTop(tray);
+    assert.deepEqual([tray.state.onTop, tray.state.level], [true, 'floating']);
+    const on = stealth.setTransparent(true);
+    assert.deepEqual([tray.state.protected, tray.state.level], [true, 'screen-saver']);
+    assert.equal(tray.state.ignored, on.clickThrough);
+    const toggled = stealth.toggleClickThrough();
+    assert.equal(toggled.clickThrough, !on.clickThrough);
+    assert.equal(tray.state.ignored, toggled.clickThrough, 'click-through applies to the tray as well as the main window');
+    assert.equal(main.state.ignored, toggled.clickThrough);
+    stealth.setTransparent(false);
+    assert.deepEqual([tray.state.onTop, tray.state.level, tray.state.ignored, tray.state.protected], [true, 'floating', false, false]);
+    assert.deepEqual([main.state.onTop, main.state.ignored], [false, false]);
+  } finally { stealth.cleanup(); }
+});
+
+test('a window opened while transparent mode is on joins the current state', () => {
+  const main = fakeWindow(), late = fakeWindow('about:blank');
+  const stealth = new StealthService(() => main, undefined, () => [main]);
+  try {
+    stealth.applyWindowState(late);
+    assert.deepEqual([late.state.protected, late.state.onTop], [false, false], 'nothing changes outside transparent mode');
+    const on = stealth.setTransparent(true);
+    stealth.applyWindowState(late);
+    assert.deepEqual([late.state.protected, late.state.onTop, late.state.level, late.state.ignored], [true, true, 'screen-saver', on.clickThrough]);
+  } finally { stealth.cleanup(); }
 });

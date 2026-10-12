@@ -2,6 +2,32 @@ import { useEffect, useState, useCallback } from 'react';
 import type { StealthState } from '../../../shared/types';
 import { unwrap } from '../services/api';
 
+// Transparent interactive mode hides the system cursor (see app.css); draw a private one inside this window.
+export function attachPrivateCursor(target: Window): () => void {
+  const doc = target.document;
+  const cursor = doc.createElement('span');
+  cursor.className = 'stealth-private-cursor';
+  cursor.hidden = true;
+  cursor.setAttribute('aria-hidden', 'true');
+  doc.body.append(cursor);
+
+  const move = (event: PointerEvent) => {
+    cursor.style.transform = `translate3d(${event.clientX}px, ${event.clientY}px, 0)`;
+    cursor.hidden = false;
+  };
+  const hide = () => { cursor.hidden = true; };
+
+  target.addEventListener('pointermove', move, { passive: true });
+  target.addEventListener('blur', hide);
+  doc.documentElement.addEventListener('mouseleave', hide);
+  return () => {
+    target.removeEventListener('pointermove', move);
+    target.removeEventListener('blur', hide);
+    doc.documentElement.removeEventListener('mouseleave', hide);
+    cursor.remove();
+  };
+}
+
 export function useStealth() {
   const [state, setState] = useState<StealthState>({
     transparent: false,
@@ -54,28 +80,7 @@ export function useStealth() {
 
   useEffect(() => {
     if (!state.transparent || state.clickThrough) return;
-
-    const cursor = document.createElement('span');
-    cursor.className = 'stealth-private-cursor';
-    cursor.hidden = true;
-    cursor.setAttribute('aria-hidden', 'true');
-    document.body.append(cursor);
-
-    const move = (event: PointerEvent) => {
-      cursor.style.transform = `translate3d(${event.clientX}px, ${event.clientY}px, 0)`;
-      cursor.hidden = false;
-    };
-    const hide = () => { cursor.hidden = true; };
-
-    window.addEventListener('pointermove', move, { passive: true });
-    window.addEventListener('blur', hide);
-    document.documentElement.addEventListener('mouseleave', hide);
-    return () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('blur', hide);
-      document.documentElement.removeEventListener('mouseleave', hide);
-      cursor.remove();
-    };
+    return attachPrivateCursor(window);
   }, [state.transparent, state.clickThrough]);
 
   const toggleTransparent = useCallback(async () => {

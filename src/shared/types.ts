@@ -198,6 +198,9 @@ export interface NoviAPI {
   maximizeWindow(): Promise<Result<boolean>>;
   closeWindow(): Promise<Result<void>>;
   isWindowMaximized(): Promise<Result<boolean>>;
+  /** During a session the main window docks on the right as the output panel. */
+  setWorkspaceDocked(docked: boolean): Promise<Result<void>>;
+  setTrayHeight(height: number): Promise<Result<void>>;
   captureScreen(): Promise<Result<ImageAttachment>>;
   saveAudioRecording(input: { base64: string; mimeType?: string; filename?: string }): Promise<Result<{ id: string; path: string; name: string }>>;
   attachAudioRecording(input: { base64: string; mimeType?: string; filename?: string }): Promise<Result<ImageAttachment>>;

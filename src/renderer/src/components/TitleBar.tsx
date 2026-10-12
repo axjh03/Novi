@@ -13,7 +13,13 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
   const [showQRModal, setShowQRModal] = useState(false);
 
   useEffect(() => {
-    void unwrap(window.novi.isWindowMaximized()).then(setMaximized).catch(() => {});
+    // Docking for a session unmaximizes the window, so re-check whenever the window changes size.
+    let timer = 0;
+    const update = () => { void unwrap(window.novi.isWindowMaximized()).then(setMaximized).catch(() => {}); };
+    const onResize = () => { window.clearTimeout(timer); timer = window.setTimeout(update, 150); };
+    update();
+    window.addEventListener('resize', onResize);
+    return () => { window.clearTimeout(timer); window.removeEventListener('resize', onResize); };
   }, []);
 
   return (

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Award, Code2, MessageSquare, X } from 'lucide-react';
+import { Award, Code2, GripVertical, MessageSquare, PanelTop, X } from 'lucide-react';
 import type { ModelOption, Snapshot } from '../../../shared/types';
 import { Sidebar } from '../components/chat/Sidebar';
 import { Composer } from '../components/chat/Composer';
@@ -16,11 +16,18 @@ import { codeFromMessages } from '../components/CodingModeHUD';
 import { SESSION_MODES } from '../../../shared/sessionModes';
 import { diagramBlocks } from '../../../shared/diagrams';
 import { BehavioralModeHUD } from '../components/BehavioralModeHUD';
+import { TrayPortal } from '../components/TrayPortal';
 
 export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSaved: (state: Snapshot) => void; onSignOut: () => void }) {
   const chat = useChat(state.conversations), [settings, setSettings] = useState(false), [deleting, setDeleting] = useState<string | null>(null);
   const [composerKey, setComposerKey] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  // The input controls live in a floating tray window; this window docks on the right as the output panel.
+  const [trayOpen, setTrayOpen] = useState(true), [trayKey, setTrayKey] = useState(0);
+  useEffect(() => {
+    void unwrap(window.novi.setWorkspaceDocked(true)).catch(console.error);
+    return () => { void unwrap(window.novi.setWorkspaceDocked(false)).catch(console.error); };
+  }, []);
   const {
     appMode,
     setAppMode,
@@ -195,45 +202,42 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
           <header className="chat-header">
             <div className="header-title-area">
               <span className="header-title">{chat.selected?.title || 'A new conversation'}</span>
-              <div className="header-model-select-wrapper">
-                <span className="status-dot" />
-                {enabledConnections.length > 1 && (
-                  <select
-                    aria-label="Change provider connection"
-                    className="header-model-picker header-conn-picker"
-                    disabled={sidebarBusy || syncingModel}
-                    value={connection?.id || ''}
-                    onChange={(e) => void handleModelChange(e.target.value)}
-                    title={`Connection: ${connection?.name || 'None'}`}
-                  >
-                    {enabledConnections.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <select
-                  aria-label="Change session model"
-                  className="header-model-picker"
-                  disabled={sidebarBusy || syncingModel}
-                  value={connection?.model || ''}
-                  onChange={(e) => void handleModelChange(connection?.id || '', e.target.value)}
-                  title={`Active model: ${connection?.model || 'None'}`}
-                >
-                  {modelOptions.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name === m.id ? m.id : `${m.name} (${m.id})`}
-                    </option>
-                  ))}
-                </select>
-                {(['fast', 'deep'] as const).map(role => <button type="button" key={role}
-                  className="text-button" disabled={sidebarBusy || syncingModel || loadingModels || !availableModels.some(model => model.id === roles?.[role])}
-                  aria-pressed={Boolean(roles?.[role] && connection?.model === roles[role])}
-                  title={roles?.[role] ? `${role === 'fast' ? 'Fast' : 'Deep'}: ${roles[role]}` : `Choose a ${role} model in Model roles below`}
-                  onClick={() => void handleModelChange(connection!.id, roles![role])}>{role === 'fast' ? 'Fast' : 'Deep'}</button>)}
+            </div>
+            {!trayOpen && <button type="button" className="text-button tray-reopen" onClick={() => { setTrayKey((key) => key + 1); setTrayOpen(true); }}><PanelTop size={14} />Show tray</button>}
+            <div className="session-controls"><span title="Temporary session context">{state.contextSession?.isEmpty ? 'Empty session' : state.contextSession?.summaryReady ? 'Ready' : state.contextSession?.status === 'error' ? 'Context error' : 'Loading context…'}</span><button className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button></div>
+          </header>
+          {/* Errors normally show in the tray; keep them visible here while it is closed. */}
+          {!trayOpen && chat.error && (
+            <div className="error dismissible" role="alert">
+              {chat.error}
+              <button className="icon-button" onClick={() => chat.setError('')} aria-label="Dismiss error"><X size={14} /></button>
+            </div>
+          )}
+
+          {appMode === 'system-design' && <button type="button" className="secondary" onClick={() => void unwrap(window.novi.setCodeViewerVisible(true)).then(() => unwrap(window.novi.updateCodeViewer(diagramBlocks(chat.selected?.messages || [])))).catch((error) => chat.setError(errorText(error)))}>Open diagrams · saved with this conversation</button>}
+          {chat.selected ? (
+            <div className="conversation-scroll" ref={scroll} onScroll={() => { const el = scroll.current!; atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }}>
+              <div className="messages">
+                {chat.selected.messages.map((message, index) => (
+                  <Message key={message.id} message={message} displayName={config.displayName}
+                    generating={chat.busy && chat.activeId === chat.selectedId && index === chat.selected!.messages.length - 1} />
+                ))}
               </div>
             </div>
+          ) : (
+            <div className="empty-state">
+              <Brand compact />
+              <h1>What would you like to work on?</h1>
+              <p>Type in the tray at the top of your screen, share an image, or choose a focused mode there.</p>
+            </div>
+          )}
+        </main>
+      )}
+
+      {!settings && trayOpen && (
+        <TrayPortal key={trayKey} onClosed={() => setTrayOpen(false)}>
+          <div className="tray-row">
+            <span className="tray-grip" title="Drag to move the tray" aria-hidden="true"><GripVertical size={15} /></span>
             <nav className="chat-mode-tabs" aria-label="Conversation mode">
               {SESSION_MODES.map(({ id: mode, name: label }) => {
                 const Icon = mode === 'coding' ? Code2 : mode === 'normal' ? MessageSquare : Award;
@@ -244,8 +248,55 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
                 </button>
               ); })}
             </nav>
-            <div className="session-controls"><span title="Temporary session context">{state.contextSession?.isEmpty ? 'Empty session' : state.contextSession?.summaryReady ? 'Ready' : state.contextSession?.status === 'error' ? 'Context error' : 'Loading context…'}</span><button className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button></div>
-            {/* Eye tracking controls in header */}
+          </div>
+          <div className="tray-row">
+            <div className="header-model-select-wrapper">
+              <span className="status-dot" />
+              {enabledConnections.length > 1 && (
+                <select
+                  aria-label="Change provider connection"
+                  className="header-model-picker header-conn-picker"
+                  disabled={sidebarBusy || syncingModel}
+                  value={connection?.id || ''}
+                  onChange={(e) => void handleModelChange(e.target.value)}
+                  title={`Connection: ${connection?.name || 'None'}`}
+                >
+                  {enabledConnections.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <select
+                aria-label="Change session model"
+                className="header-model-picker"
+                disabled={sidebarBusy || syncingModel}
+                value={connection?.model || ''}
+                onChange={(e) => void handleModelChange(connection?.id || '', e.target.value)}
+                title={`Active model: ${connection?.model || 'None'}`}
+              >
+                {modelOptions.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name === m.id ? m.id : `${m.name} (${m.id})`}
+                  </option>
+                ))}
+              </select>
+              {(['fast', 'deep'] as const).map(role => <button type="button" key={role}
+                className="text-button" disabled={sidebarBusy || syncingModel || loadingModels || !availableModels.some(model => model.id === roles?.[role])}
+                aria-pressed={Boolean(roles?.[role] && connection?.model === roles[role])}
+                title={roles?.[role] ? `${role === 'fast' ? 'Fast' : 'Deep'}: ${roles[role]}` : `Choose a ${role} model in Model roles below`}
+                onClick={() => void handleModelChange(connection!.id, roles![role])}>{role === 'fast' ? 'Fast' : 'Deep'}</button>)}
+            </div>
+            {['behavioral', 'recruiter', 'technical'].includes(appMode) && (
+              <BehavioralModeHUD
+                showFramework={appMode === 'behavioral'}
+                framework={behavioralFramework}
+                onSelectFramework={setBehavioralFramework}
+                isEyeTrackingActive={et.state === 'running' || et.state === 'calibrating'}
+                onToggleEyeTracking={handleToggleEyeTrackingBehavioral}
+              />
+            )}
             <EyeTrackingPanel
               state={et.state}
               error={et.error}
@@ -268,66 +319,34 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
               onSetMonitor={setWorkingMonitor}
               onSendSticky={et.sendStickyToOverlay}
             />
-          </header>
-
-          {/* Integrated Behavioral Mode Copilot Bar (All in One Right Side - No Left Tab) */}
-          {['behavioral', 'recruiter', 'technical'].includes(appMode) && (
-            <BehavioralModeHUD
-              showFramework={appMode === 'behavioral'}
-              framework={behavioralFramework}
-              onSelectFramework={setBehavioralFramework}
-              isEyeTrackingActive={et.state === 'running' || et.state === 'calibrating'}
-              onToggleEyeTracking={handleToggleEyeTrackingBehavioral}
-            />
-          )}
-
-          {appMode === 'system-design' && <button type="button" className="secondary" onClick={() => void unwrap(window.novi.setCodeViewerVisible(true)).then(() => unwrap(window.novi.updateCodeViewer(diagramBlocks(chat.selected?.messages || [])))).catch((error) => chat.setError(errorText(error)))}>Open diagrams · saved with this conversation</button>}
-          {chat.selected ? (
-            <div className="conversation-scroll" ref={scroll} onScroll={() => { const el = scroll.current!; atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }}>
-              <div className="messages">
-                {chat.selected.messages.map((message, index) => (
-                  <Message key={message.id} message={message} displayName={config.displayName}
-                    generating={chat.busy && chat.activeId === chat.selectedId && index === chat.selected!.messages.length - 1} />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="empty-state">
-              <Brand compact />
-              <h1>What would you like to work on?</h1>
-              <p>Ask a question, share an image, or choose a focused mode above.</p>
-            </div>
-          )}
-
-          <div className="composer-area">
-            {syncingModel && <div role="status">Saving model selection…</div>}
-            <details className="request-options"><summary>Model roles and context</summary>
-              <p>Fast for short follow-ups; Deep for new code, debugging, and design. You choose which model answers.</p>
-              {(['fast', 'deep'] as const).map(role => <label key={role}>{role === 'fast' ? 'Fast' : 'Deep'} model
-                <select value={roles?.[role] || ''} disabled={loadingModels || sidebarBusy || syncingModel} onChange={event => void setRole(role, event.target.value)}>
-                  <option value="" disabled>{loadingModels ? 'Loading models…' : 'Choose a model'}</option>
-                  {roles?.[role] && !availableModels.some(model => model.id === roles[role]) && <option value={roles[role]}>{roles[role]} (refresh availability)</option>}
-                  {availableModels.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
-                </select>
-              </label>)}
-              <label>Pinned constraints<textarea value={pinnedContext} maxLength={8000} disabled={chat.busy} onChange={event => setPinnedContext(event.target.value)} placeholder="Requirements to include verbatim in every request in this conversation" /></label>
-              <label><input type="checkbox" checked={compactContext} disabled={chat.busy} onChange={event => setCompactContext(event.target.checked)} />Use compact context (experimental)</label>
-              <small>{compactContext ? 'Sends the original problem, pinned constraints, recent turns, and matching older turns/source excerpts. Uncheck for full context if a detail is missing.' : 'Sends full saved conversation and source context.'} Conversations and sources stay saved locally.</small>
-            </details>
-            {chat.error && (
-              <div className="error dismissible" role="alert">
-                {chat.error}
-                <button className="icon-button" onClick={() => chat.setError('')} aria-label="Dismiss error"><X size={14} /></button>
-              </div>
-            )}
-            <Composer
-              key={composerKey}
-              speechModelId={config.localASRModelId}
-              busy={chat.busy || contextBusy || ending || syncingModel}
-              onSend={(content, images) => chat.send({ content, imageIds: images.map((image) => image.id), compactContext, pinnedContext })}
-            />
           </div>
-        </main>
+          {syncingModel && <div className="tray-status" role="status">Saving model selection…</div>}
+          {chat.error && (
+            <div className="error dismissible" role="alert">
+              {chat.error}
+              <button className="icon-button" onClick={() => chat.setError('')} aria-label="Dismiss error"><X size={14} /></button>
+            </div>
+          )}
+          <Composer
+            key={composerKey}
+            speechModelId={config.localASRModelId}
+            busy={chat.busy || contextBusy || ending || syncingModel}
+            onSend={(content, images) => chat.send({ content, imageIds: images.map((image) => image.id), compactContext, pinnedContext })}
+          />
+          <details className="request-options"><summary>Model roles and context</summary>
+            <p>Fast for short follow-ups; Deep for new code, debugging, and design. You choose which model answers.</p>
+            {(['fast', 'deep'] as const).map(role => <label key={role}>{role === 'fast' ? 'Fast' : 'Deep'} model
+              <select value={roles?.[role] || ''} disabled={loadingModels || sidebarBusy || syncingModel} onChange={event => void setRole(role, event.target.value)}>
+                <option value="" disabled>{loadingModels ? 'Loading models…' : 'Choose a model'}</option>
+                {roles?.[role] && !availableModels.some(model => model.id === roles[role]) && <option value={roles[role]}>{roles[role]} (refresh availability)</option>}
+                {availableModels.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
+              </select>
+            </label>)}
+            <label>Pinned constraints<textarea value={pinnedContext} maxLength={8000} disabled={chat.busy} onChange={event => setPinnedContext(event.target.value)} placeholder="Requirements to include verbatim in every request in this conversation" /></label>
+            <label><input type="checkbox" checked={compactContext} disabled={chat.busy} onChange={event => setCompactContext(event.target.checked)} />Use compact context (experimental)</label>
+            <small>{compactContext ? 'Sends the original problem, pinned constraints, recent turns, and matching older turns/source excerpts. Uncheck for full context if a detail is missing.' : 'Sends full saved conversation and source context.'} Conversations and sources stay saved locally.</small>
+          </details>
+        </TrayPortal>
       )}
 
       {/* Delete dialog */}
@@ -343,7 +362,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
         </dialog>
       )}
 
-      {/* ── Eye tracking overlays (portaled above everything) ── */}
     </div>
   );
 }
