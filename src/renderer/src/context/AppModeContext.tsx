@@ -16,7 +16,8 @@ interface AppModeContextType {
   appMode: AppMode;
   setAppMode: (mode: AppMode) => void;
   behavioralFramework: BehavioralFramework;
-  setBehavioralFramework: (framework: BehavioralFramework) => void;
+  /** Resolves once the choice is saved, so callers can order it before other snapshot updates. */
+  setBehavioralFramework: (framework: BehavioralFramework) => Promise<void>;
   latestScreenshot: ImageAttachment | null;
   captureScreenshot: () => Promise<ImageAttachment | null>;
   // Working Monitor

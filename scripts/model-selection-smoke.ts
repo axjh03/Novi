@@ -33,7 +33,7 @@ async function main() {
         localAISetup: async () => ok({ models: [], selectedASR: 'auto' }),
         getCodeViewerBlocks: async () => ok([{ id: 'long', label: 'Long code', language: 'typescript', code: 'const value = 1;\n'.repeat(300) }]),
         onCodeViewerBlocks: () => () => {},
-        onSessionEnded: () => () => {}, onStealthState: () => () => {},
+        onSessionEnded: () => () => {}, onAccessStatus: () => () => {}, onStealthState: () => () => {},
         onGlobalAction: () => () => {}, onCodeViewerClosed: () => () => {},
         setCodeViewerVisible: async () => ok(undefined),
         getMonitors: async () => ok([]), getWorkingMonitor: async () => ok({ workingMonitorId: null }),
@@ -47,10 +47,10 @@ async function main() {
       } as unknown as NoviAPI;
     });
     await page.goto('http://novi.test/index.html');
-    await page.getByRole('heading', { name: 'Before your session' }).waitFor();
+    await page.getByRole('heading', { name: 'Get ready' }).waitFor();
     assert(await page.getByRole('button', { name: 'Continue to session setup' }).isDisabled());
     await page.evaluate(() => { Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: async () => { throw new Error('Microphone permission denied'); } }, configurable: true }); });
-    await page.getByRole('button', { name: 'Test microphone', exact: true }).click();
+    await page.getByRole('button', { name: 'Check microphone', exact: true }).click();
     await page.getByText('Microphone: Microphone permission denied', { exact: true }).waitFor();
     assert(await page.getByRole('button', { name: 'Continue to session setup' }).isDisabled());
     await page.getByLabel(/^Continue with missing or untested features/).check();
@@ -80,7 +80,7 @@ async function main() {
     const result = await page.evaluate(() => (window as any).fixture);
     assert.equal(result.starts, 1);
     assert(result.started >= result.confirmed);
-    await page.getByRole('button', { name: 'Model', exact: true }).click();
+    await page.getByRole('button', { name: /^Model( Complete)?$/ }).click();
     await page.evaluate(() => { (window as any).fixture.discoveryFails = true; });
     await page.getByRole('button', { name: 'Refresh models', exact: true }).click();
     await page.getByText('Cannot load models. Try again.', { exact: true }).waitFor();

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { require as tsxRequire } from 'tsx/cjs/api';
@@ -8,7 +8,7 @@ import { SESSION_ROLES, presetFields } from '../src/renderer/src/context/session
 
 import type { Conversation, ChatMessage } from '../src/shared/types';
 
-const { ContextService } = tsxRequire('../src/main/services/context.ts', import.meta.url);
+const { ContextService, sessionBrief } = tsxRequire('../src/main/services/context.ts', import.meta.url);
 const { Storage } = tsxRequire('../src/main/services/storage.ts', import.meta.url);
 const { LocalAuthService } = tsxRequire('../src/main/services/auth.ts', import.meta.url);
 const { ChatService } = tsxRequire('../src/main/services/chat.ts', import.meta.url);
@@ -173,4 +173,46 @@ test('instructions without source folders are retained in new conversations', as
   assert.match(context.prompt, /Answer in Spanish/);
   assert.equal(context.assertActive().status, 'pending');
   assert.throws(() => context.begin({ folderIds: [], purpose: 'Duplicate', fields }), /already active/);
+});
+
+test('company and role join the instructions, and loaded folders can be saved by location', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'novi-profile-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const source = join(root, 'Resume'); mkdirSync(source);
+  writeFileSync(join(source, 'resume.txt'), 'Built payment systems.');
+  const storage = new Storage(join(root, 'app'));
+  await new LocalAuthService(storage).signUp('Test', 'profile@example.com', 'test-password');
+  storage.current().settings.connections = [{ id: 'local', name: 'Local', provider: 'compatible', baseUrl: 'http://localhost:11434', model: 'test', stream: false, enabled: true }];
+  storage.current().settings.activeConnectionId = 'local';
+  const fields = presetFields(SESSION_ROLES[0], SESSION_ROLES[0].presets[0]);
+
+  // Without company and role the instructions are exactly as before.
+  const plain = new ContextService(storage);
+  plain.begin({ folderIds: [], purpose: 'Practice', fields: fields.map((field) => ({ ...field, value: '' })) });
+  assert.match(plain.savedContext.instructions, /Session purpose: Practice\n$/);
+  assert(!/Company:|Target role:/.test(plain.prompt));
+  plain.end();
+
+  const context = new ContextService(storage);
+  assert.throws(() => context.folderSources(['missing']), /Load context folders first/);
+  const folders = await context.loadFolders([source]);
+  const sources = context.folderSources([folders[0].id, folders[0].id]);
+  assert.equal(sources.length, 1);
+  assert.equal(sources[0].name, 'Resume');
+  assert.equal(sources[0].path, realpathSync(source));
+  assert.throws(() => context.folderSources([]), /up to eight/);
+  assert.throws(() => context.folderSources(['other']), /no longer loaded/);
+  context.begin({ folderIds: [folders[0].id], purpose: 'Acme onsite', company: ' Acme ', role: 'Software Engineer II', fields });
+  assert.match(context.prompt, /Session purpose: Acme onsite\nCompany: Acme\nTarget role: Software Engineer II\nRole \/ perspective:/);
+  assert.match(context.savedContext.instructions, /Company: Acme/);
+  // Starting a session forgets loaded folders, so stale IDs cannot be saved later.
+  assert.throws(() => context.folderSources([folders[0].id]), /no longer loaded/);
+  context.end();
+  assert.throws(() => context.folderSources([folders[0].id]), /Load context folders first/);
+
+  assert.deepEqual(sessionBrief({ purpose: ' Go ', fields }), { purpose: 'Go', company: '', role: '', fields: fields.map((field) => ({ label: field.label.trim(), value: field.value.trim() })) });
+  assert.throws(() => sessionBrief({ purpose: 'Go', company: 'x'.repeat(121), fields }), /company/);
+  assert.throws(() => sessionBrief({ purpose: 'Go', role: 42, fields }), /target role/);
+  assert.throws(() => sessionBrief({ purpose: '', fields }), /session purpose/);
+  assert.throws(() => sessionBrief({ purpose: 'Go', fields: [] }), /four optional/);
 });

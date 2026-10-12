@@ -43,7 +43,26 @@ export interface AppSettings {
   autoStartEmptySession?: boolean;
   localASRModelId?: string;
   modelRoles?: Record<string, { fast?: string; deep?: string }>;
+  /** Turns transparent mode on when a session starts, as if Transparency were pressed. */
+  transparentOnStart?: boolean;
+  sessionProfiles?: SessionProfile[];
 }
+/** A saved session setup that can be started again in one click. Folder paths come from folders the user chose. */
+export interface SessionProfile {
+  id: string;
+  name: string;
+  updatedAt: number;
+  connectionId: string;
+  model: string;
+  mode: AppMode;
+  framework: BehavioralFramework;
+  company: string;
+  role: string;
+  purpose: string;
+  fields: Array<{ label: string; value: string }>;
+  folders: Array<{ name: string; path: string }>;
+}
+export interface SessionProfileInput { name: string; folderIds: string[]; mode: AppMode; framework: BehavioralFramework; company: string; role: string; purpose: string; fields: Array<{ label: string; value: string }> }
 export interface ProviderConnection extends AIProviderConfig { id: string; name: string; managed?: boolean; ownerName?: string; enabled?: boolean }
 export interface ConnectionInput { id?: string; name: string; ai: AIProviderConfig; apiKey?: string }
 export interface ModelOption { id: string; name: string }
@@ -75,7 +94,7 @@ export interface ChatLatency {
 export interface SavedContext { instructions: string; summary: string; documents: Array<{ name: string; content: string }> }
 export interface Conversation { id: string; title: string; createdAt: number; updatedAt: number; messages: ChatMessage[]; context?: SavedContext; pinnedContext?: string }
 export interface ContextFolder { id: string; name: string; files: string[]; characters: number }
-export interface ContextInput { folderIds?: string[]; purpose?: string; fields?: Array<{ label: string; value: string }>; empty?: boolean }
+export interface ContextInput { folderIds?: string[]; purpose?: string; company?: string; role?: string; fields?: Array<{ label: string; value: string }>; empty?: boolean }
 export interface ContextSession { id: string; connection: ProviderConnection; status: 'pending' | 'loading' | 'ready' | 'error' | 'ending'; summaryReady: boolean; isEmpty?: boolean }
 export interface SavedCredentials { username: string; password?: string }
 /** Access server reachability. `connectionLost` means offline long enough to tell the user. */
@@ -100,6 +119,7 @@ export interface SettingsInput {
   checkUpdatesAtStartup?: boolean;
   autoStartEmptySession?: boolean;
   localASRModelId?: string;
+  transparentOnStart?: boolean;
 }
 export interface SendInput { appMode?: AppMode; behavioralFramework?: BehavioralFramework; conversationId: string | null; content: string; imageIds: string[]; sentAt?: number; compactContext?: boolean; pinnedContext?: string }
 export type ChatEvent =
@@ -154,6 +174,9 @@ export interface NoviAPI {
   pickContextFolders(): Promise<Result<ContextFolder[]>>;
   startContext(input: ContextInput): Promise<Result<Snapshot>>;
   startEmptySession(): Promise<Result<Snapshot>>;
+  saveSessionProfile(input: SessionProfileInput): Promise<Result<Snapshot>>;
+  deleteSessionProfile(id: string): Promise<Result<Snapshot>>;
+  loadSessionProfileFolders(id: string): Promise<Result<ContextFolder[]>>;
   initializeContext(): Promise<Result<Snapshot>>;
   endContext(): Promise<Result<Snapshot>>;
   session(): Promise<Result<Snapshot>>;

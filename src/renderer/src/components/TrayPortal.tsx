@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { attachPrivateCursor, useStealth } from '../hooks/useStealth';
+import { attachPrivateCursor, useStealthState } from '../hooks/useStealth';
 
 type TrayWindow = Window & typeof globalThis;
 
@@ -12,7 +12,8 @@ export function TrayPortal({ children, onClosed }: { children: ReactNode; onClos
   const [tray, setTray] = useState<{ window: TrayWindow; root: HTMLElement } | null>(null);
   const closedRef = useRef(onClosed);
   closedRef.current = onClosed;
-  const { transparent, clickThrough } = useStealth();
+  // The title bar owns this window's stealth classes and cursor; the tray only follows the state.
+  const [{ transparent, clickThrough }] = useStealthState();
 
   useEffect(() => {
     // Main allows only this exact name pattern (see src/main/services/workspace.ts).

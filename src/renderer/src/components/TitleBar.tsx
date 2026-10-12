@@ -29,7 +29,8 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
           <div className="titlebar-brand"><img src={logo} alt="" className="titlebar-logo-img" /><span>Novi</span></div>
         </div>
 
-        {sessionActive && (
+        {/* Also shown outside a session while transparent, so it can always be turned off. */}
+        {(sessionActive || transparent) && (
           <div className="titlebar-center">
             {transparent && <span className={`stealth-numlock-pill ${clickThrough ? 'clickthrough' : 'interactive'}`}>{clickThrough ? 'Click-through' : 'Interactive'}</span>}
             <button type="button" className={`stealth-toggle-btn ${transparent ? 'active' : ''}`}

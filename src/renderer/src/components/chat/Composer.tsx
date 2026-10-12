@@ -15,9 +15,13 @@ interface Props {
   busy: boolean;
   speechModelId?: string;
   onSend: (content: string, images: ImageAttachment[]) => Promise<boolean>;
+  /** Called when listening starts or stops, with the message box text at that moment. */
+  onListeningChange?: (active: boolean, text: string) => void;
+  /** Replaces the message box text each time its id changes. */
+  prefill?: { id: number; text: string };
 }
 
-export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
+export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChange, prefill }: Props) {
   const [text, setText] = useState('');
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [error, setError] = useState('');
@@ -63,6 +67,15 @@ export function Composer({ busy, onSend, speechModelId = 'auto' }: Props) {
     element.style.height = 'auto';
     element.style.height = `${Math.min(element.scrollHeight, 180)}px`;
   }, [text]);
+  const listeningChange = useRef(onListeningChange);
+  listeningChange.current = onListeningChange;
+  // Stopping applies the final transcript before listening turns off, so the text here is complete.
+  useEffect(() => { listeningChange.current?.(localActive, textRef.current); }, [localActive]);
+  useEffect(() => {
+    if (!prefill) return;
+    draft.current.edit(prefill.text); textRef.current = prefill.text; setText(prefill.text);
+    textarea.current?.focus();
+  }, [prefill?.id]);
   useEffect(() => { localStorage.setItem('novi_listening_source', source); }, [source]);
   useEffect(() => { localStorage.setItem('novi_listening_engine', engine); }, [engine]);
 

@@ -28,7 +28,8 @@ export function attachPrivateCursor(target: Window): () => void {
   };
 }
 
-export function useStealth() {
+/** Reads transparent and click-through state without changing the page; for windows other than the title bar's owner. */
+export function useStealthState() {
   const [state, setState] = useState<StealthState>({
     transparent: false,
     numLock: false,
@@ -51,6 +52,13 @@ export function useStealth() {
       unsubscribe();
     };
   }, []);
+
+  return [state, setState] as const;
+}
+
+/** Owns the page's transparent-mode classes and private cursor. Use once per window (the title bar). */
+export function useStealth() {
+  const [state, setState] = useStealthState();
 
   // Synchronize CSS classes on document element and body
   useEffect(() => {

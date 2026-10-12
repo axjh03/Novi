@@ -207,6 +207,13 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                       <small>Toggles transparent stealth mode on or off. Default: {DEFAULT_TRANSPARENT_SHORTCUT}.</small>
                     </label>
 
+                    <label className="settings-toggle">
+                      <input type="checkbox" checked={value.transparentOnStart === true}
+                        onChange={(e) => change({ ...value, transparentOnStart: e.target.checked })} />
+                      Start sessions in Transparent mode
+                      <small>Hides Novi from screen sharing as soon as a session starts, exactly like pressing Transparency.</small>
+                    </label>
+
                     <label>
                       Coding Mode hotkey
                       <input

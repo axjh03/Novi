@@ -1,6 +1,6 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, screen, shell } from 'electron';
 import { execFile } from 'node:child_process';
-import type { AccessStatus, ChatLatency, CodeViewerBlock, Snapshot } from '../../shared/types';
+import type { AccessStatus, BehavioralFramework, ChatLatency, CodeViewerBlock, SessionProfile, Snapshot } from '../../shared/types';
 import { Storage } from '../services/storage';
 import { AccessUnavailableError, ManagedAuthService, SessionChangedError } from '../services/managedAuth';
 import { CredentialStore } from '../services/credentials';
@@ -10,7 +10,7 @@ import { connectionInput, object, settingsInput, text, UserError } from '../serv
 import { ConnectionService } from '../services/connections';
 import { listModels, testConnection } from '../services/models';
 import { OverlayService } from '../services/overlay';
-import { ContextService } from '../services/context';
+import { ContextService, sessionBrief } from '../services/context';
 import { StealthService } from '../services/stealth';
 import { AudioService, decodeAudio } from '../services/audio';
 import { captureScreenBuffer } from '../services/screenCapture';
@@ -23,7 +23,10 @@ import { RemoteCompanionService } from '../services/remoteCompanion';
 import { ConnectionWarmer, warmupUrl } from '../services/connectionWarmup';
 import { WorkspaceService } from '../services/workspace';
 import { activeConnection } from '../../shared/providers';
+import { isAppMode } from '../../shared/sessionModes';
 import { dirname, join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 
 export function registerIPC(
   rendererUrl: string,
@@ -282,6 +285,45 @@ export function registerIPC(
     chat.assertIdle();
     context.beginEmpty();
     return snapshot();
+  });
+  // Profiles keep folder locations from folders the user picked; the page only ever sends loaded folder IDs.
+  handle('save-session-profile', (value) => {
+    const { storage, context } = get();
+    const input = object(value), account = storage.current();
+    const name = text(input.name, 'profile name', 60);
+    const brief = sessionBrief(input);
+    if (!isAppMode(input.mode)) throw new UserError('Choose a mode for this profile.');
+    if (!['smart', 'star', 'car', 'par', 'soar'].includes(String(input.framework))) throw new UserError('Choose an answer framework.');
+    const folders = context.folderSources(input.folderIds);
+    const connection = activeConnection(account.settings);
+    if (!connection?.model) throw new UserError('Choose a provider and model before saving a profile.');
+    const profiles = account.settings.sessionProfiles || [];
+    const existing = profiles.find((profile) => profile.name.toLowerCase() === name.toLowerCase());
+    if (!existing && profiles.length >= 20) throw new UserError('You can save up to 20 profiles. Delete one first.');
+    const profile: SessionProfile = {
+      id: existing?.id ?? randomUUID(), name, updatedAt: Date.now(), connectionId: connection.id, model: connection.model,
+      mode: input.mode, framework: input.framework as BehavioralFramework, ...brief, folders,
+    };
+    account.settings.sessionProfiles = existing ? profiles.map((item) => item === existing ? profile : item) : [...profiles, profile];
+    storage.save(); return snapshot();
+  });
+  handle('delete-session-profile', (value) => {
+    const { storage } = get();
+    const id = text(value, 'profile ID', 100), account = storage.current();
+    account.settings.sessionProfiles = (account.settings.sessionProfiles || []).filter((profile) => profile.id !== id);
+    storage.save(); return snapshot();
+  });
+  handle('load-session-profile-folders', (value) => {
+    const { storage, chat, context } = get();
+    chat.assertIdle();
+    if (context.session) throw new UserError('End your session before loading folders.');
+    const id = text(value, 'profile ID', 100);
+    const profile = storage.current().settings.sessionProfiles?.find((item) => item.id === id);
+    if (!profile) throw new UserError('This profile no longer exists.');
+    if (!profile.folders.length) throw new UserError('This profile has no folders. Choose folders, then save it again.');
+    const missing = profile.folders.find((folder) => !existsSync(folder.path));
+    if (missing) throw new UserError(`The folder “${missing.name}” was moved or deleted. Choose your folders again, then save the profile.`);
+    return context.loadFolders(profile.folders.map((folder) => folder.path));
   });
   handle('initialize-context', async (_value, event, timing) => {
     const { context, chat } = get();

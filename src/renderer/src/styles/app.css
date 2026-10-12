@@ -3284,3 +3284,75 @@ html.novi-tray .chat-mode-tabs .mode-tab-btn span { display: inline; }
   .app-titlebar .stealth-toggle-btn > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .app-titlebar .titlebar-center { gap: 6px; padding: 0 6px; }
 }
+
+/* ==========================================================================
+   Get ready, saved profiles, ready check and practice run
+   ========================================================================== */
+
+/* Get ready (src/renderer/src/components/SessionPreflight.tsx) */
+.get-ready-run { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 16px; margin: 20px 0 8px; }
+.get-ready-button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 22px; font-size: 14px; }
+.get-ready-summary { flex: 1 1 260px; color: var(--muted); font-size: 13px; }
+.get-ready-checks { list-style: none; margin: 8px 0 0; padding: 0; }
+.get-ready-check { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.get-ready-check p { margin: 4px 0 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.get-ready-icon { display: inline-flex; color: var(--subtle); }
+.get-ready-check.ok .get-ready-icon { color: var(--accent); }
+.get-ready-check.failed .get-ready-icon, .get-ready-check.failed p { color: var(--danger); }
+.get-ready-placement { margin: 22px 0 8px; display: flex; flex-direction: column; gap: 10px; }
+.get-ready-placement h2 { margin: 0; font-size: 15px; }
+.get-ready-placement > p { margin: 0; color: var(--muted); font-size: 12px; }
+.get-ready-placement select { max-width: 420px; }
+.get-ready-toggle, .settings-toggle { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
+.get-ready-toggle > span { display: inline-flex; align-items: center; gap: 6px; }
+.settings-toggle > small { flex-basis: 100%; }
+
+/* Saved profiles and the session brief (src/renderer/src/pages/ContextPage.tsx) */
+.profile-list { display: flex; flex-direction: column; gap: 8px; max-width: 680px; margin-top: 22px; }
+.profile-list h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 2px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.profile-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.profile-card-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.profile-card-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.profile-card-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
+.profile-card-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; font-size: 12px; }
+.profile-card-actions .primary, .profile-card-actions .danger-button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; font-size: 12px; }
+.profile-card-actions .text-button { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+.profile-tip { max-width: 680px; margin: 18px 0 0; color: var(--muted); font-size: 12px; }
+.context-brief-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.context-brief-row label > span, .context-framework > span { color: var(--muted); font-size: 11px; font-weight: 400; }
+.context-framework { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.context-framework .behavioral-copilot-bar { padding: 0; border: 0; background: transparent; }
+.profile-save { margin-top: 18px; padding: 14px; border: 1px solid var(--border); border-radius: 8px; }
+.profile-save legend { padding: 0 6px; font-weight: 600; font-size: 13px; }
+.profile-save p { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+.profile-save-row { display: flex; gap: 8px; }
+.profile-save-row input { flex: 1 1 auto; min-width: 0; }
+.profile-save-row button { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+@media (max-width: 700px) { .context-brief-row { grid-template-columns: 1fr; } }
+
+/* Ready check in the output panel (src/renderer/src/components/ReadyCard.tsx) */
+.ready-card { margin: 12px 16px 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); display: flex; flex-direction: column; gap: 10px; }
+.ready-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ready-card-head strong { font-size: 14px; }
+.ready-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.ready-chips li { position: relative; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border: 1px solid var(--border); border-radius: 999px; color: var(--subtle); font-size: 11px; }
+.ready-chips li.ok { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.ready-chips li.failed { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
+/* Read by assistive tech; the chip's icon and colour show it visually. */
+.ready-chip-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ready-keys { margin: 0; color: var(--muted); font-size: 12px; }
+.ready-keys kbd, .practice-coach kbd { padding: 1px 6px; border: 1px solid var(--border); border-radius: 5px; background: var(--panel); font: inherit; font-size: 11px; }
+.ready-practice { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.ready-practice button { display: inline-flex; align-items: center; gap: 6px; }
+.ready-practice small { flex: 1 1 220px; }
+.transparent-mode .ready-card { background: color-mix(in srgb, var(--surface) 55%, transparent); }
+
+/* Practice run coach in the tray (src/renderer/src/components/PracticeCoach.tsx) */
+.practice-coach { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 9px; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); color: var(--text); }
+.practice-coach > svg { flex: 0 0 auto; margin-top: 2px; color: var(--accent); }
+.practice-coach p { flex: 1 1 auto; margin: 0; font-size: 12px; line-height: 1.5; }
+.practice-coach p strong { display: block; font-size: 11px; color: var(--accent); }
+.practice-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.practice-actions button { font-size: 12px; white-space: nowrap; }
+.practice-actions .secondary { min-height: 30px; padding: 0 12px; }
+.transparent-mode .practice-coach { background: color-mix(in srgb, var(--accent) 10%, transparent); }

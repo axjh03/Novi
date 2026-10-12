@@ -17,6 +17,10 @@ import { SESSION_MODES } from '../../../shared/sessionModes';
 import { diagramBlocks } from '../../../shared/diagrams';
 import { BehavioralModeHUD } from '../components/BehavioralModeHUD';
 import { TrayPortal } from '../components/TrayPortal';
+import { ReadyCard } from '../components/ReadyCard';
+import { PracticeCoach } from '../components/PracticeCoach';
+import { usePracticeRun } from '../hooks/usePracticeRun';
+import { useStealthState } from '../hooks/useStealth';
 
 // Each mode has its own icon so the tray can show only the active mode's name.
 const MODE_ICONS: Record<AppMode, LucideIcon> = {
@@ -34,6 +38,13 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     void unwrap(window.novi.setWorkspaceDocked(true)).catch(console.error);
     return () => { void unwrap(window.novi.setWorkspaceDocked(false)).catch(console.error); };
   }, []);
+  // Chosen in Get ready or Settings: start hidden from screen sharing, exactly as if Transparency were pressed.
+  useEffect(() => {
+    if (state.settings?.transparentOnStart) void unwrap(window.novi.setTransparent(true)).catch(console.error);
+  }, []);
+  const [{ transparent }] = useStealthState();
+  // The ready check shows until it is dismissed or the first message is sent.
+  const [readyDismissed, setReadyDismissed] = useState(false), [sentInSession, setSentInSession] = useState(false);
   const {
     appMode,
     setAppMode,
@@ -55,6 +66,21 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const sidebarBusy = chat.busy || ending || (contextBusy && state.contextSession?.status !== 'error');
   const [confirmEnd, setConfirmEnd] = useState(false);
   const sessionId = state.contextSession?.id;
+  const practice = usePracticeRun({ appMode, chatBusy: chat.busy, chatError: chat.error, conversationId: chat.selectedId });
+  const listenKey = config.audioRecordShortcut || 'Alt+A';
+  function startPractice() {
+    if (contextBusy || chat.busy || ending) return;
+    chat.setError('');
+    // A fresh conversation, so the practice answer is easy to find and to remove.
+    chat.setSelectedId(null);
+    if (!trayOpen) { setTrayKey((key) => key + 1); setTrayOpen(true); }
+    practice.start();
+  }
+  async function removePractice() {
+    const id = practice.state.conversationId;
+    practice.cancel();
+    if (id) await chat.remove(id);
+  }
   useEffect(() => {
     if (!sessionId || state.contextSession?.status === 'ready' || state.contextSession?.isEmpty) return;
     let mounted = true;
@@ -180,7 +206,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
         onNew={() => void endSession()}
         onSelect={(id) => { if (id !== chat.selectedId) setComposerKey(key => key + 1); chat.setSelectedId(id); setSettings(false); chat.setError(''); }}
         onDelete={setDeleting}
-        onSettings={() => setSettings(true)}
+        onSettings={() => { practice.cancel(); setSettings(true); }}
       />
 
       {settings ? (
@@ -202,6 +228,10 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             </div>
           )}
 
+          {!readyDismissed && !sentInSession && !practice.active && (
+            <ReadyCard transparent={transparent} listenKey={listenKey} snapshotKey={config.screenshotShortcut || 'Alt+3'}
+              practiceDisabled={contextBusy || chat.busy || ending} onPractice={startPractice} onDismiss={() => setReadyDismissed(true)} />
+          )}
           {appMode === 'system-design' && <button type="button" className="secondary" onClick={() => void unwrap(window.novi.setCodeViewerVisible(true)).then(() => unwrap(window.novi.updateCodeViewer(diagramBlocks(chat.selected?.messages || [])))).catch((error) => chat.setError(errorText(error)))}>Open diagrams · saved with this conversation</button>}
           {chat.selected ? (
             <div className="conversation-scroll" ref={scroll} onScroll={() => { const el = scroll.current!; atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }}>
@@ -223,7 +253,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
       )}
 
       {!settings && trayOpen && (
-        <TrayPortal key={trayKey} onClosed={() => setTrayOpen(false)}>
+        <TrayPortal key={trayKey} onClosed={() => { practice.cancel(); setTrayOpen(false); }}>
           <div className="tray-row">
             <span className="tray-grip" title="Drag to move the tray" aria-hidden="true"><GripVertical size={15} /></span>
             <nav className="chat-mode-tabs" aria-label="Conversation mode">
@@ -308,6 +338,8 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
               </button>
             </div>
           </div>
+          {practice.active && <PracticeCoach state={practice.state} voiced={practice.voiced} listenKey={listenKey}
+            onTypeInstead={practice.typeInstead} onRemove={() => void removePractice()} onEnd={practice.cancel} />}
           {syncingModel && <div className="tray-status" role="status">Saving model selection…</div>}
           {chat.error && (
             <div className="error dismissible" role="alert">
@@ -319,7 +351,9 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             key={composerKey}
             speechModelId={config.localASRModelId}
             busy={chat.busy || contextBusy || ending || syncingModel}
-            onSend={(content, images) => chat.send({ content, imageIds: images.map((image) => image.id), compactContext, pinnedContext })}
+            onSend={(content, images) => { setSentInSession(true); return chat.send({ content, imageIds: images.map((image) => image.id), compactContext, pinnedContext }); }}
+            onListeningChange={practice.onListeningChange}
+            prefill={practice.prefill}
           />
           {optionsOpen && <section id="tray-options" className="request-options tray-options" aria-label="Model roles and context">
             <p>Fast for short follow-ups; Deep for new code, debugging, and design. You choose which model answers.</p>
