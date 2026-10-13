@@ -3050,6 +3050,30 @@ html.transparent-mode #root {
   border-radius: 2px;
   transition: width 0.25s ease-out;
 }
+
+.updater-download-stats {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.updater-progress-fill.indeterminate {
+  width: 35%;
+  animation: updater-progress 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes updater-progress {
+  to { transform: translateX(185%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .updater-progress-fill { transition: none; }
+  .updater-progress-fill.indeterminate { animation: none; }
+}
 /* Local model setup shares the existing settings layout and theme. */
 .settings-page { padding: 0 clamp(18px, 4vw, 56px) 48px; }
 .settings-page > header { position: sticky; top: 0; z-index: 4; background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(12px); }

@@ -96,7 +96,7 @@ export const updaterService = {
 
     updateState({
       status: 'downloading',
-      progress: { percent: 0, status: 'Initializing download...' },
+      progress: { percent: null, status: 'Initializing download...' },
       error: null,
     });
 
@@ -107,11 +107,12 @@ export const updaterService = {
     try {
       await unwrap(window.novi.installUpdate());
     } catch (err: any) {
-      unsubscribe();
       updateState({
         status: 'error',
         error: err?.message || 'Failed to install update. Please try a manual download.',
       });
+    } finally {
+      unsubscribe();
     }
   },
 };

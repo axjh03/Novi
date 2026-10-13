@@ -291,7 +291,13 @@ export interface PermissionStatus {
 export interface CodeViewerBlock { id: string; label: string; code: string; language?: string }
 /** What the detached viewer shows when reviewing a Local Coding proposal. */
 export interface ReviewTarget { projectId: string; fromVersionId: string | null; toVersionId: string; fileId: string; parentVersionId: string | null; localSnapshotId: string | null; labels: Record<string, string> }
-export interface UpdateProgress { percent: number; status: string }
+export interface UpdateProgress {
+  percent: number | null;
+  status: string;
+  downloadedBytes?: number;
+  totalBytes?: number;
+  bytesPerSecond?: number;
+}
 export interface UpdateCheckResult {
   hasUpdate: boolean;
   currentVersion: string;

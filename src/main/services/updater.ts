@@ -1,10 +1,11 @@
 import { app } from 'electron';
 import { join } from 'node:path';
-import { createWriteStream, existsSync, rmSync, mkdirSync } from 'node:fs';
+import { createWriteStream, rmSync, mkdirSync } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
 import { exec, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import https from 'node:https';
-import http from 'node:http';
+import http, { type IncomingMessage } from 'node:http';
 import type { UpdateCheckResult, UpdateProgress } from '../../shared/types';
 
 const execAsync = promisify(exec);
@@ -106,23 +107,20 @@ export class AppUpdater {
     this.isUpdating = true;
     const downloadUrl = this.cachedDownloadUrl;
     const tempDir = join(app.getPath('temp'), 'novi-in-app-update');
-    mkdirSync(tempDir, { recursive: true });
 
     try {
+      mkdirSync(tempDir, { recursive: true });
       if (process.platform === 'darwin') {
         const dmgPath = join(tempDir, 'payload.dmg');
-        onProgress({ percent: 5, status: 'Downloading update payload...' });
+        onProgress({ percent: null, status: 'Connecting to download...' });
+        await this.downloadFile(downloadUrl, dmgPath, onProgress);
 
-        await this.downloadFile(downloadUrl, dmgPath, (percent) => {
-          onProgress({ percent: Math.min(85, Math.round(5 + percent * 0.8)), status: `Downloading... ${percent}%` });
-        });
-
-        onProgress({ percent: 90, status: 'Mounting disk container...' });
+        onProgress({ percent: null, status: 'Mounting disk container...' });
         const mountDir = join(tempDir, 'mount');
         mkdirSync(mountDir, { recursive: true });
         await execAsync(`hdiutil attach "${dmgPath}" -nobrowse -readonly -mountpoint "${mountDir}" -quiet`);
 
-        onProgress({ percent: 95, status: 'Installing and clearing security quarantine...' });
+        onProgress({ percent: null, status: 'Installing and clearing security quarantine...' });
         const appPath = '/Applications/Novi.app';
         const updateScript = `
           sleep 1
@@ -141,11 +139,8 @@ export class AppUpdater {
 
       } else if (process.platform === 'win32') {
         const exePath = join(tempDir, 'setup.exe');
-        onProgress({ percent: 5, status: 'Downloading installer...' });
-
-        await this.downloadFile(downloadUrl, exePath, (percent) => {
-          onProgress({ percent: Math.min(90, Math.round(5 + percent * 0.85)), status: `Downloading... ${percent}%` });
-        });
+        onProgress({ percent: null, status: 'Connecting to download...' });
+        await this.downloadFile(downloadUrl, exePath, onProgress);
 
         onProgress({ percent: 100, status: 'Restarting to finish update...' });
         // Run NSIS silent updater and clean up temporary download payload afterwards
@@ -174,46 +169,54 @@ export class AppUpdater {
     return 0;
   }
 
-  private downloadFile(url: string, dest: string, onProgress: (pct: number) => void): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const file = createWriteStream(dest);
+  private async downloadFile(url: string, dest: string, onProgress: (progress: UpdateProgress) => void, redirects = 0): Promise<void> {
+    if (redirects > 10) throw new Error('Too many download redirects.');
+    const response = await new Promise<IncomingMessage>((resolve, reject) => {
       const client = url.startsWith('https') ? https : http;
-
-      const req = client.get(url, (response) => {
-        // Handle HTTP redirects (301, 302, 307, 308)
-        if ([301, 302, 307, 308].includes(response.statusCode || 0) && response.headers.location) {
-          file.close();
-          rmSync(dest, { force: true });
-          return this.downloadFile(response.headers.location, dest, onProgress).then(resolve).catch(reject);
-        }
-
-        if (response.statusCode !== 200) {
-          file.close();
-          rmSync(dest, { force: true });
-          return reject(new Error(`Download failed with status ${response.statusCode}`));
-        }
-
-        const totalBytes = parseInt(response.headers['content-length'] || '0', 10);
-        let receivedBytes = 0;
-
-        response.on('data', (chunk) => {
-          receivedBytes += chunk.length;
-          if (totalBytes > 0) {
-            onProgress(Math.min(100, Math.round((receivedBytes / totalBytes) * 100)));
-          }
-        });
-
-        response.pipe(file);
-        file.on('finish', () => {
-          file.close(() => resolve());
-        });
-      });
-
-      req.on('error', (err) => {
-        file.close();
-        rmSync(dest, { force: true });
-        reject(err);
-      });
+      const req = client.get(url, resolve);
+      req.setTimeout(30_000, () => req.destroy(new Error('Update download timed out. Please try again.')));
+      req.on('error', reject);
     });
+
+    if ([301, 302, 303, 307, 308].includes(response.statusCode || 0) && response.headers.location) {
+      response.destroy();
+      return this.downloadFile(new URL(response.headers.location, url).href, dest, onProgress, redirects + 1);
+    }
+    if (response.statusCode !== 200) {
+      response.destroy();
+      throw new Error(`Download failed with status ${response.statusCode}`);
+    }
+
+    const length = Number(response.headers['content-length']);
+    const totalBytes = Number.isSafeInteger(length) && length > 0 ? length : undefined;
+    let downloadedBytes = 0, previousBytes = 0, previousTime = performance.now();
+    const report = (complete = false) => {
+      const now = performance.now();
+      onProgress({
+        status: 'Downloading update...',
+        percent: complete ? 100 : totalBytes ? Math.min(99, Math.floor(downloadedBytes / totalBytes * 100)) : null,
+        downloadedBytes,
+        totalBytes: complete ? downloadedBytes : totalBytes,
+        bytesPerSecond: (downloadedBytes - previousBytes) * 1000 / Math.max(1, now - previousTime),
+      });
+      previousBytes = downloadedBytes;
+      previousTime = now;
+    };
+    const timer = setInterval(report, 500);
+    try {
+      report();
+      await pipeline(response, async function* (source) {
+        for await (const chunk of source) {
+          downloadedBytes += chunk.length;
+          yield chunk;
+        }
+      }, createWriteStream(dest));
+      report(true);
+    } catch (err) {
+      rmSync(dest, { force: true });
+      throw err;
+    } finally {
+      clearInterval(timer);
+    }
   }
 }

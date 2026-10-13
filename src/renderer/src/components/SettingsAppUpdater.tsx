@@ -9,6 +9,13 @@ interface Props {
   disabled?: boolean;
 }
 
+function size(bytes: number): string {
+  if (bytes >= 1_000_000_000) return `${(bytes / 1_000_000_000).toFixed(2)} GB`;
+  if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
+  if (bytes >= 1_000) return `${(bytes / 1_000).toFixed(1)} KB`;
+  return `${Math.round(bytes)} B`;
+}
+
 export function SettingsAppUpdater({ value, onChange, disabled }: Props) {
   const { status, result, progress, error, lastCheckedAt, checkNow, installNow } = useAppUpdater();
   const [localChecking, setLocalChecking] = useState(false);
@@ -26,6 +33,7 @@ export function SettingsAppUpdater({ value, onChange, disabled }: Props) {
 
   const isChecking = status === 'checking' || localChecking;
   const isDownloading = status === 'downloading';
+  const percent = progress?.percent ?? null;
   const hasUpdate = status === 'available' && Boolean(result?.hasUpdate);
   const isUpToDate = status === 'up-to-date' && !result?.hasUpdate;
 
@@ -60,6 +68,8 @@ export function SettingsAppUpdater({ value, onChange, disabled }: Props) {
           <div className="updater-subtext">
             {isChecking ? (
               'Checking for new releases…'
+            ) : isDownloading ? (
+              `Updating to v${latestVersion}…`
             ) : hasUpdate ? (
               `Update v${latestVersion} is available to install.`
             ) : isUpToDate ? (
@@ -115,11 +125,17 @@ export function SettingsAppUpdater({ value, onChange, disabled }: Props) {
         <div className="updater-progress-container">
           <div className="updater-progress-label">
             <span>{progress?.status || 'Downloading update payload…'}</span>
-            <span className="updater-progress-pct">{progress?.percent || 0}%</span>
+            <span className="updater-progress-pct">{percent === null ? '—' : `${percent}%`}</span>
           </div>
-          <div className="updater-progress-track">
-            <div className="updater-progress-fill" style={{ width: `${progress?.percent || 0}%` }} />
+          <div className="updater-progress-track" role="progressbar" aria-label={progress?.status || 'Updating Novi'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent ?? undefined}>
+            <div className={`updater-progress-fill${percent === null ? ' indeterminate' : ''}`} style={{ width: percent === null ? undefined : `${percent}%` }} />
           </div>
+          {progress?.downloadedBytes !== undefined && (
+            <div className="updater-download-stats">
+              <span>{size(progress.downloadedBytes)} / {progress.totalBytes === undefined ? 'Size unknown' : size(progress.totalBytes)}</span>
+              <span>Download speed: {size(progress.bytesPerSecond ?? 0)}/s</span>
+            </div>
+          )}
           <small className="muted">Novi will apply the update and restart automatically.</small>
         </div>
       )}
