@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowRight, ArrowUpRight, HardDrive, KeyRound, Laptop, Send } from 'lucide-react';
+import { ArrowUpRight, HardDrive, KeyRound, Laptop, Send } from 'lucide-react';
 import PublicNavbar from '@/components/PublicNavbar';
 import SiteFooter from '@/components/SiteFooter';
 import { JOURNEY } from '@/lib/site';
@@ -92,10 +92,9 @@ export default function HowItWorksPage() {
 
         <section className={styles.cta}>
           <h2>Ready when you are.</h2>
-          <p>Request access in one email, or compare plans first.</p>
+          <p>Choose a plan and request access in one email.</p>
           <div className={styles.ctaActions}>
             <Link className={styles.ctaPrimary} href="/get-access">Get access <ArrowUpRight size={16} aria-hidden="true" /></Link>
-            <Link className={styles.ctaSecondary} href="/pricing">See pricing <ArrowRight size={16} aria-hidden="true" /></Link>
           </div>
         </section>
       </main>

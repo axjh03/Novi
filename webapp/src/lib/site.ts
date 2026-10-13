@@ -24,7 +24,6 @@ export const isPlanId = (value: unknown): value is PlanId => typeof value === 's
 
 export const SITE_LINKS = [
   { id: 'how-it-works', href: '/how-it-works', label: 'How it works' },
-  { id: 'pricing', href: '/pricing', label: 'Pricing' },
   { id: 'download', href: '/download', label: 'Download' },
   { id: 'setup-guide', href: '/api-keys', label: 'Setup guide' },
 ] as const;

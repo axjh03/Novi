@@ -1,0 +1,1072 @@
+NOVI LOCAL CODING MODE — COMPLETE IMPLEMENTATION PLAN
+Prepared: 2026-10-12
+Status: Design and implementation plan only. No feature implementation is implied.
+
+1. THE PRODUCT WE ARE BUILDING
+
+Add a separate Local Coding Mode to Novi. The user chooses a working folder
+through a transparent explorer built into Novi, or types its path. They can
+attach additional files, folders, screenshots, photos, text, and audio context.
+They select Codex, Claude, or Antigravity as the background coding engine.
+
+The agent reads the selected project, understands the question, and returns
+structured proposals: files to edit, create, or delete, their paths, code, and
+an explanation. Novi validates the proposals and displays clickable file cards
+and GitHub-style diffs in its code viewer.
+
+The real project remains untouched. Proposed changes form virtual project
+versions called iterations. Selecting an iteration changes the project version
+the agent reads for the next question. Users can return to an earlier iteration,
+branch from it, and combine a selected iteration with refreshed local files.
+
+The delivery target is a complete experience inside Novi, without a terminal,
+manual CLI installation, or duplicate login when an eligible saved API connection
+already exists.
+
+Zero flaws cannot be guaranteed. The release gates below make the critical
+promises testable, particularly source isolation, no project writes, correct
+iteration context, reliable output validation, and clean-machine installation.
+
+2. NON-NEGOTIABLE REQUIREMENTS
+
+2.1 Keep the existing Coding Mode and add Local Coding as a separate mode.
+    Coding Mode continues accepting normal text, screenshots, documents, and
+    audio context through the existing chat behavior.
+
+2.2 Local Coding includes those inputs plus a working folder and explicitly
+    selected additional files/folders. The initial working folder is required.
+
+2.3 All three engines are in scope: Codex, Claude, and Antigravity. One engine
+    runs a task at a time. Supporting three choices does not mean running three
+    agents on every request.
+
+2.4 Never apply proposals to the real project. No apply, commit, push, execute,
+    create-file, or delete-file action belongs in this feature's project API.
+    Novi may write its own application data, captured sources, and history.
+
+2.5 Enforce read-only behavior through tool exposure and runtime restrictions.
+    A prompt saying "do not edit" is not the security boundary.
+
+2.6 Every engine returns the same versioned Novi proposal format. The UI and
+    history system must not depend on vendor-specific response shapes.
+
+2.7 The selected virtual version is authoritative for file listing, reading,
+    searching, proposal validation, and follow-up questions.
+
+2.8 Never silently discard an attachment, downgrade a model, broaden access,
+    change the selected engine, or combine conflicting file versions.
+
+2.9 "Local" means the source project is local. Model inference may still use a
+    cloud API. Tell users which connection receives their selected context.
+
+2.10 A source-matching proposal is not a tested implementation. Project commands
+     are not executed in this mode, and results must say behavior was not tested.
+
+3. USER JOURNEY FROM INSTALLATION TO A FINISHED REVIEW
+
+Step 1: Install Novi. The installer includes the supported agent runtimes and
+        their required resources for that operating system and architecture.
+
+Step 2: Open Novi and use an existing eligible saved provider connection.
+        Missing or incompatible connections are handled inside Novi's existing
+        connection settings, not through terminal setup instructions.
+
+Step 3: Select Local Coding from the mode selector.
+
+Step 4: Enter a working-folder path or navigate Novi's own explorer. Choose
+        "Use this folder". Add optional extra files/folders.
+
+Step 5: Choose the agent, compatible connection, and coding model. Default to
+        the selected model's highest supported reasoning effort.
+
+Step 6: Novi captures the eligible saved source files into a local snapshot.
+        The source explorer shows what is included and what was excluded.
+
+Step 7: Ask a question, optionally attaching images and selected transcript or
+        conversation context. The task records the exact selected base version.
+
+Step 8: The agent investigates using read-only access. Novi shows real progress
+        such as preparing, reading, analyzing, and validating.
+
+Step 9: The answer shows an explanation and clickable EDIT, NEW, and DELETE
+        file cards. Clicking a card opens the relevant diff in the code viewer.
+
+Step 10: A validated answer containing changes creates Iteration 1. An answer
+         containing only explanation/questions remains attached to its base.
+
+Step 11: With Iteration 1 selected, ask for another feature. The agent sees
+         Iteration 1's proposed files and produces Iteration 2.
+
+Step 12: Select Iteration 1 again and ask for a different approach. The next
+         result becomes Iteration 3, branching from Iteration 1.
+
+Step 13: If the real files have changed, explicitly refresh local context and
+         carry forward a chosen iteration. Resolve conflicts in virtual space.
+
+Step 14: Reopen the saved conversation later and inspect its versions and
+         proposals, even if the original directory is no longer available.
+
+4. UI: SEPARATE LOCAL CODING MODE
+
+Add an AppMode value of 'local-coding' and the label "Local Coding". Update the
+mode selector, icon map, validation, session profiles, and context initialization
+so the new mode is recognized everywhere existing modes are recognized.
+
+The initial Local Coding setup panel contains:
+
+  Working directory
+  [ /Users/me/projects/interview-app                         ] [Open]
+  [Browse inside Novi]
+
+  Additional context
+  [Add files] [Add folder] [Attach image]
+  [Selected conversation] [Audio transcript]
+
+  Agent       [Codex / Claude / Antigravity]
+  Connection  [Compatible saved connection]
+  Model       [Available coding model]
+  Reasoning   Highest supported
+
+  Read-only. All code changes remain proposals.
+  [Start session]
+
+After setup, show a compact session bar:
+
+  Local Coding | interview-app | Codex | model name | Read-only
+
+The existing composer continues handling text, screenshots, images, and audio
+transcripts. Do not build a separate chat application inside Local Coding.
+
+Bind the source selection, engine, connection, and model to the conversation.
+Switching conversations must not silently reuse another conversation's folder.
+Switching modes must not discard saved reviews or iterations.
+
+5. UI: NOVI'S TRANSPARENT FILE EXPLORER
+
+Implement the explorer as a React panel/dialog inside Novi. Use the existing
+theme, opacity, window behavior, and input controls. Do not use the operating
+system's folder picker for this Local Coding workflow.
+
+Required navigation:
+  - Editable path field and an Open action.
+  - Breadcrumbs and an Up action.
+  - Platform-appropriate starting locations/drives.
+  - Lazy directory expansion rather than traversing the entire disk.
+  - Folder navigation and individual-file selection.
+  - "Use this folder" and "Add selected files" actions.
+  - Visible full path for the active selection.
+  - Clear loading, empty, invalid-path, and permission-denied states.
+  - Keyboard navigation, focus management, and accessible item labels.
+
+The browser and the agent have different permissions. A user navigating a
+directory does not grant the agent access to it. Only confirming a source
+selection creates an agent-readable source grant.
+
+The main process performs filesystem operations. Renderer requests are checked
+against the trusted application window and bounded navigation requests. Models
+never receive access to the explorer's general navigation API.
+
+For the first release, reject or visibly disable symlinks, junctions, device
+paths, and unsupported remote/network locations. Do not follow a link merely
+because it appears underneath a selected folder.
+
+Display source exclusions and limits before starting the session. Known
+credential files, generated output, VCS internals, and dependencies should be
+excluded by default. A filename filter cannot guarantee every secret is found;
+the source selection remains visible and explicit.
+
+6. UI: ANSWERS AND CLICKABLE FILE CARDS
+
+Example answer:
+
+  Iteration 1 — Add login validation
+
+  Approach:
+  Validate inputs before the existing API call. Keep the authentication API
+  unchanged and return field errors through the current form state.
+
+  EDIT    src/Login.jsx                    +12 -3
+  NEW     src/utils/validateLogin.js       +24
+  DELETE  src/legacyValidation.js          -18
+
+  Assumptions:
+  Empty passwords are invalid. Server-side validation remains necessary.
+
+  Suggested checks:
+  Empty email, malformed email, and an empty password.
+  Execution: Not run.
+
+Render new-file labels and additions in green, deletion labels and removals in
+red, and edited files with a distinct neutral/amber marker. Always include text
+labels and +/- markers so meaning does not depend on color.
+
+Show each file's relative path and source root. Resolve existing-file display
+paths from Novi's source manifest, not from untrusted model text.
+
+A clickable file opens the code viewer to that version and file. The viewer
+header identifies the comparison, for example:
+
+  src/Login.jsx | Iteration 2 compared with Iteration 1
+
+The explanation may include the approach, evidence from inspected files,
+decisions, assumptions, and tradeoffs. Show concise work summaries rather than
+claiming to expose private internal model reasoning. References to inspected
+files must resolve to files actually available in the task context.
+
+7. UI: DIFF VIEWER AND HISTORY CONTROLS
+
+Extend the existing code viewer instead of introducing a full IDE dependency.
+Keep code-block and diagram behavior working for existing modes.
+
+Required viewer features:
+  - Unified diff, with side-by-side view when the window is wide enough.
+  - Original/proposed line numbers calculated by Novi.
+  - File list with EDIT, NEW, and DELETE status.
+  - Expand/collapse unchanged context and individual files.
+  - Existing syntax coloring where supported.
+  - Copy replacement text without diff markers.
+  - Copy a file diff.
+  - Copy full proposed contents of a new file.
+  - Ask about a selected file or change.
+  - Request a revision tied to the selected version.
+
+There is no Apply button. Clicking NEW or DELETE never creates or deletes the
+physical file. All explanatory labels should consistently say "proposed" where
+an operation could otherwise be mistaken for a completed disk change.
+
+History selector:
+
+  Context: [Local S0] [Iteration 1] [Iteration 2 *] [Iteration 3]
+  Next request uses: Iteration 2
+
+Clicking a history item changes the active virtual source version. It does not
+rewrite chat history, delete later versions, or change real files.
+
+Offer two comparisons:
+  - Against the parent version: this iteration's incremental changes.
+  - Against its local snapshot: the accumulated proposed changes.
+
+Record parent relationships. If Iteration 3 branches from Iteration 1, display
+"Based on Iteration 1". Keep iteration labels monotonically increasing within
+the conversation; never reuse a label after a branch.
+
+Selecting a version does not start a model request. While a request is active,
+allow historical inspection, but visibly retain the version that task uses.
+Serialize model requests initially so a second send cannot race the first.
+
+8. BACKEND ARCHITECTURE
+
+  Renderer: Local Coding setup, composer, explorer, history, review viewer
+      |
+  Trusted preload and IPC
+      |
+  Existing chat lifecycle + Local Coding task service
+      |-- Source selection and capture
+      |-- Immutable virtual versions
+      |-- Engine adapter: Codex / Claude / Antigravity
+      |-- Structured proposal validation
+      |-- Diff generation and artifact storage
+
+Keep keys, filesystem access, process control, protocol parsing, and proposal
+validation in the main process or its owned workers. Keep expensive source
+enumeration, searching, and diff work asynchronous or in a worker so the UI and
+audio pipeline remain responsive.
+
+Use one shared source/version/proposal implementation. Each vendor adapter
+translates the common task contract into its supported runtime interface.
+
+A small adapter contract should cover:
+  - Readiness and supported capabilities.
+  - Supported connection/authentication configuration.
+  - Model and reasoning options.
+  - Start a task using an immutable base-version ID and selected inputs.
+  - Emit normalized progress and a final structured response.
+  - Cancel, resume where supported, and close.
+
+Do not create a general plugin framework. Three concrete adapters and one
+shared task interface are enough for the requested scope.
+
+9. SOURCE CAPTURE AND AN IMMUTABLE BASELINE
+
+Capture eligible saved files when the session starts. Preserve the exact text
+used for analysis in Novi's private application data. This makes even files
+first inspected later in the session belong to the same recorded source set.
+
+Do not read previously unseen files from a changing live directory while
+pretending they belong to the original snapshot.
+
+Initial proposed limits, to tune with real fixtures:
+  - One primary working folder, with explicitly added extra roots/files.
+  - 10,000 eligible text files per snapshot.
+  - 2 MiB per source text file.
+  - 100 MiB total captured source content.
+  - Bounded search matches and read ranges per tool call.
+
+Limits must produce useful messages rather than silently truncating source.
+Respect source exclusions and use correct ignore-pattern handling if .gitignore
+support is included. Ordinary folders work without Git being installed.
+
+At capture:
+  1. Resolve and authorize the selection in the main process.
+  2. Enumerate eligible regular files without following links.
+  3. Read with identity and before/after consistency checks where supported.
+  4. Decode supported text explicitly; reject unsupported encoding/binary data.
+  5. Record root identity, relative path, bytes, hash, line endings, and EOF state.
+  6. Save an immutable manifest referencing captured content.
+  7. Recheck the manifest for changes during capture; retry or ask for refresh
+     if the directory is changing, rather than claiming an atomic snapshot.
+
+This is a captured set of saved files, not access to unsaved editor buffers and
+not a guarantee of an operating-system-wide atomic filesystem snapshot.
+
+Additional attached sources also receive immutable source identities. If the
+user adds or removes source scope, create a new context revision and invalidate
+any engine session that still has broader access.
+
+10. VIRTUAL PROJECT VERSIONS AND STORAGE
+
+Represent each selectable version with a complete file manifest referencing
+immutable content blobs. Identical contents are stored once and reused.
+
+Suggested records:
+
+  SourceRoot
+    id, displayName, canonicalLocalPath, sourceKind, permittedScope
+
+  ProjectVersion
+    id, kind (local / proposal / refresh), label, parentVersionId,
+    localSnapshotId, createdAt, requestMessageId, fileManifest
+
+  FileManifest entry
+    rootId, relativePath, contentId
+
+  Proposal
+    id, baseVersionId, resultingVersionId, explanation, normalizedChanges,
+    engine, model, reasoningEffort, validationResult, suggestedChecks
+
+Novi creates IDs and content hashes. The model does not supply trusted IDs for
+new versions, validation results, or timestamps.
+
+For a new iteration, copy manifest references from the selected version and
+replace/add/remove only the entries affected by validated proposals. Files are
+materialized in memory or Novi-owned storage, never in the source project.
+
+The parent edge records history and supplies the incremental comparison. The
+complete manifest supplies file contents. This avoids ambiguous replay when a
+refreshed version has both an older proposal parent and a newer local baseline.
+
+Use simple versioned JSON metadata and per-content artifacts with the existing
+atomic-write pattern. Do not introduce a database or event-sourcing system just
+for anticipated future scale. Bound artifact sizes and clean unreferenced data.
+
+Keep large artifacts out of data.json, which currently rewrites full history.
+Chat messages store proposal/version references and compact summaries.
+
+Persist artifacts first, then publish the history reference. A crash must not
+leave a completed chat entry pointing to an incomplete proposal. Recover or
+clean abandoned temporary artifacts without touching project files.
+
+11. THE AGENT'S READ-ONLY VIRTUAL FILE TOOLS
+
+Provide three operations against an immutable version ID:
+
+  list_files(versionId, scope, cursor)
+  search_files(versionId, query, scope, cursor)
+  read_file(versionId, fileId, range)
+
+The task service pins versionId. The agent cannot change it to gain access to
+another account, project, or unauthorized source root.
+
+Every operation resolves the same version manifest:
+  - Proposed new files appear in listings and searches.
+  - Proposed edits replace the original text.
+  - Proposed deletions are absent.
+  - Unchanged files retain their captured source contents.
+
+Never feed an agent Iteration 2 in chat while its filesystem tools read Local S0.
+That would cause it to solve the wrong project state.
+
+Prefer client-handled tools supplied by the adapter. If an engine needs MCP to
+access these tools, expose the same three functions through a private local
+transport with per-task scope. Multiple engines make this a justified transport
+choice; it must not become a general public filesystem server.
+
+If an adapter requires an actual directory for reading, it may use a Novi-owned
+materialization of the selected manifest only after proving read-only isolation.
+It must never receive unrestricted access to the original working directory.
+Simple filesystem chmod or a prompt is not sufficient cross-platform isolation.
+
+12. THREE ENGINE INTEGRATIONS
+
+Codex:
+  Use app-server for lifecycle, progress, model capabilities, authentication,
+  and per-turn structured output. Prototype client-handled read tools first.
+  Dynamic-tool APIs are documented as experimental: pin and test the protocol.
+
+Claude:
+  Use the Claude Agent SDK or supported Claude Code programmatic interface.
+  Restrict the exposed tools to the authorized reading bridge. Use structured
+  output and a saved eligible Anthropic API connection. For an embedded SDK
+  product, use the vendor's permitted UI label, such as "Claude".
+
+Antigravity:
+  Use the documented headless CLI interface, streamed JSON, schema output,
+  supported model selection, and explicit permissions. Its normal headless
+  behavior can permit workspace writes, so defaults do not satisfy this plan.
+
+All adapters must prove:
+  - Exact source-version access and source isolation.
+  - No mutation or unrestricted command route.
+  - No repository hooks/configuration bypassing Novi's policy.
+  - Schema-conforming final results and useful progress.
+  - Cancellation, crash handling, and no orphan processes.
+  - Connection-specific authentication with no key leakage.
+  - Input compatibility for the actual transport and model.
+
+Disable shell, alternate execution tools, file editing, computer use, unrelated
+plugins, and hooks. Reject unexpected approval requests. Never implement an
+"approve all" workaround to remove user friction.
+
+Keep runtime config, working directories, credentials, and session files
+separate from a user's independently installed CLI setup. Effective permissions
+must be verified, including managed machine policies, rather than assumed.
+
+If an engine/platform combination cannot meet the boundary, it is not release
+ready. Do not silently substitute a different engine or weaken restrictions.
+
+Relevant documentation:
+  [Codex app-server](https://learn.chatgpt.com/docs/app-server)
+  [Codex configuration](https://learn.chatgpt.com/docs/config-file/config-reference)
+  [Claude programmatic use](https://code.claude.com/docs/en/headless)
+  [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview)
+  [Antigravity headless mode](https://antigravity.google/docs/cli/headless/)
+
+13. AUTOMATIC INSTALLATION AND AUTHENTICATION
+
+Extend Novi's existing runtime bundling process. For every supported target:
+  - Pin tested versions of each agent runtime.
+  - Verify vendor distribution requirements and required notices.
+  - Download at build time and verify trusted checksums.
+  - Include companion binaries/resources, not just the top-level executable.
+  - Place executables outside ASAR and preserve executable permissions.
+  - Include them in platform signing/notarization where required.
+  - Test the packaged executable rather than a developer's PATH installation.
+  - Fail packaging when a required target runtime is unavailable or corrupted.
+
+Run the packaged engines by absolute path through private process pipes. No
+global installation, shell-profile modification, or terminal window is needed.
+Do not allow independently updating an engine to break Novi's pinned protocol.
+Ship tested engine upgrades with Novi updates.
+
+Authentication mapping:
+  Codex -> eligible saved OpenAI connection.
+  Claude -> eligible saved Anthropic API connection.
+  Antigravity -> documented Gemini API-key mode and eligible Gemini connection.
+
+Antigravity's API-key mode requires both provider configuration and the key;
+setting GEMINI_API_KEY alone is not sufficient. Apply configuration to the
+Novi-managed runtime, not the user's global shell profile.
+
+Reuse CredentialStore and existing account/managed-connection controls. Keep
+credentials in the main process and private engine authentication channel or
+child environment as supported. Never put them in command-line arguments, model
+context, browser state, diagnostic bundles, or proposal records. Ensure tools
+cannot inspect the engine's credential-bearing environment.
+
+No additional login is required only when the saved connection is eligible.
+API keys are not interchangeable across engines/providers. Verify custom
+endpoints for their protocol, tools, model access, and structured-output support.
+
+For third-party Claude SDK products, use the documented API authentication path
+rather than assuming consumer subscription login can be embedded.
+
+A future Novi-funded service would need a server-side provider gateway, Novi
+user authentication, quotas, and billing controls. Do not distribute a shared
+company provider key in the desktop installer. That hosted billing path is not
+required for the saved-key version described here.
+
+  [Codex authentication](https://learn.chatgpt.com/docs/auth)
+  [Antigravity API-key setup](https://antigravity.google/docs/cli/install/)
+  [Runtime packaging](https://www.electron.build/docs/contents/)
+
+14. MULTIMODAL CONTEXT AND MODEL SELECTION
+
+A task context contains:
+  - Explicit question and selected base-version ID.
+  - Relevant messages on the selected version's branch.
+  - Pinned constraints and selected session context.
+  - Selected audio transcript text.
+  - Validated image attachments by trusted attachment ID.
+  - Source manifest summary and read tools.
+  - Structured-output instructions and schema.
+
+Do not send the whole repository to the model on every request. Capturing files
+locally and sending their contents to a provider are separate operations. Let
+the agent read relevant sources through bounded tools.
+
+Branch context must follow the selected version. When the user returns from
+Iteration 2 to Iteration 1, do not silently present Iteration 2's answer as if it
+were part of the active implementation. Cross-branch discussion is allowed when
+explicitly selected, and must be labeled as comparison context.
+
+Use the existing deep-model preference where compatible. Display the actual
+model and highest supported reasoning setting. Do not hard-code one effort name
+as universally supported or claim there is a permanent single highest model.
+If access fails, ask for a compatible selection inside Novi without silently
+downgrading. A listed model is not proof that an inference request is authorized.
+
+Keep screenshots and audio attachment handling consistent with current Novi.
+Audio context normally reaches the agent as transcript text.
+
+Capability-check images per engine transport as well as per model. Antigravity's
+documented streaming stdin currently accepts text blocks only. Verify a supported
+native image route before claiming direct screenshot parity. If a vision-to-text
+preprocessing route is needed, show it explicitly and identify its extra model
+request; never silently drop images or present extracted text as full visual
+understanding. Full input support remains an acceptance item for each engine.
+
+Keep a session only while its engine, connection, source grants, and active branch
+remain compatible. Restart/reseed it on a branch jump when cached context would
+otherwise describe the wrong version. Novi's stored versions are authoritative;
+vendor session history is a performance optimization, not the source of truth.
+
+15. STRUCTURED OUTPUT CONTRACT
+
+Define the schema once in shared code and supply its equivalent to every adapter.
+Use a supported common JSON Schema subset, plus explicit backend validation.
+Do not parse markdown headings and code fences to reconstruct file operations.
+
+Example model response:
+
+  {
+    "schemaVersion": 1,
+    "summary": "Correct multiplication and add input validation.",
+    "approach": "Retain the public API and validate at its existing boundary.",
+    "assumptions": [],
+    "questions": [],
+    "changes": [
+      {
+        "operation": "edit",
+        "sourceFileId": "file_17",
+        "reason": "The function currently adds its arguments.",
+        "edits": [
+          {
+            "startLine": 12,
+            "before": ["  return a + b;"],
+            "after": ["  return a * b;"]
+          }
+        ]
+      }
+    ],
+    "suggestedChecks": ["Check multiplication with zero and negative values."]
+  }
+
+Operation shapes:
+  edit: sourceFileId, reason, edits.
+  create: destinationRootId, relativePath, reason, complete content string.
+  delete: sourceFileId, reason.
+
+Line-edit semantics:
+  - startLine is one-based in the selected base version.
+  - before contains the exact original lines being replaced.
+  - Empty before means insertion at a defined boundary.
+  - Empty after means removal of the referenced lines.
+  - All edits refer to the same original base, not sequential intermediate text.
+  - Edits must not overlap or have ambiguous ordering at the same insertion point.
+  - Preserve existing line-ending and final-newline behavior by default.
+  - If a final-newline change is supported, represent it explicitly in the
+    contract rather than infer it from a model code fence.
+
+Novi supplies baseVersionId from the task, source hashes from stored content,
+new version IDs, display paths, line counts, and validation/execution status.
+Never trust a model assertion that a file was changed or tests passed.
+
+An empty changes array is valid for explanations or clarification questions.
+For screenshot-only or missing-source advice, produce an explicitly unverified
+suggestion rather than a verified edit to an invented path.
+
+16. PROPOSAL VALIDATION AND LOCAL DIFF GENERATION
+
+Validation order:
+  1. Enforce bounded output size and parse complete JSON.
+  2. Validate schema version, required fields, types, and operation variants.
+  3. Resolve sourceFileId within the task's immutable base version.
+  4. Validate destination roots and relative paths for new files.
+  5. Reject traversal, absolute paths, invalid platform names, and collisions.
+  6. Confirm referenced ranges and exact before-text matches.
+  7. Reject overlaps and contradictory changes to the same path.
+  8. Confirm create targets are absent and delete/edit targets exist.
+  9. Construct each proposed file in memory.
+  10. Create a new manifest from the base plus validated modifications.
+  11. Calculate unified/side-by-side display data locally.
+  12. Persist artifacts and publish the resulting iteration atomically.
+
+Handle case-insensitive filename collisions and file-versus-directory collisions.
+Represent a proposed rename as create/delete initially, without filesystem action.
+
+Use a tested diff implementation. A diff library is justified here; do not write
+a new diff algorithm. Reuse an appropriate installed dependency if one exists;
+otherwise add one small dependency after checking platform/runtime suitability.
+Avoid a full browser IDE/editor dependency for this read-only viewer.
+
+If the response is invalid, permit one bounded repair request containing precise
+validation errors and the same base version. If it fails again, show an error and
+preserve the task draft. Never silently guess original text or invent locations.
+
+Do not display incomplete streamed JSON as trusted file cards. Stream progress
+separately, then publish the complete validated proposal. Enforce an output cap;
+if a task is too large, report it and request narrower scope rather than omit files.
+
+17. ITERATIONS, BRANCHING, AND FOLLOW-UP QUESTIONS
+
+Example history:
+
+  Local S0
+    `-- Iteration 1
+          |-- Iteration 2
+          `-- Iteration 3
+
+Iteration 3 is created by selecting Iteration 1 and asking for an alternative.
+
+For each send:
+  - Pin the active version at submission time.
+  - Record parentVersionId in the task before starting the engine.
+  - Serve all file tools from that version.
+  - Validate all proposed edits against that version.
+  - Assign the next iteration label only after successful validation.
+  - Keep completed results even if the user navigated elsewhere during the task.
+  - Ignore late events from cancelled or superseded task IDs.
+
+A follow-up that only explains a change does not create a redundant iteration.
+A revision creates a new immutable version; it does not mutate its parent.
+
+Show separate provenance:
+  "Based on Iteration 1; local baseline S0; produced by Claude/model name."
+
+When switching engines, build a new engine session using the selected manifest,
+relevant branch context, and pinned constraints. Do not transfer private engine
+session IDs or replay unrelated branches as the active implementation.
+
+18. REFRESH LOCAL FILES AND COMBINE THEM WITH AN ITERATION
+
+Provide two distinct actions:
+  - Refresh local snapshot: capture current disk state as S1 and select it.
+  - Refresh and carry this iteration forward: combine S1 with the selected
+    virtual proposal version while preserving its prior history.
+
+For carrying forward, perform a conservative three-way comparison per path:
+  B = old local baseline behind the selected iteration.
+  P = selected iteration's proposed contents.
+  L = refreshed local contents.
+
+Rules, treating missing files as a distinct value:
+  - If P equals B, use L: there was no proposed change to carry.
+  - If L equals B, use P: local code did not change this path.
+  - If L equals P, use that content: the changes already agree.
+  - Otherwise, mark a conflict.
+
+This handles edits, creates, deletes, and files the user manually changed to
+match an earlier proposal. Initially, conflicting same-file edits require
+resolution even if an advanced merge algorithm might combine them automatically.
+This conservative behavior is simpler and prevents silent loss.
+
+Conflict UI:
+  src/Login.jsx changed both locally and in Iteration 2.
+  [Compare] [Keep local in proposal] [Keep proposed] [Ask AI to reconcile]
+
+All choices affect virtual contents only. An AI reconciliation is another
+structured proposal validated against the captured conflict inputs.
+
+Do not make an unresolved combination the active complete project version.
+After resolving all conflicts, publish a new refresh version with its complete
+manifest, refreshed localSnapshotId, and selected iteration as its history parent.
+Historical versions and their original baselines remain unchanged.
+
+A filesystem watcher may indicate "Local files changed", but it must not silently
+rewrite a snapshot or active iteration. Recheck on explicit refresh; watcher
+events alone are not a reliable source-version guarantee.
+
+19. TASK LIFECYCLE, IPC, AND PROCESS MANAGEMENT
+
+Task states:
+  idle -> preparing -> reading -> analyzing -> validating -> complete
+  Alternative endings: needs-information, cancelled, failed.
+
+Progress descriptions must reflect observed work. Do not fabricate percentages
+or show raw private reasoning. Include file-read activity only when available.
+
+Extend the current ChatService lifecycle rather than duplicating it:
+  - Conversation/message creation and attachment ownership.
+  - Busy state and request serialization.
+  - Access/license checks and connection selection.
+  - Cancellation and error mapping.
+  - Saving and cleanup.
+
+Dispatch Local Coding requests to a dedicated task service. Preserve ordinary
+chat's provider path. Update event handling explicitly: useChat currently treats
+non-delta events as lifecycle events, so new progress events need a proper switch.
+
+Proposed IPC operations, all typed and validated:
+  - browseLocalDirectory: trusted UI navigation only.
+  - selectLocalSources / captureLocalSources.
+  - getLocalCodingReadiness / listEngineModels.
+  - selectProjectVersion / listProjectVersions.
+  - getReviewFile / getReviewDiff.
+  - refreshLocalSources / resolveRefreshConflict.
+  - Existing send and stop extended with Local Coding task metadata.
+
+No IPC writeProjectFile, applyPatch, runCommand, or deleteProjectFile endpoint.
+Renderer-supplied source/version IDs must be checked for current account and
+conversation ownership. Hide physical source paths from model tools where IDs
+and relative paths are sufficient.
+
+Use a unique run ID, bounded protocol messages, timeouts, cancellation tokens,
+and cleanup handlers. Do not reuse the ordinary chat request timeout blindly for
+long reasoning tasks. Preserve one active task initially.
+
+On sign-out, access revocation, session end, app quit, or relevant window loss,
+stop the active run and descendants and release credential/session state. A
+crashed engine must not leave the UI stuck busy. Do not automatically replay an
+uncertain completed provider request and double-bill the user.
+
+20. FAILURE BEHAVIOR AND USER MESSAGES
+
+Missing/corrupt runtime:
+  Disable that engine with an installation error. Do not ask users to run npm.
+
+Incompatible key/model/endpoint:
+  Explain which connection needs changing and preserve the drafted question.
+
+Image transport unsupported:
+  Explain the limitation or use an explicitly identified supported preprocessing
+  route. Do not omit the image and answer as if it was inspected.
+
+Source unreadable or too large:
+  Identify the affected files/limit and let the user revise selection.
+
+Local source changed:
+  Keep the historical review intact and offer refresh. Its captured-source match
+  remains valid even though current disk contents differ.
+
+Invalid/truncated model result:
+  Attempt one controlled repair, then show validation failure without creating
+  a misleading completed iteration.
+
+Engine crash or network loss:
+  End the run cleanly, preserve existing versions, and provide retry.
+
+Cancellation:
+  Stop work, retain prior completed iterations, and ignore late responses.
+
+Conflict during refresh:
+  Show local and proposed differences; require explicit virtual resolution.
+
+Unexpected permission request:
+  Deny it. If the task needs a prohibited action, return a useful limitation.
+
+Disk full or persistence failure:
+  Show an unsaved-result state and allow copying visible output. Do not claim a
+  new version is saved if its artifact could not be committed.
+
+21. CONCRETE FILE CHANGES IN THE CURRENT NOVI REPOSITORY
+
+Existing files to update:
+
+  src/shared/types.ts
+    Add local-coding mode, source/version references, engine selection, proposal
+    metadata, typed IPC operations, and explicit progress/result events.
+
+  src/shared/sessionModes.ts
+    Register the separate mode and instructions without converting normal
+    Coding Mode into an agent workflow.
+
+  src/main/services/chat.ts
+    Route Local Coding tasks through the new service while keeping the shared
+    conversation, cancellation, saving, and error lifecycle.
+
+  src/main/services/validation.ts
+    Validate new mode/settings/request inputs and source/version identifiers.
+
+  src/main/services/credentials.ts
+  src/main/services/connections.ts
+    Reuse existing key and managed-connection handling. Extend only where actual
+    engine compatibility or lifecycle requirements demand it.
+
+  src/main/services/storage.ts
+    Store compact version/proposal references, handle compatible migrations,
+    and connect conversation deletion/history cleanup to review artifacts.
+
+  src/main/ipc/handlers.ts
+    Register source navigation/selection and version/diff operations, enforce
+    trusted callers, add provider access checks for agent runs, and stop engines
+    during all relevant account/window/app lifecycle paths.
+
+  src/main/preload.ts
+    Expose narrow typed methods/events. Do not expose filesystem primitives.
+
+  src/renderer/src/context/AppModeContext.tsx
+  src/renderer/src/context/sessionPresets.ts
+    Add Local Coding selection and saved-profile behavior. Review viewer-close
+    behavior so closing a diff window does not unexpectedly change the mode.
+
+  src/renderer/src/pages/ContextPage.tsx
+    Integrate Local Coding setup where session/source setup belongs.
+
+  src/renderer/src/pages/ChatPage.tsx
+    Add Local Coding session bar, active-version selector, task status, and
+    structured review navigation.
+
+  src/renderer/src/components/chat/Composer.tsx
+    Add source/context controls and send the selected base-version reference.
+    Reuse existing screenshot, image, text, and transcript entry points.
+
+  src/renderer/src/hooks/useChat.ts
+    Handle progress/proposal events explicitly and preserve per-conversation
+    active task/version state without misclassifying events as completion.
+
+  src/renderer/src/components/chat/Message.tsx
+    Display explanations and clickable proposed file cards.
+
+  src/renderer/src/components/CodingModeHUD.tsx
+    Reuse the detached viewer and code coloring. Add structured review display
+    without breaking regular code blocks or Mermaid diagrams.
+
+  src/renderer/src/pages/SettingsPage.tsx
+    Surface engine readiness and compatible connection settings.
+
+  src/renderer/src/styles/app.css
+    Add explorer, source chips, history controls, diff colors/layout, conflict
+    states, responsive behavior, keyboard focus, and transparency support.
+
+  scripts/bundle-runtime.mjs
+  electron-builder.yml
+  package.json
+  package-lock.json
+  .github/workflows/build.yml
+    Add runtime bundling, necessary pinned dependencies, signing resources,
+    package checks, and platform validation before publishing.
+
+Proposed new files, split only along actual responsibilities:
+
+  src/shared/localCoding.ts
+    Shared engine/task/version/proposal contracts and schema.
+
+  src/main/services/localCoding.ts
+    Task orchestration and connection to existing chat lifecycle.
+
+  src/main/services/localCodingFiles.ts
+    Source browsing, selection, capture, search, and safe source access.
+
+  src/main/services/localCodingVersions.ts
+    Version manifests, blobs, branch history, refresh, conflicts, cleanup.
+
+  src/main/services/localCodingProposals.ts
+    Semantic validation, virtual transformations, and diff generation.
+
+  src/main/services/codingAgents/codex.ts
+  src/main/services/codingAgents/claude.ts
+  src/main/services/codingAgents/antigravity.ts
+    Concrete adapters to the common task/tool/proposal contract.
+
+  src/renderer/src/components/LocalFileExplorer.tsx
+    Transparent source browser and selector.
+
+  src/renderer/src/components/LocalCodingSetup.tsx
+    Working folder, extra sources, engine, connection, and model selection.
+
+  src/renderer/src/components/LocalCodingHistory.tsx
+    Version selection and parent/branch information.
+
+  src/renderer/src/components/RepositoryReview.tsx
+    Clickable file list, diff view, copy actions, and virtual conflict review.
+
+  scripts/bundle-coding-agents.mjs
+    Verified platform runtime acquisition and packaging checks, following the
+    existing bundled-runtime pattern without generalizing unrelated scripts.
+
+Do not extend contextFiles.ts's TXT/PDF reader into the repository engine. Its
+document limits and semantics differ from immutable source-version handling.
+Keep images.ts, audio capture, and transcription behavior reusable as they are.
+No mandatory webapp/backend gateway changes are needed for saved-key operation.
+
+22. AUTOMATED TEST PLAN
+
+Use the existing Node/TypeScript tests and desktop smoke-test infrastructure.
+Test deterministic behavior without live paid models first; use controlled
+provider integration checks separately.
+
+Source boundary tests:
+  - Traversal, absolute paths, symlinks, junctions, devices, and outside-root reads.
+  - User explorer navigation does not grant model access.
+  - Multiple roots with identical filenames and case-insensitive collisions.
+  - Files replaced during enumeration/read and unsupported encodings.
+  - Exclusions, size/count limits, and permission failures.
+
+Version tests:
+  - Original source remains immutable after local disk changes.
+  - Proposed new files appear in list/search/read.
+  - Proposed deletions disappear from all three operations.
+  - Iteration 2 uses Iteration 1's virtual contents.
+  - Branching from Iteration 1 does not inherit Iteration 2.
+  - Engine switches preserve the selected version and correct branch context.
+  - No model-generated version ID or hash becomes trusted metadata.
+
+Proposal/diff tests:
+  - Edit/create/delete, empty files, Unicode, CRLF/LF, and missing final newline.
+  - Repeated identical lines, insertion at beginning/end, overlap, and collisions.
+  - Invalid schema, unknown source IDs, bad ranges, and mismatched before text.
+  - Truncated/oversized responses and failed bounded repair.
+  - Copy replacement excludes diff markers; counts and line numbers are derived.
+
+Refresh tests:
+  - Unchanged local file carries a proposal forward.
+  - Local-only change survives refresh.
+  - Matching local/proposed changes do not conflict.
+  - Conflicting edits, create/create, edit/delete, and delete/edit are explicit.
+  - Conflict decisions alter virtual state only.
+  - Refresh versions retain the correct local baseline and parent provenance.
+
+Engine restriction tests, for every adapter/platform:
+  - Attempt writes through every exposed tool and execution route.
+  - Attempt loading project hooks/plugins/config with side effects.
+  - Attempt outside-scope reads and credential/environment inspection.
+  - Request broader permission and confirm automatic denial.
+  - Confirm original project contents, path set, and relevant metadata remain
+    unchanged; ordinary access-time changes from reading are not code edits.
+  - Confirm native input support or the explicitly identified conversion route.
+
+Lifecycle/storage tests:
+  - Cancellation and late events, crash, startup failure, network interruption.
+  - Sign-out, access revocation, engine switch, and app shutdown.
+  - No orphan subprocesses or duplicate automatic paid requests.
+  - Disk full, interrupted atomic writes, restart recovery, artifact cleanup.
+  - Cross-account access denial and history deletion.
+
+UI tests:
+  - Typed paths and in-app folder navigation without a native picker.
+  - Transparency, keyboard use, narrow windows, and long filenames.
+  - Text + screenshot + transcript + files in one request.
+  - Clickable NEW/EDIT/DELETE cards and correct code-viewer target.
+  - Version chips, branch jumps, comparison modes, and stale-source notices.
+  - Existing normal chat, Coding Mode, diagrams, and audio remain functional.
+
+23. BUILD, PLATFORM, AND RELEASE VALIDATION
+
+Test clean machines without Codex, Claude, Antigravity, Node, npm, or Git already
+installed. Passing on a developer machine is not sufficient.
+
+Current packaging targets to validate against actual runtime availability:
+  - macOS arm64 and x64.
+  - Windows x64.
+  - Linux x64 and arm64, including advertised package formats.
+
+Cross-compiling an installer is not equivalent to executing it on that target.
+Use actual target runners/VMs or a documented appropriate test environment.
+
+Per installer, verify:
+  - Runtime versions, checksums, companion resources, and notices.
+  - Signing/notarization where applicable and executable startup.
+  - Private configuration/authentication without modifying global CLI setup.
+  - Sandboxing/restricted-tool enforcement without asking the user to disable it.
+  - Supported model connection, input formats, structured result, and cancellation.
+  - No terminal window and no manual installation commands.
+  - Engine shutdown on app quit and successful reopen of saved iterations.
+
+OS security prompts cannot be promised away. A supported platform must have a
+documented, tested setup path; an unavailable restriction is a release blocker,
+not a reason to run the agent unrestricted.
+
+Add tests to CI before packaging/publication. Current build automation must not
+publish an apparently successful release when the agent checks were skipped.
+Stage candidate installers, run smoke tests, then use the normal release process.
+Production publication remains a separate authorized action from implementation.
+
+24. IMPLEMENTATION ORDER AND MILESTONE GATES
+
+Milestone 1 — Prove engine integration and restrictions.
+  Build minimal probes for all three engines with text input, source reading,
+  schema output, compatible authentication, cancellation, and mutation attempts.
+  Gate: establish a viable read-only path and input strategy for each engine.
+  Resolve runtime distribution/platform support before promising packaging.
+
+Milestone 2 — Implement the source and version core.
+  Capture sources, store immutable content/manifests, and implement virtual
+  list/search/read. Add iteration branching and the deterministic refresh rules.
+  Gate: all source/version/refresh fixtures pass without project writes.
+
+Milestone 3 — Implement the proposal contract and diff validator.
+  Validate create/edit/delete, derive proposed contents, produce diff data, and
+  store completed proposal artifacts with atomic references.
+  Gate: malformed output never becomes a trusted iteration.
+
+Milestone 4 — Add the separate mode and transparent explorer.
+  Wire mode registration, path navigation, source selection, and setup controls.
+  Gate: the user can select/capture a project without an OS file picker.
+
+Milestone 5 — Deliver one complete vertical flow.
+  Connect Codex first through existing chat lifecycle to the shared version/tools
+  and schema. Support cancellation, progress, and saved proposal results.
+  Gate: a real request produces a validated virtual iteration in Novi.
+
+Milestone 6 — Add the interactive review and history UI.
+  Clickable file cards, code viewer, copying, version chips, branch selection,
+  parent/local comparisons, and follow-up questions.
+  Gate: selecting Iteration 1 visibly and actually controls the next request.
+
+Milestone 7 — Complete Claude and Antigravity adapters.
+  Reuse the same source, schema, validator, and viewer. Complete auth/input and
+  restriction differences. All three remain required for the finished scope.
+  Gate: the same scenario suite passes for each supported engine/platform.
+
+Milestone 8 — Complete refresh, persistence, and recovery UX.
+  Local S1 capture, carry-forward conflicts, restart behavior, cleanup, and
+  graceful disk/network/runtime failures.
+  Gate: historical versions survive and current source changes are never hidden.
+
+Milestone 9 — Package and validate clean-machine installation.
+  Bundle all supported runtimes through pinned, verified build steps. Test
+  installers, signing, startup, and teardown on the actual platform matrix.
+  Gate: no preinstalled developer tools or manual CLI setup are needed.
+
+Milestone 10 — Run final regression and release acceptance.
+  Type checks, focused automated tests, relevant existing regression tests,
+  desktop smoke tests, engine integration tests, and packaged installation tests.
+  Gate: every mandatory acceptance criterion below passes before release.
+
+25. FINAL ACCEPTANCE SCENARIO
+
+On a clean supported machine:
+  1. Install Novi and authenticate using an eligible saved connection.
+  2. Select Local Coding and navigate its transparent file explorer.
+  3. Choose a folder and attach an extra file, screenshot, and audio transcript.
+  4. Ask for a feature using the configured maximum reasoning setting.
+  5. Receive an explanation and clickable EDIT, NEW, and DELETE proposals.
+  6. Open each file in the code viewer with correct paths, colors, and line data.
+  7. Ask a follow-up from Iteration 1; confirm new/deleted/edited virtual files
+     are correctly understood in Iteration 2.
+  8. Return to Iteration 1 and create a separate Iteration 3 branch.
+  9. Switch agent and confirm it receives the selected version, not stale context.
+  10. Manually change a real local file outside Novi, refresh, and resolve a
+      carry-forward conflict without Novi modifying the project.
+  11. Cancel a task, simulate an engine failure, restart Novi, and reopen history.
+  12. Repeat the supported flow with all three engines.
+  13. Verify project contents and paths changed only in the deliberate external
+      edit at step 10; every Novi-generated proposal remained virtual.
+
+26. DELIBERATELY OUTSIDE THIS IMPLEMENTATION
+
+No automatic application, Git commits/pushes, terminal execution, project tests,
+GitHub cloning, full IDE editing, simultaneous multi-engine ensemble, or new
+Novi-funded billing gateway. These are separate features, not prerequisites for
+the requested read-only Local Coding experience.
+
+Tests and commands may be suggested as text, but must never be marked executed.
+Users may copy proposals and make changes in their own editor, then explicitly
+refresh local context.
+
+All three requested engines, the transparent explorer, multimodal chat inputs,
+interactive diffs, and selectable branching iterations are included in scope.
+
+Implementation risks still to prove: engine-specific tool isolation, packaging
+and distribution on every advertised platform, Antigravity's image transport,
+and correct reconciliation of refreshed local code with historical proposals.

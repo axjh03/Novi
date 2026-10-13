@@ -13,7 +13,7 @@ export default function SiteFooter({ onSignIn }: { onSignIn?: () => void }) {
             <Image src="/logo.svg" width={26} height={26} alt="" style={{ borderRadius: 7 }} />
             <span>novi<span className={styles.dot}>.</span></span>
           </Link>
-          <p className={styles.tagline}>Thoughtful help for moments that matter.</p>
+          <p className={styles.tagline}>Less interview bullshit. More backup.</p>
         </div>
         <nav className={styles.column} aria-label="Product">
           <h2>PRODUCT</h2>
