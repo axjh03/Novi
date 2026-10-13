@@ -14,7 +14,10 @@ const sse = (res: ServerResponse, event: string, data: unknown) => res.write(`ev
 function listen(server: Server, requests: any[]): Promise<FakeProvider> {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => {
     const address = server.address() as { port: number };
-    resolve({ url: `http://127.0.0.1:${address.port}`, requests, close: () => new Promise((done) => server.close(() => done())) });
+    resolve({ url: `http://127.0.0.1:${address.port}`, requests, close: () => new Promise((done) => {
+      server.close(() => done());
+      server.closeAllConnections();
+    }) });
   }));
 }
 

@@ -1,8 +1,10 @@
-import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { EngineModel } from '../../../shared/localCoding';
 import { engineEnvironment, engineRuntime, type RuntimeLocation } from './runtime';
+import { spawnEngine } from './process';
 import { callTool, highestEffort, TOOL_DESCRIPTIONS, TOOL_SCHEMAS, type AgentCredential, type AgentTask, type CodingAgent } from './types';
 
 // Codex app-server over JSON-RPC (stdio). Every run gets a fresh private CODEX_HOME with a locked configuration:
@@ -84,13 +86,6 @@ class RpcClient {
   }
 }
 
-/** Ends the engine and anything it started. */
-export function killTree(child: ChildProcessWithoutNullStreams) {
-  if (child.exitCode !== null || child.signalCode !== null || !child.pid) return;
-  if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
-  else { try { process.kill(-child.pid, 'SIGKILL'); } catch { try { child.kill('SIGKILL'); } catch { /* already gone */ } } }
-}
-
 export class CodexAgent implements CodingAgent {
   readonly id = 'codex' as const;
   constructor(private location: RuntimeLocation, private workRoot: string, private testProvider?: string) {}
@@ -101,13 +96,17 @@ export class CodexAgent implements CodingAgent {
     const home = join(run, 'home'), cwd = join(run, 'workspace');
     for (const dir of [home, cwd, join(home, 'tmp')]) mkdirSync(dir, { recursive: true, mode: 0o700 });
     writeFileSync(join(home, 'config.toml'), codexConfig(cwd, this.testProvider), { mode: 0o600 });
-    const child = spawn(runtime.executable, ['app-server'], {
+    const engine = spawnEngine(runtime.executable, ['app-server'], {
       cwd, env: engineEnvironment(home, { CODEX_HOME: home }, runtime.pathDirs),
-      stdio: ['pipe', 'pipe', 'pipe'], detached: process.platform !== 'win32', windowsHide: true,
-    }) as ChildProcessWithoutNullStreams;
+    });
+    const { child } = engine;
     child.stderr.on('data', () => { /* diagnostics stay private; never logged with request content */ });
     const rpc = new RpcClient(child, handlers.onNotification, handlers.onRequest, handlers.onClose ?? (() => {}));
-    const cleanup = () => { rpc.fail(new Error('The Codex engine was closed.')); killTree(child); try { rmSync(run, { recursive: true, force: true }); } catch { /* removed on next start */ } };
+    const cleanup = async () => {
+      rpc.fail(new Error('The Codex engine was closed.'));
+      await engine.stop();
+      await rm(run, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    };
     try {
       await rpc.call('initialize', { clientInfo: { name: 'novi', title: 'Novi', version: '1' }, capabilities: { experimentalApi: true, requestAttestation: false } });
       rpc.notify('initialized');
@@ -116,15 +115,16 @@ export class CodexAgent implements CodingAgent {
       // Built-in skills are text the model could follow; turn every one off for this home.
       const skills = await rpc.call<{ data: Array<{ skills: Array<{ path: string; enabled: boolean }> }> }>('skills/list', { cwds: [cwd] });
       for (const entry of skills.data) for (const skill of entry.skills) if (skill.enabled) await rpc.call('skills/config/write', { path: skill.path, enabled: false });
-    } catch (error) { cleanup(); throw error; }
+    } catch (error) { await cleanup(); throw error; }
     return { rpc, cwd, cleanup };
   }
 
   async listModels(credential: AgentCredential, signal: AbortSignal): Promise<EngineModel[]> {
     const { rpc, cleanup } = await this.start(credential, { onNotification: () => {}, onRequest: async () => { throw new Error('Not available.'); } });
-    const abort = () => cleanup();
+    const abort = () => rpc.fail(new Error('Cancelled.'));
     signal.addEventListener('abort', abort, { once: true });
     try {
+      if (signal.aborted) throw new Error('Cancelled.');
       const models: EngineModel[] = [];
       let cursor: string | null = null;
       do {
@@ -137,13 +137,15 @@ export class CodexAgent implements CodingAgent {
         cursor = page.nextCursor ?? null;
       } while (cursor && models.length < 500);
       return models;
-    } finally { signal.removeEventListener('abort', abort); cleanup(); }
+    } finally { signal.removeEventListener('abort', abort); await cleanup(); }
   }
 
   async run(task: AgentTask, credential: AgentCredential): Promise<unknown> {
     let finalText: string | null = null, turnId: string | null = null, threadId: string | null = null;
     let settle!: { resolve: (status: string) => void; reject: (error: Error) => void };
     const turnDone = new Promise<string>((resolve, reject) => { settle = { resolve, reject }; });
+    // Startup can fail before the turn is awaited.
+    void turnDone.catch(() => {});
     const deny = (what: string) => { task.onDenied(what); };
     const { rpc, cwd, cleanup } = await this.start(credential, {
       onNotification: (method, params) => {
@@ -202,7 +204,7 @@ export class CodexAgent implements CodingAgent {
       return finalText;
     } finally {
       task.signal.removeEventListener('abort', abort);
-      cleanup();
+      await cleanup();
     }
   }
 }

@@ -107,7 +107,7 @@ test('Codex: locked configuration, only Novi read tools, writes and shell are im
   const provider = await fakeOpenAI(script({ list: 'list_files', search: 'search_files', read: 'read_file' }, attacks, () => env.login.fileId));
   t.after(() => provider.close());
   const agent: CodingAgent = new CodexAgent(location, env.work, `${provider.url}/v1`);
-  const { value, progress } = task(reader);
+  const { value, progress } = task(reader, { signal: t.signal });
   const raw = await agent.run(value, { apiKey: KEY });
   const parsed = parseProposal(raw);
   const result = validateProposal(env.store, env.meta, env.s0, parsed);
@@ -147,7 +147,7 @@ test('Claude: no built-in tools, Novi read tools only, denied escapes, untouched
   const provider = await fakeAnthropic(script({ list: 'mcp__novi__list_files', search: 'mcp__novi__search_files', read: 'mcp__novi__read_file' }, attacks, () => env.login.fileId));
   t.after(() => provider.close());
   const agent: CodingAgent = new ClaudeAgent(location, env.work, provider.url);
-  const { value } = task(reader, { effort: 'max' });
+  const { value } = task(reader, { effort: 'max', signal: t.signal });
   const raw = await agent.run(value, { apiKey: KEY });
   const result = validateProposal(env.store, env.meta, env.s0, parseProposal(raw));
   assert.equal(result.changes[0].additions, 1);
@@ -182,9 +182,10 @@ test('Cancelling stops the engine promptly and leaves nothing behind', { timeout
     t.after(() => provider.close());
     const agent: CodingAgent = engine === 'codex' ? new CodexAgent(location, env.work, `${provider.url}/v1`) : new ClaudeAgent(location, env.work, provider.url);
     const controller = new AbortController();
-    const { value } = task(reader, { signal: controller.signal });
+    const { value } = task(reader, { signal: AbortSignal.any([controller.signal, t.signal]) });
     const started = Date.now();
-    setTimeout(() => controller.abort(), 2500);
+    const timer = setTimeout(() => controller.abort(), 2500);
+    t.after(() => clearTimeout(timer));
     await assert.rejects(agent.run(value, { apiKey: KEY }), /Cancelled/);
     assert(Date.now() - started < 15_000, `${engine} stopped within seconds`);
     assert.deepEqual(readdirSync(env.work), [], `${engine} work folder removed`);

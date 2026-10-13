@@ -20,6 +20,7 @@ permissions:
 
 jobs:
   build:
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       max-parallel: 1
@@ -50,8 +51,9 @@ jobs:
         run: node --import tsx --test tests/windows-installer.test.ts
 
       - name: Check Local Coding isolation on this platform
+        timeout-minutes: 10
         # The bundled engines must refuse writes and shell access here before anything is published.
-        run: node --import tsx --test tests/local-coding-core.test.ts tests/local-coding-service.test.ts tests/local-coding-engines.test.ts
+        run: node --import tsx --test --test-timeout=120000 tests/local-coding-core.test.ts tests/local-coding-service.test.ts tests/local-coding-engines.test.ts tests/local-coding-process.test.ts
         env:
           NOVI_REQUIRE_ENGINES: '1'
 
