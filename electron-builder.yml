@@ -9,6 +9,9 @@ directories:
 files:
   - out/**/*
   - package.json
+  # Engine runtimes ship verified under resources/engines (scripts/bundle-coding-agents.mjs), not inside the archive.
+  - '!node_modules/@openai/**'
+  - '!node_modules/@anthropic-ai/claude-agent-sdk-*/**'
 
 asarUnpack:
   - node_modules/sherpa-onnx-*/**/*

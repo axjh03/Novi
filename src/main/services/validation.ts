@@ -106,6 +106,15 @@ export function sendInput(value: unknown): SendInput {
     conversationId: input.conversationId === null ? null : text(input.conversationId, 'conversation ID', 100),
     ...(input.appMode === undefined ? {} : { appMode: input.appMode as SendInput['appMode'] }),
     ...(input.behavioralFramework === undefined ? {} : { behavioralFramework: input.behavioralFramework as SendInput['behavioralFramework'] }),
+    ...(input.localCoding === undefined ? {} : { localCoding: localCodingInput(input.localCoding) }),
   };
+}
+function localCodingInput(value: unknown): NonNullable<SendInput['localCoding']> {
+  const input = object(value);
+  const baseVersionId = text(input.baseVersionId, 'version', 40);
+  if (input.reconcile === undefined) return { baseVersionId };
+  const reconcile = object(input.reconcile);
+  if (!Array.isArray(reconcile.fileIds) || !reconcile.fileIds.length || reconcile.fileIds.length > 50) throw new UserError('Choose 1–50 files to reconcile.');
+  return { baseVersionId, reconcile: { fromVersionId: text(reconcile.fromVersionId, 'version', 40), fileIds: reconcile.fileIds.map((id) => text(id, 'file', 40)) } };
 }
 export const conversationTitle = (content: string) => content.trim().replace(/\s+/g, ' ').slice(0, 60) || 'Image conversation';

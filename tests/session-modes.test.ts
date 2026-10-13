@@ -6,8 +6,9 @@ import { diagramBlocks } from '../src/shared/diagrams';
 import { presetFields, presetMode, SESSION_ROLES } from '../src/renderer/src/context/sessionPresets';
 import type { ChatMessage } from '../src/shared/types';
 
-test('all six modes have distinct guidance and respect session instructions', () => {
-  assert.equal(SESSION_MODES.length, 6);
+test('all seven modes have distinct guidance and respect session instructions', () => {
+  assert.equal(SESSION_MODES.length, 7);
+  assert(isAppMode('local-coding'));
   assert.match(modeInstructions('normal'), /direct answer/);
   for (const mode of SESSION_MODES.slice(1)) {
     assert(isAppMode(mode.id));

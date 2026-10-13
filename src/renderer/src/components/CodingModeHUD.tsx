@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Check, Code2, Copy, X } from 'lucide-react';
-import type { ChatMessage, CodeViewerBlock } from '../../../shared/types';
+import type { ChatMessage, CodeViewerBlock, ReviewTarget } from '../../../shared/types';
 import { unwrap } from '../services/api';
 import { MermaidDiagram } from './MermaidDiagram';
 import { useStealth } from '../hooks/useStealth';
+import { RepositoryReview } from './RepositoryReview';
 
 type CodeToken = { kind: 'plain' | 'comment' | 'string' | 'keyword' | 'number' | 'type' | 'function' | 'property' | 'operator'; text: string };
 
@@ -26,6 +27,9 @@ function languageFor(fence: string, file: string | undefined, code: string) {
   if (/^\s*<(?:!doctype|html|[A-Za-z][\w-]*[\s>])/i.test(code)) return 'html';
   return 'code';
 }
+
+/** Syntax-coloring language for a file path, by extension. */
+export const languageForPath = (path: string) => { const extension = path.split('.').at(-1)?.toLowerCase() || ''; return EXTENSIONS[extension] || extension || 'code'; };
 
 export function tokenizeCode(code: string, language = 'code'): CodeToken[] {
   const hashComments = ['python', 'py', 'ruby', 'rb', 'shell', 'sh', 'bash', 'yaml', 'yml'].includes(language.toLowerCase());
@@ -70,6 +74,8 @@ export function codeFromMessages(messages: ChatMessage[]) {
 
 export function DetachedCodeViewer() {
   const [blocks, setBlocks] = useState<CodeViewerBlock[]>([]);
+  // A Local Coding review replaces the code blocks until the viewer's mode changes or it is closed.
+  const [review, setReview] = useState<ReviewTarget | null>(null);
   useStealth();
   useEffect(() => {
     const syncStealthVars = () => {
@@ -79,13 +85,16 @@ export function DetachedCodeViewer() {
     syncStealthVars();
     const unsubStealth = window.novi.onStealthState(() => syncStealthVars());
     const unsubscribe = window.novi.onCodeViewerBlocks(setBlocks);
+    const unsubReview = window.novi.onReviewTarget(setReview);
     void unwrap(window.novi.getCodeViewerBlocks()).then(setBlocks).catch(console.error);
+    void unwrap(window.novi.getReviewTarget()).then(setReview).catch(console.error);
     return () => {
       unsubStealth();
       unsubscribe();
+      unsubReview();
     };
   }, []);
-  return <CodingModeHUD blocks={blocks} />;
+  return review ? <RepositoryReview target={review} onClose={() => void unwrap(window.novi.closeWindow())} /> : <CodingModeHUD blocks={blocks} />;
 }
 
 function CodingModeHUD({ blocks }: { blocks: CodeViewerBlock[] }) {

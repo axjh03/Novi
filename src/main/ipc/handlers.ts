@@ -1,6 +1,6 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, screen, shell } from 'electron';
 import { execFile } from 'node:child_process';
-import type { AccessStatus, BehavioralFramework, ChatLatency, CodeViewerBlock, SessionProfile, Snapshot } from '../../shared/types';
+import type { AccessStatus, BehavioralFramework, ChatLatency, CodeViewerBlock, ReviewTarget, SessionProfile, Snapshot } from '../../shared/types';
 import { Storage } from '../services/storage';
 import { AccessUnavailableError, ManagedAuthService, SessionChangedError } from '../services/managedAuth';
 import { CredentialStore } from '../services/credentials';
@@ -22,6 +22,7 @@ import { InterviewService } from '../services/interviewService';
 import { RemoteCompanionService } from '../services/remoteCompanion';
 import { ConnectionWarmer, warmupUrl } from '../services/connectionWarmup';
 import { WorkspaceService } from '../services/workspace';
+import { LocalCodingService } from '../services/localCoding';
 import { activeConnection } from '../../shared/providers';
 import { isAppMode } from '../../shared/sessionModes';
 import { dirname, join } from 'node:path';
@@ -59,7 +60,8 @@ export function registerIPC(
     });
     const remoteCompanion = new RemoteCompanionService(stealth, getMainWindow);
     remoteCompanion.start().catch((err) => console.error('Failed to start remote companion:', err));
-    return { storage, credentials, images, context, audio, transcription, localModels, interview, connections: new ConnectionService(storage, credentials), auth: new ManagedAuthService(storage, credentials), chat: new ChatService(storage, credentials, images, context), overlay, stealth, remoteCompanion };
+    const localCoding = new LocalCodingService({ storage, credentials, images, userData: storage.directory, location: { packaged: app.isPackaged, resourcesPath: process.resourcesPath } });
+    return { storage, credentials, images, context, audio, transcription, localModels, interview, localCoding, connections: new ConnectionService(storage, credentials), auth: new ManagedAuthService(storage, credentials), chat: new ChatService(storage, credentials, images, context, localCoding), overlay, stealth, remoteCompanion };
   }
   const get = () => services ||= initialize();
   // The floating tray follows transparent mode and click-through like the main window.
@@ -243,6 +245,7 @@ export function registerIPC(
     await get().interview.stop(true);
     codeViewerVisible = false;
     codeViewerBlocks = [];
+    reviewTarget = null;
     if (codeViewerWindow && !codeViewerWindow.isDestroyed()) codeViewerWindow.hide();
     if (context.session) context.session.status = 'ending';
     await chat.stopAndWait();
@@ -419,6 +422,8 @@ export function registerIPC(
     const { storage, images, chat } = get(); chat.assertIdle();
     const id = text(value, 'conversation ID', 100);
     const account = storage.current();
+    // Local Coding history lives beside data.json; remove it with its conversation.
+    for (const conversation of [...account.conversations, ...(storage.sessionConversations ?? [])]) if (conversation.id === id) get().localCoding.removeForConversation(conversation);
     account.conversations = account.conversations.filter((item) => item.id !== id);
     if (storage.sessionConversations !== null) {
       storage.sessionConversations = storage.sessionConversations.filter((item) => item.id !== id);
@@ -426,7 +431,8 @@ export function registerIPC(
     storage.save(); images.prune();
   });
   handle('clear-history', () => {
-    const { storage, images, chat } = get(); chat.assertIdle();
+    const { storage, images, chat, localCoding } = get(); chat.assertIdle();
+    for (const conversation of storage.current().conversations) localCoding.removeForConversation(conversation);
     storage.current().conversations = [];
     if (storage.sessionConversations !== null) storage.sessionConversations = [];
     storage.save(); images.prune();
@@ -510,14 +516,91 @@ export function registerIPC(
     if (!Number.isFinite(height) || height <= 0 || height > 10_000) throw new UserError('Invalid tray height.');
     workspace.resizeTray(height);
   });
+  // ── Local Coding (read-only; there is deliberately no write, patch, run or delete endpoint) ──
+  const fromMain = (event: Electron.IpcMainInvokeEvent) => {
+    if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Use Local Coding from the main Novi window.');
+  };
+  handle('local-coding-browse', (value, event) => { fromMain(event); return get().localCoding.browse(value); });
+  handle('local-coding-preview', (value, event) => { fromMain(event); const input = object(value); return get().localCoding.preview({ workingFolder: input.workingFolder, extra: input.extra }); });
+  handle('local-coding-readiness', (_value, event) => { fromMain(event); return get().localCoding.readiness(); });
+  handle('local-coding-models', (value, event) => { fromMain(event); const input = object(value); return get().localCoding.listModels(input.engine, input.connectionId); });
+  handle('local-coding-start', async (value, event) => {
+    fromMain(event);
+    const { context, chat, storage, localCoding } = get();
+    chat.assertIdle();
+    if (context.assertActive().status !== 'ready') throw new UserError('Wait for the session to finish loading, then start Local Coding.');
+    const input = object(value);
+    const conversationId = await localCoding.startSession(input, (conversation) => { storage.conversations.push(conversation); storage.save(); });
+    return { snapshot: await snapshot(), conversationId };
+  });
+  handle('local-coding-state', (value, event) => { fromMain(event); return get().localCoding.state(value); });
+  handle('local-coding-select', (value, event) => { fromMain(event); const input = object(value); return get().localCoding.select(input.projectId, input.versionId); });
+  handle('local-coding-engine', async (value, event) => {
+    fromMain(event);
+    const { chat, storage, localCoding } = get();
+    chat.assertIdle();
+    const input = object(value);
+    const project = await localCoding.updateEngine(input.projectId, input, storage.conversations);
+    storage.save();
+    return { snapshot: await snapshot(), project };
+  });
+  handle('local-coding-changes', (value, event) => { fromMain(event); const input = object(value); return get().localCoding.changes(input.projectId, input.fromVersionId, input.toVersionId); });
+  // The detached viewer may read the review it was asked to show, and nothing else.
+  let reviewTarget: ReviewTarget | null = null;
+  handle('local-coding-review', (value, event) => {
+    const input = object(value);
+    const sender = BrowserWindow.fromWebContents(event.sender);
+    if (sender !== getMainWindow()) {
+      if (!codeViewerWindow || sender !== codeViewerWindow || !reviewTarget || input.projectId !== reviewTarget.projectId) throw new UserError('This review is not open.');
+    }
+    return get().localCoding.review(input.projectId, input.fromVersionId, input.toVersionId, input.fileId);
+  });
+  handle('local-coding-review-changes', (value, event) => {
+    const sender = BrowserWindow.fromWebContents(event.sender);
+    if (!codeViewerWindow || sender !== codeViewerWindow || !reviewTarget) throw new UserError('This review is not open.');
+    return get().localCoding.changes(reviewTarget.projectId, object(value).fromVersionId, reviewTarget.toVersionId);
+  });
+  handle('local-coding-open-review', async (value, event) => {
+    fromMain(event);
+    const input = object(value);
+    // Validates ownership and that the file exists in one of the versions before showing anything.
+    get().localCoding.review(input.projectId, input.fromVersionId, input.toVersionId, input.fileId);
+    reviewTarget = get().localCoding.reviewTarget(input.projectId, input.fromVersionId, input.toVersionId, input.fileId);
+    codeViewerVisible = true;
+    openCodeViewer();
+    if (codeViewerWindow && !codeViewerWindow.isDestroyed()) codeViewerWindow.webContents.send('review-target', reviewTarget);
+  });
+  handle('local-coding-review-target', (_value, event) => {
+    const sender = BrowserWindow.fromWebContents(event.sender);
+    if (sender !== getMainWindow() && sender !== codeViewerWindow) throw new UserError('Not available.');
+    return reviewTarget;
+  });
+  handle('local-coding-review-action', (value, event) => {
+    if (!codeViewerWindow || BrowserWindow.fromWebContents(event.sender) !== codeViewerWindow) throw new UserError('Not available.');
+    const input = object(value);
+    if (input.kind !== 'ask' && input.kind !== 'revise') throw new UserError('Unknown review action.');
+    const message = text(input.text, 'request', 4000);
+    const main = getMainWindow();
+    if (main && !main.isDestroyed()) { main.webContents.send('global-action', { type: 'review-action', payload: { kind: input.kind, text: message } }); main.show(); }
+  });
+  handle('local-coding-refresh', async (value, event) => {
+    fromMain(event);
+    const { chat, localCoding } = get();
+    chat.assertIdle();
+    const input = object(value);
+    const result = await localCoding.refresh(input.projectId, input.carryVersionId, input.addPaths ?? []);
+    return { result, project: localCoding.state(input.projectId) };
+  });
+  handle('local-coding-resolve', (value, event) => {
+    fromMain(event);
+    const input = object(value);
+    const result = get().localCoding.resolve(input.projectId, input.pendingId, input.decisions);
+    return { result, project: get().localCoding.state(input.projectId) };
+  });
   let codeViewerWindow: BrowserWindow | null = null;
   let codeViewerBlocks: CodeViewerBlock[] = [];
   let codeViewerVisible = false;
-  handle('set-code-viewer-visible', (value, event) => {
-    if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can open the code viewer.');
-    const visible = object(value).visible === true;
-    codeViewerVisible = visible;
-    if (!visible) { codeViewerBlocks = []; codeViewerWindow?.hide(); return; }
+  function openCodeViewer() {
     if (codeViewerWindow && !codeViewerWindow.isDestroyed()) { codeViewerWindow.show(); codeViewerWindow.focus(); return; }
     const main = getMainWindow();
     if (!main) return;
@@ -544,6 +627,7 @@ export function registerIPC(
       codeViewerWindow = null;
       codeViewerVisible = false;
       codeViewerBlocks = [];
+      reviewTarget = null;
       const currentMain = getMainWindow();
       if (currentMain && !currentMain.isDestroyed()) currentMain.webContents.send('code-viewer-closed');
     });
@@ -551,6 +635,15 @@ export function registerIPC(
     const url = new URL(rendererUrl);
     url.hash = '/code-viewer';
     void viewer.loadURL(url.href);
+  }
+  handle('set-code-viewer-visible', (value, event) => {
+    if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can open the code viewer.');
+    const visible = object(value).visible === true;
+    codeViewerVisible = visible;
+    // Mode changes take the viewer back to code blocks and diagrams.
+    if (reviewTarget) { reviewTarget = null; if (codeViewerWindow && !codeViewerWindow.isDestroyed()) codeViewerWindow.webContents.send('review-target', null); }
+    if (!visible) { codeViewerBlocks = []; codeViewerWindow?.hide(); return; }
+    openCodeViewer();
   });
   handle('update-code-viewer', (value, event) => {
     if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can update the code viewer.');

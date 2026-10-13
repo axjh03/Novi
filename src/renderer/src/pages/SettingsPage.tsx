@@ -5,6 +5,7 @@ import { ProviderManager } from '../components/ProviderManager';
 import { DeviceTester } from '../components/DeviceTester';
 import { SettingsAppUpdater } from '../components/SettingsAppUpdater';
 import { LocalAISetup } from '../components/LocalAISetup';
+import { EngineReadinessList } from '../components/LocalCodingSetup';
 import { errorText, unwrap } from '../services/api';
 
 interface Props { state: Snapshot; onSaved: (state: Snapshot) => void; onBack: () => void; onSignOut: () => void; onCleared: () => void }
@@ -336,7 +337,13 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
 
         {tab === 'devices' && <DeviceTester />}
 
-        {tab === 'api' && <ProviderManager state={state} onSaved={onSaved} />}
+        {tab === 'api' && <>
+          <ProviderManager state={state} onSaved={onSaved} />
+          <section className="settings-section lc-settings">
+            <div><h2>Local Coding agents</h2><p>Codex uses an OpenAI connection and Claude uses an Anthropic connection, each on its official endpoint. The agents are included with Novi.</p></div>
+            <EngineReadinessList />
+          </section>
+        </>}
       </div>
     </main>
   );

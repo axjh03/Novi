@@ -17,7 +17,10 @@ export function useChat(initial: Conversation[]) {
     setSelectedId((id) => initial.some((conversation) => conversation.id === id) ? id : null);
   }, [initial]);
   useEffect(() => window.novi.onChat((event) => {
-    if (event.type === 'delta') {
+    if (event.type === 'progress') {
+      // Progress only updates the message; it never starts or finishes a request.
+      setConversations((items) => items.map((c) => c.id !== event.conversationId ? c : { ...c, messages: c.messages.map((m) => m.id === event.messageId ? { ...m, localCoding: event.localCoding } : m) }));
+    } else if (event.type === 'delta') {
       if (sent.current !== null && !firstWord.current && /[\p{L}\p{N}]/u.test(event.text)) {
         firstWord.current = true;
         console.info('[Novi latency]', { stage: 'ui-first-word', milliseconds: performance.now() - sent.current });

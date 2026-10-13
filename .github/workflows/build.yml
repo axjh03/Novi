@@ -49,6 +49,12 @@ jobs:
         if: runner.os == 'Windows'
         run: node --import tsx --test tests/windows-installer.test.ts
 
+      - name: Check Local Coding isolation on this platform
+        # The bundled engines must refuse writes and shell access here before anything is published.
+        run: node --import tsx --test tests/local-coding-core.test.ts tests/local-coding-service.test.ts tests/local-coding-engines.test.ts
+        env:
+          NOVI_REQUIRE_ENGINES: '1'
+
       - name: Build and Package
         run: |
           npm run build

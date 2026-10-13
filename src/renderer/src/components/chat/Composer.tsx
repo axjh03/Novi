@@ -19,9 +19,12 @@ interface Props {
   onListeningChange?: (active: boolean, text: string) => void;
   /** Replaces the message box text each time its id changes. */
   prefill?: { id: number; text: string };
+  /** Called once a prefill is in the box, so it is not applied again by a later remount. */
+  onPrefillApplied?: () => void;
+  placeholder?: string;
 }
 
-export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChange, prefill }: Props) {
+export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChange, prefill, onPrefillApplied, placeholder }: Props) {
   const [text, setText] = useState('');
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [error, setError] = useState('');
@@ -75,6 +78,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
     if (!prefill) return;
     draft.current.edit(prefill.text); textRef.current = prefill.text; setText(prefill.text);
     textarea.current?.focus();
+    onPrefillApplied?.();
   }, [prefill?.id]);
   useEffect(() => { localStorage.setItem('novi_listening_source', source); }, [source]);
   useEffect(() => { localStorage.setItem('novi_listening_engine', engine); }, [engine]);
@@ -371,7 +375,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
         <textarea
           ref={textarea}
           aria-label="Message Novi"
-          placeholder={busy ? 'Type your next message… you can send it when Novi is ready' : 'Ask Novi anything…'}
+          placeholder={busy ? 'Type your next message… you can send it when Novi is ready' : placeholder || 'Ask Novi anything…'}
           rows={1}
           value={text}
           maxLength={100000}

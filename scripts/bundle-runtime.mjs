@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { ModelManager } from '../src/main/services/localModels.mjs';
 import bundleCloudflared from './bundle-cloudflared.mjs';
+import bundleCodingAgents from './bundle-coding-agents.mjs';
 
 // Fail packaging if required assets are missing; users should not discover this offline.
 export default async function bundleRuntime(context) {
@@ -29,6 +30,7 @@ export default async function bundleRuntime(context) {
       await chmod(join(entry.parentPath || entry.path, entry.name), entry.isDirectory() ? 0o755 : 0o644);
     }
     await bundleCloudflared(context);
+    await bundleCodingAgents(context);
   } finally {
     await models.shutdown();
     await rm(staging, { recursive: true, force: true });

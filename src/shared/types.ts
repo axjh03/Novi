@@ -1,12 +1,13 @@
 import type { LocalAISetup, LocalModelStatus } from './localAI';
 import type { InterviewEvent, InterviewFrame, InterviewSession, InterviewStart } from './interview';
+import type { BrowseResult, EngineId, EngineModel, EngineReadiness, FileReview, LocalCodingBinding, LocalCodingMessage, LocalCodingRequest, ProjectState, RefreshDecision, RefreshResult, SourcePreview, ChangeOperation } from './localCoding';
 export type SupportedProviderKind = 'openai' | 'anthropic' | 'gemini';
 export type ProviderKind = SupportedProviderKind | 'compatible';
 export type AudioPipelineMode = 'local_stt' | 'live_stream';
 const isMacPlatform = typeof process !== 'undefined' && process.platform ? process.platform === 'darwin' : (typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform));
 export const DEFAULT_CLICK_THROUGH_SHORTCUT = isMacPlatform ? 'Option+Control+I' : 'Shift+Home';
 export const DEFAULT_TRANSPARENT_SHORTCUT = isMacPlatform ? 'Option+Control+T' : 'Home+PageUp';
-export type AppMode = 'normal' | 'coding' | 'behavioral' | 'recruiter' | 'technical' | 'system-design';
+export type AppMode = 'normal' | 'coding' | 'behavioral' | 'recruiter' | 'technical' | 'system-design' | 'local-coding';
 export type BehavioralFramework = 'smart' | 'star' | 'car' | 'par' | 'soar';
 export const DEFAULT_CODING_SHORTCUT = 'Alt+C';
 export const DEFAULT_BEHAVIORAL_SHORTCUT = 'Alt+B';
@@ -78,6 +79,10 @@ export interface ChatMessage {
   providerName?: string;
   model?: string;
   latency?: ChatLatency;
+  /** Local Coding: the task result on an assistant message (references and summaries only). */
+  localCoding?: LocalCodingMessage;
+  /** Local Coding: the version a user message was pinned to. */
+  localCodingRequest?: LocalCodingRequest;
 }
 export interface TokenUsage { input?: number; cachedInput?: number; cacheWrite?: number; reasoning?: number; output?: number }
 export interface ChatLatency {
@@ -92,7 +97,7 @@ export interface ChatLatency {
   usage?: TokenUsage;
 }
 export interface SavedContext { instructions: string; summary: string; documents: Array<{ name: string; content: string }> }
-export interface Conversation { id: string; title: string; createdAt: number; updatedAt: number; messages: ChatMessage[]; context?: SavedContext; pinnedContext?: string }
+export interface Conversation { id: string; title: string; createdAt: number; updatedAt: number; messages: ChatMessage[]; context?: SavedContext; pinnedContext?: string; localCoding?: LocalCodingBinding }
 export interface ContextFolder { id: string; name: string; files: string[]; characters: number }
 export interface ContextInput { folderIds?: string[]; purpose?: string; company?: string; role?: string; fields?: Array<{ label: string; value: string }>; empty?: boolean }
 export interface ContextSession { id: string; connection: ProviderConnection; status: 'pending' | 'loading' | 'ready' | 'error' | 'ending'; summaryReady: boolean; isEmpty?: boolean }
@@ -121,11 +126,13 @@ export interface SettingsInput {
   localASRModelId?: string;
   transparentOnStart?: boolean;
 }
-export interface SendInput { appMode?: AppMode; behavioralFramework?: BehavioralFramework; conversationId: string | null; content: string; imageIds: string[]; sentAt?: number; compactContext?: boolean; pinnedContext?: string }
+export interface SendInput { appMode?: AppMode; behavioralFramework?: BehavioralFramework; conversationId: string | null; content: string; imageIds: string[]; sentAt?: number; compactContext?: boolean; pinnedContext?: string; localCoding?: { baseVersionId: string; reconcile?: { fromVersionId: string; fileIds: string[] } } }
 export type ChatEvent =
   | { type: 'started'; conversation: Conversation }
   | { type: 'delta'; conversationId: string; messageId: string; text: string }
-  | { type: 'finished'; conversation: Conversation };
+  | { type: 'finished'; conversation: Conversation }
+  /** Local Coding progress for one assistant message; never a lifecycle change. */
+  | { type: 'progress'; conversationId: string; messageId: string; localCoding: LocalCodingMessage };
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
 export interface MonitorDisplay {
@@ -177,6 +184,24 @@ export interface NoviAPI {
   saveSessionProfile(input: SessionProfileInput): Promise<Result<Snapshot>>;
   deleteSessionProfile(id: string): Promise<Result<Snapshot>>;
   loadSessionProfileFolders(id: string): Promise<Result<ContextFolder[]>>;
+  browseLocalDirectory(path?: string): Promise<Result<BrowseResult>>;
+  selectLocalSources(input: { workingFolder: string; extra: string[] }): Promise<Result<SourcePreview>>;
+  getLocalCodingReadiness(): Promise<Result<EngineReadiness[]>>;
+  listEngineModels(input: { engine: EngineId; connectionId: string }): Promise<Result<EngineModel[]>>;
+  captureLocalSources(input: { selectionId: string; engine: EngineId; connectionId: string; model: string }): Promise<Result<{ snapshot: Snapshot; conversationId: string }>>;
+  getProjectState(projectId: string): Promise<Result<ProjectState>>;
+  selectProjectVersion(input: { projectId: string; versionId: string }): Promise<Result<ProjectState>>;
+  updateLocalCodingEngine(input: { projectId: string; engine: EngineId; connectionId: string; model: string }): Promise<Result<{ snapshot: Snapshot; project: ProjectState }>>;
+  listReviewChanges(input: { projectId: string; fromVersionId: string; toVersionId: string }): Promise<Result<Array<{ fileId: string; operation: ChangeOperation; rootName: string; relativePath: string }>>>;
+  getReviewDiff(input: { projectId: string; fromVersionId: string | null; toVersionId: string; fileId: string }): Promise<Result<FileReview>>;
+  openReview(input: { projectId: string; fromVersionId: string | null; toVersionId: string; fileId: string }): Promise<Result<void>>;
+  refreshLocalSources(input: { projectId: string; carryVersionId: string | null; addPaths?: string[] }): Promise<Result<{ result: RefreshResult; project: ProjectState }>>;
+  resolveRefreshConflict(input: { projectId: string; pendingId: string; decisions: Record<string, RefreshDecision> }): Promise<Result<{ result: RefreshResult; project: ProjectState }>>;
+  onReviewTarget(callback: (target: ReviewTarget | null) => void): () => void;
+  getReviewTarget(): Promise<Result<ReviewTarget | null>>;
+  /** For the detached viewer: the files changed in the review it is showing. */
+  getReviewChanges(fromVersionId: string): Promise<Result<Array<{ fileId: string; operation: ChangeOperation; rootName: string; relativePath: string }>>>;
+  sendReviewAction(action: { kind: 'ask' | 'revise'; text: string }): Promise<Result<void>>;
   initializeContext(): Promise<Result<Snapshot>>;
   endContext(): Promise<Result<Snapshot>>;
   session(): Promise<Result<Snapshot>>;
@@ -264,6 +289,8 @@ export interface PermissionStatus {
   details?: Record<string, string>;
 }
 export interface CodeViewerBlock { id: string; label: string; code: string; language?: string }
+/** What the detached viewer shows when reviewing a Local Coding proposal. */
+export interface ReviewTarget { projectId: string; fromVersionId: string | null; toVersionId: string; fileId: string; parentVersionId: string | null; localSnapshotId: string | null; labels: Record<string, string> }
 export interface UpdateProgress { percent: number; status: string }
 export interface UpdateCheckResult {
   hasUpdate: boolean;

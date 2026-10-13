@@ -148,7 +148,7 @@ async function main() {
     let tray = await trayPage();
     assert.equal(await page.getByRole('dialog', { name: 'Phone companion' }).count(), 0, 'Starting a session must not open the QR dialog');
     assert.equal(await page.getByRole('button', { name: 'Expand sidebar' }).count(), 1);
-    assert.equal(await tray.getByRole('navigation', { name: 'Conversation mode' }).getByRole('button').count(), 6);
+    assert.equal(await tray.getByRole('navigation', { name: 'Conversation mode' }).getByRole('button').count(), 7);
     assert.equal(await page.getByRole('navigation', { name: 'Conversation mode' }).count(), 0, 'the output panel holds no input controls');
     assert.equal(await page.getByLabel('Message Novi').count(), 0);
     assert.equal(await tray.getByRole('button', { name: 'Whiteboard' }).count(), 0);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Award, Code2, GripVertical, MessageSquare, Network, PanelTop, Phone, Settings2, Video, X, type LucideIcon } from 'lucide-react';
+import { Award, Code2, FolderCode, GripVertical, Lock, MessageSquare, Network, PanelTop, Phone, Settings2, Video, X, type LucideIcon } from 'lucide-react';
 import type { AppMode, ModelOption, Snapshot } from '../../../shared/types';
 import { Sidebar } from '../components/chat/Sidebar';
 import { Composer } from '../components/chat/Composer';
@@ -21,10 +21,14 @@ import { ReadyCard } from '../components/ReadyCard';
 import { PracticeCoach } from '../components/PracticeCoach';
 import { usePracticeRun } from '../hooks/usePracticeRun';
 import { useStealthState } from '../hooks/useStealth';
+import { LocalCodingSetup } from '../components/LocalCodingSetup';
+import { LocalCodingHistory, type ReconcileRequest } from '../components/LocalCodingHistory';
+import { useLocalCodingProject } from '../hooks/useLocalCodingProject';
+import { ENGINES, type LocalCodingMessage } from '../../../shared/localCoding';
 
 // Each mode has its own icon so the tray can show only the active mode's name.
 const MODE_ICONS: Record<AppMode, LucideIcon> = {
-  normal: MessageSquare, recruiter: Phone, coding: Code2, technical: Video, 'system-design': Network, behavioral: Award,
+  normal: MessageSquare, recruiter: Phone, coding: Code2, technical: Video, 'system-design': Network, behavioral: Award, 'local-coding': FolderCode,
 };
 
 export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSaved: (state: Snapshot) => void; onSignOut: () => void }) {
@@ -67,6 +71,28 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const [confirmEnd, setConfirmEnd] = useState(false);
   const sessionId = state.contextSession?.id;
   const practice = usePracticeRun({ appMode, chatBusy: chat.busy, chatError: chat.error, conversationId: chat.selectedId });
+  // One prefill channel for the message box: practice runs and requests from the review viewer.
+  const [prefill, setPrefill] = useState<{ id: number; text: string } | undefined>();
+  const prefillId = useRef(0);
+  useEffect(() => { if (practice.prefill) setPrefill({ id: ++prefillId.current, text: practice.prefill.text }); }, [practice.prefill?.id]);
+  // ── Local Coding ──────────────────────────────────────────────────────────
+  const localMode = appMode === 'local-coding';
+  const localBinding = chat.selected?.localCoding;
+  const local = useLocalCodingProject(localBinding, chat.busy, chat.selected?.messages, chat.setError);
+  useEffect(() => window.novi.onGlobalAction((action) => {
+    if (action.type !== 'review-action' || typeof action.payload?.text !== 'string') return;
+    if (!trayOpen) { setTrayKey((key) => key + 1); setTrayOpen(true); }
+    setPrefill({ id: ++prefillId.current, text: action.payload.text });
+  }), [trayOpen]);
+  const openLocalFile = useCallback((result: LocalCodingMessage, fileId: string) => {
+    if (!result.resultingVersionId) return;
+    void unwrap(window.novi.openReview({ projectId: result.projectId, fromVersionId: result.baseVersionId, toVersionId: result.resultingVersionId, fileId })).catch((error) => chat.setError(errorText(error)));
+  }, [chat.setError]);
+  function sendLocal(content: string, imageIds: string[], reconcile?: ReconcileRequest) {
+    if (!localBinding || !local.project) { chat.setError('Choose a working folder and start Local Coding first.'); return Promise.resolve(false); }
+    const baseVersionId = reconcile?.baseVersionId ?? local.project.selectedVersionId;
+    return chat.send({ content, imageIds, compactContext, pinnedContext, localCoding: { baseVersionId, ...(reconcile ? { reconcile: { fromVersionId: reconcile.fromVersionId, fileIds: reconcile.fileIds } } : {}) } });
+  }
   const listenKey = config.audioRecordShortcut || 'Alt+A';
   function startPractice() {
     if (contextBusy || chat.busy || ending) return;
@@ -204,7 +230,11 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
         displayName={config.displayName}
         busy={sidebarBusy || syncingModel}
         onNew={() => void endSession()}
-        onSelect={(id) => { if (id !== chat.selectedId) setComposerKey(key => key + 1); chat.setSelectedId(id); setSettings(false); chat.setError(''); }}
+        onSelect={(id) => {
+          if (id !== chat.selectedId) setComposerKey(key => key + 1);
+          if (chat.conversations.find((item) => item.id === id)?.localCoding) setAppMode('local-coding');
+          chat.setSelectedId(id); setSettings(false); chat.setError('');
+        }}
         onDelete={setDeleting}
         onSettings={() => { practice.cancel(); setSettings(true); }}
       />
@@ -228,16 +258,26 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             </div>
           )}
 
-          {!readyDismissed && !sentInSession && !practice.active && (
+          {!readyDismissed && !sentInSession && !practice.active && !localMode && (
             <ReadyCard transparent={transparent} listenKey={listenKey} snapshotKey={config.screenshotShortcut || 'Alt+3'}
               practiceDisabled={contextBusy || chat.busy || ending} onPractice={startPractice} onDismiss={() => setReadyDismissed(true)} />
           )}
+          {localMode && localBinding && local.project && (
+            <LocalCodingHistory state={state} project={local.project} busy={chat.busy || contextBusy || ending}
+              onProject={local.setProject} onSnapshot={onSaved} onError={chat.setError}
+              onReconcile={(request) => void sendLocal(`Reconcile the proposed ${request.fromLabel} changes into the refreshed local files: ${request.files.join(', ')}.`, [], request)}
+              readyNotice={local.notice} onDismissNotice={local.clearNotice} />
+          )}
           {appMode === 'system-design' && <button type="button" className="secondary" onClick={() => void unwrap(window.novi.setCodeViewerVisible(true)).then(() => unwrap(window.novi.updateCodeViewer(diagramBlocks(chat.selected?.messages || [])))).catch((error) => chat.setError(errorText(error)))}>Open diagrams · saved with this conversation</button>}
-          {chat.selected ? (
+          {localMode && !localBinding ? (
+            contextBusy ? <div className="empty-state"><p>Local Coding is available once the session finishes loading.</p></div>
+              : <LocalCodingSetup state={state} onStarted={(snapshot, conversationId) => { onSaved(snapshot); setComposerKey((key) => key + 1); chat.setSelectedId(conversationId); chat.setError(''); }} />
+          ) : chat.selected ? (
             <div className="conversation-scroll" ref={scroll} onScroll={() => { const el = scroll.current!; atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }}>
               <div className="messages">
+                {localMode && localBinding && !chat.selected.messages.length && <p className="lc-empty">Ask about {localBinding.name} in the tray. Answers explain the code; changes come back as proposals you can open, compare and copy. Your files are never changed.</p>}
                 {chat.selected.messages.map((message, index) => (
-                  <Message key={message.id} message={message} displayName={config.displayName}
+                  <Message key={message.id} message={message} displayName={config.displayName} onOpenFile={openLocalFile}
                     generating={chat.busy && chat.activeId === chat.selectedId && index === chat.selected!.messages.length - 1} />
                 ))}
               </div>
@@ -266,7 +306,12 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
                 </button>
               ); })}
             </nav>
-            <div className="header-model-select-wrapper">
+            {localMode ? (
+              <div className="lc-session-bar" aria-label="Local Coding session">
+                {localBinding ? <><strong>Local Coding</strong><span title={local.project?.roots.map((root) => root.canonicalLocalPath).join('\n')}>{localBinding.name}</span><span>{ENGINES.find((item) => item.id === localBinding.engine)?.label}</span><span title={local.project?.reasoningEffort ? `Reasoning ${local.project.reasoningEffort}` : undefined}>{localBinding.model}</span><span className="lc-readonly-pill"><Lock size={11} aria-hidden="true" />Read-only</span></>
+                  : <span>Local Coding · choose a working folder in the panel</span>}
+              </div>
+            ) : <div className="header-model-select-wrapper">
               <span className="status-dot" />
               {enabledConnections.length > 1 && (
                 <select
@@ -304,7 +349,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
                 aria-pressed={connection?.model === roles![role]}
                 title={`${role === 'fast' ? 'Fast' : 'Deep'}: ${roles![role]}`}
                 onClick={() => void handleModelChange(connection!.id, roles![role])}>{role === 'fast' ? 'Fast' : 'Deep'}</button>)}
-            </div>
+            </div>}
             {/* Eye tracking opens the screen HUD, and the effect above sends it the latest answer in interview modes. */}
             {appMode === 'behavioral' && (
               <BehavioralModeHUD framework={behavioralFramework} onSelectFramework={setBehavioralFramework} />
@@ -351,9 +396,15 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             key={composerKey}
             speechModelId={config.localASRModelId}
             busy={chat.busy || contextBusy || ending || syncingModel}
-            onSend={(content, images) => { setSentInSession(true); return chat.send({ content, imageIds: images.map((image) => image.id), compactContext, pinnedContext }); }}
+            onSend={(content, images) => {
+              setSentInSession(true);
+              if (localMode) return sendLocal(content, images.map((image) => image.id));
+              return chat.send({ content, imageIds: images.map((image) => image.id), compactContext, pinnedContext });
+            }}
             onListeningChange={practice.onListeningChange}
-            prefill={practice.prefill}
+            prefill={prefill}
+            onPrefillApplied={() => setPrefill(undefined)}
+            placeholder={localMode ? localBinding && local.project ? `Ask about ${localBinding.name} — next request uses ${local.project.versions.find((version) => version.id === local.project!.selectedVersionId)?.label ?? 'the selected version'}` : 'Start Local Coding in the panel first' : undefined}
           />
           {optionsOpen && <section id="tray-options" className="request-options tray-options" aria-label="Model roles and context">
             <p>Fast for short follow-ups; Deep for new code, debugging, and design. You choose which model answers.</p>

@@ -8,6 +8,8 @@ export const PRACTICE_QUESTIONS: Record<AppMode, string> = {
   technical: 'What happens when you type a web address into your browser and press Enter?',
   'system-design': 'How would you design a URL shortening service, like the ones that turn long links into short ones?',
   behavioral: 'Tell me about a time you disagreed with a teammate. How did you handle it?',
+  // Practice runs are offered outside Local Coding, which works on the user's own project instead.
+  'local-coding': 'Walk me through how this project is organized.',
 };
 
 /**
