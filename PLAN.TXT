@@ -1,0 +1,349 @@
+NOVI CODING AGENTS: INSTALLATION, UPDATES, AND API-KEY SESSIONS
+Prepared: 2026-10-13
+Status: Implementation plan only. No installation or application changes made.
+
+1. INTENDED EXPERIENCE
+
+Settings > API Management contains a Coding agents section with three rows:
+  - Codex                 -> selected OpenAI connection
+  - Claude Code           -> selected Anthropic connection
+  - Antigravity (agy)      -> selected Gemini connection
+
+The user selects a key already assigned by their manager through the web portal.
+Novi uses that SAME connection for the matching coding agent. No second key entry,
+browser login, or provider-account 2FA is part of agent setup. Novi account login
+remains separate; these changes do not bypass account access requirements.
+
+Before starting a new coding session, ending one, switching keys, or signing out,
+Novi stops and clears all of its agent sessions. It prepares the requested agent
+again with the currently selected provider connection before allowing a new task.
+
+"All agents" means processes and credentials created by Novi. Never sign the user
+out of a personal terminal CLI, clear their OS keychain, or kill unrelated agents.
+Closing Settings alone is not closing a coding session. Ending the session,
+closing the main application window, and quitting Novi trigger cleanup.
+
+This extends LOCAL_CODING_MODE_IMPLEMENTATION_PLAN.txt for agent setup and lifecycle.
+Existing captured sources, proposal validation, virtual iterations, and read-only
+project behavior remain the execution contract.
+
+2. CURRENT IMPLEMENTATION TO REUSE
+
+- Codex and Claude runtimes are bundled with packaged Novi; development resolves
+  them from node_modules. Versions are pinned in package.json/package-lock.json.
+- codingAgents/runtime.ts finds the executable, verifies packaged file hashes,
+  and constructs a restricted environment with a private home directory.
+- codex.ts already starts app-server and supplies an API key over a private pipe.
+- claude.ts already uses the Claude Agent SDK with a process-scoped API key.
+- Both adapters create scratch directories and clean up after each request.
+- process.ts owns child process groups and waits for termination during cleanup.
+- CredentialStore holds imported managed keys in memory. The renderer receives
+  connection metadata rather than the secret. Preserve this separation.
+- Managed API Management already selects at most one enabled key per provider.
+- LocalCodingService already exposes readiness, model discovery, and task running.
+- Antigravity has no implemented adapter, runtime packaging, or engine choice yet.
+- Current readiness has no update check or explicit Login/Logout state.
+- Current model caching uses account/engine/connection IDs; it does not distinguish
+  a replacement key under the same connection ID. This must change.
+
+3. SETTINGS UI
+
+Each row shows:
+  Agent name; installed version; runtime status; update status; selected connection
+  name and manager label; authentication status; a concise error when applicable.
+
+Actions:
+  Check again       Recheck the executable and approved update metadata.
+  Install           Install an absent runtime.
+  Update            Install an available compatible update.
+  Repair            Replace a damaged installation.
+  Login / Reconnect Prepare the agent using the selected imported connection.
+  Logout            Stop that Novi agent and clear its prepared authentication.
+
+Include Logout all agents. Changing the provider selection performs the same
+logout-before-connect sequence automatically. Do not introduce a second selection
+of API keys inside the agent row; link back to the existing provider selection.
+
+Keep these status dimensions separate:
+  Runtime: checking / missing / installed / installing / updating / damaged / error.
+  Update: current / available / required / unknown (offline or failed check).
+  Auth: disconnected / preparing / ready with selected key / rejected / error.
+  Activity: idle / running / stopping.
+
+"Ready with selected key" means configured for API-key use; it is not a promise
+of model access. Mark "Verified" only after a successful provider request and
+invalidate that result when credentials change. Catalog discovery alone is not
+verification. An optional Test connection action may make a small billed request;
+label that behavior and never send source files for a connection test.
+
+During a task, disable user-initiated updates and key switches and show "Stop the
+current task first." Server-side key revocation still triggers immediate teardown.
+Controls need keyboard access, busy feedback, and accessible status/error text.
+
+4. INSTALLATION AND UPDATE POLICY
+
+Planned default: manage Novi-owned engine copies, available to the current OS user.
+This is an explicit alternative to the earlier global-install suggestion: Novi's
+loader currently uses private bundled paths, so a global update alone has no effect.
+No machine-wide install, administrator prompt, or shell-profile edits are needed.
+Detecting a personal CLI must not cause Novi to adopt its login or overwrite it.
+
+Runtime resolution order:
+  1. Verified Novi-managed version in userData/coding-agents/<agent>/<version>.
+  2. Compatible verified bundled runtime as the initial installation/fallback.
+  3. node_modules only when running a development build.
+
+Use a small trusted release manifest for tested versions, platform/architecture,
+download locations, integrity values, and supported Novi/adapter versions. Ship
+an initial manifest and fetch newer manifests through Novi's trusted update path.
+Resolve the exact signing/distribution mechanism as the first updater task; never
+accept arbitrary executable URLs or checksums from renderer input.
+
+When API Management opens, inspect installations and check for updates. Cache the
+check time; Check again explicitly refreshes it. Before starting a session, recheck
+local integrity and minimum compatibility without requiring the update server.
+An unknown remote update status must not be reported as "up to date."
+
+Install/Update/Repair should:
+  - Refuse replacement while the relevant runtime is in use, including model probes.
+  - Download into staging with cancellation, size/time limits, and progress.
+  - Verify authenticity/integrity and reject archive traversal or unsafe links.
+  - Run a bounded version/protocol smoke check without any customer API key.
+  - Activate atomically only after checks pass; retain the previous working copy.
+  - Leave the old runtime working if download, verification, or activation fails.
+  - Recheck readiness and reconnect using the current selected connection.
+
+Offer compatible optional updates. Missing, corrupt, or unsupported versions require
+Install/Repair/Update before use. Do not blindly install upstream "latest": Claude's
+runtime must match the SDK/protocol shipped with Novi. If an update requires new
+adapter code, show "Update Novi required." Support offline use of valid existing
+engines; installing a missing engine requires network access.
+
+Reuse bundle-coding-agents.mjs integrity and platform mapping where practical.
+For agy, verify the official distribution mechanism, version pinning, integrity,
+and redistribution terms before choosing bundled versus download-on-demand delivery.
+Its documented updater is not automatically an atomic, pinned Novi updater.
+
+5. CREDENTIAL SOURCE AND PROVIDER MAPPING
+
+Reuse settings.connections, ConnectionService, ManagedAuthService, and CredentialStore.
+Keep selected connections separate by provider; activeConnectionId alone is not
+sufficient because the existing UI supports one selected connection per provider.
+
+Mappings and initially allowed connection endpoints:
+  Codex:      openai     https://api.openai.com/v1
+  Claude:     anthropic  https://api.anthropic.com/v1
+  Antigravity: gemini    https://generativelanguage.googleapis.com/v1beta
+
+Resolve the current user's enabled connection for the engine's provider. Check
+ownership, destination, key presence, and model compatibility in the main process.
+Never send an OpenAI key to Claude or agy, and never infer provider from key text.
+No compatible/custom endpoint fallback in this first version.
+
+At Settings selection:
+  1. Serialize the operation against login, logout, task start, and updates.
+  2. Stop and await all Novi-owned agents/probes; invalidate old preparation.
+  3. Commit the new selection, resolve its credential, and check the matching runtime.
+  4. Prepare that agent or show the required install/key action.
+  5. Publish metadata-only status for the current selection generation.
+
+On a managed refresh, compare actual credential/destination/selection changes in
+memory. A changed key under the same ID increments its credential revision, clears
+model/access caches, cancels affected work, and requires fresh preparation. Identical
+periodic refreshes must not repeatedly log agents out. Removed/disabled credentials
+cannot be used again. Ignore results from stale refresh/login generations.
+
+6. WHAT LOGIN AND LOGOUT MEAN FOR EACH ENGINE
+
+Codex:
+  Keep the existing app-server integration. In a fresh private CODEX_HOME, use
+  account/login/start with type apiKey. Keep ephemeral credential storage. On explicit
+  logout, attempt account/logout if responsive, then stop the process regardless.
+  A failed RPC must not prevent process termination and scratch cleanup. [S1]
+
+Claude Code:
+  Keep the existing Agent SDK adapter. Supply ANTHROPIC_API_KEY only to its process,
+  with private HOME and CLAUDE_CONFIG_DIR. Do not inherit OAuth/provider override
+  variables or user/project settings. Logout terminates the process and removes
+  its private directory and application references to the key. [R1]
+
+Antigravity:
+  Official docs support API-key use with GEMINI_API_KEY and modelProvider="gemini"
+  in ~/.gemini/antigravity-cli/settings.json. Set both inside the private process
+  environment/home. This mode does not establish an account session; /logout does
+  not clear an API-key session. Missing/invalid keys must fail without OAuth fallback.
+  Stop the process and delete private state to disconnect it. [S2]
+
+Novi's Login state is an application binding to an eligible connection, not a
+permanent CLI login or a guarantee that credentials were accepted remotely.
+Preserve the current fresh-process-per-task design: preparation/model discovery
+can start a short-lived probe, then close it. Each actual task gets a new isolated
+process authenticated with the current credential. No idle authenticated daemon
+is needed. Manual Logout leaves the agent disconnected until Login, a new explicit
+selection, or Start session; background refresh must not undo manual Logout.
+
+An agent logout retains the selected imported connection for later reuse; Novi
+account sign-out clears all imported keys after processes have stopped. Neither
+action revokes the manager's provider key or changes web-portal assignments.
+
+7. SHARED LIFECYCLE AND RACE HANDLING
+
+Extend the existing LocalCodingService/process ownership instead of introducing
+the prototype's Python manager or a separate server. Track probes as well as tasks.
+Provide one idempotent asynchronous stopAllAndWait operation and one serialized
+prepare/start path with an account/credential generation check.
+
+New session:
+  stopAllAndWait -> clear prepared bindings -> resolve selected provider key ->
+  verify runtime -> prepare selected engine/model -> capture/open session -> ready.
+
+Each request:
+  verify owner/generation/selected connection -> spawn private engine -> authenticate
+  -> read selected virtual version -> validate proposal -> await teardown.
+
+End session, main-window close, account switch/sign-out, or app quit:
+  block new starts -> cancel tasks and probes -> terminate process trees -> await
+  closure -> delete private homes -> clear prepared bindings and caches -> finish.
+
+Do not clear credentials and immediately launch a replacement while the old process
+is still stopping. If termination cannot be confirmed, show a cleanup error and
+block replacement. On shutdown, attempt bounded forced termination before exit.
+Handle startup failures and cancellations before listeners/handshakes finish too.
+Drop any result/proposal arriving after its account or credential generation changed.
+
+Review crash handling: cleanup of stale directories alone does not terminate an
+orphan process. Ensure children die with the application on each target platform
+(parent-pipe supervision or an appropriate OS process-lifetime mechanism), and test
+forced parent exit. Do not kill reused/unverified PIDs discovered in stale files.
+
+A private HOME is configuration separation, not container-grade host isolation.
+Keep the existing restricted tool boundary; never give an engine unrestricted host
+access just because its credentials are isolated. No concurrent multi-user backend
+or container platform is needed for this single-user desktop scope.
+
+8. ADD THE ANTIGRAVITY ADAPTER
+
+Add engine ID antigravity, display name Antigravity (agy), runtime detection, model
+capabilities, and an implementation of the existing CodingAgent contract.
+
+The documented headless interface supports JSON streaming over stdin/stdout,
+model selection, and JSON-schema output. Its streaming input documents text blocks
+only. Use these as integration starting points, not proof of complete compatibility.
+Do not silently discard images; verify a supported transport before enabling them,
+otherwise clearly reject image requests for that engine. [S3]
+
+Before enabling agy in production, prove with the chosen binary that Novi can:
+  - Use the selected Gemini key with no browser/keyring fallback.
+  - Expose only list_files, search_files, and read_file for the pinned version.
+  - Disable native execution/writes, external tools, hooks, and personal config.
+  - Bridge tools to Novi's existing VersionReader, using a narrowly scoped local
+    MCP transport if required; keep keys out of that transport.
+  - Stream progress, parse bounded structured results, and reject malformed output.
+  - Discover models and accurately describe image/reasoning capabilities.
+  - Cancel, time out, terminate descendants, and clean private state reliably.
+
+Preserve existing PROPOSAL_SCHEMA, validation, and one bounded repair attempt.
+If a required tool restriction cannot be enforced, display a precise unsupported
+runtime reason. Do not substitute Gemini CLI or ordinary Gemini chat under the
+Antigravity label, and do not enable unrestricted tools to make a demo pass.
+
+9. EXISTING SESSIONS AND KEY SWITCHES
+
+Retain old conversation history and record the agent/model/connection used for
+completed requests. Never rewrite their provenance after a connection change.
+Before the next request in an older conversation, reconcile its stored connection
+ID with the current selected connection for that engine. Show the new connection
+in the session bar. If the old model is unavailable, require a supported model
+selection rather than silently choosing a different model or provider.
+
+Refresh prepared state after engine updates and account changes. Do not delete
+project snapshots, conversations, or proposals when logging out or repairing an
+engine. Existing Codex/Claude project records must remain readable.
+
+10. FILES AND CONTRACTS THE IMPLEMENTATION MUST REACH
+
+src/shared/localCoding.ts
+  Third engine, provider mapping, runtime/auth/update status contract.
+src/shared/types.ts and src/main/preload.ts
+  Typed metadata-only IPC methods/events for check, install/update, login/logout.
+src/main/services/codingAgents/runtime.ts and process.ts
+  Managed runtime lookup, integrity, tracked process ownership, cleanup.
+src/main/services/codingAgents/codex.ts, claude.ts, types.ts
+  Reuse adapters; connect preparation/cancellation to the shared lifecycle.
+src/main/services/codingAgents/antigravity.ts (new)
+  agy protocol adapter using the existing task and proposal contracts.
+src/main/services/codingAgents/install.ts (new, if needed)
+  Small updater implementation; reuse existing download/atomic-write utilities.
+src/main/services/localCoding.ts
+  Lifecycle coordination, current key binding, cache revisions, third adapter.
+src/main/services/credentials.ts, connections.ts, managedAuth.ts
+  Credential-change notifications, selection changes, account teardown ordering.
+src/main/services/chat.ts and src/main/ipc/handlers.ts
+  Awaited cancellation, session transitions, window/quit hooks, validated handlers.
+src/main/main.ts
+  Check main-window close behavior and any startup/shutdown integration needed.
+src/renderer/src/components/ManagedProviders.tsx, ProviderManager.tsx,
+src/renderer/src/components/LocalCodingSetup.tsx,
+src/renderer/src/pages/SettingsPage.tsx, and useLocalCodingProject.ts
+  Agent rows/actions, automatic selected-key binding, session status refresh.
+scripts/bundle-coding-agents.mjs, scripts/bundle-runtime.mjs, electron-builder.yml,
+package.json/package-lock.json, and existing release machinery
+  Compatible distributions/manifests and packaging; change only where needed.
+tests/local-coding-{core,service,engines,process}.test.ts,
+tests/managed-auth.test.ts, and tests/support/fakeProviders.ts
+  Extend fixtures and meaningful lifecycle/provider tests rather than duplicating
+  the existing proposal/version tests.
+
+11. IMPLEMENTATION ORDER AND ACCEPTANCE CHECKS
+
+Phase 1: Verify agy protocol/tool restrictions and runtime distribution; define
+         version compatibility and metadata. Record exact binaries tested.
+Phase 2: Implement tracked teardown, credential revisions, current selection binding,
+         and stale-result protection using existing Codex/Claude adapters.
+Phase 3: Add Settings status/Login/Logout and install/update/repair operations.
+Phase 4: Complete agy adapter and wire it through Local Coding and packaging.
+Phase 5: Verify existing histories, clean-machine installs, updates, and shutdown.
+
+Required focused checks:
+  1. Selected manager key A reaches only the matching provider; no secret in IPC,
+     logs, command arguments, snapshots, update metadata, or persistent CLI auth.
+  2. Switch A -> B: old process closes before B starts; next request uses B.
+  3. Key rotates under the same connection ID: caches invalidate and A is not reused.
+  4. User A signs out -> user B signs in: no process/state/model cache crosses users.
+  5. Double Login/Logout and rapid selection changes cannot revive stale credentials.
+  6. End/new session, window close, normal quit, failed startup, cancellation, and
+     parent crash leave no surviving Novi agent; teardown failures block replacement.
+  7. Invalid/revoked keys, denied models, quota errors, and unavailable networks are
+     reported accurately and never fall back to browser/personal authentication.
+  8. Missing/corrupt runtimes, unsupported versions/platforms, bad checksums, failed
+     downloads, offline checks, and interrupted updates preserve recoverable state.
+  9. All three agents honor read-only tools, pinned versions, schema validation,
+     attachment capability checks, and cancellation; personal CLIs stay untouched.
+ 10. Fresh Windows/macOS/Linux installs work without preinstalled Node/npm/agents
+     on every platform Novi claims to support; test actual target installations.
+
+Use existing fake providers/process fixtures for deterministic tests, then a small
+explicitly configured live smoke test per adapter and packaged platform. Never use
+the manager's production key implicitly in automated tests. Run typecheck, relevant
+existing tests, and desktop smoke checks before calling the feature complete.
+
+12. SOURCES AND REMAINING VERIFICATION
+
+Official documentation checked on 2026-10-13:
+  [S1] Codex app-server API-key login and logout:
+       https://learn.chatgpt.com/docs/app-server
+  [S2] Antigravity installation, updates, and API-key authentication:
+       https://www.antigravity.google/docs/cli/install/
+  [S3] Antigravity headless input/output and flags:
+       https://www.antigravity.google/docs/cli/headless/
+  [R1] Existing Claude integration inspected directly:
+       src/main/services/codingAgents/claude.ts
+
+Documentation support is not a completed integration test. Exact agy tool isolation,
+image transport, update artifact verification/distribution, OS credential behavior,
+and abrupt-process-exit handling still require implementation-time verification.
+Do not infer support in older installed binaries from current documentation.
+
+Scope skipped: global CLI takeover, personal subscription login, a Python service,
+container orchestration, arbitrary provider endpoints, and direct project writes.
+This file is the requested plan; no agents were installed, updated, or logged in.
