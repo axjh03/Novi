@@ -1,8 +1,10 @@
-import { app, BrowserWindow, session, desktopCapturer } from 'electron';
+import { app, BrowserWindow, session, desktopCapturer, dialog } from 'electron';
 import { join, resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { MAIN_WINDOW_MIN } from './services/workspace';
+import { AppMask } from './services/appMask';
+import { appCommand } from './services/appCommand';
 
 app.setName('Novi');
 if (process.env.NOVI_DATA_DIR) {
@@ -16,13 +18,17 @@ const rendererUrl = new URL(devUrl || pathToFileURL(rendererPath).href).href;
 
 let mainWindow: BrowserWindow | null = null;
 let attachMainWindow: ((window: BrowserWindow) => void) | null = null;
+let mask: AppMask | undefined;
+let stopping = false;
+const command = appCommand(process.argv, app.isPackaged);
+const iconPath = app.isPackaged ? join(process.resourcesPath, 'icon.png') : join(__dirname, '../../build/icon.png');
 
 function createWindow() {
-  const iconPath = join(__dirname, '../../build/icon.png');
   const window = new BrowserWindow({
     width: 1200, height: 800, minWidth: MAIN_WINDOW_MIN.width, minHeight: MAIN_WINDOW_MIN.height,
     alwaysOnTop: true,
     title: 'Novi',
+    skipTaskbar: mask?.settings.enabled,
     icon: iconPath,
     frame: false,
     transparent: true,
@@ -35,6 +41,7 @@ function createWindow() {
     },
   });
   mainWindow = window;
+  mask?.applyWindow(window);
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   window.on('closed', () => { if (mainWindow === window) mainWindow = null; });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -44,10 +51,14 @@ function createWindow() {
   attachMainWindow?.(window);
   if (devUrl) void window.loadURL(devUrl);
   else void window.loadFile(rendererPath);
+  mask?.apply();
 }
 
-if (!app.requestSingleInstanceLock()) app.quit();
+if (!app.requestSingleInstanceLock({ command }) || command === 'stop') app.quit();
 else void app.whenReady().then(async () => {
+  mask = new AppMask(app.getPath('userData'), iconPath, () => mainWindow);
+  app.on('browser-window-created', (_event, window) => mask!.attach(window));
+  mask.apply();
   // Allow camera, microphone, display-capture, and media access for vision, audio recording, and eye-tracking.
   const allowedPermissions = new Set([
     'media', 'camera', 'microphone', 'audioCapture', 'videoCapture',
@@ -79,16 +90,23 @@ else void app.whenReady().then(async () => {
     callback({ cancel: !local });
   });
   const { registerIPC } = await import('./ipc/handlers');
-  ({ attachMainWindow } = registerIPC(rendererUrl, join(__dirname, '../preload/preload.js'), () => mainWindow));
+  if (stopping) return;
+  ({ attachMainWindow } = registerIPC(rendererUrl, join(__dirname, '../preload/preload.js'), () => mainWindow, mask));
   if (process.platform === 'darwin' && app.dock) {
-    try { app.dock.setIcon(join(__dirname, '../../build/icon.png')); } catch { }
+    try { app.dock.setIcon(iconPath); } catch { }
   }
   createWindow();
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
+}).catch((error) => {
+  dialog.showErrorBox('Novi could not start', error instanceof Error ? error.message : String(error));
+  app.quit();
 });
-app.on('second-instance', () => {
+app.on('second-instance', (_event, _argv, _cwd, data) => {
+  if (stopping) return;
+  if (data && typeof data === 'object' && 'command' in data && data.command === 'stop') { stopping = true; app.quit(); return; }
   // The first window could be the tray or an overlay; always bring back the main window.
   const window = mainWindow;
-  if (window && !window.isDestroyed()) { if (window.isMinimized()) window.restore(); window.focus(); }
+  if (window && !window.isDestroyed()) { if (window.isMinimized()) window.restore(); window.show(); window.focus(); }
+  else if (attachMainWindow) createWindow();
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

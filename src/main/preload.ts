@@ -2,6 +2,11 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { AccessStatus, ChatEvent, CodeViewerBlock, NoviAPI } from '../shared/types';
 
 const api: NoviAPI = {
+  getAppMask: () => ipcRenderer.invoke('app-mask-get'),
+  saveAppMask: (settings) => ipcRenderer.invoke('app-mask-save', settings),
+  importAppIcon: () => ipcRenderer.invoke('app-mask-import-icon'),
+  installAppCommand: () => ipcRenderer.invoke('app-command-install'),
+  quitApp: () => ipcRenderer.invoke('quit-app'),
   startInterview: input => ipcRenderer.invoke('interview-start', input),
   stopInterview: () => ipcRenderer.invoke('interview-stop'),
   interviewFrame: frame => ipcRenderer.invoke('interview-frame', frame),

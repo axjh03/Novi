@@ -164,7 +164,14 @@ export interface StealthState {
   clickThroughShortcut: string;
 }
 
+export interface AppMaskSettings { enabled: boolean; name: string; icon: string }
+
 export interface NoviAPI {
+  getAppMask(): Promise<Result<AppMaskSettings>>;
+  saveAppMask(settings: AppMaskSettings): Promise<Result<AppMaskSettings>>;
+  importAppIcon(): Promise<Result<{ name: string; icon: string } | null>>;
+  installAppCommand(): Promise<Result<{ directory: string; file: string }>>;
+  quitApp(): Promise<Result<void>>;
   startInterview(input: InterviewStart): Promise<Result<InterviewSession>>;
   stopInterview(): Promise<Result<InterviewSession | null>>;
   interviewFrame(frame: InterviewFrame): Promise<Result<boolean>>;

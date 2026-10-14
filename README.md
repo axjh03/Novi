@@ -2,6 +2,19 @@
 
 A managed Electron AI workspace with a separate Novi web portal for accounts, licenses, and provider keys. Desktop access uses a username and password assigned to a licensed account. There is no public sign-up.
 
+## Mask and terminal controls
+
+In **Settings → General → Mask & app controls**, enable Mask, choose a window name, and optionally import an application's icon or an image. Click **Apply mask settings**. This device setting also applies before sign-in and to newly opened windows. Disable Mask to restore the usual titles and icons. The Windows taskbar and macOS Dock can be hidden; Linux desktop support varies. This does not hide processes from Task Manager, Activity Monitor, system tools, or change the installed executable's identity. File icon extraction can return a generic icon; PNG/ICO files provide a predictable alternative on Windows/Linux.
+
+In an installed build, click **Install terminal command**. Add the displayed directory to your user PATH if necessary (Windows: Environment Variables → User Path; macOS/Linux bash/zsh: `export PATH="$HOME/.local/bin:$PATH"` in your shell profile), then reopen your terminal:
+
+```sh
+novi start # Launch or restore the main window, including while masked
+novi stop  # Quit all windows through normal shutdown cleanup
+```
+
+The launcher requires no separate Node.js installation. Reinstall it if you move Novi or its AppImage. With a built development checkout, use `npx electron . start` and `npx electron . stop`. Commands address the instance using the same user-data directory (`NOVI_DATA_DIR`, if set). Stopping an already stopped app does not open a window. **Quit Novi** is available on every Settings tab; quitting stops active work, and unsent text is not saved.
+
 ## Run
 
 Requires Node.js **22.18+** (Node 24 recommended), npm, and a desktop session.

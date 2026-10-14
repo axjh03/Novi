@@ -4,6 +4,7 @@ import { DEFAULT_CLICK_THROUGH_SHORTCUT, DEFAULT_TRANSPARENT_SHORTCUT, type Sett
 import { ProviderManager } from '../components/ProviderManager';
 import { DeviceTester } from '../components/DeviceTester';
 import { SettingsAppUpdater } from '../components/SettingsAppUpdater';
+import { SettingsAppPrivacy } from '../components/SettingsAppPrivacy';
 import { LocalAISetup } from '../components/LocalAISetup';
 import { EngineReadinessList } from '../components/LocalCodingSetup';
 import { errorText, unwrap } from '../services/api';
@@ -305,6 +306,8 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
               </fieldset>
             </form>
 
+            <SettingsAppPrivacy />
+
             <section className="settings-section">
               <div>
                 <h2>Data & account</h2>
@@ -344,6 +347,10 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
             <EngineReadinessList />
           </section>
         </>}
+        <button className="danger-button" type="button" onClick={() => {
+          void unwrap(window.novi.quitApp()).catch(err => setError(errorText(err)));
+        }}>Quit Novi</button>
+        {tab !== 'general' && error && <p className="error" role="alert">{error}</p>}
       </div>
     </main>
   );

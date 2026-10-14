@@ -29,11 +29,14 @@ import { isAppMode } from '../../shared/sessionModes';
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import type { AppMask } from '../services/appMask';
+import { installCommand } from '../services/appCommand';
 
 export function registerIPC(
   rendererUrl: string,
   preloadPath = '',
   getMainWindow: () => BrowserWindow | null = () => BrowserWindow.getAllWindows().find((w) => !w.webContents.getURL().includes('#/overlay')) || null,
+  mask?: AppMask,
 ) {
   const permissionsService = new PermissionService();
   // Lazy initialization lets the UI explain disk/keychain failures instead of crashing at startup.
@@ -120,6 +123,10 @@ export function registerIPC(
         const baseSender = frameUrl.split('#')[0];
         const isTrusted = baseSender === baseTarget;
         if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || !isTrusted) throw new UserError('Untrusted application request.');
+        // Device controls and quitting must work even if account storage or the network is unavailable.
+        if (['app-mask-get', 'app-mask-save', 'app-mask-import-icon', 'app-command-install', 'quit-app'].includes(channel)) {
+          return { ok: true, value: await callback(value, event, timing) };
+        }
         // Small, bounded PCM frames belong to a previously authorized interview.
         // Never make a license/network request for every 100 ms of local audio.
         if (channel === 'interview-frame') {
@@ -498,6 +505,25 @@ export function registerIPC(
       return true;
     }
   });
+  handle('app-mask-get', () => {
+    if (!mask) throw new UserError('App masking is unavailable.');
+    return mask.settings;
+  });
+  handle('app-mask-save', (value) => {
+    if (!mask) throw new UserError('App masking is unavailable.');
+    return mask.save(value);
+  });
+  handle('app-mask-import-icon', () => {
+    if (!mask) throw new UserError('App masking is unavailable.');
+    return mask.importIcon();
+  });
+  handle('app-command-install', () => {
+    if (!app.isPackaged) throw new UserError('Install the command from an installed Novi build. In development, use electron . start or electron . stop.');
+    const windows = process.platform === 'win32';
+    const directory = windows ? join(app.getPath('appData'), 'Novi', 'bin') : join(app.getPath('home'), '.local', 'bin');
+    return installCommand(directory, process.env.APPIMAGE || process.execPath, windows);
+  });
+  handle('quit-app', () => { setImmediate(() => app.quit()); });
   handle('close-window', (_value, event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     win?.close();
@@ -794,20 +820,23 @@ export function registerIPC(
     const enable = typeof input.enable === 'boolean' ? input.enable : undefined;
     return await get().remoteCompanion.toggleTunnel(enable);
   });
-  let quitting = false;
+  let quitting = false, quitReady = false;
   app.on('before-quit', (event) => {
     clearInterval(heartbeat);
-    void services?.localModels.shutdown();
-    services?.remoteCompanion.stop();
-    if (services?.auth.signedIn && !quitting) {
-      event.preventDefault(); quitting = true;
-      void services.interview.stop(true).finally(() => services!.auth.signOut()).finally(() => app.quit());
-    }
-    services?.chat.stop();
-    services?.context.end();
-    services?.images.clearPending();
-    services?.overlay.closeOverlay();
-    services?.stealth.cleanup();
+    if (quitReady || !services) return;
+    event.preventDefault();
+    if (quitting) return;
+    quitting = true;
+    services.remoteCompanion.stop();
+    // Wait for aborted engines and recordings before exiting; repeated quit requests share this cleanup.
+    void Promise.allSettled([services.localModels.shutdown(), services.interview.stop(true), services.chat.stopAndWait()])
+      .then(() => services!.auth.signOut())
+      .finally(() => { quitReady = true; app.quit(); })
+      .catch(error => console.error('Shutdown cleanup failed:', error));
+    services.context.end();
+    services.images.clearPending();
+    services.overlay.closeOverlay();
+    services.stealth.cleanup();
   });
   let checkingSession = false;
   // Ticks every 5 s: checks in every 20 s while connected and retries each tick during an outage.
