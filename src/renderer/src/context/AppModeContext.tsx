@@ -9,6 +9,8 @@ import {
 import type { AppMode, ImageAttachment, Snapshot, MonitorDisplay, BehavioralFramework } from '../../../shared/types';
 import { unwrap } from '../services/api';
 import { eyeTracking } from '../eye-tracking/EyeTrackingService';
+import { readAppearance, subscribeAppearance, updateAppearance } from '../services/appearance';
+import { useStealthState } from '../hooks/useStealth';
 
 import { isAppMode } from '../../../shared/sessionModes';
 
@@ -28,8 +30,13 @@ interface AppModeContextType {
   // Transparency customization
   transparentOpacity: number;
   setTransparentOpacity: (val: number) => void;
-  transparentBg: string;
-  setTransparentBg: (color: string) => void;
+  paletteId: string;
+  setPalette: (id: string) => void;
+  smartPaletteEnabled: boolean;
+  setSmartPaletteEnabled: (enabled: boolean) => void;
+  smartPaletteStatus: string;
+  readingSize: number;
+  changeReadingSize: (direction: number) => void;
   // Pending attached screenshot for composer
   pendingAttachment: ImageAttachment | null;
   consumePendingAttachment: () => ImageAttachment | null;
@@ -141,33 +148,42 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
     [snapshot?.settings, onSnapshotUpdated]
   );
 
-  // 3. Transparency customization
-  const [transparentOpacity, setTransparentOpacityState] = useState<number>(() => {
-    const saved = localStorage.getItem('novi_transparent_opacity');
-    return saved ? Math.max(20, Math.min(100, Number(saved))) : (snapshot?.settings?.transparentOpacity || 35);
-  });
-
-  const [transparentBg, setTransparentBgState] = useState<string>(() => {
-    return localStorage.getItem('novi_transparent_bg') || (snapshot?.settings?.transparentBg || '#0f172a');
-  });
-
-  const setTransparentOpacity = useCallback((val: number) => {
-    const clamped = Math.max(20, Math.min(100, val));
-    setTransparentOpacityState(clamped);
-    document.documentElement.style.setProperty('--transparent-opacity', `${clamped}%`);
-    localStorage.setItem('novi_transparent_opacity', String(clamped));
+  // Shared appearance updates also reach the detached code and answer windows.
+  const [appearance, setAppearance] = useState(readAppearance);
+  const [{ transparent }] = useStealthState();
+  const [smartPaletteStatus, setSmartPaletteStatus] = useState('');
+  useEffect(() => subscribeAppearance(() => setAppearance(readAppearance())), []);
+  const setTransparentOpacity = useCallback((opacity: number) => updateAppearance({ opacity }), []);
+  const setPalette = useCallback((paletteId: string) => {
+    if (!readAppearance().smart) updateAppearance({ paletteId });
   }, []);
-
-  const setTransparentBg = useCallback((color: string) => {
-    setTransparentBgState(color);
-    document.documentElement.style.setProperty('--transparent-bg', color);
-    localStorage.setItem('novi_transparent_bg', color);
+  const setSmartPaletteEnabled = useCallback((smart: boolean) => updateAppearance({ smart, smartPalette: null }), []);
+  const changeReadingSize = useCallback((direction: number) => {
+    if (direction === -1 || direction === 1) updateAppearance({ readingSize: readAppearance().readingSize + direction * 10 });
   }, []);
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--transparent-opacity', `${transparentOpacity}%`);
-    document.documentElement.style.setProperty('--transparent-bg', transparentBg);
-  }, [transparentOpacity, transparentBg]);
+    if (!appearance.smart || !transparent) { setSmartPaletteStatus(''); return; }
+    let cancelled = false, timer = 0;
+    const sample = async () => {
+      if (document.visibilityState === 'hidden') { timer = window.setTimeout(sample, 10000); return; }
+      setSmartPaletteStatus('Detecting background…');
+      try {
+        const smartPalette = await unwrap(window.novi.sampleBackgroundPalette(appearance.opacity));
+        if (cancelled) return;
+        updateAppearance({ smartPalette });
+        setSmartPaletteStatus(`Smart colors · ${smartPalette.opacity}% opacity`);
+        timer = window.setTimeout(sample, 10000);
+      } catch {
+        if (!cancelled) {
+          updateAppearance({ smartPalette: null });
+          setSmartPaletteStatus('Screen sampling unavailable. Using high-contrast colors. Check screen recording permission, then turn Smart off and on to retry.');
+        }
+      }
+    };
+    void sample();
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [appearance.smart, appearance.opacity, transparent]);
 
   // 4. Screenshots & Attachments
   const [latestScreenshot, setLatestScreenshot] = useState<ImageAttachment | null>(null);
@@ -207,6 +223,7 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
   // Global actions from Main Process (global hotkeys)
   useEffect(() => {
     const cleanup = window.novi.onGlobalAction((action) => {
+      if (action.type === 'change-reading-size') { changeReadingSize(action.payload); return; }
       if (!sessionActive) return;
       if (action.type === 'toggle-coding-mode') {
         setAppMode(appMode === 'coding' ? 'normal' : 'coding');
@@ -221,7 +238,7 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
       }
     });
     return cleanup;
-  }, [sessionActive, appMode, setAppMode, captureScreenshot]);
+  }, [sessionActive, appMode, setAppMode, captureScreenshot, changeReadingSize]);
 
   // Window-level keydown handler for in-app shortcut execution
   useEffect(() => {
@@ -262,10 +279,15 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
         setWorkingMonitor,
         monitors,
         refreshMonitors,
-        transparentOpacity,
+        transparentOpacity: appearance.opacity,
         setTransparentOpacity,
-        transparentBg,
-        setTransparentBg,
+        paletteId: appearance.paletteId,
+        setPalette,
+        smartPaletteEnabled: appearance.smart,
+        setSmartPaletteEnabled,
+        smartPaletteStatus,
+        readingSize: appearance.readingSize,
+        changeReadingSize,
         pendingAttachment,
         consumePendingAttachment,
       }}

@@ -21,6 +21,7 @@ function createWindow() {
   const iconPath = join(__dirname, '../../build/icon.png');
   const window = new BrowserWindow({
     width: 1200, height: 800, minWidth: MAIN_WINDOW_MIN.width, minHeight: MAIN_WINDOW_MIN.height,
+    alwaysOnTop: true,
     title: 'Novi',
     icon: iconPath,
     frame: false,
@@ -34,6 +35,7 @@ function createWindow() {
     },
   });
   mainWindow = window;
+  window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   window.on('closed', () => { if (mainWindow === window) mainWindow = null; });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event) => event.preventDefault());

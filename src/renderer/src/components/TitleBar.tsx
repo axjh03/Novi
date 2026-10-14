@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Copy, Eye, EyeOff, Minus, QrCode, Square, X } from 'lucide-react';
+import { Copy, Eye, EyeOff, Maximize2, Minus, QrCode, Square, X } from 'lucide-react';
 import { useStealth } from '../hooks/useStealth';
 import { useAppMode } from '../context/AppModeContext';
 import { unwrap } from '../services/api';
 import { RemoteCompanionModal } from './RemoteCompanionModal';
 import logo from '../assets/logo.svg';
+import { PALETTES, MIN_READING_SIZE, MAX_READING_SIZE } from '../../../shared/appearance';
 
 export function TitleBar({ sessionActive = false }: { sessionActive?: boolean }) {
   const { transparent, clickThrough, clickThroughShortcut, toggleTransparent } = useStealth();
-  const { transparentOpacity, setTransparentOpacity, transparentBg, setTransparentBg } = useAppMode();
+  const { transparentOpacity, setTransparentOpacity, paletteId, setPalette, smartPaletteEnabled, setSmartPaletteEnabled, smartPaletteStatus, readingSize, changeReadingSize } = useAppMode();
   const [maximized, setMaximized] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
 
@@ -33,6 +34,12 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
         {(sessionActive || transparent) && (
           <div className="titlebar-center">
             {transparent && <span className={`stealth-numlock-pill ${clickThrough ? 'clickthrough' : 'interactive'}`}>{clickThrough ? 'Click-through' : 'Interactive'}</span>}
+            <div className="reading-size-controls" role="group" aria-label={`Message and code size: ${readingSize}%`}>
+              <button type="button" className="titlebar-quick-btn" title={`Smaller message and code text (${readingSize}%)`} aria-label="Decrease message and code font size" disabled={readingSize <= MIN_READING_SIZE} onClick={() => changeReadingSize(-1)}>A−</button>
+              <button type="button" className="titlebar-quick-btn" title={`Larger message and code text (${readingSize}%)`} aria-label="Increase message and code font size" disabled={readingSize >= MAX_READING_SIZE} onClick={() => changeReadingSize(1)}>A+</button>
+            </div>
+            <button type="button" className="stealth-toggle-btn" aria-label="Reset all window sizes" title="Reset all window sizes"
+              onClick={() => void unwrap(window.novi.resetWorkspaceSizes()).catch(console.error)}><Maximize2 size={14} /></button>
             <button type="button" className={`stealth-toggle-btn ${transparent ? 'active' : ''}`}
               onClick={() => void toggleTransparent()} aria-pressed={transparent}
               title={transparent ? 'Turn off transparent window' : 'Turn on transparent window'}>
@@ -48,9 +55,18 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
                   <input type="range" min="20" max="100" step="5" value={transparentOpacity}
                     onChange={(event) => setTransparentOpacity(Number(event.target.value))} />
                 </label>
-                <label>Background color
-                  <input type="color" value={transparentBg} onChange={(event) => setTransparentBg(event.target.value)} />
+                <label className="smart-palette-toggle">
+                  <input type="checkbox" checked={smartPaletteEnabled} onChange={(event) => setSmartPaletteEnabled(event.target.checked)} />Smart palette
                 </label>
+                <small>{smartPaletteEnabled ? smartPaletteStatus || 'Detecting background…' : 'Choose a text and background combination.'}</small>
+                <div className="appearance-palettes" role="group" aria-label="Text and background palette">
+                  {PALETTES.map((palette) => <button key={palette.id} type="button" disabled={smartPaletteEnabled}
+                    aria-pressed={!smartPaletteEnabled && paletteId === palette.id} onClick={() => setPalette(palette.id)}
+                    style={{ background: palette.background, color: palette.text }} title={`${palette.name}: text ${palette.text}, background ${palette.background}`}>
+                    <strong>Aa</strong>{palette.name}
+                  </button>)}
+                </div>
+                <small>Smart adapts to the screen behind Novi and raises opacity when needed for contrast. Turn it off to use your selected palette.</small>
                 <small>{clickThrough ? 'Clicks pass through Novi.' : 'Novi accepts clicks.'} Press {clickThroughShortcut} to switch.</small>
               </div>
             </details>

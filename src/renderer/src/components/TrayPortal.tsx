@@ -21,7 +21,7 @@ export function TrayPortal({ children, onClosed }: { children: ReactNode; onClos
     if (!opened) { closedRef.current(); return; }
     const trayWindow = opened;
     const doc = trayWindow.document;
-    let closing = false, reported = false, timer = 0, sentHeight = 0;
+    let closing = false, reported = false, initialSizeSent = false, timer = 0;
     doc.title = 'Novi';
     const root = doc.createElement('div');
     root.id = 'tray-root';
@@ -67,8 +67,8 @@ export function TrayPortal({ children, onClosed }: { children: ReactNode; onClos
         bottom = Math.max(bottom, element.getBoundingClientRect().bottom);
       }
       const height = Math.ceil(bottom);
-      if (height > 0 && height !== sentHeight) {
-        sentHeight = height;
+      if (!initialSizeSent && height > 0) {
+        initialSizeSent = true;
         void window.novi.setTrayHeight(height).catch(() => {});
       }
     };

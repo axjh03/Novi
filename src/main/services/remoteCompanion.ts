@@ -337,12 +337,11 @@ export class RemoteCompanionService {
         break;
       }
 
-      case 'scroll-hud': {
-        const delta = typeof payload === 'number' ? payload : Number(payload?.deltaY) || 50;
-        this.stealth.getOverlayService?.()?.forwardToAllWindows({ type: 'scroll', deltaY: delta } as any);
-        win.webContents.send('global-action', { type: 'scroll-hud', payload: { deltaY: delta } });
+      case 'change-reading-size':
+        if (payload !== -1 && payload !== 1) throw new Error('Choose smaller or larger text.');
+        win.webContents.send('global-action', { type: 'change-reading-size', payload });
         break;
-      }
+
     }
   }
 
@@ -387,9 +386,6 @@ export class RemoteCompanionService {
     .mockup-container { position: relative; height: 74px; border: 1px dashed #3a3a3a; border-radius: 8px; background: #0c0c0c; display: flex; align-items: center; justify-content: center; cursor: crosshair; touch-action: none; }
     .mockup-screen { position: absolute; inset: 6px; border: 1px solid #2e2e2e; border-radius: 5px; pointer-events: none; }
     .mockup-puck { position: absolute; width: 34px; height: 26px; border: 2px solid #a3c1ff; border-radius: 5px; background: rgba(163, 193, 255, 0.25); transform: translate(-50%, -50%); transition: left 80ms, top 80ms; pointer-events: none; }
-    .hud-wheel { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
-    .wheel-surface { flex: 1; height: 38px; background: #1f1f1f; border: 1px solid #363636; border-radius: 8px; display: flex; align-items: center; justify-content: center; touch-action: none; cursor: ns-resize; font-size: 11px; color: #aaa; user-select: none; }
-    .wheel-btn { padding: 6px 12px; min-height: 38px; border: 1px solid #363636; border-radius: 8px; background: #222; color: #ddd; font-size: 11px; }
   </style>
 </head>
 <body>
@@ -440,13 +436,11 @@ export class RemoteCompanionService {
         </div>
       </div>
 
-      <!-- 4. HUD SCROLL WHEEL -->
       <div class="section-box">
-        <div class="section-label"><span>HUD Scroll</span><span>Drag / Tap</span></div>
-        <div class="hud-wheel">
-          <button type="button" class="wheel-btn" onclick="triggerAction('scroll-hud', -80)">▲ Up</button>
-          <div class="wheel-surface" id="hudWheelSurface">↕ Drag to scroll</div>
-          <button type="button" class="wheel-btn" onclick="triggerAction('scroll-hud', 80)">▼ Down</button>
+        <div class="section-label"><span>Message &amp; code size</span></div>
+        <div class="button-row">
+          <button type="button" class="ctrl-btn" aria-label="Decrease desktop message and code font size" onclick="triggerAction('change-reading-size', -1)">A− Smaller</button>
+          <button type="button" class="ctrl-btn" aria-label="Increase desktop message and code font size" onclick="triggerAction('change-reading-size', 1)">A+ Larger</button>
         </div>
       </div>
 
@@ -565,21 +559,6 @@ export class RemoteCompanionService {
     pad.addEventListener('pointerdown', (e) => { padDragging = true; updatePuck(e); });
     window.addEventListener('pointermove', (e) => { if (padDragging) updatePuck(e); });
     window.addEventListener('pointerup', () => { padDragging = false; });
-
-    // 6. HUD SCROLL WHEEL DRAG
-    const wheel = document.getElementById('hudWheelSurface');
-    let lastWheelY = 0;
-    let wheelDragging = false;
-    wheel.addEventListener('pointerdown', (e) => { wheelDragging = true; lastWheelY = e.clientY; });
-    window.addEventListener('pointermove', (e) => {
-      if (!wheelDragging) return;
-      const diff = e.clientY - lastWheelY;
-      if (Math.abs(diff) >= 8) {
-        triggerAction('scroll-hud', diff * 3);
-        lastWheelY = e.clientY;
-      }
-    });
-    window.addEventListener('pointerup', () => { wheelDragging = false; });
 
     // 7. REALTIME STATUS SYNC
     function updateUI(status) {

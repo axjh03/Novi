@@ -4,15 +4,15 @@ import { clampTrayHeight, dockedBounds, MAIN_WINDOW_MIN, TRAY_NAME, trayBounds }
 
 const full = { x: 0, y: 0, width: 1920, height: 1040 };
 
-test('the output panel is never narrower than the 850 px main-window minimum, and grows to 35% (up to 1000 px) on large screens', () => {
-  assert.deepEqual(MAIN_WINDOW_MIN, { width: 850, height: 600 });
-  assert.deepEqual(dockedBounds(full), { x: 1070, y: 0, width: 850, height: 1040 });
-  assert.deepEqual(dockedBounds({ x: 0, y: 0, width: 1536, height: 824 }), { x: 686, y: 0, width: 850, height: 824 }, 'laptop at 125% scaling');
-  assert.deepEqual(dockedBounds({ x: 0, y: 0, width: 1366, height: 728 }), { x: 516, y: 0, width: 850, height: 728 });
+test('the output panel follows 35% of the display and allows the smaller window minimum', () => {
+  assert.deepEqual(MAIN_WINDOW_MIN, { width: 213, height: 150 });
+  assert.deepEqual(dockedBounds(full), { x: 1248, y: 0, width: 672, height: 1040 });
+  assert.deepEqual(dockedBounds({ x: 0, y: 0, width: 1536, height: 824 }), { x: 998, y: 0, width: 538, height: 824 }, 'laptop at 125% scaling');
+  assert.deepEqual(dockedBounds({ x: 0, y: 0, width: 1366, height: 728 }), { x: 888, y: 0, width: 478, height: 728 });
   assert.deepEqual(dockedBounds({ x: 66, y: 32, width: 2494, height: 1408 }), { x: 1687, y: 32, width: 873, height: 1408 });
   assert.deepEqual(dockedBounds({ x: 0, y: 0, width: 3840, height: 2120 }), { x: 2840, y: 0, width: 1000, height: 2120 });
-  assert.deepEqual(dockedBounds({ x: 1920, y: 40, width: 1920, height: 1040 }), { x: 2990, y: 40, width: 850, height: 1040 });
-  assert.deepEqual(dockedBounds({ x: 0, y: 0, width: 800, height: 600 }), { x: 0, y: 0, width: 800, height: 600 }, 'never wider than the screen');
+  assert.deepEqual(dockedBounds({ x: 1920, y: 40, width: 1920, height: 1040 }), { x: 3168, y: 40, width: 672, height: 1040 });
+  assert.deepEqual(dockedBounds({ x: 0, y: 0, width: 800, height: 600 }), { x: 520, y: 0, width: 280, height: 600 }, 'smaller screens remain usable');
 });
 
 test('the tray sits top-center and moves left only as far as needed to clear the panel', () => {
@@ -34,6 +34,12 @@ test('when there is no usable room beside the panel the tray uses the screen wid
   assert.deepEqual(trayBounds({ x: 0, y: 0, width: 1200, height: 700 }, 350, 200), { x: 170, y: 12, width: 860, height: 200 });
   assert.deepEqual(trayBounds({ x: 0, y: 0, width: 800, height: 600 }, 0, 200), { x: 12, y: 12, width: 776, height: 200 });
   assert.deepEqual(trayBounds(full, 5000, 200), trayBounds(full, null, 200), 'a panel on another screen is ignored');
+});
+
+test('manually resized tray width survives placement', () => {
+  assert.equal(trayBounds(full, null, 240, 1200).width, 1200);
+  assert.equal(trayBounds(full, null, 240, 320).width, 320);
+  assert.equal(trayBounds(full, 1070, 240, 1400).width, 1046);
 });
 
 test('tray height stays on screen', () => {

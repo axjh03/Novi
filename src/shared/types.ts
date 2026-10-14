@@ -249,6 +249,8 @@ export interface NoviAPI {
   /** During a session the main window docks on the right as the output panel. */
   setWorkspaceDocked(docked: boolean): Promise<Result<void>>;
   setTrayHeight(height: number): Promise<Result<void>>;
+  resetWorkspaceSizes(): Promise<Result<void>>;
+  sampleBackgroundPalette(opacity: number): Promise<Result<import('./appearance').SmartPalette>>;
   captureScreen(): Promise<Result<ImageAttachment>>;
   saveAudioRecording(input: { base64: string; mimeType?: string; filename?: string }): Promise<Result<{ id: string; path: string; name: string }>>;
   attachAudioRecording(input: { base64: string; mimeType?: string; filename?: string }): Promise<Result<ImageAttachment>>;

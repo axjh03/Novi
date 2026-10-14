@@ -78,13 +78,6 @@ export function EyeTrackingOverlay() {
     document.documentElement.classList.add('overlay-window');
     document.body.classList.add('overlay-window');
 
-    const syncStealthVars = () => {
-      document.documentElement.style.setProperty('--transparent-opacity', `${localStorage.getItem('novi_transparent_opacity') || 35}%`);
-      document.documentElement.style.setProperty('--transparent-bg', localStorage.getItem('novi_transparent_bg') || '#0f172a');
-    };
-    syncStealthVars();
-    const unsubStealth = window.novi.onStealthState(() => syncStealthVars());
-
     // Subscribe to overlay events coming from main window / eye-tracking service
     const unsubscribe = window.novi.onOverlayEvent((event: OverlayEvent) => {
       if (event.type === 'gaze') {
@@ -151,7 +144,6 @@ export function EyeTrackingOverlay() {
     void window.novi.sendOverlayEvent({ type: 'request-content' });
 
     return () => {
-      unsubStealth();
       unsubscribe();
       document.documentElement.classList.remove('overlay-window');
       document.body.classList.remove('overlay-window');

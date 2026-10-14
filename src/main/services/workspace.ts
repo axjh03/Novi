@@ -6,26 +6,27 @@ const electron = () => req('electron') as typeof import('electron');
 
 export const TRAY_NAME = /^novi-tray-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const TRAY_WIDTH = 860;
+const TRAY_MIN_WIDTH = 320;
 const TRAY_GAP = 12;
 const TRAY_MIN_HEIGHT = 48;
 const TRAY_INITIAL_HEIGHT = 190;
 // Below this much free space beside the panel, the tray centers on the screen and may overlap it.
 const TRAY_MIN_SPACE = 424;
 const NORMAL_SIZE = { width: 1200, height: 800 };
-/** The main window's minimum size, docked or not, so code and text stay readable. */
-export const MAIN_WINDOW_MIN = { width: 850, height: 600 };
+/** The main window can shrink to 25% of its original minimum size. */
+export const MAIN_WINDOW_MIN = { width: 213, height: 150 };
 
-/** The output panel: full height on the right edge, 35% of the screen, at least 850 and at most 1000 px wide. */
+/** The output panel: full height on the right edge, 35% of the screen, at least 213 and at most 1000 px wide. */
 export function dockedBounds(area: Rectangle): Rectangle {
   const width = Math.min(area.width, Math.max(MAIN_WINDOW_MIN.width, Math.min(1000, Math.round(area.width * 0.35))));
   return { x: area.x + area.width - width, y: area.y, width, height: area.height };
 }
 
 /** The tray: top-center of the screen, shifted left only as far as needed to clear the docked panel. */
-export function trayBounds(area: Rectangle, dockLeft: number | null, height: number): Rectangle {
+export function trayBounds(area: Rectangle, dockLeft: number | null, height: number, preferredWidth = TRAY_WIDTH): Rectangle {
   const usePanel = dockLeft !== null && dockLeft > area.x && dockLeft < area.x + area.width && dockLeft - area.x >= TRAY_MIN_SPACE;
   const right = usePanel ? dockLeft! : area.x + area.width;
-  const width = Math.max(0, Math.min(TRAY_WIDTH, right - area.x - 2 * TRAY_GAP));
+  const width = Math.max(0, Math.min(preferredWidth, right - area.x - 2 * TRAY_GAP));
   const centered = Math.round(area.x + (area.width - width) / 2);
   const x = Math.max(area.x + TRAY_GAP, Math.min(centered, right - TRAY_GAP - width));
   return { x, y: area.y + TRAY_GAP, width, height: clampTrayHeight(area, height) };
@@ -79,20 +80,21 @@ export class WorkspaceService {
     const bounds = this.trayPlacement(TRAY_INITIAL_HEIGHT);
     return {
       ...bounds, show: false, frame: false, transparent: true, backgroundColor: '#00000000', hasShadow: false,
-      resizable: false, minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true,
-      // Stays above other apps only in transparent mode (see StealthService).
+      alwaysOnTop: true,
+      resizable: true, minWidth: TRAY_MIN_WIDTH, minHeight: TRAY_MIN_HEIGHT, minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true,
+      // Stays above other apps in both normal and transparent modes.
       title: 'Novi', autoHideMenuBar: true,
     };
   }
 
   /** Top-center of the screen the output panel is on, clear of the panel while docked. */
-  private trayPlacement(height: number): Rectangle {
+  private trayPlacement(height: number, width?: number): Rectangle {
     const { screen } = electron();
     const main = this.getMainWindow();
     const mainBounds = main && !main.isDestroyed() ? main.getBounds() : null;
     const area = (mainBounds ? screen.getDisplayMatching(mainBounds) : screen.getPrimaryDisplay()).workArea;
     const dockLeft = this.dockedState && mainBounds && intersects(mainBounds, area) ? mainBounds.x : null;
-    return trayBounds(area, dockLeft, height);
+    return trayBounds(area, dockLeft, height, width ?? (this.tray && !this.tray.isDestroyed() ? this.tray.getBounds().width : TRAY_WIDTH));
   }
 
   private adoptTray(child: BrowserWindow) {
@@ -100,6 +102,7 @@ export class WorkspaceService {
     if (child.isDestroyed()) return;
     if (this.tray && !this.tray.isDestroyed() && this.tray !== child) this.tray.close();
     this.tray = child;
+    child.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     this.trayShown = false;
     child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     child.webContents.on('will-navigate', (event) => event.preventDefault());
@@ -131,6 +134,24 @@ export class WorkspaceService {
     const y = Math.max(area.y, Math.min(bounds.y, area.y + area.height - nextHeight));
     if (nextHeight !== bounds.height || y !== bounds.y) tray.setBounds({ x: bounds.x, y, width: bounds.width, height: nextHeight });
     this.showTray();
+  }
+
+  resetSizes() {
+    const window = this.getMainWindow();
+    if (!window || window.isDestroyed()) return;
+    const { screen } = electron();
+    if (window.isMaximized()) window.unmaximize();
+    const area = screen.getDisplayMatching(window.getBounds()).workArea;
+    window.setMinimumSize(Math.min(MAIN_WINDOW_MIN.width, area.width), Math.min(MAIN_WINDOW_MIN.height, area.height));
+    if (this.dockedState) window.setBounds(dockedBounds(area));
+    else {
+      const width = Math.min(NORMAL_SIZE.width, area.width), height = Math.min(NORMAL_SIZE.height, area.height);
+      window.setBounds({ x: Math.round(area.x + (area.width - width) / 2), y: Math.round(area.y + (area.height - height) / 2), width, height });
+    }
+    if (this.tray && !this.tray.isDestroyed()) {
+      this.tray.setBounds(this.trayPlacement(TRAY_INITIAL_HEIGHT, TRAY_WIDTH));
+      this.showTray();
+    }
   }
 
   private placeTray() {

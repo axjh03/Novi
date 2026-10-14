@@ -4,6 +4,10 @@ import { App } from './App';
 import { EyeTrackingOverlay } from './components/EyeTrackingOverlay';
 import { DetachedCodeViewer } from './components/CodingModeHUD';
 import './styles/app.css';
+import { syncAppearance, subscribeAppearance } from './services/appearance';
+
+syncAppearance();
+subscribeAppearance(syncAppearance);
 
 const isOverlay = window.location.hash.includes('overlay');
 const isCodeViewer = window.location.hash.includes('code-viewer');

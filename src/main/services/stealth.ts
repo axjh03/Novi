@@ -183,7 +183,7 @@ export class StealthService {
         window.setAlwaysOnTop(true, 'screen-saver');
         this.applyMouseMode(window, !this.clickThrough);
       } else {
-        window.setAlwaysOnTop(false);
+        window.setAlwaysOnTop(true);
         window.setIgnoreMouseEvents(false);
       }
     }
@@ -224,9 +224,8 @@ export class StealthService {
   applyWindowState(window: BrowserWindow) {
     if (window.isDestroyed() || this.isOverlay(window)) return;
     window.setContentProtection(this.transparent);
-    if (!this.transparent) return;
-    window.setAlwaysOnTop(true, 'screen-saver');
-    this.applyMouseMode(window, !this.clickThrough);
+    window.setAlwaysOnTop(true, this.transparent ? 'screen-saver' : 'floating');
+    if (this.transparent) this.applyMouseMode(window, !this.clickThrough);
   }
 
   private isOverlay(window: BrowserWindow): boolean {

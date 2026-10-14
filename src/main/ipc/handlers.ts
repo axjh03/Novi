@@ -1,4 +1,5 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, screen, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, screen, shell } from 'electron';
+import { paletteForBackground } from '../../shared/appearance';
 import { execFile } from 'node:child_process';
 import type { AccessStatus, BehavioralFramework, ChatLatency, CodeViewerBlock, ReviewTarget, SessionProfile, Snapshot } from '../../shared/types';
 import { Storage } from '../services/storage';
@@ -138,7 +139,7 @@ export function registerIPC(
           'get-saved-credentials', 'save-credentials', 'open-external', 'open-audio-midi-setup',
           'get-remote-companion-status', 'toggle-remote-tunnel',
           // Window layout only; the tray reports its size whenever its content changes.
-          'set-workspace-docked', 'set-tray-height',
+          'set-workspace-docked', 'set-tray-height', 'reset-workspace-sizes', 'sample-background-palette',
           // Best effort and frequent: must never refresh, or sign out on, the managed session.
           'warm-connection'
         ];
@@ -515,6 +516,26 @@ export function registerIPC(
     const height = Number(object(value).height);
     if (!Number.isFinite(height) || height <= 0 || height > 10_000) throw new UserError('Invalid tray height.');
     workspace.resizeTray(height);
+  });
+  handle('reset-workspace-sizes', (_value, event) => {
+    if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can resize the workspace.');
+    workspace.resetSizes();
+  });
+  let backgroundSample: Promise<[number, number, number][]> | null = null;
+  handle('sample-background-palette', (value, event) => {
+    const window = getMainWindow();
+    if (!window || BrowserWindow.fromWebContents(event.sender) !== window) throw new UserError('Only the main window can sample the background.');
+    if (!get().stealth.getState().transparent || !window.isVisible() || window.isMinimized()) throw new UserError('Enable transparency to sample the background.');
+    const opacity = object(value).opacity;
+    if (typeof opacity !== 'number' || !Number.isFinite(opacity) || opacity < 20 || opacity > 100) throw new UserError('Invalid opacity.');
+    if (!backgroundSample) backgroundSample = captureScreenBuffer(getMainWindow, screen.getDisplayMatching(window.getBounds()).id, window.getBounds())
+      .then((png) => {
+        const bitmap = nativeImage.createFromBuffer(png).toBitmap();
+        const pixels: [number, number, number][] = [];
+        for (let i = 0; i < bitmap.length; i += 4) if (bitmap[i + 3]) pixels.push([bitmap[i + 2], bitmap[i + 1], bitmap[i]]);
+        return pixels;
+      }).finally(() => { backgroundSample = null; });
+    return backgroundSample.then((pixels) => paletteForBackground(pixels, opacity));
   });
   // ── Local Coding (read-only; there is deliberately no write, patch, run or delete endpoint) ──
   const fromMain = (event: Electron.IpcMainInvokeEvent) => {

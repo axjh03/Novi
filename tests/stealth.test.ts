@@ -52,7 +52,7 @@ test('StealthService manages transparent mode, content protection, and NumLock c
   assert.equal(opaqueState.transparent, false);
   assert.equal(contentProtected, false, 'Window contentProtection must be false in opaque mode');
   assert.equal(overlayProtected, false, 'Overlay contentProtection must be false in opaque mode');
-  assert.equal(alwaysOnTop, false, 'alwaysOnTop must be false in opaque mode');
+  assert.equal(alwaysOnTop, true, 'Window stays on top in opaque mode');
   assert.equal(ignoredMouse, false, 'Window must be interactive in opaque mode regardless of NumLock');
 
   // 4. Toggle transparent mode
@@ -111,7 +111,7 @@ test('transparent mode leaves the eye-tracking overlay in charge of its own clic
   } finally { stealth.cleanup(); }
 });
 
-test('the floating tray follows transparent mode and click-through, and is an ordinary window otherwise', () => {
+test('the floating tray follows click-through and stays on top after transparency is disabled', () => {
   const main = fakeWindow(), tray = fakeWindow('about:blank');
   const stealth = new StealthService(() => main, undefined, () => [main, tray]);
   try {
@@ -124,8 +124,8 @@ test('the floating tray follows transparent mode and click-through, and is an or
     assert.equal(tray.state.ignored, toggled.clickThrough, 'click-through applies to the tray as well as the main window');
     assert.equal(main.state.ignored, toggled.clickThrough);
     stealth.setTransparent(false);
-    assert.deepEqual([tray.state.onTop, tray.state.ignored, tray.state.protected], [false, false, false]);
-    assert.deepEqual([main.state.onTop, main.state.ignored], [false, false]);
+    assert.deepEqual([tray.state.onTop, tray.state.ignored, tray.state.protected], [true, false, false]);
+    assert.deepEqual([main.state.onTop, main.state.ignored], [true, false]);
   } finally { stealth.cleanup(); }
 });
 
@@ -154,7 +154,7 @@ test('a window opened while transparent mode is on joins the current state', () 
   const stealth = new StealthService(() => main, undefined, () => [main]);
   try {
     stealth.applyWindowState(late);
-    assert.deepEqual([late.state.protected, late.state.onTop], [false, false], 'nothing changes outside transparent mode');
+    assert.deepEqual([late.state.protected, late.state.onTop, late.state.level], [false, true, 'floating'], 'new windows stay on top outside transparent mode');
     const on = stealth.setTransparent(true);
     stealth.applyWindowState(late);
     assert.deepEqual([late.state.protected, late.state.onTop, late.state.level, late.state.ignored], [true, true, 'screen-saver', on.clickThrough]);

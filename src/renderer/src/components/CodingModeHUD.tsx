@@ -78,18 +78,11 @@ export function DetachedCodeViewer() {
   const [review, setReview] = useState<ReviewTarget | null>(null);
   useStealth();
   useEffect(() => {
-    const syncStealthVars = () => {
-      document.documentElement.style.setProperty('--transparent-opacity', `${localStorage.getItem('novi_transparent_opacity') || 35}%`);
-      document.documentElement.style.setProperty('--transparent-bg', localStorage.getItem('novi_transparent_bg') || '#0f172a');
-    };
-    syncStealthVars();
-    const unsubStealth = window.novi.onStealthState(() => syncStealthVars());
     const unsubscribe = window.novi.onCodeViewerBlocks(setBlocks);
     const unsubReview = window.novi.onReviewTarget(setReview);
     void unwrap(window.novi.getCodeViewerBlocks()).then(setBlocks).catch(console.error);
     void unwrap(window.novi.getReviewTarget()).then(setReview).catch(console.error);
     return () => {
-      unsubStealth();
       unsubscribe();
       unsubReview();
     };

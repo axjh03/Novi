@@ -1782,7 +1782,6 @@ html.overlay-window #root {
 .titlebar-appearance label span { color: var(--text); }
 .titlebar-appearance label input { grid-column: 1 / -1; }
 .titlebar-appearance input[type='range'] { width: 100%; min-height: 26px; padding: 0; accent-color: var(--accent); }
-.titlebar-appearance input[type='color'] { width: 100%; height: 30px; min-height: 30px; padding: 2px; }
 
 /* Stealth Mode Toggle Button */
 .stealth-toggle-btn {
@@ -3248,11 +3247,12 @@ html.transparent-mode #root {
    Session layout: docked output panel + floating tray (src/renderer/src/components/TrayPortal.tsx)
    ========================================================================== */
 
-/* The tray window sizes itself to the shell, so its document must not fill or scroll. */
+/* Let the tray shell fill a user-resized window in either direction. */
 html.novi-tray, html.novi-tray body { height: auto; min-height: 0; overflow: hidden; background: transparent !important; }
-.tray-shell { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; }
+.tray-shell { box-sizing: border-box; width: 100%; height: calc(100vh - 14px); min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 10px 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; cursor: grab; -webkit-app-region: drag; }
+.tray-shell:active { cursor: grabbing; }
+.tray-shell button, .tray-shell input, .tray-shell select, .tray-shell textarea, .tray-shell label, .tray-shell summary, .tray-shell a, .tray-shell [role='button'], .tray-shell [contenteditable='true'] { -webkit-app-region: no-drag; }
 .tray-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-width: 0; }
-.tray-grip { display: inline-flex; align-items: center; align-self: stretch; padding: 0 2px; color: var(--subtle); cursor: grab; -webkit-app-region: drag; }
 .tray-shell .chat-mode-tabs { flex: 0 1 auto; order: 0; gap: 2px; }
 .tray-shell .chat-mode-tabs .mode-tab-btn { min-height: 30px; padding: 5px 8px; }
 /* Only the active mode shows its name (see ChatPage); keep it visible at every tray width. */
@@ -3270,14 +3270,6 @@ html.novi-tray .chat-mode-tabs .mode-tab-btn span { display: inline; }
 .tray-tools { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .tray-shell .tray-tools .eye-tracking-panel { margin-left: 0; }
 .tray-shell .mode-tab-btn.active span { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Model roles and context: compact two-column form instead of the full-size app form controls. */
-.tray-options { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; max-height: 260px; overflow-y: auto; padding: 2px 2px 4px; }
-.tray-options > p, .tray-options > small, .tray-options > label:has(textarea), .tray-options > label:has(input[type="checkbox"]) { grid-column: 1 / -1; }
-.tray-options p { margin: 0; }
-.tray-options label { margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 11px; }
-.tray-options label:has(input[type="checkbox"]) { flex-direction: row; align-items: center; gap: 8px; }
-.tray-options select { min-height: 30px; padding: 4px 8px; font-size: 12px; }
-.tray-options textarea { min-height: 44px; font-size: 12px; }
 .tray-shell .behavioral-copilot-bar { padding: 0; border: 0; background: transparent !important; }
 .tray-shell .behavioral-framework-picker { margin: 0; font-size: 11px; }
 .tray-shell .behavioral-framework-picker select { min-height: 30px; }
@@ -3554,3 +3546,54 @@ html.novi-tray .chat-mode-tabs .mode-tab-btn span { display: inline; }
 .diff-gap { display: block; width: 100%; margin: 2px 0 6px; padding: 3px 12px; background: #161b22; color: #8b949e; text-align: left; font-family: inherit; font-size: 11px; }
 .diff-gap:hover { color: #e6edf3; }
 .lc-empty { margin: 8px 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+
+/* Reading size changes content only; controls and navigation keep their existing size. */
+.user-content, .markdown, .composer textarea, .overlay-card-text { font-size: calc(13px * var(--reading-scale, 1)); }
+.markdown code, .code-viewer-file pre, .review-scroll { font-size: calc(12px * var(--reading-scale, 1)); }
+.markdown h1 { font-size: calc(24px * var(--reading-scale, 1)); }
+.markdown h2 { font-size: calc(20px * var(--reading-scale, 1)); }
+.markdown h3 { font-size: calc(16px * var(--reading-scale, 1)); }
+.reading-size-controls { display: flex; gap: 3px; flex-shrink: 0; }
+.reading-size-controls button { padding: 4px 6px; }
+.titlebar-appearance .stealth-popover-panel { position: fixed; top: 46px; right: 8px; width: min(300px, calc(100vw - 16px)); max-height: calc(100dvh - 54px); overflow-y: auto; }
+.titlebar-appearance .smart-palette-toggle { display: flex; flex-direction: row; align-items: center; }
+.titlebar-appearance .smart-palette-toggle input { width: 16px; }
+.appearance-palettes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.appearance-palettes button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 3px; border: 2px solid transparent; border-radius: 7px; font-size: 10px; }
+.appearance-palettes button strong { font-size: 18px; }
+.appearance-palettes button[aria-pressed='true'] { border-color: currentColor; box-shadow: 0 0 0 2px var(--border); }
+
+:root.transparent-mode {
+  --bg: var(--transparent-bg, #09090b);
+  --panel: var(--bg);
+  --text: var(--transparent-text, #fff);
+  --muted: color-mix(in srgb, var(--text) 85%, var(--bg));
+  --subtle: var(--muted);
+  --surface: color-mix(in srgb, var(--bg) 94%, var(--text));
+  --hover: color-mix(in srgb, var(--bg) 85%, var(--text));
+  --border: color-mix(in srgb, var(--bg) 65%, var(--text));
+  --accent: var(--text);
+  --accent-ink: var(--bg);
+  --button: var(--text);
+  --selected: var(--hover);
+  color-scheme: var(--transparent-color-scheme, dark);
+}
+.transparent-mode .code-viewer-file, .transparent-mode .review-scroll {
+  background: color-mix(in srgb, var(--transparent-bg) var(--transparent-opacity, 35%), transparent) !important;
+}
+.transparent-mode .code-viewer-file pre, .transparent-mode .overlay-card-text,
+.transparent-mode .syntax-code span, .transparent-mode .diff-line code, .transparent-mode .diff-cell code { color: var(--text); }
+.transparent-mode .diff-num, .transparent-mode .diff-sign { color: var(--muted); }
+.transparent-mode .diff-cell.empty, .transparent-mode .diff-gap { background: var(--surface); color: var(--muted); }
+
+@media (max-width: 760px) {
+  .app-titlebar { height: auto; flex: none; flex-wrap: wrap; padding-left: 8px; }
+  .app-titlebar .titlebar-drag-region, .app-titlebar .titlebar-controls { height: 42px; }
+  .app-titlebar .titlebar-center { order: 1; flex: 0 0 100%; justify-content: center; gap: 6px; padding: 4px 0; }
+  .app-titlebar .stealth-numlock-pill { display: none; }
+  .titlebar-appearance .stealth-popover-panel { top: 82px; max-height: calc(100dvh - 90px); }
+}
+@media (max-width: 360px) {
+  .titlebar-brand span { display: none; }
+}

@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Award, Code2, FolderCode, GripVertical, Lock, MessageSquare, Network, PanelTop, Phone, Settings2, Video, X, type LucideIcon } from 'lucide-react';
+import { Award, Code2, FolderCode, Lock, MessageSquare, Network, PanelTop, Phone, Video, X, type LucideIcon } from 'lucide-react';
 import type { AppMode, ModelOption, Snapshot } from '../../../shared/types';
 import { Sidebar } from '../components/chat/Sidebar';
 import { Composer } from '../components/chat/Composer';
 import { Message } from '../components/chat/Message';
-import { Brand } from '../components/Brand';
 import { useChat } from '../hooks/useChat';
 import { activeConnection } from '../../../shared/providers';
 import { SettingsPage } from './SettingsPage';
@@ -30,14 +29,24 @@ import { ENGINES, type LocalCodingMessage } from '../../../shared/localCoding';
 const MODE_ICONS: Record<AppMode, LucideIcon> = {
   normal: MessageSquare, recruiter: Phone, coding: Code2, technical: Video, 'system-design': Network, behavioral: Award, 'local-coding': FolderCode,
 };
+const WELCOME_MESSAGES = [
+  (name: string) => [`Hello, ${name}. What are we working on today?`, 'Ask a question, share an image, or choose a focused mode from the tray above.'],
+  (name: string) => [`Good to see you, ${name}. What’s on your mind?`, 'Start with a question in the tray and we’ll take it from there.'],
+  (name: string) => [`Ready when you are, ${name}. What should we tackle?`, 'Use the tray above to ask, share, or switch modes.'],
+  (name: string) => [`Welcome back, ${name}. What are we figuring out today?`, 'Your next conversation can start with a question, an image, or a focused mode.'],
+  (name: string) => [`Hey ${name}, what’s first on your list?`, 'Drop it into the tray above and let’s get started.'],
+  (name: string) => [`Let’s make progress, ${name}. Where should we start?`, 'Ask in the tray above, share an image, or pick a mode that fits.'],
+  (name: string) => [`What would you like to explore today, ${name}?`, 'A question, an image, or a focused mode is a good place to begin.'],
+  (name: string) => [`Your next idea starts here, ${name}. What are you working on?`, 'Open the tray above to start chatting or choose a focused mode.'],
+];
 
 export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSaved: (state: Snapshot) => void; onSignOut: () => void }) {
   const chat = useChat(state.conversations), [settings, setSettings] = useState(false), [deleting, setDeleting] = useState<string | null>(null);
   const [composerKey, setComposerKey] = useState(0);
+  const [welcomeIndex] = useState(() => Math.floor(Math.random() * WELCOME_MESSAGES.length));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   // The input controls live in a floating tray window; this window docks on the right as the output panel.
   const [trayOpen, setTrayOpen] = useState(true), [trayKey, setTrayKey] = useState(0);
-  const [optionsOpen, setOptionsOpen] = useState(false);
   useEffect(() => {
     void unwrap(window.novi.setWorkspaceDocked(true)).catch(console.error);
     return () => { void unwrap(window.novi.setWorkspaceDocked(false)).catch(console.error); };
@@ -60,8 +69,8 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const deleteDialog = useRef<HTMLDialogElement>(null);
   useEffect(() => { if (deleting) deleteDialog.current?.showModal(); }, [deleting]);
   const config = state.settings!;
+  const welcome = WELCOME_MESSAGES[welcomeIndex](config.displayName.trim() || 'there');
   const connection = state.contextSession?.connection ?? activeConnection(config);
-  const [compactContext, setCompactContext] = useState(false);
   const [pinnedContext, setPinnedContext] = useState('');
   useEffect(() => { setPinnedContext(chat.selected?.pinnedContext || ''); }, [chat.selectedId, chat.selected?.pinnedContext]);
   const streamingMessageId = chat.busy && chat.activeId === chat.selectedId ? chat.selected?.messages.at(-1)?.id : undefined;
@@ -91,7 +100,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   function sendLocal(content: string, imageIds: string[], reconcile?: ReconcileRequest) {
     if (!localBinding || !local.project) { chat.setError('Choose a working folder and start Local Coding first.'); return Promise.resolve(false); }
     const baseVersionId = reconcile?.baseVersionId ?? local.project.selectedVersionId;
-    return chat.send({ content, imageIds, compactContext, pinnedContext, localCoding: { baseVersionId, ...(reconcile ? { reconcile: { fromVersionId: reconcile.fromVersionId, fileIds: reconcile.fileIds } } : {}) } });
+    return chat.send({ content, imageIds, pinnedContext, localCoding: { baseVersionId, ...(reconcile ? { reconcile: { fromVersionId: reconcile.fromVersionId, fileIds: reconcile.fileIds } } : {}) } });
   }
   const listenKey = config.audioRecordShortcut || 'Alt+A';
   function startPractice() {
@@ -179,14 +188,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const roles = connection ? config.modelRoles?.[connection.id] : undefined;
-  async function setRole(role: 'fast' | 'deep', model: string) {
-    if (!connection || !model || sidebarBusy || syncingModel) return;
-    setSyncingModel(true);
-    try { onSaved(await unwrap(window.novi.setModelRole(connection.id, role, model))); }
-    catch (error) { chat.setError(errorText(error)); }
-    finally { setSyncingModel(false); }
-  }
-
   useEffect(() => {
     if (!connection) return;
     let cancelled = false;
@@ -284,9 +285,8 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             </div>
           ) : (
             <div className="empty-state">
-              <Brand compact />
-              <h1>What would you like to work on?</h1>
-              <p>Type in the tray at the top of your screen, share an image, or choose a focused mode there.</p>
+              <h1>{welcome[0]}</h1>
+              <p>{welcome[1]}</p>
             </div>
           )}
         </main>
@@ -295,7 +295,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
       {!settings && trayOpen && (
         <TrayPortal key={trayKey} onClosed={() => { practice.cancel(); setTrayOpen(false); }}>
           <div className="tray-row">
-            <span className="tray-grip" title="Drag to move the tray" aria-hidden="true"><GripVertical size={15} /></span>
             <nav className="chat-mode-tabs" aria-label="Conversation mode">
               {SESSION_MODES.map(({ id: mode, name: label }) => {
                 const Icon = MODE_ICONS[mode];
@@ -377,10 +376,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
                 onSetMonitor={setWorkingMonitor}
                 onSendSticky={et.sendStickyToOverlay}
               />
-              <button type="button" className={`tray-icon-btn ${optionsOpen ? 'active' : ''}`} aria-label="Model roles and context"
-                title="Model roles and context" aria-expanded={optionsOpen} aria-controls="tray-options" onClick={() => setOptionsOpen((open) => !open)}>
-                <Settings2 size={15} />
-              </button>
             </div>
           </div>
           {practice.active && <PracticeCoach state={practice.state} voiced={practice.voiced} listenKey={listenKey}
@@ -399,26 +394,13 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             onSend={(content, images) => {
               setSentInSession(true);
               if (localMode) return sendLocal(content, images.map((image) => image.id));
-              return chat.send({ content, imageIds: images.map((image) => image.id), compactContext, pinnedContext });
+              return chat.send({ content, imageIds: images.map((image) => image.id), pinnedContext });
             }}
             onListeningChange={practice.onListeningChange}
             prefill={prefill}
             onPrefillApplied={() => setPrefill(undefined)}
             placeholder={localMode ? localBinding && local.project ? `Ask about ${localBinding.name} — next request uses ${local.project.versions.find((version) => version.id === local.project!.selectedVersionId)?.label ?? 'the selected version'}` : 'Start Local Coding in the panel first' : undefined}
           />
-          {optionsOpen && <section id="tray-options" className="request-options tray-options" aria-label="Model roles and context">
-            <p>Fast for short follow-ups; Deep for new code, debugging, and design. You choose which model answers.</p>
-            {(['fast', 'deep'] as const).map(role => <label key={role}>{role === 'fast' ? 'Fast' : 'Deep'} model
-              <select value={roles?.[role] || ''} disabled={loadingModels || sidebarBusy || syncingModel} onChange={event => void setRole(role, event.target.value)}>
-                <option value="" disabled>{loadingModels ? 'Loading models…' : 'Choose a model'}</option>
-                {roles?.[role] && !availableModels.some(model => model.id === roles[role]) && <option value={roles[role]}>{roles[role]} (refresh availability)</option>}
-                {availableModels.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
-              </select>
-            </label>)}
-            <label>Pinned constraints<textarea value={pinnedContext} maxLength={8000} disabled={chat.busy} onChange={event => setPinnedContext(event.target.value)} placeholder="Requirements to include verbatim in every request in this conversation" /></label>
-            <label><input type="checkbox" checked={compactContext} disabled={chat.busy} onChange={event => setCompactContext(event.target.checked)} />Use compact context (experimental)</label>
-            <small>{compactContext ? 'Sends the original problem, pinned constraints, recent turns, and matching older turns/source excerpts. Uncheck for full context if a detail is missing.' : 'Sends full saved conversation and source context.'} Conversations and sources stay saved locally.</small>
-          </section>}
         </TrayPortal>
       )}
 
