@@ -36,6 +36,17 @@ export function clampTrayHeight(area: Rectangle, height: number): number {
   return Math.round(Math.max(TRAY_MIN_HEIGHT, Math.min(height, area.height - 2 * TRAY_GAP)));
 }
 
+/** Keep the opposite edge anchored and prevent a resize from pushing the tray off its monitor. */
+export function resizedTrayBounds(area: Rectangle, bounds: Rectangle, requestedWidth: number, edge: 'left' | 'right'): Rectangle {
+  const minimum = Math.min(TRAY_MIN_WIDTH, area.width);
+  const anchor = edge === 'left'
+    ? Math.max(area.x + minimum, Math.min(bounds.x + bounds.width, area.x + area.width))
+    : Math.max(area.x, Math.min(bounds.x, area.x + area.width - minimum));
+  const available = edge === 'left' ? anchor - area.x : area.x + area.width - anchor;
+  const width = Math.round(Math.max(minimum, Math.min(requestedWidth, available)));
+  return { ...bounds, x: edge === 'left' ? anchor - width : anchor, width };
+}
+
 function intersects(a: Rectangle, b: Rectangle) {
   return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 }
@@ -134,6 +145,14 @@ export class WorkspaceService {
     const y = Math.max(area.y, Math.min(bounds.y, area.y + area.height - nextHeight));
     if (nextHeight !== bounds.height || y !== bounds.y) tray.setBounds({ x: bounds.x, y, width: bounds.width, height: nextHeight });
     this.showTray();
+  }
+
+  resizeTrayWidth(width: number, edge: 'left' | 'right') {
+    const tray = this.tray;
+    if (!tray || tray.isDestroyed()) return;
+    const bounds = tray.getBounds();
+    const area = electron().screen.getDisplayMatching(bounds).workArea;
+    tray.setBounds(resizedTrayBounds(area, bounds, width, edge));
   }
 
   resetSizes() {

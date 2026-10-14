@@ -38,7 +38,8 @@ export class StealthService {
   private getWindow: () => BrowserWindow | null;
   private listWindows: (() => BrowserWindow[]) | null;
 
-  constructor(getWindow: () => BrowserWindow | null, overlayService?: OverlayService, listWindows?: () => BrowserWindow[]) {
+  constructor(getWindow: () => BrowserWindow | null, overlayService?: OverlayService, listWindows?: () => BrowserWindow[],
+    private readonly onTransparentChanged: (enabled: boolean) => void = () => {}) {
     this.getWindow = getWindow;
     this.overlayService = overlayService || null;
     this.listWindows = listWindows || null;
@@ -170,8 +171,8 @@ export class StealthService {
   }
 
   setTransparent(enabled: boolean): StealthState {
-    const win = this.getWindow();
     this.transparent = enabled;
+    this.onTransparentChanged(enabled);
     this.numLock = this.readNumLock();
     this.clickThrough = enabled && !this.numLock;
 

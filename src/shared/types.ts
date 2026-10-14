@@ -165,12 +165,20 @@ export interface StealthState {
 }
 
 export interface AppMaskSettings { enabled: boolean; name: string; icon: string }
+export interface AppCommandStatus {
+  directory: string;
+  file: string;
+  state: 'missing' | 'installed' | 'outdated' | 'conflict';
+  pathConfigured: boolean;
+  canInstall: boolean;
+}
 
 export interface NoviAPI {
   getAppMask(): Promise<Result<AppMaskSettings>>;
   saveAppMask(settings: AppMaskSettings): Promise<Result<AppMaskSettings>>;
   importAppIcon(): Promise<Result<{ name: string; icon: string } | null>>;
-  installAppCommand(): Promise<Result<{ directory: string; file: string }>>;
+  getAppCommandStatus(): Promise<Result<AppCommandStatus>>;
+  installAppCommand(): Promise<Result<AppCommandStatus>>;
   quitApp(): Promise<Result<void>>;
   startInterview(input: InterviewStart): Promise<Result<InterviewSession>>;
   stopInterview(): Promise<Result<InterviewSession | null>>;
@@ -194,6 +202,9 @@ export interface NoviAPI {
   browseLocalDirectory(path?: string): Promise<Result<BrowseResult>>;
   selectLocalSources(input: { workingFolder: string; extra: string[] }): Promise<Result<SourcePreview>>;
   getLocalCodingReadiness(): Promise<Result<EngineReadiness[]>>;
+  checkEngineUpdate(engine: EngineId): Promise<Result<import('./localCoding').EngineUpdate>>;
+  installEngine(engine: EngineId): Promise<Result<EngineReadiness[]>>;
+  checkEngineLogin(input: { engine: EngineId; connectionId: string }): Promise<Result<string>>;
   listEngineModels(input: { engine: EngineId; connectionId: string }): Promise<Result<EngineModel[]>>;
   captureLocalSources(input: { selectionId: string; engine: EngineId; connectionId: string; model: string }): Promise<Result<{ snapshot: Snapshot; conversationId: string }>>;
   getProjectState(projectId: string): Promise<Result<ProjectState>>;
@@ -256,6 +267,7 @@ export interface NoviAPI {
   /** During a session the main window docks on the right as the output panel. */
   setWorkspaceDocked(docked: boolean): Promise<Result<void>>;
   setTrayHeight(height: number): Promise<Result<void>>;
+  setTrayWidth(width: number, edge: 'left' | 'right'): Promise<Result<void>>;
   resetWorkspaceSizes(): Promise<Result<void>>;
   sampleBackgroundPalette(opacity: number): Promise<Result<import('./appearance').SmartPalette>>;
   captureScreen(): Promise<Result<ImageAttachment>>;

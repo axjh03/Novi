@@ -41,7 +41,8 @@
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
     "sherpa-onnx-node": "1.13.8",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "tar": "7.5.22"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

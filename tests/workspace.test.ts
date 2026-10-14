@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { clampTrayHeight, dockedBounds, MAIN_WINDOW_MIN, TRAY_NAME, trayBounds } from '../src/main/services/workspace.ts';
+import { clampTrayHeight, dockedBounds, MAIN_WINDOW_MIN, resizedTrayBounds, TRAY_NAME, trayBounds } from '../src/main/services/workspace.ts';
 
 const full = { x: 0, y: 0, width: 1920, height: 1040 };
 
@@ -47,6 +47,22 @@ test('tray height stays on screen', () => {
   assert.equal(clampTrayHeight(full, 10), 48);
   assert.equal(clampTrayHeight(full, 211.4), 211);
   assert.equal(trayBounds(full, null, 5000).height, 1016);
+});
+
+test('side resizing anchors the opposite edge, enforces minimum width, and stops at monitor edges', () => {
+  const bounds = { x: 300, y: 50, width: 600, height: 180 };
+  assert.deepEqual(resizedTrayBounds(full, bounds, 800, 'left'), { ...bounds, x: 100, width: 800 });
+  assert.deepEqual(resizedTrayBounds(full, bounds, 800, 'right'), { ...bounds, width: 800 });
+  assert.deepEqual(resizedTrayBounds(full, bounds, -10, 'left'), { ...bounds, x: 580, width: 320 });
+  assert.deepEqual(resizedTrayBounds(full, bounds, 5000, 'left'), { ...bounds, x: 0, width: 900 });
+  assert.deepEqual(resizedTrayBounds(full, bounds, 5000, 'right'), { ...bounds, width: 1620 });
+  const area = { x: -1920, y: 30, width: 1920, height: 1040 };
+  const secondary = { ...bounds, x: -1200 };
+  assert.deepEqual(resizedTrayBounds(area, secondary, 800, 'left'), { ...secondary, x: -1400, width: 800 });
+  for (const edge of ['left', 'right'] as const) {
+    const small = resizedTrayBounds({ x: 10, y: 0, width: 240, height: 400 }, bounds, 800, edge);
+    assert.equal(small.x, 10); assert.equal(small.width, 240);
+  }
 });
 
 test('only the tray window name is allowed', () => {

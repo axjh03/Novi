@@ -21,7 +21,7 @@ export function TrayPortal({ children, onClosed }: { children: ReactNode; onClos
     if (!opened) { closedRef.current(); return; }
     const trayWindow = opened;
     const doc = trayWindow.document;
-    let closing = false, reported = false, initialSizeSent = false, timer = 0;
+    let closing = false, reported = false, lastHeight = 0, timer = 0;
     doc.title = 'Novi';
     const root = doc.createElement('div');
     root.id = 'tray-root';
@@ -59,16 +59,17 @@ export function TrayPortal({ children, onClosed }: { children: ReactNode; onClos
     const measure = () => {
       timer = 0;
       if (closing || trayWindow.closed) return;
-      if (trayWindow.scrollY || trayWindow.scrollX) trayWindow.scrollTo(0, 0);
-      let bottom = 0;
-      for (const element of root.querySelectorAll('*')) {
+      const shell = root.querySelector('.tray-shell');
+      if (!shell) return;
+      let bottom = root.getBoundingClientRect().bottom + trayWindow.scrollY;
+      for (const element of shell.querySelectorAll('*')) {
         // Closed <details> content keeps a layout box (content-visibility: hidden); skip anything not shown.
         if (!element.checkVisibility()) continue;
-        bottom = Math.max(bottom, element.getBoundingClientRect().bottom);
+        bottom = Math.max(bottom, element.getBoundingClientRect().bottom + trayWindow.scrollY + 4);
       }
       const height = Math.ceil(bottom);
-      if (!initialSizeSent && height > 0) {
-        initialSizeSent = true;
+      if (height !== lastHeight && height > 0) {
+        lastHeight = height;
         void window.novi.setTrayHeight(height).catch(() => {});
       }
     };
@@ -122,5 +123,52 @@ export function TrayPortal({ children, onClosed }: { children: ReactNode; onClos
     return attachPrivateCursor(tray.window);
   }, [tray, transparent, clickThrough]);
 
-  return tray ? createPortal(<section className="tray-shell" aria-label="Novi tray">{children}</section>, tray.root) : null;
+  return tray ? createPortal(<>
+    <section className="tray-shell" aria-label="Novi tray">{children}</section>
+    <TrayResizeGrip side="left" view={tray.window} />
+    <TrayResizeGrip side="right" view={tray.window} />
+  </>, tray.root) : null;
+}
+
+function TrayResizeGrip({ side, view }: { side: 'left' | 'right'; view: TrayWindow }) {
+  const drag = useRef<{ x: number; width: number } | null>(null);
+  const timer = useRef(0), pending = useRef(0);
+  const [width, setWidth] = useState(view.innerWidth);
+  useEffect(() => {
+    const changed = () => setWidth(view.innerWidth);
+    view.addEventListener('resize', changed);
+    return () => { view.removeEventListener('resize', changed); window.clearTimeout(timer.current); };
+  }, [view]);
+  const resize = (width: number) => {
+    pending.current = width;
+    if (!timer.current) timer.current = window.setTimeout(() => {
+      timer.current = 0;
+      void window.novi.setTrayWidth(pending.current, side).catch(() => {});
+    }, 16);
+  };
+  return <div className={`tray-resize-grip tray-resize-${side}`} role="separator" aria-orientation="vertical"
+    aria-label={`Resize tray from ${side}`} aria-valuenow={width} aria-valuetext={`${width} pixels wide`}
+    aria-valuemin={Math.min(320, view.screen.availWidth)} aria-valuemax={Math.max(width, view.screen.availWidth)}
+    tabIndex={0} title="Drag to resize · Arrow keys adjust width"
+    onPointerDown={event => {
+      if (event.button !== 0) return;
+      const view = event.currentTarget.ownerDocument.defaultView!;
+      drag.current = { x: event.screenX, width: view.innerWidth };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    }}
+    onPointerMove={event => {
+      if (drag.current) resize(drag.current.width + (event.screenX - drag.current.x) * (side === 'left' ? -1 : 1));
+    }}
+    onPointerUp={event => {
+      drag.current = null;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    }}
+    onLostPointerCapture={() => { drag.current = null; }}
+    onKeyDown={event => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      const delta = (event.key === 'ArrowRight' ? 1 : -1) * (side === 'left' ? -1 : 1) * (event.shiftKey ? 64 : 16);
+      resize(event.currentTarget.ownerDocument.defaultView!.innerWidth + delta);
+    }} />;
 }

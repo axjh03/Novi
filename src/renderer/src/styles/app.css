@@ -3247,34 +3247,67 @@ html.transparent-mode #root {
    Session layout: docked output panel + floating tray (src/renderer/src/components/TrayPortal.tsx)
    ========================================================================== */
 
-/* Let the tray shell fill a user-resized window in either direction. */
-html.novi-tray, html.novi-tray body { height: auto; min-height: 0; overflow: hidden; background: transparent !important; }
-.tray-shell { box-sizing: border-box; width: 100%; height: calc(100vh - 14px); min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 10px 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; cursor: grab; -webkit-app-region: drag; }
+/* Natural content height lets the native window shrink again after controls wrap or menus close. */
+html.novi-tray, html.novi-tray body { height: auto; min-height: 0; overflow-x: hidden; background: transparent !important; }
+html.novi-tray #tray-root { padding: 4px 6px; -webkit-app-region: drag; }
+.tray-shell { box-sizing: border-box; width: 100%; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; cursor: grab; user-select: none; -webkit-app-region: drag; }
 .tray-shell:active { cursor: grabbing; }
 .tray-shell button, .tray-shell input, .tray-shell select, .tray-shell textarea, .tray-shell label, .tray-shell summary, .tray-shell a, .tray-shell [role='button'], .tray-shell [contenteditable='true'] { -webkit-app-region: no-drag; }
+.tray-shell input, .tray-shell textarea, .tray-shell [contenteditable='true'] { user-select: text; cursor: text; }
+.tray-shell input[type='range'] { cursor: pointer; }
+.tray-shell .et-camera-dropdown, .tray-shell .et-error-detail { -webkit-app-region: no-drag; user-select: text; cursor: default; }
+.tray-resize-grip { position: fixed; top: 6px; bottom: 6px; width: 6px; z-index: 1000; cursor: ew-resize; touch-action: none; -webkit-app-region: no-drag; }
+.tray-resize-left { left: 0; }
+.tray-resize-right { right: 0; }
+.tray-resize-grip::after { content: ''; position: absolute; top: 50%; left: 2px; width: 2px; height: 24px; max-height: 70%; transform: translateY(-50%); border-radius: 2px; background: var(--border); }
+.tray-resize-grip:hover::after, .tray-resize-grip:focus-visible::after { background: var(--accent); }
+.tray-resize-grip:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .tray-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-width: 0; }
 .tray-shell .chat-mode-tabs { flex: 0 1 auto; order: 0; gap: 2px; }
 .tray-shell .chat-mode-tabs .mode-tab-btn { min-height: 30px; padding: 5px 8px; }
 /* Only the active mode shows its name (see ChatPage); keep it visible at every tray width. */
 html.novi-tray .chat-mode-tabs .mode-tab-btn span { display: inline; }
-.tray-shell .header-model-select-wrapper { min-width: 0; }
-.tray-shell .header-model-picker { max-width: 200px; }
+.tray-shell .header-model-select-wrapper { min-width: 0; flex: 1 1 200px; flex-wrap: wrap; gap: 4px; }
+.tray-shell .header-model-picker { flex: 1 1 90px; min-width: 0; max-width: 200px; width: 0; }
+.tray-shell .header-model-select-wrapper .text-button { padding: 4px 6px; min-height: 28px; font-size: 11px; }
 .tray-shell .eye-tracking-panel { flex: 0 0 auto; margin-left: auto; }
-.tray-shell .eye-tracking-panel { gap: 4px; }
+.tray-shell .eye-tracking-panel { position: relative; flex-wrap: wrap; max-width: 100%; gap: 4px; margin-right: 0; }
+.tray-shell .et-camera-picker, .tray-shell .et-error-wrap { position: static; }
+.tray-shell .et-camera-dropdown, .tray-shell .et-error-detail { min-width: 0; width: min(320px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; }
 .tray-shell .eye-tracking-toggle, .tray-shell .et-camera-btn { min-height: 30px; min-width: 30px; justify-content: center; border-radius: 7px; background: var(--surface); }
 .tray-shell .eye-tracking-toggle { gap: 5px; padding: 0 8px; }
 .tray-shell .eye-tracker-hud-btn { height: 30px; border-radius: 7px; padding: 0 8px; }
 .tray-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--muted); }
 .tray-icon-btn:hover { color: var(--text); background: var(--hover); }
 .tray-icon-btn.active { color: var(--accent); border-color: var(--accent); }
-.tray-tools { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.tray-tools { display: flex; align-items: center; gap: 6px; margin-left: auto; max-width: 100%; }
 .tray-shell .tray-tools .eye-tracking-panel { margin-left: 0; }
 .tray-shell .mode-tab-btn.active span { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tray-shell .behavioral-copilot-bar { padding: 0; border: 0; background: transparent !important; }
 .tray-shell .behavioral-framework-picker { margin: 0; font-size: 11px; }
 .tray-shell .behavioral-framework-picker select { min-height: 30px; }
 .tray-shell .dismissible, .tray-shell .request-options { margin: 0; }
-.tray-shell .composer { box-shadow: none; }
+.tray-shell .composer { box-shadow: none; padding: 6px 8px; }
+.tray-shell .composer-controls { gap: 6px; margin-top: 4px; }
+.tray-shell .composer-controls .attach-control { flex: 1; gap: 4px; }
+.tray-shell .composer-local-control { gap: 4px; }
+.tray-shell .composer-local-control > select { max-width: 120px; }
+.tray-shell .lc-session-bar { flex: 1 1 220px; flex-wrap: wrap; gap: 4px 8px; }
+.tray-shell .lc-session-bar > * { max-width: 100%; }
+@media (min-width: 800px) {
+  .tray-shell .composer { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 6px 10px; }
+  .tray-shell .composer textarea { flex: 1 1 180px; width: 0; min-width: 180px; }
+  .tray-shell .composer-controls { flex: 1 1 auto; margin-top: 0; }
+  .tray-shell .attachment-tray { flex-basis: 100%; margin-bottom: 0; }
+}
+@media (max-width: 540px) {
+  html.novi-tray .chat-mode-tabs .mode-tab-btn span, .tray-shell .et-camera-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .tray-shell .tray-row { gap: 4px 6px; }
+  .tray-shell .header-model-select-wrapper { order: 2; flex-basis: 100%; }
+  .tray-shell .chat-mode-tabs .mode-tab-btn { padding: 5px 6px; }
+  .tray-shell .practice-coach { flex-wrap: wrap; }
+  .tray-shell .practice-actions { flex-wrap: wrap; margin-left: auto; }
+}
 .tray-status { color: var(--muted); font-size: 11px; }
 .tray-reopen { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; font-size: 11px; }
 .chat-header .header-title { max-width: 100%; }

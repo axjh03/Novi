@@ -15,6 +15,8 @@ import { CodexAgent } from './codingAgents/codex';
 import { AntigravityAgent } from './codingAgents/antigravity';
 import type { RuntimeLocation } from './codingAgents/runtime';
 import { engineRuntime } from './codingAgents/runtime';
+import { EngineInstaller } from './codingAgents/install';
+import { listModels as providerModels } from './models';
 import type { AgentImage, CodingAgent } from './codingAgents/types';
 
 const ENGINE_INSTRUCTIONS = `You are a read-only coding assistant inside Novi. You analyze one immutable virtual version of the user's project.
@@ -59,8 +61,11 @@ export class LocalCodingService {
   private models = new Map<string, { at: number; models: EngineModel[] }>();
   private pending = new Map<string, Pending>();
   private activeTask: { projectId: string; versionId: string; taskId: string } | null = null;
+  private installer: EngineInstaller;
 
   constructor(private deps: { storage: Storage; credentials: CredentialStore; images: ImageService; userData: string; location: RuntimeLocation; agents?: Partial<Record<EngineId, CodingAgent>> }) {
+    deps.location = { ...deps.location, managedPath: join(deps.userData, 'coding-runtimes') };
+    this.installer = new EngineInstaller(deps.location);
     this.store = new LocalCodingStore(join(deps.userData, 'local-coding'));
     const work = join(deps.userData, 'local-coding', '.engines');
     // Engine homes from a crash are private scratch space; start clean.
@@ -96,11 +101,34 @@ export class LocalCodingService {
   async readiness(): Promise<EngineReadiness[]> {
     return Promise.all(ENGINES.map(async (spec) => {
       let problem: string | null = null;
-      try { await engineRuntime(spec.id, this.deps.location); } catch (error) { problem = error instanceof Error ? error.message : 'Not installed.'; }
+      let installedVersion: string | null = null;
+      try { installedVersion = (await engineRuntime(spec.id, this.deps.location)).version; } catch (error) { problem = error instanceof Error ? error.message : 'Not installed.'; }
       const connections = this.eligible(spec.id).map((item) => ({ id: item.id, name: item.name }));
       if (!problem && !connections.length) problem = `Needs a saved ${spec.connectionLabel} connection using ${spec.officialBaseUrl}. Add one in Settings › API Management.`;
-      return { engine: spec.id, label: spec.label, available: !problem, problem, connections };
+      return { engine: spec.id, label: spec.label, available: !problem, installedVersion, problem, connections };
     }));
+  }
+
+  async checkEngineUpdate(engine: unknown) {
+    if (!isEngineId(engine)) throw new UserError('Choose a coding agent.');
+    return this.installer.check(engine);
+  }
+
+  async installEngine(engine: unknown) {
+    if (!isEngineId(engine)) throw new UserError('Choose a coding agent.');
+    await this.installer.install(engine);
+    this.models.clear();
+    return this.readiness();
+  }
+
+  async checkEngineLogin(engine: unknown, connectionId: unknown) {
+    if (!isEngineId(engine)) throw new UserError('Choose a coding agent.');
+    const { connection, apiKey } = this.credential(engine, text(connectionId, 'connection', 100));
+    await engineRuntime(engine, this.deps.location);
+    // Engine model catalogs can be local; validate the key against the provider, not that cache.
+    const models = await providerModels(connection, apiKey);
+    this.models.clear();
+    return `API key accepted for ${connection.name} · ${models.length} models available. Novi uses this saved key automatically.`;
   }
 
   async listModels(engine: unknown, connectionId: unknown): Promise<EngineModel[]> {

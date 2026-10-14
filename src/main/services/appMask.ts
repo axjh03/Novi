@@ -22,6 +22,8 @@ export function appMaskInput(value: unknown): AppMaskSettings {
 export class AppMask {
   private readonly file: string;
   private readonly titles = new Map<BrowserWindow, string>();
+  private readonly minimizable = new Map<BrowserWindow, boolean>();
+  private transparent = false;
   settings: AppMaskSettings;
 
   constructor(directory: string, private readonly defaultIcon: string, private readonly getMainWindow: () => BrowserWindow | null,
@@ -33,11 +35,14 @@ export class AppMask {
 
   attach(window: BrowserWindow) {
     this.titles.set(window, window.getTitle());
+    this.minimizable.set(window, window.isMinimizable());
     window.on('page-title-updated', (event, title) => {
       this.titles.set(window, title);
       if (this.settings.enabled) { event.preventDefault(); window.setTitle(this.settings.name); }
     });
-    window.on('closed', () => this.titles.delete(window));
+    window.on('closed', () => { this.titles.delete(window); this.minimizable.delete(window); });
+    // Some window managers ignore setMinimizable; restore if they minimize a hidden-mode window anyway.
+    window.on('minimize', () => { if (this.preventsMinimize) window.restore(); });
     window.once('ready-to-show', () => this.applyWindow(window));
     window.on('show', () => { if (this.settings.enabled) this.electron.app.dock?.hide(); });
     this.applyWindow(window);
@@ -45,6 +50,8 @@ export class AppMask {
 
   applyWindow(window: BrowserWindow) {
     const { enabled, name, icon } = this.settings;
+    window.setMinimizable(!this.preventsMinimize && (this.minimizable.get(window) ?? true));
+    if (this.preventsMinimize && window.isMinimized()) window.restore();
     window.setSkipTaskbar(enabled || (window !== this.getMainWindow() && !window.webContents.getURL().endsWith('#/code-viewer')));
     window.setTitle(enabled ? name : this.titles.get(window) || 'Novi');
     if (enabled) this.electron.app.dock?.hide();
@@ -52,6 +59,13 @@ export class AppMask {
       const image = enabled && icon ? this.electron.nativeImage.createFromDataURL(icon) : this.electron.nativeImage.createFromPath(this.defaultIcon);
       if (!image.isEmpty()) window.setIcon(image);
     }
+  }
+
+  get preventsMinimize() { return this.settings.enabled || this.transparent; }
+
+  setTransparent(enabled: boolean) {
+    this.transparent = enabled;
+    this.apply();
   }
 
   apply() {

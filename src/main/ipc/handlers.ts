@@ -30,7 +30,7 @@ import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import type { AppMask } from '../services/appMask';
-import { installCommand } from '../services/appCommand';
+import { AppCommandService } from '../services/appCommand';
 
 export function registerIPC(
   rendererUrl: string,
@@ -39,6 +39,10 @@ export function registerIPC(
   mask?: AppMask,
 ) {
   const permissionsService = new PermissionService();
+  const commandService = new AppCommandService({
+    directory: process.platform === 'win32' ? join(app.getPath('appData'), 'Novi', 'bin') : join(app.getPath('home'), '.local', 'bin'),
+    executable: process.env.APPIMAGE || process.execPath, home: app.getPath('home'), windows: process.platform === 'win32', packaged: app.isPackaged,
+  });
   // Lazy initialization lets the UI explain disk/keychain failures instead of crashing at startup.
   let services: ReturnType<typeof initialize> | undefined;
   function initialize() {
@@ -46,7 +50,7 @@ export function registerIPC(
     const credentials = new CredentialStore(storage.directory);
     const images = new ImageService(storage);
     const overlay = new OverlayService();
-    const stealth = new StealthService(getMainWindow, overlay);
+    const stealth = new StealthService(getMainWindow, overlay, undefined, enabled => mask?.setTransparent(enabled));
     const context = new ContextService(storage);
     const audio = new AudioService(storage.directory);
     const transcription = new AudioTranscriptionService(storage, credentials);
@@ -124,7 +128,7 @@ export function registerIPC(
         const isTrusted = baseSender === baseTarget;
         if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || !isTrusted) throw new UserError('Untrusted application request.');
         // Device controls and quitting must work even if account storage or the network is unavailable.
-        if (['app-mask-get', 'app-mask-save', 'app-mask-import-icon', 'app-command-install', 'quit-app'].includes(channel)) {
+        if (['app-mask-get', 'app-mask-save', 'app-mask-import-icon', 'app-command-status', 'app-command-install', 'quit-app'].includes(channel)) {
           return { ok: true, value: await callback(value, event, timing) };
         }
         // Small, bounded PCM frames belong to a previously authorized interview.
@@ -146,7 +150,7 @@ export function registerIPC(
           'get-saved-credentials', 'save-credentials', 'open-external', 'open-audio-midi-setup',
           'get-remote-companion-status', 'toggle-remote-tunnel',
           // Window layout only; the tray reports its size whenever its content changes.
-          'set-workspace-docked', 'set-tray-height', 'reset-workspace-sizes', 'sample-background-palette',
+          'set-workspace-docked', 'set-tray-height', 'set-tray-width', 'reset-workspace-sizes', 'sample-background-palette',
           // Best effort and frequent: must never refresh, or sign out on, the managed session.
           'warm-connection'
         ];
@@ -491,6 +495,7 @@ export function registerIPC(
     return get().stealth.setTransparent(Boolean(v.enabled));
   });
   handle('minimize-window', (_value, event) => {
+    if (mask?.preventsMinimize || services?.stealth.getState().transparent) return;
     const win = BrowserWindow.fromWebContents(event.sender);
     win?.minimize();
   });
@@ -517,12 +522,8 @@ export function registerIPC(
     if (!mask) throw new UserError('App masking is unavailable.');
     return mask.importIcon();
   });
-  handle('app-command-install', () => {
-    if (!app.isPackaged) throw new UserError('Install the command from an installed Novi build. In development, use electron . start or electron . stop.');
-    const windows = process.platform === 'win32';
-    const directory = windows ? join(app.getPath('appData'), 'Novi', 'bin') : join(app.getPath('home'), '.local', 'bin');
-    return installCommand(directory, process.env.APPIMAGE || process.execPath, windows);
-  });
+  handle('app-command-status', () => commandService.status());
+  handle('app-command-install', () => commandService.install());
   handle('quit-app', () => { setImmediate(() => app.quit()); });
   handle('close-window', (_value, event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
@@ -542,6 +543,12 @@ export function registerIPC(
     const height = Number(object(value).height);
     if (!Number.isFinite(height) || height <= 0 || height > 10_000) throw new UserError('Invalid tray height.');
     workspace.resizeTray(height);
+  });
+  handle('set-tray-width', (value, event) => {
+    if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can size the tray.');
+    const { width, edge } = object(value);
+    if (typeof width !== 'number' || !Number.isFinite(width) || Math.abs(width) > 100_000 || (edge !== 'left' && edge !== 'right')) throw new UserError('Invalid tray width.');
+    workspace.resizeTrayWidth(width, edge);
   });
   handle('reset-workspace-sizes', (_value, event) => {
     if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can resize the workspace.');
@@ -571,6 +578,9 @@ export function registerIPC(
   handle('local-coding-preview', (value, event) => { fromMain(event); const input = object(value); return get().localCoding.preview({ workingFolder: input.workingFolder, extra: input.extra }); });
   handle('local-coding-readiness', (_value, event) => { fromMain(event); return get().localCoding.readiness(); });
   handle('local-coding-models', (value, event) => { fromMain(event); const input = object(value); return get().localCoding.listModels(input.engine, input.connectionId); });
+  handle('local-coding-check-update', (value, event) => { fromMain(event); return get().localCoding.checkEngineUpdate(object(value).engine); });
+  handle('local-coding-install', (value, event) => { fromMain(event); return get().localCoding.installEngine(object(value).engine); });
+  handle('local-coding-check-login', (value, event) => { fromMain(event); const input = object(value); return get().localCoding.checkEngineLogin(input.engine, input.connectionId); });
   handle('local-coding-start', async (value, event) => {
     fromMain(event);
     const { context, chat, storage, localCoding } = get();

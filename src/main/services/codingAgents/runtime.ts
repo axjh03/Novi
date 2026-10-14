@@ -4,23 +4,23 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import type { EngineId } from '../../../shared/localCoding';
 
-// Engine runtimes ship with Novi (see scripts/bundle-coding-agents.mjs). In development they come from node_modules.
+// Prefer runtimes installed in Settings, then bundled engines or development dependencies.
 
 const req = typeof require === 'function' ? require : createRequire(import.meta.url);
 
-const CODEX_TRIPLES: Record<string, string> = {
+export const CODEX_TRIPLES: Record<string, string> = {
   'linux-x64': 'x86_64-unknown-linux-musl', 'linux-arm64': 'aarch64-unknown-linux-musl',
   'darwin-x64': 'x86_64-apple-darwin', 'darwin-arm64': 'aarch64-apple-darwin',
   'win32-x64': 'x86_64-pc-windows-msvc', 'win32-arm64': 'aarch64-pc-windows-msvc',
 };
 
 export interface EngineRuntime { executable: string; pathDirs: string[]; version: string }
-export interface RuntimeLocation { packaged: boolean; resourcesPath: string }
+export interface RuntimeLocation { packaged: boolean; resourcesPath: string; managedPath?: string }
 
 const exe = (name: string) => process.platform === 'win32' ? `${name}.exe` : name;
 const target = `${process.platform}-${process.arch}`;
 
-function isMusl() {
+export function isMusl() {
   if (process.platform !== 'linux') return false;
   try { return !(process.report?.getReport() as { header?: { glibcVersionRuntime?: string } })?.header?.glibcVersionRuntime; }
   catch { return false; }
@@ -49,7 +49,7 @@ function developmentRuntime(engine: EngineId): EngineRuntime {
   }
 }
 
-interface Manifest { engines: Record<string, { version: string; executable: string; pathDirs: string[]; files: Record<string, string> }> }
+export interface Manifest { engines: Record<string, { version: string; executable: string; pathDirs: string[]; files: Record<string, string> }> }
 
 function packagedRuntime(engine: EngineId, resourcesPath: string): EngineRuntime {
   const root = join(resourcesPath, 'engines');
@@ -79,16 +79,24 @@ async function verify(engine: EngineId, resourcesPath: string) {
 
 /** Locates an engine runtime and confirms it is present (and, when packaged, intact). */
 export async function engineRuntime(engine: EngineId, location: RuntimeLocation): Promise<EngineRuntime> {
+  if (location.managedPath) {
+    const pointer = join(location.managedPath, engine, 'current.json');
+    if (existsSync(pointer)) {
+      const id = JSON.parse(readFileSync(pointer, 'utf8')).id;
+      if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/.test(id)) throw new Error('The installed agent record is invalid. Install the agent again.');
+      location = { packaged: true, resourcesPath: join(location.managedPath, engine, id) };
+    }
+  }
   const engineLabel = engine === 'codex' ? 'Codex' : engine === 'claude' ? 'Claude Code' : 'Antigravity (agy)';
   let runtime: EngineRuntime;
   try { runtime = location.packaged ? packagedRuntime(engine, location.resourcesPath) : developmentRuntime(engine); }
-  catch (error) { throw new Error(`The ${engineLabel} engine is not installed in this copy of Novi. Reinstall Novi. (${error instanceof Error ? error.message : 'missing'})`); }
-  if (!existsSync(runtime.executable) || !statSync(runtime.executable).isFile()) throw new Error(`The ${engineLabel} engine is missing from this copy of Novi. Reinstall Novi.`);
+  catch { throw new Error(`${engineLabel} is not installed. Install it in Settings › API Management › Local Coding agents.`); }
+  if (!existsSync(runtime.executable) || !statSync(runtime.executable).isFile()) throw new Error(`${engineLabel} is missing. Install it in Settings › API Management › Local Coding agents.`);
   if (location.packaged) {
     const key = `${engine}:${location.resourcesPath}`;
     if (!verified.has(key)) verified.set(key, verify(engine, location.resourcesPath).catch((error) => { verified.delete(key); throw error; }));
     try { await verified.get(key); }
-    catch (error) { throw new Error(`The ${engineLabel} engine files are damaged (${error instanceof Error ? error.message : 'checksum mismatch'}). Reinstall Novi.`); }
+    catch (error) { throw new Error(`The ${engineLabel} engine files are damaged (${error instanceof Error ? error.message : 'checksum mismatch'}). Install the agent again in Settings.`); }
   }
   return runtime;
 }

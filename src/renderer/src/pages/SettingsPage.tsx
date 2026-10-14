@@ -343,8 +343,8 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
         {tab === 'api' && <>
           <ProviderManager state={state} onSaved={onSaved} />
           <section className="settings-section lc-settings">
-            <div><h2>Local Coding agents</h2><p>Codex uses an OpenAI connection and Claude uses an Anthropic connection, each on its official endpoint. The agents are included with Novi.</p></div>
-            <EngineReadinessList />
+            <div><h2>Local Coding agents</h2><p>Install or update agents here. Codex uses your saved OpenAI API key, Claude uses Anthropic, and Antigravity uses Gemini, each on its official endpoint. Check login verifies the selected key; no separate browser sign-in is needed.</p></div>
+            <EngineReadinessList connections={state.settings?.connections} />
           </section>
         </>}
         <button className="danger-button" type="button" onClick={() => {

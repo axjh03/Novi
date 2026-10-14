@@ -24,7 +24,8 @@ test('StealthService manages transparent mode, content protection, and NumLock c
     owns: () => false,
   };
 
-  const stealth = new StealthService(() => mockWindow, mockOverlay);
+  const minimizeGuard: boolean[] = [];
+  const stealth = new StealthService(() => mockWindow, mockOverlay, undefined, enabled => minimizeGuard.push(enabled));
 
   // 1. Initial state
   const initial = stealth.getState();
@@ -64,6 +65,7 @@ test('StealthService manages transparent mode, content protection, and NumLock c
   assert.equal(toggledOff.transparent, false);
   assert.equal(contentProtected, false);
 
+  assert.deepEqual(minimizeGuard, [true, false, true, false]);
   stealth.cleanup();
 });
 

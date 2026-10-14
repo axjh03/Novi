@@ -107,10 +107,13 @@ export interface EngineReadiness {
   engine: EngineId;
   label: string;
   available: boolean;
+  installedVersion: string | null;
   /** Why the engine cannot run: runtime missing/corrupt, or no eligible connection. */
   problem: string | null;
   connections: Array<{ id: string; name: string }>;
 }
+
+export interface EngineUpdate { latestVersion: string; updateAvailable: boolean }
 
 // ── Proposal format (model output) ────────────────────────────────────────
 
