@@ -33,9 +33,20 @@ function developmentRuntime(engine: EngineId): EngineRuntime {
     const root = join(dirname(req.resolve(`@openai/codex-${target}/package.json`)), 'vendor', triple);
     return { executable: join(root, 'bin', exe('codex')), pathDirs: [join(root, 'codex-path')], version: JSON.parse(readFileSync(join(root, '..', '..', 'package.json'), 'utf8')).version };
   }
-  const name = `@anthropic-ai/claude-agent-sdk-${target}${isMusl() ? '-musl' : ''}`;
-  const root = dirname(req.resolve(`${name}/package.json`));
-  return { executable: join(root, exe('claude')), pathDirs: [], version: JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version };
+  if (engine === 'claude') {
+    const name = `@anthropic-ai/claude-agent-sdk-${target}${isMusl() ? '-musl' : ''}`;
+    const root = dirname(req.resolve(`${name}/package.json`));
+    return { executable: join(root, exe('claude')), pathDirs: [], version: JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version };
+  }
+  // antigravity: expect `agy` on PATH or in node_modules/.bin during development.
+  // In a packaged build it comes from the engines/ directory via packagedRuntime.
+  try {
+    const root = dirname(req.resolve('antigravity/package.json'));
+    return { executable: join(root, 'bin', exe('agy')), pathDirs: [], version: JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version };
+  } catch {
+    // Fall back to resolving `agy` from system PATH in development.
+    return { executable: exe('agy'), pathDirs: [], version: 'unknown' };
+  }
 }
 
 interface Manifest { engines: Record<string, { version: string; executable: string; pathDirs: string[]; files: Record<string, string> }> }
@@ -68,15 +79,16 @@ async function verify(engine: EngineId, resourcesPath: string) {
 
 /** Locates an engine runtime and confirms it is present (and, when packaged, intact). */
 export async function engineRuntime(engine: EngineId, location: RuntimeLocation): Promise<EngineRuntime> {
+  const engineLabel = engine === 'codex' ? 'Codex' : engine === 'claude' ? 'Claude Code' : 'Antigravity (agy)';
   let runtime: EngineRuntime;
   try { runtime = location.packaged ? packagedRuntime(engine, location.resourcesPath) : developmentRuntime(engine); }
-  catch (error) { throw new Error(`The ${engine === 'codex' ? 'Codex' : 'Claude'} engine is not installed in this copy of Novi. Reinstall Novi. (${error instanceof Error ? error.message : 'missing'})`); }
-  if (!existsSync(runtime.executable) || !statSync(runtime.executable).isFile()) throw new Error(`The ${engine === 'codex' ? 'Codex' : 'Claude'} engine is missing from this copy of Novi. Reinstall Novi.`);
+  catch (error) { throw new Error(`The ${engineLabel} engine is not installed in this copy of Novi. Reinstall Novi. (${error instanceof Error ? error.message : 'missing'})`); }
+  if (!existsSync(runtime.executable) || !statSync(runtime.executable).isFile()) throw new Error(`The ${engineLabel} engine is missing from this copy of Novi. Reinstall Novi.`);
   if (location.packaged) {
     const key = `${engine}:${location.resourcesPath}`;
     if (!verified.has(key)) verified.set(key, verify(engine, location.resourcesPath).catch((error) => { verified.delete(key); throw error; }));
     try { await verified.get(key); }
-    catch (error) { throw new Error(`The ${engine === 'codex' ? 'Codex' : 'Claude'} engine files are damaged (${error instanceof Error ? error.message : 'checksum mismatch'}). Reinstall Novi.`); }
+    catch (error) { throw new Error(`The ${engineLabel} engine files are damaged (${error instanceof Error ? error.message : 'checksum mismatch'}). Reinstall Novi.`); }
   }
   return runtime;
 }

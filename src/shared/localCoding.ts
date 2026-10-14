@@ -1,12 +1,13 @@
 // Shared contract for Local Coding: source roots, immutable project versions, proposals and task events.
 // The main process validates everything here; the renderer only displays it.
 
-export type EngineId = 'codex' | 'claude';
+export type EngineId = 'codex' | 'claude' | 'antigravity';
 
 /** Each engine runs only with a saved connection to its own provider's official endpoint. */
-export const ENGINES: ReadonlyArray<{ id: EngineId; label: string; provider: 'openai' | 'anthropic'; officialBaseUrl: string; connectionLabel: string }> = [
+export const ENGINES: ReadonlyArray<{ id: EngineId; label: string; provider: 'openai' | 'anthropic' | 'gemini'; officialBaseUrl: string; connectionLabel: string }> = [
   { id: 'codex', label: 'Codex', provider: 'openai', officialBaseUrl: 'https://api.openai.com/v1', connectionLabel: 'OpenAI' },
-  { id: 'claude', label: 'Claude', provider: 'anthropic', officialBaseUrl: 'https://api.anthropic.com/v1', connectionLabel: 'Anthropic' },
+  { id: 'claude', label: 'Claude Code', provider: 'anthropic', officialBaseUrl: 'https://api.anthropic.com/v1', connectionLabel: 'Anthropic' },
+  { id: 'antigravity', label: 'Antigravity (agy)', provider: 'gemini', officialBaseUrl: 'https://generativelanguage.googleapis.com/v1beta', connectionLabel: 'Gemini' },
 ];
 export const isEngineId = (value: unknown): value is EngineId => ENGINES.some((engine) => engine.id === value);
 
@@ -218,6 +219,7 @@ export interface Proposal {
   questions: string[];
   suggestedChecks: string[];
   changes: ChangeSummary[];
+  /** The engine that produced this proposal. */
   engine: EngineId;
   model: string;
   reasoningEffort: string | null;

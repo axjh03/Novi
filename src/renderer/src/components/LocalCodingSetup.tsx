@@ -154,7 +154,7 @@ export function LocalCodingSetup({ state, onStarted }: { state: Snapshot; onStar
       {preview.blocking && <p className="error" role="alert">{preview.blocking}</p>}
     </div>}
 
-    <div className="lc-readonly"><Lock size={14} aria-hidden="true" /><span><strong>Read-only.</strong> All code changes remain proposals. Files are captured into Novi; the agent reads them with read-only tools and sends what it reads to {choice.connection ? `${choice.connection.name} (${provider.connectionLabel})` : `your ${provider.connectionLabel} connection`}.</span></div>
+    <div className="lc-readonly"><Lock size={14} aria-hidden="true" /><span><strong>Read-only.</strong> All code changes remain proposals. Files are captured into Novi; the agent reads them with read-only tools and sends what it reads to {choice.connection ? `${choice.connection.name} (${provider.connectionLabel})` : `your ${provider.connectionLabel} connection`}.{choice.engine === 'antigravity' ? ' Antigravity (agy) does not support screenshots in headless mode.' : ''}</span></div>
     {error && <p className="error" role="alert">{error}</p>}
     <button type="button" className="primary lc-start" disabled={!canStart} onClick={() => void start()}>{busy === 'start' ? <Loader2 size={15} className="spin" /> : <Play size={15} />}{busy === 'start' ? 'Capturing files…' : 'Start session'}</button>
 

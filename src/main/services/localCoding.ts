@@ -12,6 +12,7 @@ import { LocalCodingStore, VersionReader, ancestry, describeConflict, entryKey, 
 import { ProposalInvalid, changedFiles, parseProposal, reviewFile, validateProposal } from './localCodingProposals';
 import { ClaudeAgent } from './codingAgents/claude';
 import { CodexAgent } from './codingAgents/codex';
+import { AntigravityAgent } from './codingAgents/antigravity';
 import type { RuntimeLocation } from './codingAgents/runtime';
 import { engineRuntime } from './codingAgents/runtime';
 import type { AgentImage, CodingAgent } from './codingAgents/types';
@@ -65,7 +66,11 @@ export class LocalCodingService {
     // Engine homes from a crash are private scratch space; start clean.
     rmSync(work, { recursive: true, force: true });
     mkdirSync(work, { recursive: true, mode: 0o700 });
-    this.agents = { codex: deps.agents?.codex ?? new CodexAgent(deps.location, work), claude: deps.agents?.claude ?? new ClaudeAgent(deps.location, work) };
+    this.agents = {
+      codex: deps.agents?.codex ?? new CodexAgent(deps.location, work),
+      claude: deps.agents?.claude ?? new ClaudeAgent(deps.location, work),
+      antigravity: deps.agents?.antigravity ?? new AntigravityAgent(deps.location, work),
+    };
   }
 
   private owner() { return this.deps.storage.current().id; }
@@ -99,7 +104,7 @@ export class LocalCodingService {
   }
 
   async listModels(engine: unknown, connectionId: unknown): Promise<EngineModel[]> {
-    if (!isEngineId(engine)) throw new UserError('Choose Codex or Claude.');
+    if (!isEngineId(engine)) throw new UserError('Choose Codex, Claude Code, or Antigravity.');
     const { connection, apiKey } = this.credential(engine, text(connectionId, 'connection', 100));
     const cacheKey = `${this.owner()}:${engine}:${connection.id}`;
     const cached = this.models.get(cacheKey);
@@ -124,7 +129,7 @@ export class LocalCodingService {
 
   /** Captures Local S0 for a confirmed selection and binds it to a new conversation. */
   async startSession(input: Record<string, unknown>, addConversation: (conversation: Conversation) => void): Promise<string> {
-    if (!isEngineId(input.engine)) throw new UserError('Choose Codex or Claude.');
+    if (!isEngineId(input.engine)) throw new UserError('Choose Codex, Claude Code, or Antigravity.');
     const owner = this.owner();
     const connectionId = text(input.connectionId, 'connection', 100), model = text(input.model, 'model', 200);
     this.credential(input.engine, connectionId);
@@ -169,7 +174,7 @@ export class LocalCodingService {
   }
 
   async updateEngine(projectId: unknown, input: Record<string, unknown>, conversations: Conversation[]): Promise<ProjectState> {
-    if (!isEngineId(input.engine)) throw new UserError('Choose Codex or Claude.');
+    if (!isEngineId(input.engine)) throw new UserError('Choose Codex, Claude Code, or Antigravity.');
     const meta = this.load(projectId);
     const connectionId = text(input.connectionId, 'connection', 100), model = text(input.model, 'model', 200);
     this.credential(input.engine, connectionId);
@@ -426,7 +431,7 @@ export class LocalCodingService {
           : reason instanceof Error && reason.message === 'timeout' ? 'This task took longer than 30 minutes and was stopped. Try a narrower request.'
           : error instanceof ProposalInvalid ? `The engine's answer could not be verified, so no iteration was created.\n${error.issues.slice(0, 8).map((issue) => `• ${issue}`).join('\n')}`
           : error instanceof UserError ? error.message
-          : error instanceof Error && /^(Codex|Claude|The Codex|The Claude)/.test(error.message) ? error.message
+          : error instanceof Error && /^(Codex|Claude|The Codex|The Claude|Antigravity|The Antigravity)/.test(error.message) ? error.message
           : 'The engine could not complete this request. Earlier iterations are unchanged; try again.';
       }
       emit({ type: 'progress', conversationId: conversation.id, messageId: assistant.id, localCoding: { ...result } });
