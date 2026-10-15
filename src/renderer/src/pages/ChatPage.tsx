@@ -230,7 +230,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
         selectedId={chat.selectedId}
         displayName={config.displayName}
         busy={sidebarBusy || syncingModel}
-        onNew={() => void endSession()}
+        onNew={() => setConfirmEnd(true)}
         onSelect={(id) => {
           if (id !== chat.selectedId) setComposerKey(key => key + 1);
           if (chat.conversations.find((item) => item.id === id)?.localCoding) setAppMode('local-coding');
@@ -404,8 +404,9 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
         </TrayPortal>
       )}
 
+      {/* Every way to end a session asks first; focus starts on Keep session and Escape keeps it. */}
+      {confirmEnd && <div className="session-confirm" role="alertdialog" aria-modal="true" aria-label="End context session" onKeyDown={(event) => { if (event.key === 'Escape' && !ending) setConfirmEnd(false); }}><div><h2>End this session?</h2><p>Your conversations and attachments stay saved. The temporary AI Context.md file will be removed; source folders stay in place.</p><button className="text-button" autoFocus disabled={ending} onClick={() => setConfirmEnd(false)}>Keep session</button><button className="danger-button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div></div>}
       {/* Delete dialog */}
-      {confirmEnd && <div className="session-confirm" role="alertdialog" aria-modal="true" aria-label="End context session"><div><h2>End this session?</h2><p>Your conversations and attachments stay saved. The temporary AI Context.md file will be removed; source folders stay in place.</p><button className="text-button" disabled={ending} onClick={() => setConfirmEnd(false)}>Keep session</button><button className="danger-button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div></div>}
       {deleting && (
         <dialog ref={deleteDialog} className="dialog" aria-labelledby="delete-title" onCancel={() => setDeleting(null)}>
           <h2 id="delete-title">Delete this conversation?</h2>

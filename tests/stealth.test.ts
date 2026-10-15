@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { createRequire } from 'node:module';
 import { StealthService } from '../src/main/services/stealth.ts';
+import { DEFAULT_TRANSPARENT_SHORTCUT } from '../src/shared/types.ts';
 
 test('StealthService manages transparent mode, content protection, and NumLock click-through', () => {
   let contentProtected = false;
@@ -161,4 +163,43 @@ test('a window opened while transparent mode is on joins the current state', () 
     stealth.applyWindowState(late);
     assert.deepEqual([late.state.protected, late.state.onTop, late.state.level, late.state.ignored], [true, true, 'screen-saver', on.clickThrough]);
   } finally { stealth.cleanup(); }
+});
+
+test('the state names the working hotkey that leaves transparent mode, and a failed change keeps the old one', () => {
+  const require = createRequire(import.meta.url);
+  const electronPath = require.resolve('electron'); require(electronPath);
+  const original = require.cache[electronPath]!.exports;
+  const registered = new Map<string, () => void>(), refused = new Set<string>();
+  require.cache[electronPath]!.exports = {
+    BrowserWindow: { getAllWindows: () => [] },
+    globalShortcut: {
+      register(key: string, callback: () => void) { if (refused.has(key) || registered.has(key)) return false; registered.set(key, callback); return true; },
+      unregister(key: string) { registered.delete(key); },
+      isRegistered: (key: string) => registered.has(key),
+      unregisterAll() { registered.clear(); },
+    },
+  };
+  const sent: any[] = [];
+  const win: any = { isDestroyed: () => false, setContentProtection() {}, setAlwaysOnTop() {}, setIgnoreMouseEvents() {}, webContents: { send: (_channel: string, data: any) => sent.push(data), getURL: () => '' } };
+  const stealth = new StealthService(() => win);
+  try {
+    assert.equal(stealth.getState().transparentShortcut, DEFAULT_TRANSPARENT_SHORTCUT);
+    registered.get(DEFAULT_TRANSPARENT_SHORTCUT)!();
+    assert.equal(stealth.getState().transparent, true, 'the hotkey turns transparent mode on');
+    registered.get(DEFAULT_TRANSPARENT_SHORTCUT)!();
+    assert.equal(stealth.getState().transparent, false, 'and off again');
+    stealth.setShortcuts({ transparent: 'Alt+F9' });
+    assert.equal(stealth.getState().transparentShortcut, 'Alt+F9');
+    assert.equal(sent.at(-1).transparentShortcut, 'Alt+F9', 'windows learn the new hotkey');
+    assert.equal(registered.get(DEFAULT_TRANSPARENT_SHORTCUT), undefined, 'the old hotkey no longer toggles transparency');
+    refused.add('Alt+F10');
+    stealth.setShortcuts({ transparent: 'Alt+F10' });
+    assert.equal(stealth.getState().transparentShortcut, 'Alt+F9', 'a hotkey that cannot be registered leaves the previous one working');
+    assert(registered.has('Alt+F9'));
+    registered.delete('Alt+F9');
+    assert.equal(stealth.getState().transparentShortcut, null, 'without a working hotkey the button may turn transparent mode off');
+  } finally {
+    stealth.cleanup();
+    require.cache[electronPath]!.exports = original;
+  }
 });

@@ -49,7 +49,7 @@ test('appearance updates persist, reach other windows, and restore the manual pa
   const originals = Object.fromEntries(['localStorage', 'window', 'document'].map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   Object.defineProperties(globalThis, {
     localStorage: { configurable: true, value: { getItem: (key: string) => saved.get(key) ?? null, setItem: (key: string, value: string) => saved.set(key, value) } },
-    window: { configurable: true, value: new EventTarget() },
+    window: { configurable: true, value: Object.assign(new EventTarget(), { novi: { launchId: 'launch-1' } }) },
     document: { configurable: true, value: { documentElement: { style: { setProperty: (key: string, value: string) => styles.set(key, value) } } } },
   });
   const stop = subscribeAppearance(syncAppearance);
@@ -66,13 +66,23 @@ test('appearance updates persist, reach other windows, and restore the manual pa
     updateAppearance({ smart: false });
     assert.equal(styles.get('--transparent-bg'), '#ffffff');
     assert.equal(styles.get('--transparent-opacity'), '60%');
-    saved.set('novi_appearance', JSON.stringify({ paletteId: 'forest', readingSize: 120 }));
+    saved.set('novi_appearance', JSON.stringify({ paletteId: 'forest', readingSize: 120, readingLaunch: 'launch-1' }));
     window.dispatchEvent(Object.assign(new Event('storage'), { key: 'novi_appearance' }));
     assert.equal(styles.get('--transparent-bg'), '#0b261b');
     assert.equal(styles.get('--reading-scale'), '1.2');
     stop();
     updateAppearance({ readingSize: 100 });
     assert.equal(styles.get('--reading-scale'), '1.2', 'unsubscribed windows stop receiving updates');
+    // Text size lasts for one app launch; colors and opacity are remembered.
+    updateAppearance({ readingSize: 160 });
+    assert.equal(readAppearance().readingSize, 160);
+    (window as any).novi.launchId = 'launch-2';
+    assert.deepEqual([readAppearance().readingSize, readAppearance().paletteId], [100, 'forest']);
+    updateAppearance({ opacity: 45 });
+    assert.equal(JSON.parse(saved.get('novi_appearance')!).readingLaunch, 'launch-2');
+    assert.deepEqual([readAppearance().readingSize, readAppearance().opacity], [100, 45]);
+    saved.set('novi_appearance', JSON.stringify({ paletteId: 'ocean', readingSize: 180 }));
+    assert.equal(readAppearance().readingSize, 100, 'sizes saved before this change also reset');
   } finally {
     stop();
     for (const [key, descriptor] of Object.entries(originals)) {

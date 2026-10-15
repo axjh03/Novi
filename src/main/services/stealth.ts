@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 
 const req = typeof require === 'function' ? require : createRequire(import.meta.url);
 
-function getGlobalShortcut(): { register: (key: string, cb: () => void) => boolean; unregister: (key: string) => void } | null {
+function getGlobalShortcut(): { register: (key: string, cb: () => void) => boolean; unregister: (key: string) => void; isRegistered?: (key: string) => boolean } | null {
   try {
     return req('electron').globalShortcut;
   } catch {
@@ -19,6 +19,8 @@ export interface StealthState {
   numLock: boolean;
   clickThrough: boolean;
   clickThroughShortcut: string;
+  /** The working hotkey that turns transparent mode off, or null when it could not be registered. */
+  transparentShortcut: string | null;
 }
 
 export class StealthService {
@@ -151,6 +153,7 @@ export class StealthService {
       numLock: this.numLock,
       clickThrough: this.clickThrough,
       clickThroughShortcut: this.clickThroughShortcut,
+      transparentShortcut: this.activeTransparentShortcut(),
     };
   }
 
@@ -350,17 +353,25 @@ export class StealthService {
     return [...windows];
   }
 
+  /** Transparent mode is left only with its hotkey, so the UI may lock the button only while that hotkey works. */
+  private activeTransparentShortcut(): string | null {
+    try { return getGlobalShortcut()?.isRegistered?.(this.transparentShortcut) ? this.transparentShortcut : null; }
+    catch { return null; }
+  }
+
   setShortcuts(shortcuts: { coding?: string; behavioral?: string; screenshot?: string; audio?: string; transparent?: string }) {
     const globalShortcuts = getGlobalShortcut();
     if (!globalShortcuts) return;
 
     if (shortcuts.transparent && shortcuts.transparent !== this.transparentShortcut) {
-      try { globalShortcuts.unregister(this.transparentShortcut); } catch {}
-      try {
-        if (globalShortcuts.register(shortcuts.transparent, () => this.toggleTransparent())) {
-          this.transparentShortcut = shortcuts.transparent;
-        }
-      } catch {}
+      const previous = this.transparentShortcut;
+      try { globalShortcuts.unregister(previous); } catch {}
+      let registered = false;
+      try { registered = globalShortcuts.register(shortcuts.transparent, () => this.toggleTransparent()); } catch {}
+      if (registered) this.transparentShortcut = shortcuts.transparent;
+      // Keep the previous hotkey working rather than leave transparent mode without one.
+      else try { globalShortcuts.register(previous, () => this.toggleTransparent()); } catch {}
+      this.broadcastState();
     }
     if (shortcuts.coding && shortcuts.coding !== this.codingModeShortcut) {
       try { globalShortcuts.unregister(this.codingModeShortcut); } catch {}

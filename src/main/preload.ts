@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { AccessStatus, ChatEvent, CodeViewerBlock, NoviAPI } from '../shared/types';
 
 const api: NoviAPI = {
+  launchId: String(ipcRenderer.sendSync('launch-id') ?? ''),
   getAppMask: () => ipcRenderer.invoke('app-mask-get'),
   saveAppMask: (settings) => ipcRenderer.invoke('app-mask-save', settings),
   importAppIcon: () => ipcRenderer.invoke('app-mask-import-icon'),

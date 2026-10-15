@@ -1813,6 +1813,10 @@ html.overlay-window #root {
   color: var(--accent);
   font-weight: 600;
 }
+/* Transparent mode is left with its hotkey; the button only names it. */
+.stealth-toggle-btn.locked, .stealth-toggle-btn.locked:hover { cursor: default; background: var(--selected); color: var(--accent); }
+.titlebar-btn:disabled { opacity: 0.4; cursor: default; }
+.titlebar-btn:disabled:hover { background: transparent; color: var(--muted); }
 
 .stealth-icon-on {
   color: var(--accent);
@@ -3330,7 +3334,7 @@ html.novi-tray .chat-mode-tabs .mode-tab-btn span { display: inline; }
 }
 @media (max-width: 620px) {
   /* Visually hidden, so the buttons keep their names for assistive tech; titles still show on hover. */
-  .app-titlebar .stealth-toggle-btn > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .app-titlebar .stealth-toggle-btn:not(.locked) > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .app-titlebar .titlebar-center { gap: 6px; padding: 0 6px; }
 }
 

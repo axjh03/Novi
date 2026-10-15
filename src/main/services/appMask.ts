@@ -41,7 +41,7 @@ export class AppMask {
       if (this.settings.enabled) { event.preventDefault(); window.setTitle(this.settings.name); }
     });
     window.on('closed', () => { this.titles.delete(window); this.minimizable.delete(window); });
-    // Some window managers ignore setMinimizable; restore if they minimize a hidden-mode window anyway.
+    // Some window managers ignore setMinimizable; restore if they minimize a transparent window anyway.
     window.on('minimize', () => { if (this.preventsMinimize) window.restore(); });
     window.once('ready-to-show', () => this.applyWindow(window));
     window.on('show', () => { if (this.settings.enabled) this.electron.app.dock?.hide(); });
@@ -61,7 +61,8 @@ export class AppMask {
     }
   }
 
-  get preventsMinimize() { return this.settings.enabled || this.transparent; }
+  // A masked window has no taskbar entry; opening Novi again restores it (see second-instance in main.ts).
+  get preventsMinimize() { return this.transparent; }
 
   setTransparent(enabled: boolean) {
     this.transparent = enabled;

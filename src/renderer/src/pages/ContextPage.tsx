@@ -8,6 +8,7 @@ import { SettingsPage } from './SettingsPage';
 import { SessionPreflight } from '../components/SessionPreflight';
 import { BehavioralModeHUD } from '../components/BehavioralModeHUD';
 import { errorText, unwrap } from '../services/api';
+import { continueFromGetReady, getReadyContinued } from '../services/readiness';
 import { SESSION_ROLES, presetFields, presetMode } from '../context/sessionPresets';
 
 import { useAppMode } from '../context/AppModeContext';
@@ -19,7 +20,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
   const { setAppMode, behavioralFramework, setBehavioralFramework } = useAppMode();
   const [startMode, setStartMode] = useState<AppMode | null>(null);
   const [settings, setSettings] = useState(false);
-  const [preflightDone, setPreflightDone] = useState(false);
+  const [preflightDone, setPreflightDone] = useState(getReadyContinued);
   const [section, setSection] = useState<Section>('model');
   const [folders, setFolders] = useState<ContextFolder[]>([]);
   const [purpose, setPurpose] = useState('');
@@ -143,7 +144,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
   }
 
   if (settings) return <SettingsPage state={state} onSaved={onSaved} onBack={() => setSettings(false)} onSignOut={onSignOut} onCleared={() => {}} />;
-  if (!preflightDone) return <SessionPreflight state={state} onSaved={onSaved} onContinue={() => setPreflightDone(true)} onSettings={() => setSettings(true)} onFolders={setFolders} />;
+  if (!preflightDone) return <SessionPreflight state={state} onSaved={onSaved} onContinue={() => { continueFromGetReady(); setPreflightDone(true); }} onSettings={() => setSettings(true)} onFolders={setFolders} />;
   return <main className="context-page">
     <header className="context-header">
       <div className="context-header-identity"><Brand /><span>Session setup</span></div>

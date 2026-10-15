@@ -16,6 +16,11 @@ let latest: Readiness | null = null;
 
 export function readReadiness(): Readiness | null { return latest; }
 
+// Get ready shows once per app launch; ending a session returns straight to session setup.
+let continued = false;
+export function getReadyContinued(): boolean { return continued; }
+export function continueFromGetReady() { continued = true; }
+
 export function recordReadiness(check: ReadinessCheck, result: ReadinessResult): Readiness {
   latest = { ...latest, checkedAt: Date.now(), results: { ...latest?.results, [check]: result } };
   return latest;

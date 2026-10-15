@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { SESSION_MODES } from '../src/shared/sessionModes';
 import { PRACTICE_IDLE, PRACTICE_QUESTIONS, practiceReducer, practiceStepNumber, type PracticeEvent, type PracticeState } from '../src/renderer/src/services/practice';
-import { READINESS_CHECKS, allReady, markReadinessRun, readReadiness, recordReadiness } from '../src/renderer/src/services/readiness';
+import { READINESS_CHECKS, allReady, continueFromGetReady, getReadyContinued, markReadinessRun, readReadiness, recordReadiness } from '../src/renderer/src/services/readiness';
 import { settingsInput } from '../src/main/services/validation';
 
 const run = (events: PracticeEvent[], from: PracticeState = PRACTICE_IDLE) => events.reduce(practiceReducer, from);
@@ -67,4 +67,10 @@ test('settings keep transparentOnStart unless it is sent', () => {
   assert.equal(settingsInput({ ...base, transparentOnStart: true }).transparentOnStart, true);
   assert.equal(settingsInput({ ...base, transparentOnStart: false }).transparentOnStart, false);
   assert.equal('transparentOnStart' in settingsInput({ ...base, transparentOnStart: 'yes' }), false);
+});
+
+test('Get ready shows once per app launch, then ending a session returns to session setup', () => {
+  assert.equal(getReadyContinued(), false);
+  continueFromGetReady();
+  assert.equal(getReadyContinued(), true);
 });

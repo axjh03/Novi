@@ -35,6 +35,7 @@ export function useStealthState() {
     numLock: false,
     clickThrough: false,
     clickThroughShortcut: 'Alt+Shift+I',
+    transparentShortcut: null,
   });
 
   useEffect(() => {
@@ -114,6 +115,7 @@ export function useStealth() {
     numLock: state.numLock,
     clickThrough: state.clickThrough,
     clickThroughShortcut: state.clickThroughShortcut,
+    transparentShortcut: state.transparentShortcut,
     toggleTransparent,
     setTransparent,
   };

@@ -39,6 +39,9 @@ export function registerIPC(
   mask?: AppMask,
 ) {
   const permissionsService = new PermissionService();
+  // Identifies this app run; renderers keep per-launch preferences (such as text size) under it.
+  const launchId = randomUUID();
+  ipcMain.on('launch-id', (event) => { event.returnValue = launchId; });
   const commandService = new AppCommandService({
     directory: process.platform === 'win32' ? join(app.getPath('appData'), 'Novi', 'bin') : join(app.getPath('home'), '.local', 'bin'),
     executable: process.env.APPIMAGE || process.execPath, home: app.getPath('home'), windows: process.platform === 'win32', packaged: app.isPackaged,
@@ -489,9 +492,12 @@ export function registerIPC(
     get().overlay.forwardToAllWindows(value as any);
   });
   handle('get-stealth-state', () => get().stealth.getState());
-  handle('toggle-transparent', () => get().stealth.toggleTransparent());
+  // Buttons can turn transparent mode on; while its hotkey works, only the hotkey turns it off.
+  const lockedTransparent = () => { const state = get().stealth.getState(); return state.transparent && state.transparentShortcut ? state : null; };
+  handle('toggle-transparent', () => lockedTransparent() ?? get().stealth.toggleTransparent());
   handle('set-transparent', (value) => {
     const v = object(value);
+    if (!v.enabled) { const locked = lockedTransparent(); if (locked) return locked; }
     return get().stealth.setTransparent(Boolean(v.enabled));
   });
   handle('minimize-window', (_value, event) => {

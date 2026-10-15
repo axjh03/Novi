@@ -8,7 +8,9 @@ import logo from '../assets/logo.svg';
 import { PALETTES, MIN_READING_SIZE, MAX_READING_SIZE } from '../../../shared/appearance';
 
 export function TitleBar({ sessionActive = false }: { sessionActive?: boolean }) {
-  const { transparent, clickThrough, clickThroughShortcut, toggleTransparent } = useStealth();
+  const { transparent, clickThrough, clickThroughShortcut, transparentShortcut, toggleTransparent } = useStealth();
+  // While its hotkey works, transparent mode is left only with that hotkey; the button shows which one.
+  const transparencyLocked = transparent && Boolean(transparentShortcut);
   const { transparentOpacity, setTransparentOpacity, paletteId, setPalette, smartPaletteEnabled, setSmartPaletteEnabled, smartPaletteStatus, readingSize, changeReadingSize } = useAppMode();
   const [maximized, setMaximized] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
@@ -40,11 +42,11 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
             </div>
             <button type="button" className="stealth-toggle-btn" aria-label="Reset all window sizes" title="Reset all window sizes"
               onClick={() => void unwrap(window.novi.resetWorkspaceSizes()).catch(console.error)}><Maximize2 size={14} /></button>
-            <button type="button" className={`stealth-toggle-btn ${transparent ? 'active' : ''}`}
-              onClick={() => void toggleTransparent()} aria-pressed={transparent}
-              title={transparent ? 'Turn off transparent window' : 'Turn on transparent window'}>
+            <button type="button" className={`stealth-toggle-btn ${transparent ? 'active' : ''} ${transparencyLocked ? 'locked' : ''}`}
+              onClick={() => { if (!transparencyLocked) void toggleTransparent(); }} aria-pressed={transparent} aria-disabled={transparencyLocked || undefined}
+              title={transparencyLocked ? `Press ${transparentShortcut} to turn off transparent mode` : transparent ? 'Turn off transparent window' : 'Turn on transparent window'}>
               {transparent ? <Eye size={14} /> : <EyeOff size={14} />}
-              <span>{transparent ? 'Transparent' : 'Transparency'}</span>
+              <span>{transparencyLocked ? `Transparency (${transparentShortcut})` : transparent ? 'Transparent' : 'Transparency'}</span>
             </button>
           {transparent && (
             <details className="titlebar-appearance">
@@ -80,7 +82,8 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
       </button>
 
       <div className="titlebar-controls">
-        <button type="button" className="titlebar-btn minimize" aria-label="Minimize" title="Minimize"
+        <button type="button" className="titlebar-btn minimize" aria-label="Minimize" disabled={transparent}
+          title={transparent ? 'Turn off transparent mode to minimize' : 'Minimize'}
           onClick={() => void unwrap(window.novi.minimizeWindow()).catch(console.error)}><Minus size={14} /></button>
         <button type="button" className="titlebar-btn maximize" aria-label={maximized ? 'Restore' : 'Maximize'} title={maximized ? 'Restore' : 'Maximize'}
           onClick={() => void unwrap(window.novi.maximizeWindow()).then((value) => setMaximized(Boolean(value))).catch(console.error)}>

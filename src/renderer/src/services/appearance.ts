@@ -3,15 +3,20 @@ import { luminance, normalizeAppearance, PALETTES, type Appearance } from '../..
 const KEY = 'novi_appearance';
 const CHANGE = 'novi-appearance-changed';
 
+// Text size lasts for one app launch: a size saved during an earlier launch falls back to the default.
+const currentLaunch = () => (typeof window !== 'undefined' && window.novi?.launchId) || '';
+
 export function readAppearance(): Appearance {
   try {
     const saved = localStorage.getItem(KEY);
-    return normalizeAppearance(saved ? JSON.parse(saved) ?? {} : { opacity: Number(localStorage.getItem('novi_transparent_opacity') || 35) });
+    const value = saved ? JSON.parse(saved) ?? {} : { opacity: Number(localStorage.getItem('novi_transparent_opacity') || 35) };
+    if (value.readingLaunch !== currentLaunch()) delete value.readingSize;
+    return normalizeAppearance(value);
   } catch { return normalizeAppearance(); }
 }
 
 export function updateAppearance(patch: Partial<Appearance>) {
-  localStorage.setItem(KEY, JSON.stringify(normalizeAppearance({ ...readAppearance(), ...patch })));
+  localStorage.setItem(KEY, JSON.stringify({ ...normalizeAppearance({ ...readAppearance(), ...patch }), readingLaunch: currentLaunch() }));
   window.dispatchEvent(new Event(CHANGE));
 }
 

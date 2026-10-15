@@ -162,6 +162,8 @@ export interface StealthState {
   numLock: boolean;
   clickThrough: boolean;
   clickThroughShortcut: string;
+  /** The working hotkey that turns transparent mode off, or null when it could not be registered. */
+  transparentShortcut: string | null;
 }
 
 export interface AppMaskSettings { enabled: boolean; name: string; icon: string }
@@ -174,6 +176,8 @@ export interface AppCommandStatus {
 }
 
 export interface NoviAPI {
+  /** Changes each time the app starts. */
+  launchId: string;
   getAppMask(): Promise<Result<AppMaskSettings>>;
   saveAppMask(settings: AppMaskSettings): Promise<Result<AppMaskSettings>>;
   importAppIcon(): Promise<Result<{ name: string; icon: string } | null>>;

@@ -47,9 +47,10 @@ test('mask persists across launch, covers new windows and title updates, and res
     const settings = { enabled: true, name: 'Notes', icon: 'data:image/png;base64,aGVsbG8=' };
     mask.save(settings);
     assert.equal(dockHidden, true);
-    assert.equal(main.minimizable, false);
+    assert.equal(main.minimizable, true, 'masked windows can still be minimized');
     main.minimized = true; main.emit('minimize');
-    assert.equal(main.minimized, false, 'OS minimize attempts are restored while masked');
+    assert.equal(main.minimized, true);
+    main.minimized = false;
     for (const win of windows) assert.deepEqual([win.title, win.skipped], ['Notes', true]);
     let prevented = false;
     viewer.emit('page-title-updated', { preventDefault: () => { prevented = true; } }, 'Updated code');
@@ -78,7 +79,7 @@ test('mask persists across launch, covers new windows and title updates, and res
     assert.deepEqual([main.minimizable, main.minimized], [false, false]);
     mask.save(settings);
     mask.setTransparent(false);
-    assert.equal(main.minimizable, false, 'leaving transparent mode cannot undo the mask minimize guard');
+    assert.equal(main.minimizable, true, 'leaving transparent mode allows minimizing again while masked');
     mask.save({ ...settings, enabled: false });
     assert.equal(main.minimizable, true);
   } finally { rmSync(directory, { recursive: true, force: true }); }
