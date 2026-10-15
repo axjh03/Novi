@@ -1,23 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, ArrowUpRight, AudioLines, Code2, Eye, FileText, FolderOpen, Layers, Network, ScanLine, Smartphone } from 'lucide-react';
+import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import PublicNavbar from './PublicNavbar';
 import SiteFooter from './SiteFooter';
 import { JOURNEY, PLANS } from '@/lib/site';
+import { FEATURES } from '@/lib/features';
 import styles from './PublicLanding.module.css';
 
-const features = [
-  { icon: FileText, title: 'Answers with your context', text: 'Bring your résumé, the job description, and project notes into the conversation. Prepare introductions, explain your experience, and work through follow-ups with the details that matter.', label: 'Every plan' },
-  { icon: AudioLines, title: 'Listening & transcription', text: 'Turn microphone or system audio into text so you can work with the question as it is asked. Choose local transcription or a supported provider to fit your setup.', label: 'Every plan' },
-  { icon: ScanLine, title: 'Screenshot understanding', text: 'Capture a question, diagram, or error from your screen and attach it to the conversation. Ask about the exact problem in front of you without retyping it.', label: 'Every plan' },
-  { icon: Code2, title: 'A dedicated coding assistant', text: 'Work through algorithms, SQL, and technical problems with readable code, explanations, complexity analysis, and edge cases. Continue the conversation as the requirements change.', label: 'Pro and above' },
-  { icon: Network, title: 'System design, explained', text: 'Explore requirements, architecture, data flow, and failure scenarios. Turn the conversation into a diagram and understand the trade-offs behind each design choice.', label: 'Pro and above' },
-  { icon: FolderOpen, title: 'Your local code, in context', text: 'Select a project folder and ask an agent to read and search the relevant files. Trace a bug, understand a dependency, or review a proposed change. Local Coding is read-only; it does not apply or run changes.', label: 'Pro and above' },
-  { icon: Layers, title: 'A workspace that adapts', text: 'Adjust the desktop overlay’s transparency and click-through behavior to keep your work visible. Position the assistant where it is useful alongside your other applications.', label: 'Every plan' },
-  { icon: Eye, title: 'Gaze-aware answers', text: 'Use camera-based eye tracking to bring the answer HUD closer to where you look. Calibrate it for your camera, lighting, and position before a session.', label: 'Every plan' },
-  { icon: Smartphone, title: 'A connected phone companion', text: 'Pair your phone with the desktop session to ask questions, capture the screen, and scroll answers remotely. Keep session controls within reach on a second screen.', label: 'Every plan' },
-];
+
 
 export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
   return (
@@ -66,13 +57,14 @@ export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
         <section className={styles.features} id="features" aria-labelledby="features-title">
           <div className={styles.sectionHeading}><div><span className={styles.eyebrow}>THE TOOLKIT</span><h2 id="features-title">Purposeful features.<br />Practical help.</h2></div><p>From the first introduction to a deeper technical discussion, choose the tools that fit the task.</p></div>
           <div className={styles.featureGrid}>
-            {features.map(({ icon: Icon, title, text, label }) => (
+            {FEATURES.slice(0, 9).map(({ icon: Icon, title, text, label }) => (
               <article className={styles.feature} key={title}>
                 <Icon size={24} strokeWidth={1.5} aria-hidden="true" />
                 <h3>{title}</h3><p>{text}</p><span>{label}</span>
               </article>
             ))}
           </div>
+          <div className={styles.featureLinks}><Link className={styles.textLink} href="/features">Explore all {FEATURES.length} features <ArrowRight size={17} aria-hidden="true" /></Link><Link className={styles.textLink} href="/features#compare">Novi vs. Interview Coder &amp; Cluely <ArrowUpRight size={17} aria-hidden="true" /></Link></div>
         </section>
 
         <section className={styles.workflow} aria-labelledby="workflow-title">

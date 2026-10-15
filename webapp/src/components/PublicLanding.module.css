@@ -39,6 +39,13 @@
 .feature h3 { font-size:18px; font-weight:600; letter-spacing:-.025em; }
 .feature p { color:var(--muted); font-size:14px; line-height:1.8; margin:13px 0 24px; }
 .feature>span { margin-top:auto; color:var(--accent); font-size:11px; font-weight:600; }
+.feature { transition:background .2s; }
+.feature>svg { transition:transform .25s; }
+.feature:hover { background:#f2f6ed; }
+.feature:hover>svg { transform:translateY(-5px) rotate(-8deg); }
+.featureLinks { display:flex; flex-wrap:wrap; justify-content:space-between; gap:16px 24px; margin-top:26px; }
+.featureLinks a { min-height:44px; }
+@media(prefers-reduced-motion:reduce) { .feature,.feature>svg { transition:none; } .feature:hover>svg { transform:none; } }
 .workflow { padding-top:20px; }
 .steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:36px; padding:0; margin:0; list-style:none; }
 .steps li { border-top:1px solid var(--line); padding-top:25px; }

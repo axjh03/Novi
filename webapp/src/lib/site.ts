@@ -39,6 +39,7 @@ export const PLANS: Record<PlanId, { name: string; price: string; unit: string; 
 export const isPlanId = (value: unknown): value is PlanId => typeof value === 'string' && Object.hasOwn(PLANS, value);
 
 export const SITE_LINKS = [
+  { id: 'features', href: '/features', label: 'Features' },
   { id: 'how-it-works', href: '/how-it-works', label: 'How it works' },
   { id: 'download', href: '/download', label: 'Download' },
   { id: 'setup-guide', href: '/api-keys', label: 'Setup guide' },
