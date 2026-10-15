@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowDown, ArrowUpRight, Banknote, Check, Gift, Link2, Users } from 'lucide-react';
+import { ArrowDown, ArrowUpRight, Banknote, Link2, Users } from 'lucide-react';
 import PublicNavbar from '@/components/PublicNavbar';
 import SiteFooter from '@/components/SiteFooter';
 import { mailto, PLANS } from '@/lib/site';
@@ -19,9 +19,10 @@ export default function ReferralPage() {
     <PublicNavbar active="referral" />
     <main className={styles.main}>
       <section className={styles.hero} aria-labelledby="referral-title">
-        <div><span className={styles.eyebrow}>THE NOVI REFERRAL PROGRAM</span><h1 id="referral-title">Good friends.<br /><em>Great returns.</em></h1><p>Bring us a friend. When they buy a plan through your referral code or link, you get <strong>50% of what they pay</strong>—cash credited to your bank account.</p><div className={styles.actions}><a className={styles.primary} href={join}>Get my referral code <ArrowUpRight size={17} /></a><a className={styles.secondary} href="#rewards">Show me the rewards <ArrowDown size={15} /></a></div><span className={styles.tagline}>Bhaichara on Top 🤝</span></div>
-        <div className={styles.rewardCard}><div className={styles.cardTop}><span><Gift size={17} /> A LITTLE SOMETHING FOR YOU</span><span className={styles.stamp}>50 / 50</span></div><div className={styles.rewardNumber}>50<span>%</span></div><p>of your friend’s plan purchase.<br /><strong>Straight to your bank account.</strong></p><div className={styles.receipt}><span>Your friend picks Pro</span><strong>{PLANS.pro.price}</strong><span>Your referral reward</span><strong>${(Number(PLANS.pro.price.slice(1)) / 2).toFixed(2)}</strong></div><div className={styles.cardBottom}><Check size={15} />Real money. Good company.</div></div>
+        <div><span className={styles.eyebrow}>THE NOVI REFERRAL PROGRAM</span><h1 id="referral-title">Bhaichara<br /><em>on Top.</em></h1><p>Bring us a friend. When they buy a plan through your referral code or link, you get <strong>50% of what they pay</strong>—cash credited to your bank account.</p><div className={styles.actions}><a className={styles.primary} href={join}>Get my referral code <ArrowUpRight size={17} /></a><a className={styles.secondary} href="#rewards">Show me the rewards <ArrowDown size={15} /></a></div><span className={styles.tagline}>Bhaichara on Top 🤝</span></div>
+
       </section>
+      <ReferralGif />
 
       <section className={styles.how} aria-labelledby="how-title"><div className={styles.sectionHeading}><span className={styles.eyebrow}>THREE STEPS. ONE GOOD INTRODUCTION.</span><h2 id="how-title">You make the introduction.<br />We share the upside.</h2></div><div className={styles.steps}>
         <article><span className={styles.stepIcon}><Link2 size={23} /></span><small>01 / SHARE</small><h3>Send your code or link.</h3><p>Ask our team for your personal referral code and link. Send it to that friend who could use a little interview backup.</p></article>
@@ -35,7 +36,7 @@ export default function ReferralPage() {
 
       <section className={styles.faq} aria-labelledby="faq-title"><h2 id="faq-title">Before you text the group chat.</h2><details><summary>How do I get my referral code?</summary><p><a href={join}>Email the Novi team</a> to get your code and shareable link. We’ll explain the payout process when we set you up.</p></details><details><summary>How does my friend give me credit?</summary><p>They can follow your referral link or enter your code in the referral field on the <Link href="/get-access">access request page</Link>. The code is included in the email they send to our team.</p></details><details><summary>Is this store credit?</summary><p>No. Your reward is cash paid into your bank account. Our team confirms the referral and arranges the payout after the purchase.</p></details><details><summary>Does Lifetime count too?</summary><p>Yes. A {PLANS.lifetime.price} Lifetime purchase earns you ${(Number(PLANS.lifetime.price.slice(1)) / 2).toFixed(2)}. The same 50% calculation applies to every plan.</p></details></section>
 
-      <section className={styles.closing} aria-labelledby="closing-title"><span className={styles.eyebrow}>ONE LINK. ONE FRIEND. A LITTLE LOVE.</span><h2 id="closing-title">Help a brother out.</h2><p>Your friend’s next chapter could start with your message.</p><a className={styles.primary} href={join}>Let’s make it a referral <ArrowUpRight size={17} /></a><ReferralGif /></section>
+      <section className={styles.closing} aria-labelledby="closing-title"><span className={styles.eyebrow}>ONE LINK. ONE FRIEND. A LITTLE LOVE.</span><h2 id="closing-title">Help a brother out.</h2><p>Your friend’s next chapter could start with your message.</p><a className={styles.primary} href={join}>Let’s make it a referral <ArrowUpRight size={17} /></a></section>
     </main><SiteFooter />
   </div>;
 }

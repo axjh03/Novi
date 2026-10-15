@@ -27,7 +27,7 @@ export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
         </section>
 
         <section className={styles.belsonQuote} aria-label="Novi parody quote from Jian Yang">
-          <a className={styles.belsonPortrait} href="https://www.scmp.com/abacus/culture/article/3036633/chinese-fans-love-silicon-valleys-satire-chinas-tech-industry" target="_blank" rel="noreferrer" aria-label="View the South China Morning Post article about Jian-Yang">
+          <div className={styles.belsonPortrait}>
             <img
               src="https://siliconvalleyism.com/images/chinese-markets.jpg"
               alt="Jian-Yang from Silicon Valley standing by a whiteboard"
@@ -38,14 +38,13 @@ export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
               decoding="async"
             />
             <span>VERY LEGAL. VERY GOOD.</span>
-          </a>
+          </div>
           <figure className={styles.belsonWords}>
             <span className={styles.quoteMark} aria-hidden="true">“</span>
             <blockquote>
               <p>“Herro. I am Jian-Yang. CEO of Novi. You spend four year learning computah science. Interviewah ask you reverse binary twee. You shit your pants. Very sad. So I make Novi. AI risten, AI write code, you just nod head like fucking genius. Google hire you. You make two hundwed thousand dollah. I make sixteen dollah. Six month later, you get fired. Not my problem. No refund. Fuck ReetCode.”</p>
             </blockquote>
             <figcaption><strong>Jian Yang</strong><span>CEO of Novi · <cite>Silicon Valley</cite> parody</span></figcaption>
-            <a className={styles.imageCredit} href="https://siliconvalleyism.com/silicon-valley-image.php?id=648" target="_blank" rel="noreferrer">Image: Silicon Valleyism <ArrowUpRight size={13} aria-hidden="true" /></a><a className={styles.imageCredit} href="https://www.scmp.com/abacus/culture/article/3036633/chinese-fans-love-silicon-valleys-satire-chinas-tech-industry" target="_blank" rel="noreferrer">Read about Jian-Yang: South China Morning Post <ArrowUpRight size={13} aria-hidden="true" /></a>
           </figure>
         </section>
 
