@@ -15,7 +15,7 @@ test('access lifecycle: hierarchy, isolation, permanent licenses and exclusive d
   process.env.ACCESS_ENCRYPTION_KEY = randomBytes(32).toString('hex');
   execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], { cwd: resolve('.'), env: process.env, stdio: 'pipe' });
   const { prisma: db } = await import('../src/lib/db');
-  const { login, state, activity, mutate, desktop, authenticate, LEASE_MS } = await import('../src/lib/access');
+  const { login, state, revealCredential, activity, mutate, desktop, authenticate, LEASE_MS } = await import('../src/lib/access');
   const secret = ' correct horse battery staple ';
   const req = (token: string, method = 'POST', desktop = false) => new Request('http://localhost:3000/api/control', { method, headers: desktop ? { authorization: `Bearer ${token}` } : { cookie: `astra_session=${token}` } });
   const sign = (username: string, audience = 'portal', deviceId = 'device-one') => login({ username, password: secret, audience, deviceId, deviceName: deviceId }, new Request('http://localhost:3000/login', { headers: { 'x-forwarded-for': '203.0.113.42, 10.0.0.1' } }));
@@ -61,7 +61,14 @@ test('access lifecycle: hierarchy, isolation, permanent licenses and exclusive d
     assert.equal((await db.managedCredential.findUniqueOrThrow({ where: { id: key.id } })).encryptedSecret, key.encryptedSecret);
     assert.equal(JSON.stringify(await state(req(s, 'GET'))).includes('private-key-one'), false);
     await assert.rejects(mutate(req(sub, 'DELETE'), 'credentials', key.id, {}), /not found/);
+    assert.equal((await revealCredential(req(s), key.id)).secret, 'private-key-one');
+    assert.equal((await revealCredential(req(a), key.id)).secret, 'private-key-one');
+    await assert.rejects(revealCredential(req(sub), key.id), /not found/);
+    await assert.rejects(revealCredential(new Request('http://localhost:3000/api/control', { method: 'POST', headers: { cookie: `astra_session=${s}`, origin: 'https://untrusted.example' } }), key.id), /origin/);
+    assert.ok((await state(req(a, 'GET'))).accounts.find(x => x.id === standalone.id)?.activity.some(item => item.audience === 'portal' && item.lastSeenAt));
+
     const d = (await sign('desktop', 'desktop')).token;
+    await assert.rejects(revealCredential(req(d, 'POST', true), key.id), /management portal/);
     assert.equal((await state(req(a, 'GET'))).sessions.find(x => x.accountId === account.id)?.ipAddress, '203.0.113.42');
     const heartbeat = new Request('http://localhost:3000/api/control/desktop', { headers: { authorization: `Bearer ${d}`, 'x-real-ip': '198.51.100.24' } });
     assert.equal((await desktop(heartbeat)).credentials[0].apiKey, 'private-key-one');

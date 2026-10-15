@@ -15,26 +15,24 @@ export const JOURNEY = [
 ] as const;
 
 export const CORE_FEATURES = [
-  'AI chat, recruiter, technical, and behavioral modes',
+  'Behavioral interview and technical screen modes',
   'Résumé, job description, and document context',
   'Screenshots and audio transcription',
   'Transparent overlay and click-through controls',
-  'Eye tracking and phone companion',
   'Local conversation history and your choice of AI provider',
 ] as const;
-
 export const ADVANCED_FEATURES = [
+  'AI chat and recruiter call modes',
   'Coding assistant with explanations and edge cases',
   'System design guidance and architecture diagrams',
-  'Local code context: read and search your project files',
+  'Camera-based eye tracking',
 ] as const;
-
-export type PlanId = 'essential' | 'pro' | 'plus' | 'lifetime';
+export type PlanId = 'core' | 'pro' | 'ultimate' | 'lifetime';
 export const PLANS: Record<PlanId, { name: string; price: string; unit: string; devices: string; summary: string; features: readonly string[] }> = {
-  essential: { name: 'Essential', price: '$16', unit: '/ month', devices: '1 device', summary: 'The essentials for thoughtful preparation and focused conversations.', features: CORE_FEATURES },
-  pro: { name: 'Pro', price: '$25', unit: '/ month', devices: '1 device', summary: 'A complete workspace for interviews, coding, and system design.', features: ['Everything in Essential', ...ADVANCED_FEATURES] },
-  plus: { name: 'Plus', price: '$30', unit: '/ month', devices: '2 devices maximum', summary: 'Every feature, with room for your second computer.', features: ['Everything in Pro', 'All Novi features included', 'Access on up to 2 devices'] },
-  lifetime: { name: 'Lifetime', price: '$299', unit: 'one-time', devices: 'Unlimited devices', summary: 'The complete Novi workspace. One payment, lifetime access.', features: ['Everything in Plus', 'Unlimited devices', 'Lifetime access with no monthly Novi fee'] },
+  core: { name: 'Core', price: '$16', unit: '/ month', devices: '1 device', summary: 'Focused support for behavioral interviews and technical screens.', features: CORE_FEATURES },
+  pro: { name: 'Pro', price: '$45', unit: '/ month', devices: '1 device', summary: 'The interview toolkit, with coding, system design, and eye tracking.', features: ['Everything in Core', ...ADVANCED_FEATURES] },
+  ultimate: { name: 'Ultimate', price: '$90', unit: '/ month', devices: '3 devices', summary: 'Your complete workspace, connected across your setup.', features: ['Everything in Pro', 'Local coding agent and project context', 'Phone companion — exclusive to Ultimate', 'Access on up to 3 devices'] },
+  lifetime: { name: 'Lifetime', price: '$399', unit: 'one-time', devices: '1 device', summary: 'The Pro toolkit with one payment and lifetime access.', features: ['Everything in Pro', '1 device', 'Lifetime access with no monthly Novi fee'] },
 };
 export const isPlanId = (value: unknown): value is PlanId => typeof value === 'string' && Object.hasOwn(PLANS, value);
 

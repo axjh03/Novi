@@ -23,7 +23,7 @@ export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
             <Link className={styles.primaryLink} href="/get-access">Get your backup <ArrowUpRight size={18} aria-hidden="true" /></Link>
             <Link className={styles.secondaryLink} href="/how-it-works">See how it works <ArrowRight size={17} aria-hidden="true" /></Link>
           </div>
-          <div className={styles.heroMeta}><span>macOS · Windows · Linux</span><span>Bring your own AI provider</span><span>From {PLANS.essential.price} / month</span></div>
+          <div className={styles.heroMeta}><span>macOS · Windows · Linux</span><span>Bring your own AI provider</span><span>From {PLANS.core.price} / month</span></div>
         </section>
 
         <section className={styles.belsonQuote} aria-label="A quote from Silicon Valley">
@@ -83,7 +83,7 @@ export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
 
         <section className={styles.faq} aria-labelledby="faq-title">
           <span className={styles.eyebrow}>A FEW THINGS TO KNOW</span><h2 id="faq-title">Before you get started.</h2>
-          <details><summary>Which plan is right for me?</summary><p>Essential includes conversation modes, document context, screenshots, transcription, the overlay, eye tracking, and the phone companion on one device. Pro adds coding assistance, system design, and local code context. Plus includes all features on up to two devices; Lifetime includes all features on unlimited devices.</p></details>
+          <details><summary>Which plan is right for me?</summary><p>Core includes behavioral and technical modes, document context, screenshots, transcription, and the transparent overlay on one device. Pro adds chat, recruiter mode, coding assistance, system design, and eye tracking. Ultimate adds the local coding agent and exclusive phone companion on three devices. Lifetime provides the Pro toolkit on one device for $399.</p></details>
           <details><summary>Is AI usage included in the price?</summary><p>Your plan covers Novi access. Connect your own AI provider key; any provider usage charges are separate, including on the Lifetime plan.</p></details>
           <details><summary>Can I set up Novi for my consultancy?</summary><p>Yes. Consultancies and staffing firms can contact our sales team for team licensing and account setup. You’ll find the contact details on the pricing page.</p></details>
         </section>

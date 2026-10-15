@@ -4,15 +4,15 @@ import { ADVANCED_FEATURES, CONTACT_EMAIL, CORE_FEATURES, isPlanId, mailto, PLAN
 
 test('public plans match the published prices, billing terms, and device allowances', () => {
   assert.deepEqual(Object.entries(PLANS).map(([id, plan]) => [id, plan.price, plan.unit, plan.devices]), [
-    ['essential', '$16', '/ month', '1 device'],
-    ['pro', '$25', '/ month', '1 device'],
-    ['plus', '$30', '/ month', '2 devices maximum'],
-    ['lifetime', '$299', 'one-time', 'Unlimited devices'],
+    ['core', '$16', '/ month', '1 device'],
+    ['pro', '$45', '/ month', '1 device'],
+    ['ultimate', '$90', '/ month', '3 devices'],
+    ['lifetime', '$399', 'one-time', '1 device'],
   ]);
-  assert.deepEqual(PLANS.essential.features, CORE_FEATURES);
-  assert.deepEqual(PLANS.pro.features, ['Everything in Essential', ...ADVANCED_FEATURES]);
-  assert.equal(PLANS.plus.features[0], 'Everything in Pro');
-  assert.equal(PLANS.lifetime.features[0], 'Everything in Plus');
+  assert.deepEqual(PLANS.core.features, CORE_FEATURES);
+  assert.deepEqual(PLANS.pro.features, ['Everything in Core', ...ADVANCED_FEATURES]);
+  assert.equal(PLANS.ultimate.features[0], 'Everything in Pro');
+  assert.equal(PLANS.lifetime.features[0], 'Everything in Pro');
 });
 
 test('plan query parameters reject legacy categories, arrays, and object properties', () => {
@@ -24,7 +24,7 @@ test('plan query parameters reject legacy categories, arrays, and object propert
 
 test('access and sales email links preserve the recipient and safely encode request details', () => {
   const subject = 'Novi access request: Pro & Plus';
-  const body = 'Name: Alex & Sam\nPlan: Lifetime ($299 one-time)\nDevices: Unlimited devices';
+  const body = 'Name: Alex & Sam\nPlan: Lifetime ($399 one-time)\nDevices: 1 device';
   const link = new URL(mailto(subject, body));
   assert.equal(link.pathname, CONTACT_EMAIL);
   assert.equal(link.searchParams.get('subject'), subject);

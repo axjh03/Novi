@@ -13,8 +13,8 @@ export const metadata: Metadata = {
 
 const faqs = [
   ['What do I need to get locked in?', 'The starter pack: a Novi account, a desktop login, and a configured AI provider. Install the desktop app, connect your provider key through your account, and check microphone and screen capture permissions for the tools you want to use.'],
-  ['Which plan handles the technical final boss?', 'Pro, Plus, and Lifetime include the coding assistant, system design diagrams, and local code context. Essential includes the core conversation tools, document context, screenshots, transcription, overlay, eye tracking, and phone companion.'],
-  ['Can I run this on my whole setup?', 'Essential and Pro are limited to one device. Plus includes a maximum of two devices. Lifetime includes unlimited devices. For consultancy or staffing firm licensing, contact our sales team.'],
+  ['Which plan handles the technical final boss?', 'Core includes behavioral and technical modes with context, screenshots, transcription, and transparency. Pro and Lifetime add coding, system design, chat, recruiter mode, and eye tracking. Ultimate adds local coding and the exclusive phone companion.'],
+  ['Can I run this on my whole setup?', 'Core and Pro are limited to one device. Ultimate includes a maximum of three devices. Lifetime includes one device. For consultancy or staffing firm licensing, contact our sales team.'],
   ['Is Local Coding about to YOLO my codebase?', 'Nope. Local Coding reads and searches a selected project folder to answer questions and propose changes. It does not apply those changes or run code. You review and make any changes yourself.'],
   ['Is the AI bill included? No cap?', 'No cap: your plan covers access to Novi. You connect your own AI provider key and pay any provider usage charges separately. The same applies to Lifetime.'],
   ['Phone companion? Eye tracking? What’s the side quest?', 'A little setup first. Pair your phone with the desktop session before using remote controls. For eye tracking, allow camera access and complete calibration for your current camera position and lighting.'],
@@ -108,7 +108,7 @@ export default function HowItWorksPage() {
         </section>
 
         <section className={styles.section} id="faq" aria-labelledby="faq-title"><span className={styles.eyebrow}>BEFORE YOU SEND IT</span><h2 id="faq-title">The “wait, but…” section.</h2><div className={styles.faq}>{faqs.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</div></section>
-        <section className={styles.cta}><h2>Main quest: get the bag.</h2><p>New role? Side quest income? Start with Essential, or bring coding and system design backup with Pro and above. The interview grind can kiss your ass.</p><div className={styles.ctaActions}><Link className={styles.ctaPrimary} href="/get-access">Pick your cheat code <ArrowUpRight size={16} aria-hidden="true" /></Link></div></section>
+        <section className={styles.cta}><h2>Main quest: get the bag.</h2><p>New role? Side quest income? Start with Core, or bring coding and system design backup with Pro and above. The interview grind can kiss your ass.</p><div className={styles.ctaActions}><Link className={styles.ctaPrimary} href="/get-access">Pick your cheat code <ArrowUpRight size={16} aria-hidden="true" /></Link></div></section>
       </main>
       <SiteFooter />
     </div>

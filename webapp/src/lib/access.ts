@@ -100,7 +100,9 @@ async function visibleIds(db: DB, actor: AccessAccount) {
 export async function state(req: Request) {
   const { account, session } = await authenticate(req);
   if (session.audience !== 'portal') throw new AccessError('Use the management portal.', 403);
+  await prisma.accessSession.update({ where: { id: session.id }, data: { lastSeenAt: new Date() } });
   const ids = await visibleIds(prisma, account);
+  const lastActivity = await prisma.accessSession.groupBy({ by: ['accountId', 'audience'], where: { accountId: { in: ids } }, _max: { lastSeenAt: true } });
   const [accounts, licenses, sessions, credentials, requests] = await Promise.all([
     prisma.accessAccount.findMany({ where: { id: { in: ids } }, select: publicAccount, orderBy: { createdAt: 'asc' } }),
     prisma.accessLicense.findMany({ where: { ownerId: { in: ids } }, orderBy: { createdAt: 'desc' } }),
@@ -108,7 +110,17 @@ export async function state(req: Request) {
     prisma.managedCredential.findMany({ where: { ownerId: account.role === 'ADMIN' ? { in: ids } : account.id }, select: credentialFields }),
     prisma.licenseRequest.findMany({ where: { ownerId: { in: ids } }, orderBy: { createdAt: 'desc' } }),
   ]);
-  return { user: { id: account.id, name: account.name, username: account.username, role: account.role }, accounts, licenses, sessions, credentials, requests, providers };
+  return { user: { id: account.id, name: account.name, username: account.username, role: account.role }, accounts: accounts.map(a => ({ ...a, activity: lastActivity.filter(item => item.accountId === a.id).map(item => ({ audience: item.audience, lastSeenAt: item._max.lastSeenAt })) })), licenses, sessions, credentials, requests, providers };
+}
+export async function revealCredential(req: Request, id: string) {
+  const origin = req.headers.get('origin');
+  if (origin && origin !== new URL(req.url).origin) throw new AccessError('Invalid request origin.', 403);
+  const { account, session } = await authenticate(req);
+  if (session.audience !== 'portal') throw new AccessError('Use the management portal.', 403);
+  const credential = await prisma.managedCredential.findFirst({ where: { id, ...(account.role === 'ADMIN' ? {} : { ownerId: account.id }) } });
+  if (!credential) throw new AccessError('Credential not found.', 404);
+  await audit(prisma, account.id, 'CREDENTIAL_REVEALED', credential.id);
+  return { secret: unseal(credential.encryptedSecret) };
 }
 export async function credentialModels(req: Request, id: string) {
   const { account, session } = await authenticate(req);

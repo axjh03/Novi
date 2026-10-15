@@ -73,12 +73,12 @@ export default function LicenseManagement({ licenses, accounts, admin, busy, onR
     </div>
     <div className="license-controls">
       <div className="search"><Search size={16} aria-hidden="true" /><input type="search" aria-label="Search licenses" placeholder="Search license key, owner, or account…" value={view.search} onChange={e => change({ search: e.target.value })} /></div>
-      <div className="license-filters">
+      <details className="license-filter-details"><summary>Filters & sorting · Owner, account, status, and date</summary><div className="license-filters">
         <label>Owner<select aria-label="Owner" value={view.owner} onChange={e => change({ owner: e.target.value, account: '' })}><option value="">All owners</option>{owners.map(owner => <option key={owner.id} value={owner.id}>{owner.name} (@{owner.username})</option>)}</select></label>
         <label>Assigned account<select aria-label="Assigned account" disabled={view.assignment === 'unassigned'} value={view.account} onChange={e => change({ account: e.target.value })}><option value="">All accounts</option>{assignedAccounts.map(account => <option key={account.id} value={account.id}>{account.name} (@{account.username})</option>)}</select></label>
         <label>Status<select aria-label="Status" value={view.status} onChange={e => change({ status: e.target.value })}><option value="">All statuses</option><option value="active">Active</option><option value="expiring">Expiring in 30 days</option><option value="expired">Expired</option><option value="terminated">Terminated</option></select></label>
         <label>Sort by<select aria-label="Sort by" value={view.sort} onChange={e => change({ sort: e.target.value })}><option value="owner">Owner · A–Z</option><option value="account">Assigned account · A–Z</option><option value="expiry">Expiry · soonest first</option><option value="expiry-desc">Expiry · latest first</option><option value="newest">Issued · newest first</option><option value="oldest">Issued · oldest first</option></select></label>
-      </div>
+      </div></details>
     </div>
     <div className="license-results"><span role="status">{filtered.length} {filtered.length === 1 ? 'license' : 'licenses'}{hasFilters ? ` matching filters · ${licenses.length} total` : ' in your workspace'}</span>{hasFilters && <button className="text-btn" onClick={clearFilters}><X size={13} />Clear filters</button>}</div>
     {!!visible.length && <div className="table-wrap" tabIndex={0} role="region" aria-label="License results, scroll horizontally for more columns"><table className="license-table" aria-label="Licenses">

@@ -47,14 +47,14 @@ export default function AccessRequest({ initialPlan }: { initialPlan: PlanId }) 
       <section className={styles.pricing} id="plans" aria-label="Novi plans">
         <div className={styles.plans}>
           {(Object.keys(PLANS) as PlanId[]).map(id => (
-            <article key={id} className={`${styles.plan} ${id === 'pro' ? styles.featured : ''}`}>
-              <div className={styles.planHeading}><h2>{PLANS[id].name}</h2>{id === 'pro' && <span>Complete toolkit</span>}</div>
+            <article key={id} className={`${styles.plan} ${id === 'ultimate' ? styles.featured : ''}`}>
+              <div className={styles.planHeading}><h2>{PLANS[id].name}</h2>{id === 'ultimate' && <span>Complete toolkit</span>}</div>
               <p className={styles.planSummary}>{PLANS[id].summary}</p>
               <p className={styles.price}>{PLANS[id].price}<span>{PLANS[id].unit}</span></p>
               <p className={styles.devices}><Monitor size={15} aria-hidden="true" />{PLANS[id].devices}</p>
               <button type="button" className={id === 'pro' ? styles.primary : styles.secondary} onClick={() => choosePlan(id)}>Choose {PLANS[id].name}<ArrowRight size={15} aria-hidden="true" /></button>
               <ul className={styles.featureList}>{PLANS[id].features.map(feature => <li key={feature}><Check size={15} aria-hidden="true" /><span>{feature}</span></li>)}</ul>
-              {id === 'essential' && <p className={styles.planNote}>Coding, system design, and local code context are available with Pro and above.</p>}
+              {id === 'core' && <p className={styles.planNote}>Pro adds coding and system design. Ultimate adds local coding and the phone companion.</p>}
             </article>
           ))}
         </div>

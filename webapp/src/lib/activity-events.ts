@@ -1,4 +1,5 @@
 export const activityEvents: Record<string, string> = {
+  CREDENTIAL_REVEALED: 'API key accessed',
   ACCOUNT_CREATED: 'Account created',
   ACCOUNT_UPDATED: 'Account updated',
   ACCOUNT_DELETED: 'Account deleted',
