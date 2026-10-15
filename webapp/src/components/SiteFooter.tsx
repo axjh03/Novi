@@ -13,7 +13,7 @@ export default function SiteFooter({ onSignIn }: { onSignIn?: () => void }) {
             <Image src="/logo.svg" width={26} height={26} alt="" style={{ borderRadius: 7 }} />
             <span>novi<span className={styles.dot}>.</span></span>
           </Link>
-          <p className={styles.tagline}>Less interview bullshit. More backup.</p>
+          <p className={styles.tagline}>Your context. A clearer next step.</p>
         </div>
         <nav className={styles.column} aria-label="Product">
           <h2>PRODUCT</h2>
@@ -21,7 +21,7 @@ export default function SiteFooter({ onSignIn }: { onSignIn?: () => void }) {
         </nav>
         <nav className={styles.column} aria-label="Get started">
           <h2>GET STARTED</h2>
-          <Link href="/get-access">Get access</Link>
+          <Link href="/get-access">Pricing & plans</Link>
           {onSignIn ? <Link href="/#signin" onClick={event => { event.preventDefault(); onSignIn(); }}>Sign in to your account</Link> : <Link href="/#signin">Sign in to your account</Link>}
         </nav>
         <div className={styles.column}>

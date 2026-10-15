@@ -61,7 +61,7 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
           ))}
           {signIn(false)}
           <Link href="/get-access" className="btn dark" aria-current={active === 'get-access' ? 'page' : undefined} style={{ textDecoration: 'none' }}>
-            Get access <ArrowUpRight size={15} />
+            Pricing & plans <ArrowUpRight size={15} />
           </Link>
         </div>
 
@@ -137,7 +137,7 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
                 textDecoration: 'none',
               }}
             >
-              Get access <ArrowUpRight size={16} />
+              Pricing & plans <ArrowUpRight size={16} />
             </Link>
           </div>
         </div>

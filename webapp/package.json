@@ -16,6 +16,7 @@
     "setup": "node scripts/setup-access.mjs",
     "typecheck": "tsc --noEmit",
     "test:access": "tsx --test tests/access.test.ts",
+    "test:site": "node --import tsx --test tests/site.test.ts",
     "test:artifacts": "node --import tsx --test tests/artifacts.test.ts"
   },
   "prisma": {

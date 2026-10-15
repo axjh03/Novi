@@ -9,16 +9,32 @@ export function mailto(subject: string, body?: string) {
 
 /** The three steps from first visit to a working desktop app. Repeated on every page that explains getting started. */
 export const JOURNEY = [
-  { title: 'Request access', text: 'Tell us which plan you want. Once payment is confirmed, we create your Novi account and your licenses.' },
-  { title: 'Set up your account', text: 'Sign in on this website, add your AI provider key, and create a desktop login: one for an individual, one per person for a consultancy.' },
+  { title: 'Choose your plan', text: 'Select a plan and send your access request. Our team confirms payment details and creates your account after payment.' },
+  { title: 'Connect your AI provider', text: 'Sign in on this website, add your AI provider key, and create your desktop login. AI usage is billed separately by your provider.' },
   { title: 'Download and sign in', text: 'Install the desktop app on macOS, Windows, or Linux and sign in with your desktop login.' },
 ] as const;
 
-export type PlanId = 'student' | 'individual' | 'consultancy';
-export const PLANS: Record<PlanId, { name: string; price: string; unit: string; summary: string }> = {
-  student: { name: 'Student', price: '$79', unit: '/ month', summary: 'For students preparing for interviews and important conversations.' },
-  individual: { name: 'Individual', price: '$99', unit: '/ month', summary: 'For professionals who want a focused, private desktop workspace.' },
-  consultancy: { name: 'Consultancy', price: '$99', unit: '/ seat / month', summary: 'One Novi account for your team, with a desktop login for each person.' },
+export const CORE_FEATURES = [
+  'AI chat, recruiter, technical, and behavioral modes',
+  'Résumé, job description, and document context',
+  'Screenshots and audio transcription',
+  'Transparent overlay and click-through controls',
+  'Eye tracking and phone companion',
+  'Local conversation history and your choice of AI provider',
+] as const;
+
+export const ADVANCED_FEATURES = [
+  'Coding assistant with explanations and edge cases',
+  'System design guidance and architecture diagrams',
+  'Local code context: read and search your project files',
+] as const;
+
+export type PlanId = 'essential' | 'pro' | 'plus' | 'lifetime';
+export const PLANS: Record<PlanId, { name: string; price: string; unit: string; devices: string; summary: string; features: readonly string[] }> = {
+  essential: { name: 'Essential', price: '$16.99', unit: '/ month', devices: '1 device', summary: 'The essentials for thoughtful preparation and focused conversations.', features: CORE_FEATURES },
+  pro: { name: 'Pro', price: '$25', unit: '/ month', devices: '1 device', summary: 'A complete workspace for interviews, coding, and system design.', features: ['Everything in Essential', ...ADVANCED_FEATURES] },
+  plus: { name: 'Plus', price: '$30', unit: '/ month', devices: '2 devices maximum', summary: 'Every feature, with room for your second computer.', features: ['Everything in Pro', 'All Novi features included', 'Access on up to 2 devices'] },
+  lifetime: { name: 'Lifetime', price: '$299', unit: 'one-time', devices: 'Unlimited devices', summary: 'The complete Novi workspace. One payment, lifetime access.', features: ['Everything in Plus', 'Unlimited devices', 'Lifetime access with no monthly Novi fee'] },
 };
 export const isPlanId = (value: unknown): value is PlanId => typeof value === 'string' && Object.hasOwn(PLANS, value);
 
