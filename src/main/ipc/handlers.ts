@@ -154,6 +154,8 @@ export function registerIPC(
           'get-remote-companion-status', 'toggle-remote-tunnel',
           // Window layout only; the tray reports its size whenever its content changes.
           'set-workspace-docked', 'set-tray-height', 'set-tray-width', 'reset-workspace-sizes', 'sample-background-palette',
+          // Local only and self-expiring; must take effect before the next key press.
+          'suspend-shortcuts',
           // Best effort and frequent: must never refresh, or sign out on, the managed session.
           'warm-connection'
         ];
@@ -495,6 +497,7 @@ export function registerIPC(
   // Buttons can turn transparent mode on; while its hotkey works, only the hotkey turns it off.
   const lockedTransparent = () => { const state = get().stealth.getState(); return state.transparent && state.transparentShortcut ? state : null; };
   handle('toggle-transparent', () => lockedTransparent() ?? get().stealth.toggleTransparent());
+  handle('suspend-shortcuts', (value) => { get().stealth.suspendShortcuts(object(value).suspended === true); });
   handle('set-transparent', (value) => {
     const v = object(value);
     if (!v.enabled) { const locked = lockedTransparent(); if (locked) return locked; }

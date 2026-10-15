@@ -114,6 +114,7 @@ const api: NoviAPI = {
   },
   getStealthState: () => ipcRenderer.invoke('get-stealth-state'),
   toggleTransparent: () => ipcRenderer.invoke('toggle-transparent'),
+  suspendShortcuts: (suspended: boolean) => ipcRenderer.invoke('suspend-shortcuts', { suspended }),
   setTransparent: (enabled: boolean) => ipcRenderer.invoke('set-transparent', { enabled }),
   onStealthState: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);

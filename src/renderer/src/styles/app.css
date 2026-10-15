@@ -3098,6 +3098,9 @@ html.transparent-mode #root {
 .settings-page .settings-fields-interaction small { line-height: 1.55; }
 .settings-page .shortcut-setting .shortcut-input { flex: 1; }
 .settings-page .shortcut-setting button { white-space: nowrap; padding: 8px 10px; }
+.settings-page .shortcut-setting { flex-wrap: wrap; }
+.settings-page .shortcut-setting .shortcut-input { flex: 1 1 140px; cursor: pointer; caret-color: transparent; }
+.settings-page .shortcut-setting .shortcut-input.recording { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); cursor: default; }
 .settings-page .settings-save { margin-top: 18px; }
 .settings-page .settings-save .text-button { margin-right: auto; }
 /* Local AI settings */

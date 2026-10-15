@@ -6,7 +6,9 @@ export type ProviderKind = SupportedProviderKind | 'compatible';
 export type AudioPipelineMode = 'local_stt' | 'live_stream';
 const isMacPlatform = typeof process !== 'undefined' && process.platform ? process.platform === 'darwin' : (typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform));
 export const DEFAULT_CLICK_THROUGH_SHORTCUT = isMacPlatform ? 'Option+Control+I' : 'Shift+Home';
-export const DEFAULT_TRANSPARENT_SHORTCUT = isMacPlatform ? 'Option+Control+T' : 'Home+PageUp';
+export const DEFAULT_TRANSPARENT_SHORTCUT = isMacPlatform ? 'Option+Control+T' : 'Control+Shift+T';
+/** The earlier Windows/Linux default; many keyboards have no Home or PageUp key, so saved copies move to the current default. */
+export const LEGACY_TRANSPARENT_SHORTCUT = 'Home+PageUp';
 export type AppMode = 'normal' | 'coding' | 'behavioral' | 'recruiter' | 'technical' | 'system-design' | 'local-coding';
 export type BehavioralFramework = 'smart' | 'star' | 'car' | 'par' | 'soar';
 export const DEFAULT_CODING_SHORTCUT = 'Alt+C';
@@ -262,6 +264,8 @@ export interface NoviAPI {
   onOverlayEvent(callback: (event: OverlayEvent) => void): () => void;
   getStealthState(): Promise<Result<StealthState>>;
   toggleTransparent(): Promise<Result<StealthState>>;
+  /** Pauses Novi's global hotkeys while a new shortcut is being recorded. */
+  suspendShortcuts(suspended: boolean): Promise<Result<void>>;
   setTransparent(enabled: boolean): Promise<Result<StealthState>>;
   onStealthState(callback: (state: StealthState) => void): () => void;
   minimizeWindow(): Promise<Result<void>>;

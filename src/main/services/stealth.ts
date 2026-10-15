@@ -34,6 +34,8 @@ export class StealthService {
   private behavioralModeShortcut = 'Alt+B';
   private screenshotShortcut = 'Alt+3';
   private audioRecordShortcut = 'Alt+A';
+  private shortcutsSuspended = false;
+  private resumeTimer: NodeJS.Timeout | null = null;
   private pollInterval: NodeJS.Timeout | null = null;
   private getKeyStateFn: ((vk: number) => number) | null = null;
   private overlayService: OverlayService | null = null;
@@ -71,26 +73,6 @@ export class StealthService {
         this.toggleTransparent();
       });
     } catch { /* ignore */ }
-
-    if (process.platform === 'darwin') {
-      try {
-        shortcut.register('Option+Control+T', () => {
-          this.toggleTransparent();
-        });
-      } catch { /* ignore */ }
-    } else {
-      // Windows & Linux
-      try {
-        shortcut.register('Home+PageUp', () => {
-          this.setTransparent(true);
-        });
-      } catch { /* ignore */ }
-      try {
-        shortcut.register('Shift+PageDown', () => {
-          this.setTransparent(false);
-        });
-      } catch { /* ignore */ }
-    }
 
     try {
       shortcut.register(this.codingModeShortcut, () => {
@@ -282,13 +264,6 @@ export class StealthService {
         // Ignore
       }
 
-      try {
-        shortcut.register('CommandOrControl+Shift+T', () => {
-          this.toggleTransparent();
-        });
-      } catch {
-        // Ignore
-      }
     }
     this.registerClickThroughShortcut();
   }
@@ -407,14 +382,31 @@ export class StealthService {
     }
   }
 
+  // While a shortcut is recorded in Settings, Novi's own hotkeys must not swallow the key press being recorded.
+  suspendShortcuts(suspended: boolean) {
+    const shortcut = getGlobalShortcut();
+    if (!shortcut || suspended === this.shortcutsSuspended) return;
+    if (this.resumeTimer) { clearTimeout(this.resumeTimer); this.resumeTimer = null; }
+    this.shortcutsSuspended = suspended;
+    if (suspended) {
+      for (const key of [this.transparentShortcut, this.codingModeShortcut, this.behavioralModeShortcut, this.screenshotShortcut, this.audioRecordShortcut, this.registeredClickThroughShortcut]) {
+        if (key) try { shortcut.unregister(key); } catch { /* ignore */ }
+      }
+      this.registeredClickThroughShortcut = null;
+      // Never leave hotkeys off if the page goes away while recording.
+      this.resumeTimer = setTimeout(() => this.suspendShortcuts(false), 60_000);
+    } else {
+      this.registerGlobalHotkeys();
+      if (this.transparent) this.registerClickThroughShortcut();
+    }
+  }
+
   cleanup() {
     this.stopMonitoring();
+    if (this.resumeTimer) { clearTimeout(this.resumeTimer); this.resumeTimer = null; }
     const shortcut = getGlobalShortcut();
     if (shortcut) {
       try { shortcut.unregister(this.transparentShortcut); } catch { /* ignore */ }
-      try { shortcut.unregister('Option+Control+T'); } catch { /* ignore */ }
-      try { shortcut.unregister('Home+PageUp'); } catch { /* ignore */ }
-      try { shortcut.unregister('Shift+PageDown'); } catch { /* ignore */ }
       try { shortcut.unregister(this.codingModeShortcut); } catch { /* ignore */ }
       try { shortcut.unregister(this.behavioralModeShortcut); } catch { /* ignore */ }
       try { shortcut.unregister(this.screenshotShortcut); } catch { /* ignore */ }

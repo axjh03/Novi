@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_CLICK_THROUGH_SHORTCUT, type AIProviderConfig, type AppSettings, type Conversation, type User } from '../../shared/types';
+import { DEFAULT_CLICK_THROUGH_SHORTCUT, DEFAULT_TRANSPARENT_SHORTCUT, LEGACY_TRANSPARENT_SHORTCUT, type AIProviderConfig, type AppSettings, type Conversation, type User } from '../../shared/types';
 import { PROVIDERS } from '../../shared/providers.ts';
 import { UserError } from './validation.ts';
 
@@ -38,6 +38,7 @@ export class Storage {
       user.settings.behavioralModeShortcut ||= 'Alt+B';
       user.settings.screenshotShortcut ||= 'Alt+3';
       user.settings.audioRecordShortcut ||= 'Alt+A';
+      if (!user.settings.transparentShortcut || (process.platform !== 'darwin' && user.settings.transparentShortcut === LEGACY_TRANSPARENT_SHORTCUT)) user.settings.transparentShortcut = DEFAULT_TRANSPARENT_SHORTCUT;
       user.settings.transparentOpacity ||= 35;
       user.settings.transparentBg ||= '#0f172a';
       user.settings.checkUpdatesAtStartup = user.settings.checkUpdatesAtStartup ?? true;

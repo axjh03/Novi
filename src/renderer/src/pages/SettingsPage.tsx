@@ -1,6 +1,7 @@
-import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { ArrowLeft, Check, LogOut, Trash2 } from 'lucide-react';
-import { DEFAULT_CLICK_THROUGH_SHORTCUT, DEFAULT_TRANSPARENT_SHORTCUT, type SettingsInput, type Snapshot } from '../../../shared/types';
+import { DEFAULT_AUDIO_RECORD_SHORTCUT, DEFAULT_BEHAVIORAL_SHORTCUT, DEFAULT_CLICK_THROUGH_SHORTCUT, DEFAULT_CODING_SHORTCUT, DEFAULT_SCREENSHOT_SHORTCUT, DEFAULT_TRANSPARENT_SHORTCUT, type SettingsInput, type Snapshot } from '../../../shared/types';
+import { ShortcutField } from '../components/ShortcutField';
 import { ProviderManager } from '../components/ProviderManager';
 import { DeviceTester } from '../components/DeviceTester';
 import { SettingsAppUpdater } from '../components/SettingsAppUpdater';
@@ -8,6 +9,16 @@ import { SettingsAppPrivacy } from '../components/SettingsAppPrivacy';
 import { LocalAISetup } from '../components/LocalAISetup';
 import { EngineReadinessList } from '../components/LocalCodingSetup';
 import { errorText, unwrap } from '../services/api';
+
+// Every hotkey is recorded from the keys pressed; each must be different.
+const shortcuts = [
+  { key: 'clickThroughShortcut', label: 'Interaction toggle shortcut', defaultValue: DEFAULT_CLICK_THROUGH_SHORTCUT, description: 'Press once to enable click-through, then again to restore interaction. Works while transparent mode is on.' },
+  { key: 'transparentShortcut', label: 'Transparency toggle shortcut', defaultValue: DEFAULT_TRANSPARENT_SHORTCUT, description: 'Turns transparent stealth mode on or off. While transparent, this is the only way to turn it off.' },
+  { key: 'codingModeShortcut', label: 'Coding Mode hotkey', defaultValue: DEFAULT_CODING_SHORTCUT, description: 'Opens the movable code viewer.' },
+  { key: 'behavioralModeShortcut', label: 'Behavioral Interview Mode hotkey', defaultValue: DEFAULT_BEHAVIORAL_SHORTCUT, description: 'Activates Behavioral Interview Studio with STAR framework guides and candidate story bank.' },
+  { key: 'screenshotShortcut', label: 'Full-screen capture hotkey', defaultValue: DEFAULT_SCREENSHOT_SHORTCUT, description: 'Takes a full-screen screenshot and attaches it to the chat composer.' },
+  { key: 'audioRecordShortcut', label: 'System audio capture hotkey', defaultValue: DEFAULT_AUDIO_RECORD_SHORTCUT, description: 'Captures desktop playback without opening your microphone. Saves locally and then transcribes or attaches it.' },
+] as const;
 
 interface Props { state: Snapshot; onSaved: (state: Snapshot) => void; onBack: () => void; onSignOut: () => void; onCleared: () => void }
 
@@ -26,28 +37,12 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
     checkUpdatesAtStartup: state.settings!.checkUpdatesAtStartup ?? true,
   });
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(false), [confirm, setConfirm] = useState(false);
-  const [recordingShortcut, setRecordingShortcut] = useState(false), [shortcutHint, setShortcutHint] = useState('');
-  const shortcutInput = useRef<HTMLInputElement>(null);
 
   function change(next: SettingsInput) { setValue(next); setSaved(false); }
-
-  function captureShortcut(event: KeyboardEvent<HTMLInputElement>) {
-    event.preventDefault();
-    if (event.key === 'Escape') { setRecordingShortcut(false); setShortcutHint('Shortcut recording cancelled.'); return; }
-    if (['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) return;
-    const keyAliases: Record<string, string> = { ' ': 'Space', Enter: 'Return', Escape: 'Esc', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right', PageUp: 'PageUp', PageDown: 'PageDown' };
-    const rawKey = keyAliases[event.key] || event.key;
-    const key = /^[a-z]$/i.test(rawKey) ? rawKey.toUpperCase() : rawKey;
-    if (!/^(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4])|Space|Tab|Backspace|Delete|Insert|Return|Esc|Up|Down|Left|Right|Home|End|PageUp|PageDown|NumLock)$/.test(key)) {
-      setShortcutHint('That key is not supported. Try a letter, number, or function key.');
-      return;
-    }
-    const modifiers = [event.ctrlKey && 'Control', event.altKey && 'Alt', event.shiftKey && 'Shift', event.metaKey && 'Super'].filter(Boolean);
-    if (!modifiers.length) { setShortcutHint('Include at least one modifier key, such as Ctrl, Alt, or Shift.'); return; }
-    const shortcut = [...modifiers, key].join('+');
-    change({ ...value, clickThroughShortcut: shortcut });
-    setRecordingShortcut(false);
-    setShortcutHint(`Captured ${shortcut}. Save changes to apply it.`);
+  function shortcutField({ key, label, defaultValue, description }: typeof shortcuts[number]) {
+    return <ShortcutField key={key} label={label} value={value[key] || defaultValue} defaultValue={defaultValue} description={description}
+      onChange={(shortcut) => change({ ...value, [key]: shortcut })}
+      others={shortcuts.filter((other) => other.key !== key).map((other) => ({ label: other.label, value: value[other.key] || other.defaultValue }))} />;
   }
 
   async function save(event?: FormEvent) {
@@ -58,7 +53,6 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
       onSaved(updated);
       setValue({ ...updated.settings! });
       setSaved(true);
-      setShortcutHint('');
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -170,96 +164,14 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                     <p>One shortcut toggles both modes.</p>
                   </div>
                   <div className="settings-fields settings-fields-interaction">
-                    <label>
-                      Interaction toggle shortcut
-                      <div className="shortcut-setting">
-                        <input
-                          ref={shortcutInput}
-                          className="shortcut-input"
-                          value={recordingShortcut ? 'Press your key combination…' : value.clickThroughShortcut}
-                          readOnly
-                          onKeyDown={captureShortcut}
-                          onBlur={() => setRecordingShortcut(false)}
-                        />
-                        <button
-                          className="text-button"
-                          type="button"
-                          onClick={() => {
-                            setRecordingShortcut(true);
-                            setShortcutHint('Press a key combination with Ctrl, Alt, Shift, or the Windows key.');
-                            shortcutInput.current?.focus();
-                          }}
-                        >
-                          Record shortcut
-                        </button>
-                      </div>
-                      <small>
-                        {shortcutHint || 'Press once to enable click-through, then press it again to restore interaction. Works while transparent mode is on. Save changes to apply.'}
-                      </small>
-                    </label>
-
-                    <label>
-                      Transparency toggle shortcut
-                      <input
-                        className="shortcut-input"
-                        value={value.transparentShortcut || DEFAULT_TRANSPARENT_SHORTCUT}
-                        onChange={(e) => change({ ...value, transparentShortcut: e.target.value })}
-                        placeholder="e.g. Option+Control+T or Home+PageUp"
-                      />
-                      <small>Toggles transparent stealth mode on or off. Default: {DEFAULT_TRANSPARENT_SHORTCUT}.</small>
-                    </label>
-
+                    {shortcuts.slice(0, 2).map(shortcutField)}
                     <label className="settings-toggle">
                       <input type="checkbox" checked={value.transparentOnStart === true}
                         onChange={(e) => change({ ...value, transparentOnStart: e.target.checked })} />
                       Start sessions in Transparent mode
                       <small>Hides Novi from screen sharing as soon as a session starts, exactly like pressing Transparency.</small>
                     </label>
-
-                    <label>
-                      Coding Mode hotkey
-                      <input
-                        className="shortcut-input"
-                        value={value.codingModeShortcut || 'Alt+C'}
-                        onChange={(e) => change({ ...value, codingModeShortcut: e.target.value })}
-                        placeholder="e.g. Alt+C"
-                      />
-                      <small>Opens the movable code viewer. Default: Alt+C (Option+C on Mac).</small>
-                    </label>
-
-                    <label>
-                      Behavioral Interview Mode hotkey
-                      <input
-                        className="shortcut-input"
-                        value={value.behavioralModeShortcut || 'Alt+B'}
-                        onChange={(e) => change({ ...value, behavioralModeShortcut: e.target.value })}
-                        placeholder="e.g. Alt+B"
-                      />
-                      <small>Activates Behavioral Interview Studio with STAR framework guides and candidate story bank. Default: Alt+B (Option+B on Mac).</small>
-                    </label>
-
-                    <label>
-                      Full-screen capture hotkey
-                      <input
-                        className="shortcut-input"
-                        value={value.screenshotShortcut || 'Alt+3'}
-                        onChange={(e) => change({ ...value, screenshotShortcut: e.target.value })}
-                        placeholder="e.g. Alt+3"
-                      />
-                      <small>Takes a full-screen screenshot and attaches it to the chat composer. Default: Alt+3 (Option+3 on Mac).</small>
-                    </label>
-
-                    <label>
-                      System audio capture hotkey
-                      <input
-                        className="shortcut-input"
-                        value={value.audioRecordShortcut || 'Alt+A'}
-                        onChange={(e) => change({ ...value, audioRecordShortcut: e.target.value })}
-                        placeholder="e.g. Alt+A"
-                      />
-                      <small>Captures desktop playback without opening your microphone. Saves locally and then transcribes or attaches it. Default: Alt+A (Option+A on Mac).</small>
-                    </label>
-
+                    {shortcuts.slice(2).map(shortcutField)}
                   </div>
                 </section>
 
