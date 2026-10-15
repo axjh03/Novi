@@ -41,6 +41,7 @@ export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
             <img
               src="https://static.wikia.nocookie.net/villains/images/b/bd/Gavin_Belson.jpeg/revision/latest?cb=20220826221647"
               alt="Gavin Belson from Silicon Valley"
+              referrerPolicy="no-referrer"
               width={640}
               height={800}
               loading="lazy"
