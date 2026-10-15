@@ -11,6 +11,21 @@
 .primaryLink:hover { background:#365b47; }
 .secondaryLink:hover,.textLink:hover { text-decoration:underline; text-underline-offset:5px; }
 .heroMeta { max-width:1120px; margin:auto; padding:22px 0; display:flex; justify-content:center; gap:48px; border-block:1px solid var(--line); color:var(--muted); font-size:12px; }
+.belsonQuote { display:grid; grid-template-columns:minmax(0, .8fr) minmax(0, 1.2fr); max-width:1120px; margin:64px auto 0; border:1px solid #d8dfd2; border-radius:28px; overflow:hidden; background:#edf1e7; box-shadow:0 18px 50px #24332f0a; }
+.belsonPortrait { position:relative; min-height:400px; background:#24332f; }
+.belsonPortrait img { display:block; width:100%; height:100%; position:absolute; inset:0; object-fit:cover; object-position:center top; }
+.belsonPortrait>span { position:absolute; bottom:22px; left:22px; padding:8px 12px; border:1px solid #ffffff50; border-radius:999px; background:#20392ee6; color:#fff; font-size:9px; font-weight:600; letter-spacing:.14em; }
+.belsonWords { margin:0; padding:36px 48px 44px; align-self:center; }
+.quoteMark { display:block; height:62px; color:#8ba17b; font:100px/1 Georgia,serif; }
+.belsonWords blockquote { margin:0; }
+.belsonWords blockquote p { font-size:clamp(23px,2.5vw,34px); font-weight:500; line-height:1.4; letter-spacing:-.035em; }
+.belsonWords blockquote em { color:#58715e; font-family:Georgia,serif; font-weight:400; }
+.belsonWords figcaption { margin-top:28px; padding-top:22px; border-top:1px solid #d3ddca; }
+.belsonWords figcaption strong { display:block; font-size:13px; font-weight:600; }
+.belsonWords figcaption>span { display:block; margin-top:5px; color:#626f66; font-size:12px; }
+.belsonWords cite { font-style:normal; }
+@media(max-width:1184px) { .belsonQuote { margin-inline:32px; } }
+@media(max-width:700px) { .belsonQuote { grid-template-columns:1fr; margin:40px 20px 0; border-radius:22px; } .belsonPortrait { min-height:0; aspect-ratio:4/3; } .belsonWords { padding:26px 24px 30px; } .quoteMark { font-size:80px; height:48px; } }
 .intro,.features,.workflow,.control,.faq { max-width:1184px; margin:auto; padding:80px 32px; }
 .intro { display:grid; grid-template-columns:1fr 1fr; gap:80px; align-items:center; }
 .page h2 { margin:16px 0 0; font-size:clamp(30px,3.5vw,44px); font-weight:500; letter-spacing:-.045em; line-height:1.15; }

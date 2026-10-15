@@ -26,13 +26,35 @@ export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
       <main>
         <section className={styles.hero} aria-labelledby="landing-title">
           <span className={styles.eyebrow}>THE INTERVIEW CHEAT CODE</span>
-          <h1 id="landing-title">Fuck LeetCode.<br />Fuck HackerRank.<br />Fuck QA.<br /><em>We&apos;re here.</em></h1>
+          <h1 id="landing-title">Fuck LeetCode.<br />Fuck HackerRank.<br />Fuck Assessment.<br /><em>We&apos;re here.</em></h1>
           <p className={styles.heroLead}>Another timed puzzle. Another technical grilling. Enough. Bring the question, a screenshot, or audio context. Novi puts AI backup on your desktop for the code, the explanation, and whatever follow-up comes next.</p>
           <div className={styles.actions}>
             <Link className={styles.primaryLink} href="/get-access">Get your backup <ArrowUpRight size={18} aria-hidden="true" /></Link>
             <Link className={styles.secondaryLink} href="/how-it-works">See how it works <ArrowRight size={17} aria-hidden="true" /></Link>
           </div>
           <div className={styles.heroMeta}><span>macOS · Windows · Linux</span><span>Bring your own AI provider</span><span>From {PLANS.essential.price} / month</span></div>
+        </section>
+
+        <section className={styles.belsonQuote} aria-label="A quote from Silicon Valley">
+          <div className={styles.belsonPortrait}>
+            {/* shortcut: image is hosted remotely; save it locally when the image host is reachable. */}
+            <img
+              src="https://static.wikia.nocookie.net/villains/images/b/bd/Gavin_Belson.jpeg/revision/latest?cb=20220826221647"
+              alt="Gavin Belson from Silicon Valley"
+              width={640}
+              height={800}
+              loading="lazy"
+              decoding="async"
+            />
+            <span>BIG HOOLI ENERGY</span>
+          </div>
+          <figure className={styles.belsonWords}>
+            <span className={styles.quoteMark} aria-hidden="true">“</span>
+            <blockquote>
+              <p>I don&apos;t know about you people, but I don&apos;t want to live in a world where someone else makes the world a better place <em>better than we do.</em></p>
+            </blockquote>
+            <figcaption><strong>Gavin Belson</strong><span>CEO of Hooli · <cite>Silicon Valley</cite></span></figcaption>
+          </figure>
         </section>
 
         <section className={styles.intro} aria-labelledby="intro-title">
