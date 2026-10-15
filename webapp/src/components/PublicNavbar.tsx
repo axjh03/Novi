@@ -22,16 +22,8 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
   );
 
   return (
-    <header style={{
-      width: '100%',
-      background: 'rgba(255, 255, 255, 0.98)',
-      backdropFilter: 'blur(10px)',
-      borderBottom: '1px solid #eaeaea',
-      position: 'sticky',
-      top: 0,
-      zIndex: 100,
-    }}>
-      <nav className="public-nav" aria-label="Main" style={{ width: '100%', boxSizing: 'border-box' }}>
+    <header className="public-nav-shell">
+      <nav className="public-nav" aria-label="Main">
         <Link href="/" className="brand" onClick={closeMenu} style={{ textDecoration: 'none', color: 'inherit' }}>
           <img
             src="/logo.svg"
@@ -71,18 +63,8 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
           className="mobile-menu-toggle"
           aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
           aria-expanded={menuOpen}
+          aria-controls={menuOpen ? 'public-mobile-menu' : undefined}
           onClick={() => setMenuOpen(!menuOpen)}
-          style={{
-            background: 'none',
-            border: '1px solid #e2e2e2',
-            borderRadius: 7,
-            padding: 8,
-            cursor: 'pointer',
-            color: '#111',
-            display: 'none', // controlled via CSS media query
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
         >
           {menuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
@@ -91,16 +73,8 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
       {/* Mobile Drawer Navigation Menu */}
       {menuOpen && (
         <div
+          id="public-mobile-menu"
           className="mobile-nav-drawer"
-          style={{
-            borderTop: '1px solid #eaeaea',
-            background: '#ffffff',
-            padding: '16px 20px 24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-            boxShadow: '0 12px 24px rgba(0,0,0,0.06)',
-          }}
         >
           {SITE_LINKS.map(link => (
             <Link
