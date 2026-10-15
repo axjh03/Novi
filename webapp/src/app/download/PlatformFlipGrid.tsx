@@ -48,7 +48,10 @@ export function PlatformFlipGrid({ release, siteOrigin, detectedOS, copiedMirror
       <div className={styles.packages}>{available.map(item => <a className={styles.package} href={release.downloads[item.key]} download key={item.key}><span><strong>{item.title}</strong><small>{item.detail}</small><code>{release.fileNames[item.key]}</code></span><Download size={20} /><span className={styles.downloadLabel}>Download</span></a>)}</div>
       {!available.length && <p>No installer is available for this platform in this release. Check the previous releases below.</p>}
       {selected === 'mac' && <p className={styles.hint}>Not sure which Mac you have? Open Apple menu → About This Mac and check Chip or Processor.</p>}
-      <details className={styles.terminal} key={selected}><summary><Terminal size={17} /><span>Prefer the terminal?<small>{selected === 'windows' ? 'PowerShell' : 'Terminal'} install command</small></span></summary><div><p>{selected === 'mac' ? 'Downloads the matching package, removes its quarantine attribute, and launches Novi.' : selected === 'windows' ? 'Runs the installer in the background and launches Novi.' : 'Detects your architecture and installs the appropriate Linux package.'}</p><div className={styles.command}><code>{siteOrigin ? command : 'Preparing install command…'}</code><button disabled={!siteOrigin} aria-label="Copy install command" onClick={() => copyMirrorUrl(command, commandId)}>{copiedMirror === commandId ? <Check size={16} /> : <Copy size={16} />}{copiedMirror === commandId ? 'Copied' : 'Copy'}</button></div></div></details>
+      <div className={styles.terminal}>
+        <h3><Terminal size={17} />Terminal install command</h3>
+        <div className={styles.command}><span className={styles.terminalPrompt} aria-hidden="true">{selected === 'windows' ? 'PS&gt;' : '$'}</span><code>{siteOrigin ? command : 'Preparing install command…'}</code><button disabled={!siteOrigin} aria-label="Copy install command" onClick={() => copyMirrorUrl(command, commandId)}>{copiedMirror === commandId ? <Check size={16} /> : <Copy size={16} />}{copiedMirror === commandId ? 'Copied' : 'Copy'}</button></div>
+      </div>
     </div>
   </section>;
 }

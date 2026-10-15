@@ -20,9 +20,8 @@ export default function ReferralPage() {
     <main className={styles.main}>
       <section className={styles.hero} aria-labelledby="referral-title">
         <div><span className={styles.eyebrow}>THE NOVI REFERRAL PROGRAM</span><h1 id="referral-title">Bhaichara<br /><em>on Top.</em></h1><p>Bring us a friend. When they buy a plan through your referral code or link, you get <strong>50% of what they pay</strong>—cash credited to your bank account.</p><div className={styles.actions}><a className={styles.primary} href={join}>Get my referral code <ArrowUpRight size={17} /></a><a className={styles.secondary} href="#rewards">Show me the rewards <ArrowDown size={15} /></a></div><span className={styles.tagline}>Bhaichara on Top 🤝</span></div>
-
+        <ReferralGif />
       </section>
-      <ReferralGif />
 
       <section className={styles.how} aria-labelledby="how-title"><div className={styles.sectionHeading}><span className={styles.eyebrow}>THREE STEPS. ONE GOOD INTRODUCTION.</span><h2 id="how-title">You make the introduction.<br />We share the upside.</h2></div><div className={styles.steps}>
         <article><span className={styles.stepIcon}><Link2 size={23} /></span><small>01 / SHARE</small><h3>Send your code or link.</h3><p>Ask our team for your personal referral code and link. Send it to that friend who could use a little interview backup.</p></article>
