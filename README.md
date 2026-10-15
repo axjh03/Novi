@@ -10,8 +10,27 @@ In an installed build, Settings detects whether the terminal command is missing,
 
 ```sh
 novi start # Launch or restore the main window, including while masked
+novi show  # Show/restore Novi, or launch it if it is not running
 novi stop  # Quit all windows through normal shutdown cleanup
 ```
+
+To use the command immediately after installation in an already-open shell:
+
+```sh
+# bash, zsh, sh, dash, or ksh (current shell only)
+export PATH="$HOME/.local/bin:$PATH"
+hash -r
+
+# fish (current shell only)
+fish_add_path "$HOME/.local/bin"
+```
+
+```powershell
+# Windows PowerShell: reload persisted machine and user PATH for this shell
+$env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+```
+
+For Windows Command Prompt, reopen the terminal app, or use `set "PATH=%APPDATA%\Novi\bin;%PATH%"` for that shell. Novi cannot refresh the environment of an existing parent shell. **Refresh command status** checks installation; it does not reload your terminal. Automatic Unix profile setup follows your configured shell; a different shell may need its own PATH setup.
 
 The launcher requires no separate Node.js installation. Use **Update terminal command** if you move Novi or its AppImage. With a built development checkout, use `npx electron . start` and `npx electron . stop`. Commands address the instance using the same user-data directory (`NOVI_DATA_DIR`, if set). Stopping an already stopped app does not open a window. **Quit Novi** is available on every Settings tab; quitting stops active work, and unsent text is not saved.
 

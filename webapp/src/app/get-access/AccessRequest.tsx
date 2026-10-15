@@ -1,13 +1,15 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, Copy, CreditCard, Mail, Monitor } from 'lucide-react';
-import { CONTACT_EMAIL, mailto, PLANS, type PlanId } from '@/lib/site';
+import { CONTACT_EMAIL, referralCode, mailto, PLANS, type PlanId } from '@/lib/site';
 import styles from './get-access.module.css';
 
-export default function AccessRequest({ initialPlan }: { initialPlan: PlanId }) {
+export default function AccessRequest({ initialPlan, initialReferral = '' }: { initialPlan: PlanId; initialReferral?: string }) {
   const [plan, setPlan] = useState<PlanId>(initialPlan);
   const [step, setStep] = useState<'details' | 'payment'>('details');
+  const [referral, setReferral] = useState(initialReferral);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [copyStatus, setCopyStatus] = useState('');
@@ -20,6 +22,7 @@ export default function AccessRequest({ initialPlan }: { initialPlan: PlanId }) 
     `Price: ${selected.price} ${selected.unit}`,
     `Devices: ${selected.devices}`,
     `Billing: ${plan === 'lifetime' ? 'One-time payment for lifetime access' : 'Monthly'}`,
+    ...(referral.trim() ? [`Referral code: ${referral.trim()}`] : []),
     `Name: ${name.trim() || '(your name)'}`,
     `Email: ${email.trim() || '(your email)'}`, '',
     'I understand that AI provider usage is billed separately.', '', 'Thanks!',
@@ -75,6 +78,8 @@ export default function AccessRequest({ initialPlan }: { initialPlan: PlanId }) 
                 <h3>Your details</h3><p className={styles.hint}>Tell us who to set up. These details will be included in your email request.</p>
                 <label className={styles.field}>Full name<input name="name" autoComplete="name" value={name} required maxLength={80} pattern=".*\S.*" onChange={event => setName(event.target.value)} placeholder="Your full name" /></label>
                 <label className={styles.field}>Email address<input name="email" autoComplete="email" type="email" value={email} required maxLength={254} onChange={event => setEmail(event.target.value)} placeholder="you@example.com" /></label>
+                <label className={styles.field}>Referral code (optional)<input name="referral" autoComplete="off" maxLength={80} value={referral} onChange={event => setReferral(referralCode(event.target.value))} placeholder="Got a code from a friend?" /></label>
+                <p className={styles.hint}>Bring your own friends and earn 50% of their plan purchase. <Link href="/referral">Explore the referral program →</Link></p>
                 <button className={styles.primary} type="submit">Continue to payment review <ArrowRight size={16} aria-hidden="true" /></button>
                 <p className={styles.hint}>No charge is made here. Your details stay in this page until you send the email.</p>
               </form>

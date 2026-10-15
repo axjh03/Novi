@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { ArrowUpRight, Building2 } from 'lucide-react';
 import PublicNavbar from '@/components/PublicNavbar';
 import SiteFooter from '@/components/SiteFooter';
-import { CONTACT_EMAIL, isPlanId, JOURNEY, mailto } from '@/lib/site';
+import { CONTACT_EMAIL, isPlanId, referralCode, JOURNEY, mailto } from '@/lib/site';
 import AccessRequest from './AccessRequest';
 import styles from './get-access.module.css';
 
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 export default async function GetAccessPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
-  const { plan } = await searchParams;
+  const { plan, ref } = await searchParams;
   return (
     <div className={styles.page}>
       <PublicNavbar active="get-access" />
@@ -24,7 +24,7 @@ export default async function GetAccessPage({ searchParams }: { searchParams: Pr
           <div className={styles.audiences}><a href="#plans">Explore plans</a><a href="#consultancies">Consultancies &amp; staffing firms <ArrowUpRight size={14} aria-hidden="true" /></a></div>
         </section>
 
-        <AccessRequest initialPlan={isPlanId(plan) ? plan : 'core'} />
+        <AccessRequest initialPlan={isPlanId(plan) ? plan : 'core'} initialReferral={referralCode(ref)} />
 
         <section className={styles.sales} id="consultancies" aria-labelledby="sales-title">
           <div className={styles.salesIcon}><Building2 size={28} strokeWidth={1.5} aria-hidden="true" /></div>
@@ -41,7 +41,7 @@ export default async function GetAccessPage({ searchParams }: { searchParams: Pr
           <div className={styles.faq}>
             <details><summary>What does Core include for $16?</summary><p>Core includes behavioral and technical modes, résumé and document context, screenshots, audio transcription, transparency, and local history on one device. Pro adds chat, recruiter mode, coding, system design, and eye tracking for $45/month. Ultimate adds local coding and the exclusive phone companion.</p></details>
             <details><summary>What is included in the $90 plan?</summary><p>Ultimate includes all Novi features, including coding assistance, system design, and local code context, on a maximum of three devices. Your AI provider bills its usage separately.</p></details>
-            <details><summary>How does Lifetime work?</summary><p>Lifetime is a one-time $399 payment for the Pro toolkit on one device. Local coding and the phone companion are exclusive to Ultimate. There is no monthly Novi subscription fee. AI provider usage is still billed separately.</p></details>
+            <details><summary>How does Lifetime work?</summary><p>Lifetime is a one-time $399 payment for the Pro toolkit on unlimited devices. Local coding and the phone companion are exclusive to Ultimate. There is no monthly Novi subscription fee. AI provider usage is still billed separately.</p></details>
             <details><summary>Can I pay on this page?</summary><p>The checkout currently previews your plan and payment step. It does not process a charge or collect card details. Send the prepared email and our team will arrange payment and activate your account.</p></details>
           </div>
         </section>

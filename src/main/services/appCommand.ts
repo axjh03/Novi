@@ -14,10 +14,10 @@ export function commandLauncher(executable: string, windows: boolean): string {
   if (/[\r\n\x00]/.test(executable)) throw new UserError('The application path contains unsupported characters.');
   if (windows) {
     if (/["%]/.test(executable)) throw new UserError('Move Novi to a path without quotes or percent signs before installing its command.');
-    return `@echo off\r\nrem Novi command launcher\r\nsetlocal DisableDelayedExpansion\r\nif "%~1"=="start" goto start\r\nif "%~1"=="stop" goto stop\r\necho Usage: novi start ^| stop\r\nexit /b 1\r\n:start\r\nstart "" "${executable}" start\r\nexit /b\r\n:stop\r\nstart "" /wait "${executable}" stop\r\n`;
+    return `@echo off\r\nrem Novi command launcher\r\nsetlocal DisableDelayedExpansion\r\nif "%~1"=="start" goto start\r\nif "%~1"=="show" goto start\r\nif "%~1"=="stop" goto stop\r\necho Usage: novi start ^| show ^| stop\r\nexit /b 1\r\n:start\r\nstart "" "${executable}" start\r\nexit /b\r\n:stop\r\nstart "" /wait "${executable}" stop\r\n`;
   }
   const quoted = "'" + executable.replace(/'/g, "'\\''") + "'";
-  return `#!/bin/sh\n# Novi command launcher\ncase "$1" in\n  start) nohup ${quoted} start >/dev/null 2>&1 & ;;\n  stop) exec ${quoted} stop ;;\n  *) echo 'Usage: novi start | stop' >&2; exit 1 ;;\nesac\n`;
+  return `#!/bin/sh\n# Novi command launcher\ncase "$1" in\n  start|show) nohup ${quoted} start >/dev/null 2>&1 & ;;\n  stop) exec ${quoted} stop ;;\n  *) echo 'Usage: novi start | show | stop' >&2; exit 1 ;;\nesac\n`;
 }
 
 export function installCommand(directory: string, executable: string, windows: boolean) {

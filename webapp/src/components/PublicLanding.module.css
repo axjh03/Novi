@@ -12,13 +12,13 @@
 .secondaryLink:hover,.textLink:hover { text-decoration:underline; text-underline-offset:5px; }
 .heroMeta { max-width:1120px; margin:auto; padding:22px 0; display:flex; justify-content:center; gap:48px; border-block:1px solid var(--line); color:var(--muted); font-size:12px; }
 .belsonQuote { display:grid; grid-template-columns:minmax(0, .8fr) minmax(0, 1.2fr); max-width:1120px; margin:64px auto 0; border:1px solid #d8dfd2; border-radius:28px; overflow:hidden; background:#edf1e7; box-shadow:0 18px 50px #24332f0a; }
-.belsonPortrait { position:relative; min-height:400px; background:#24332f; }
+.belsonPortrait { display:block; position:relative; text-decoration:none; min-height:400px; background:#24332f; }
 .belsonPortrait img { display:block; width:100%; height:100%; position:absolute; inset:0; object-fit:cover; object-position:center top; }
 .belsonPortrait>span { position:absolute; bottom:22px; left:22px; padding:8px 12px; border:1px solid #ffffff50; border-radius:999px; background:#20392ee6; color:#fff; font-size:9px; font-weight:600; letter-spacing:.14em; }
-.belsonWords { margin:0; padding:36px 48px 44px; align-self:center; }
+.belsonWords { min-width:0; margin:0; padding:36px 42px 40px; align-self:center; }
 .quoteMark { display:block; height:62px; color:#8ba17b; font:100px/1 Georgia,serif; }
 .belsonWords blockquote { margin:0; }
-.belsonWords blockquote p { font-size:clamp(23px,2.5vw,34px); font-weight:500; line-height:1.4; letter-spacing:-.035em; }
+.belsonWords blockquote p { font-size:clamp(15px,1.18vw,17px); font-weight:500; line-height:1.85; letter-spacing:-.01em; }
 .belsonWords blockquote em { color:#58715e; font-family:Georgia,serif; font-weight:400; }
 .belsonWords figcaption { margin-top:28px; padding-top:22px; border-top:1px solid #d3ddca; }
 .belsonWords figcaption strong { display:block; font-size:13px; font-weight:600; }
@@ -70,3 +70,5 @@
 .closing .primaryLink:hover { background:#e5ebde; }
 @media(max-width:900px) { .featureGrid { grid-template-columns:repeat(2,minmax(0,1fr)); } .intro,.control { gap:36px; } .hero { padding-top:72px; } }
 @media(max-width:600px) { .hero { padding:54px 20px 0; } .heroLead { font-size:15px; } .actions { gap:20px; margin-bottom:36px; } .heroMeta { flex-direction:column; gap:10px; } .intro,.features,.workflow,.control,.faq { padding:48px 20px; } .intro,.control,.steps,.featureGrid { grid-template-columns:1fr; } .sectionHeading { align-items:start; flex-direction:column; gap:20px; } .intro,.control { gap:24px; } .feature { padding:26px; } .feature>svg { margin-bottom:20px; } .closing { padding:56px 20px; } }
+
+.imageCredit{display:inline-flex;align-items:center;gap:5px;margin-top:14px;color:#626f66;font-size:10px;text-decoration:underline;text-underline-offset:3px}.imageCredit:hover{color:#365b47}.belsonPortrait img{display:block;width:100%;height:100%;position:absolute;inset:0;object-fit:cover;object-position:center 28%}.belsonPortrait>span{max-width:calc(100% - 36px);font-size:9px;letter-spacing:.13em}

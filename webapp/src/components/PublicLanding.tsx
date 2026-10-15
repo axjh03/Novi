@@ -26,26 +26,26 @@ export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
           <div className={styles.heroMeta}><span>macOS · Windows · Linux</span><span>Bring your own AI provider</span><span>From {PLANS.core.price} / month</span></div>
         </section>
 
-        <section className={styles.belsonQuote} aria-label="A quote from Silicon Valley">
-          <div className={styles.belsonPortrait}>
-            {/* shortcut: image is hosted remotely; save it locally when the image host is reachable. */}
+        <section className={styles.belsonQuote} aria-label="Novi parody quote from Jian Yang">
+          <a className={styles.belsonPortrait} href="https://www.scmp.com/abacus/culture/article/3036633/chinese-fans-love-silicon-valleys-satire-chinas-tech-industry" target="_blank" rel="noreferrer" aria-label="View the South China Morning Post article about Jian-Yang">
             <img
-              src="https://static.wikia.nocookie.net/villains/images/b/bd/Gavin_Belson.jpeg/revision/latest?cb=20220826221647"
-              alt="Gavin Belson from Silicon Valley"
+              src="https://siliconvalleyism.com/images/chinese-markets.jpg"
+              alt="Jian-Yang from Silicon Valley standing by a whiteboard"
               referrerPolicy="no-referrer"
               width={640}
               height={800}
               loading="lazy"
               decoding="async"
             />
-            <span>BIG HOOLI ENERGY</span>
-          </div>
+            <span>VERY LEGAL. VERY GOOD.</span>
+          </a>
           <figure className={styles.belsonWords}>
             <span className={styles.quoteMark} aria-hidden="true">“</span>
             <blockquote>
-              <p>I don&apos;t know about you people, but I don&apos;t want to live in a world where someone else makes the world a better place <em>better than we do.</em></p>
+              <p>“Herro. I am Jian-Yang. CEO of Novi. You spend four year learning computah science. Interviewah ask you reverse binary twee. You shit your pants. Very sad. So I make Novi. AI risten, AI write code, you just nod head like fucking genius. Google hire you. You make two hundwed thousand dollah. I make sixteen dollah. Six month later, you get fired. Not my problem. No refund. Fuck ReetCode.”</p>
             </blockquote>
-            <figcaption><strong>Gavin Belson</strong><span>CEO of Hooli · <cite>Silicon Valley</cite></span></figcaption>
+            <figcaption><strong>Jian Yang</strong><span>CEO of Novi · <cite>Silicon Valley</cite> parody</span></figcaption>
+            <a className={styles.imageCredit} href="https://siliconvalleyism.com/silicon-valley-image.php?id=648" target="_blank" rel="noreferrer">Image: Silicon Valleyism <ArrowUpRight size={13} aria-hidden="true" /></a><a className={styles.imageCredit} href="https://www.scmp.com/abacus/culture/article/3036633/chinese-fans-love-silicon-valleys-satire-chinas-tech-industry" target="_blank" rel="noreferrer">Read about Jian-Yang: South China Morning Post <ArrowUpRight size={13} aria-hidden="true" /></a>
           </figure>
         </section>
 
@@ -83,7 +83,7 @@ export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
 
         <section className={styles.faq} aria-labelledby="faq-title">
           <span className={styles.eyebrow}>A FEW THINGS TO KNOW</span><h2 id="faq-title">Before you get started.</h2>
-          <details><summary>Which plan is right for me?</summary><p>Core includes behavioral and technical modes, document context, screenshots, transcription, and the transparent overlay on one device. Pro adds chat, recruiter mode, coding assistance, system design, and eye tracking. Ultimate adds the local coding agent and exclusive phone companion on three devices. Lifetime provides the Pro toolkit on one device for $399.</p></details>
+          <details><summary>Which plan is right for me?</summary><p>Core includes behavioral and technical modes, document context, screenshots, transcription, and the transparent overlay on one device. Pro adds chat, recruiter mode, coding assistance, system design, and eye tracking. Ultimate adds the local coding agent and exclusive phone companion on three devices. Lifetime provides the Pro toolkit on unlimited devices for $399.</p></details>
           <details><summary>Is AI usage included in the price?</summary><p>Your plan covers Novi access. Connect your own AI provider key; any provider usage charges are separate, including on the Lifetime plan.</p></details>
           <details><summary>Can I set up Novi for my consultancy?</summary><p>Yes. Consultancies and staffing firms can contact our sales team for team licensing and account setup. You’ll find the contact details on the pricing page.</p></details>
         </section>

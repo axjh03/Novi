@@ -42,7 +42,8 @@ export function SettingsAppPrivacy() {
           setStatus('Mask settings saved.');
         })}>Apply mask settings</button>
       </fieldset>}
-      <p>Use <code>novi start</code> to launch or bring back the main window, and <code>novi stop</code> to quit all Novi windows and stop active work. Quit also stops active work; unsent text is not saved.</p>
+      <p>Use <code>novi start</code> or <code>novi show</code> to launch or bring back the main window, and <code>novi stop</code> to quit all Novi windows and stop active work. Quit also stops active work; unsent text is not saved.</p>
+      <p className="muted">PATH changes apply to new terminals. Already-open shells keep their old environment; reopen your terminal app to pick up the change. Refresh command status checks installation only.</p>
       {command?.canInstall && (command.state !== 'installed' || !command.pathConfigured) && <button className="text-button" type="button" disabled={busy} onClick={() => void run(async () => {
         try {
           setCommand(await unwrap(window.novi.installAppCommand()));

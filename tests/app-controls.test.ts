@@ -90,6 +90,8 @@ test('commands recognize packaged and development arguments without interpreting
   assert.equal(appCommand(['/electron', '/app', 'stop'], false), 'stop');
   assert.equal(appCommand(['/electron', 'stop'], false), 'start');
   assert.equal(appCommand(['/app/novi', 'start'], true), 'start');
+  assert.equal(appCommand(['/app/novi', 'show'], true), 'start');
+  assert.equal(appCommand(['/electron', '/app', 'show'], false), 'start');
   assert.equal(appCommand(['/app/novi'], true), 'start');
 });
 
@@ -180,5 +182,27 @@ test('generated PATH setup is safe for shell metacharacters and takes effect in 
       if ((error as NodeJS.ErrnoException).code === 'EPERM') { t.skip('This sandbox blocks child-process execution.'); return; }
       throw error;
     }
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+
+test('Windows and POSIX launchers accept show as the launch/restore alias', () => {
+  const windows = commandLauncher('C:\\Program Files\\Novi\\Novi.exe', true);
+  assert.ok(windows.includes('if "%~1"=="show" goto start'));
+  const posix = commandLauncher('/Applications/Novi.app/Contents/MacOS/Novi', false);
+  assert.ok(posix.includes('start|show) nohup'));
+});
+
+test('fish PATH setup preserves existing configuration and stays idempotent', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'novi-fish-'));
+  try {
+    const env = { SHELL: '/usr/bin/fish', XDG_CONFIG_HOME: join(home, 'config'), PATH: '' };
+    const service = new AppCommandService({ directory: join(home, '.local', 'bin'), executable: '/app/Novi', home, windows: false, packaged: true }, env);
+    assert.equal((await service.install()).pathConfigured, true);
+    const profile = join(env.XDG_CONFIG_HOME, 'fish', 'conf.d', 'novi-path.fish');
+    const original = readFileSync(profile, 'utf8');
+    assert.match(original, /set -gx PATH/);
+    await service.install();
+    assert.equal(readFileSync(profile, 'utf8'), original);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
