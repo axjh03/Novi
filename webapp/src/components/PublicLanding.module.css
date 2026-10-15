@@ -2,8 +2,8 @@
 .page :is(a,button,summary):focus-visible { outline:3px solid #66806d; outline-offset:5px; }
 .eyebrow { font-size:11px; font-weight:700; letter-spacing:.16em; color:var(--accent); }
 .hero { padding:100px 24px 0; text-align:center; background:radial-gradient(ellipse at top,#e9eee3,transparent 65%); }
-.hero h1 { margin:26px auto; font-size:clamp(42px,5.7vw,78px); font-weight:500; letter-spacing:-.055em; line-height:1.08; }
-.hero h1 em { font-family:Georgia,'Times New Roman',serif; font-weight:400; color:#58715e; }
+.hero h1 { margin:26px auto; font-size:clamp(32px,5.7vw,78px); font-weight:800; letter-spacing:-.055em; line-height:1.08; }
+.hero h1 em { font-style:normal; color:#58715e; }
 .heroLead { max-width:650px; margin:auto; font-size:17px; line-height:1.85; color:var(--muted); }
 .actions { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:24px; margin:32px 0 58px; }
 .primaryLink,.secondaryLink,.textLink { display:inline-flex; align-items:center; justify-content:center; gap:12px; font-size:14px; font-weight:600; }

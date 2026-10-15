@@ -25,19 +25,19 @@ export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
       <PublicNavbar onSignIn={onSignIn} />
       <main>
         <section className={styles.hero} aria-labelledby="landing-title">
-          <span className={styles.eyebrow}>YOUR CONTEXT. A CLEARER NEXT STEP.</span>
-          <h1 id="landing-title">Think clearly.<br /><em>Be ready for what’s next.</em></h1>
-          <p className={styles.heroLead}>A focused AI workspace for interview preparation, technical conversations, and your everyday code. Bring your experience. Work through the details. Keep the context close.</p>
+          <span className={styles.eyebrow}>THE INTERVIEW CHEAT CODE</span>
+          <h1 id="landing-title">Fuck LeetCode.<br />Fuck HackerRank.<br />Fuck QA.<br /><em>We&apos;re here.</em></h1>
+          <p className={styles.heroLead}>Another timed puzzle. Another technical grilling. Enough. Bring the question, a screenshot, or audio context. Novi puts AI backup on your desktop for the code, the explanation, and whatever follow-up comes next.</p>
           <div className={styles.actions}>
-            <Link className={styles.primaryLink} href="/get-access">Explore plans <ArrowUpRight size={18} aria-hidden="true" /></Link>
+            <Link className={styles.primaryLink} href="/get-access">Get your backup <ArrowUpRight size={18} aria-hidden="true" /></Link>
             <Link className={styles.secondaryLink} href="/how-it-works">See how it works <ArrowRight size={17} aria-hidden="true" /></Link>
           </div>
           <div className={styles.heroMeta}><span>macOS · Windows · Linux</span><span>Bring your own AI provider</span><span>From {PLANS.essential.price} / month</span></div>
         </section>
 
         <section className={styles.intro} aria-labelledby="intro-title">
-          <div><span className={styles.eyebrow}>BUILT AROUND YOUR WORK</span><h2 id="intro-title">More context.<br />More useful conversations.</h2></div>
-          <p>A good answer starts with understanding the question. Novi brings your notes, audio, screenshots, and project files into one desktop workspace, so you can move from a question to the reasoning behind it.</p>
+          <div><span className={styles.eyebrow}>YOU KNOW THE WORK</span><h2 id="intro-title">The interview grind?<br />That&apos;s another story.</h2></div>
+          <p>You&apos;ve built projects, solved problems, and shipped real work. Then a timed question asks you to remember an algorithm you haven&apos;t touched in months. Novi brings your notes, audio, screenshots, and project files together so you have something useful to work with when the question lands.</p>
         </section>
 
         <section className={styles.features} id="features" aria-labelledby="features-title">
@@ -73,7 +73,7 @@ export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
           <details><summary>Can I set up Novi for my consultancy?</summary><p>Yes. Consultancies and staffing firms can contact our sales team for team licensing and account setup. You’ll find the contact details on the pricing page.</p></details>
         </section>
 
-        <section className={styles.closing} aria-labelledby="closing-title"><span className={styles.eyebrow}>MAKE ROOM FOR BETTER WORK</span><h2 id="closing-title">Bring your next question.</h2><p>Choose the workspace that fits the way you prepare, think, and build.</p><Link className={styles.primaryLink} href="/get-access">Find your plan <ArrowUpRight size={18} aria-hidden="true" /></Link></section>
+        <section className={styles.closing} aria-labelledby="closing-title"><span className={styles.eyebrow}>YOUR NEXT ROUND IS COMING</span><h2 id="closing-title">Enough interview bullshit.<br />Bring Novi.</h2><p>The question lands. Your backup is already open.</p><Link className={styles.primaryLink} href="/get-access">Find your plan <ArrowUpRight size={18} aria-hidden="true" /></Link></section>
       </main>
       <SiteFooter onSignIn={onSignIn} />
     </div>

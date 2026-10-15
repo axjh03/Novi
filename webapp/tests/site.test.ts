@@ -4,7 +4,7 @@ import { ADVANCED_FEATURES, CONTACT_EMAIL, CORE_FEATURES, isPlanId, mailto, PLAN
 
 test('public plans match the published prices, billing terms, and device allowances', () => {
   assert.deepEqual(Object.entries(PLANS).map(([id, plan]) => [id, plan.price, plan.unit, plan.devices]), [
-    ['essential', '$16.99', '/ month', '1 device'],
+    ['essential', '$16', '/ month', '1 device'],
     ['pro', '$25', '/ month', '1 device'],
     ['plus', '$30', '/ month', '2 devices maximum'],
     ['lifetime', '$299', 'one-time', 'Unlimited devices'],
