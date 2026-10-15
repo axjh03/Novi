@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowUpRight, Instagram } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { CONTACT_EMAIL, INSTAGRAM_URL, SITE_LINKS } from '@/lib/site';
 import styles from './SiteFooter.module.css';
 
@@ -29,7 +29,7 @@ export default function SiteFooter({ onSignIn }: { onSignIn?: () => void }) {
         <div className={styles.column}>
           <h2>Let’s talk</h2>
           <a href={`mailto:${CONTACT_EMAIL}`}><span>{CONTACT_EMAIL}</span><ArrowUpRight size={15} aria-hidden="true" /></a>
-          <a href={INSTAGRAM_URL} target="_blank" rel="noreferrer"><Instagram size={16} aria-hidden="true" /><span>@getnoviapp</span><ArrowUpRight size={15} aria-hidden="true" /></a>
+          <a href={INSTAGRAM_URL} target="_blank" rel="noreferrer"><span>Instagram @getnoviapp</span><ArrowUpRight size={15} aria-hidden="true" /></a>
         </div>
       </div>
       <div className={styles.bottom}>
