@@ -11,13 +11,17 @@
     "macX64": "/api/download?asset=mac-x64",
     "windows": "/api/download?asset=windows",
     "linuxDeb": "/api/download?asset=linux-deb",
-    "linuxAppImage": "/api/download?asset=linux-appimage"
+    "linuxAppImage": "/api/download?asset=linux-appimage",
+    "linuxDebArm64": "/api/download?asset=linux-deb-arm64",
+    "linuxAppImageArm64": "/api/download?asset=linux-appimage-arm64"
   },
   "fileNames": {
     "macArm64": "Novi-0.2.2-arm64.dmg",
     "macX64": "Novi-0.2.2-x64.dmg",
     "windows": "Novi-Setup-0.2.2.exe",
     "linuxDeb": "novi_0.2.2_amd64.deb",
-    "linuxAppImage": "novi_0.2.2_x86_64.AppImage"
+    "linuxAppImage": "novi_0.2.2_x86_64.AppImage",
+    "linuxDebArm64": "novi_0.2.2_arm64.deb",
+    "linuxAppImageArm64": "novi_0.2.2_arm64.AppImage"
   }
 }

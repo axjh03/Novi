@@ -51,14 +51,19 @@ export async function GET(req: Request) {
         case 'win':
         case 'exe':
           return name.endsWith('.exe');
+        // Linux files are named per architecture (amd64/x86_64 or arm64); the plain names mean x64.
         case 'linux-deb':
         case 'deb':
-          return name.endsWith('.deb');
+          return name.endsWith('_amd64.deb');
+        case 'linux-deb-arm64':
+          return name.endsWith('_arm64.deb');
         case 'linux-appimage':
         case 'appimage':
-          return name.endsWith('.appimage');
+          return name.endsWith('_x86_64.appimage');
+        case 'linux-appimage-arm64':
+          return name.endsWith('_arm64.appimage');
         case 'linux':
-          return name.endsWith('.deb') || name.endsWith('.appimage');
+          return name.endsWith('_amd64.deb') || name.endsWith('_x86_64.appimage');
         default:
           return false;
       }

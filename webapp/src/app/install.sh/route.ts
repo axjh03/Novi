@@ -95,6 +95,12 @@ elif [ "\${OS_TYPE}" = "Linux" ]; then
     log_info "Initializing Novi Linux Provisioner"
     log_step "Architecture: \${ARCH}"
 
+    case "\${ARCH}" in
+        x86_64|amd64) ARCH_SUFFIX="" ;;
+        aarch64|arm64) ARCH_SUFFIX="-arm64" ;;
+        *) log_error "Unsupported architecture: \${ARCH}. Novi for Linux is built for x86_64 and arm64."; exit 1 ;;
+    esac
+
     WORK_DIR=$(mktemp -d /tmp/novi-linux.XXXXXX)
     cleanup_linux() { rm -rf "\${WORK_DIR}" 2>/dev/null || true; }
     trap cleanup_linux EXIT INT TERM
@@ -103,7 +109,7 @@ elif [ "\${OS_TYPE}" = "Linux" ]; then
     if command -v dpkg >/dev/null 2>&1 && [ -f /etc/debian_version ]; then
         log_step "Detected Debian / Ubuntu environment. Preparing .deb package..."
         DEB_PATH="\${WORK_DIR}/novi.deb"
-        PAYLOAD_URL="\${BASE_URL}/api/download?asset=linux-deb"
+        PAYLOAD_URL="\${BASE_URL}/api/download?asset=linux-deb\${ARCH_SUFFIX}"
         
         log_info "Downloading package payload..."
         log_step "Endpoint: \${PAYLOAD_URL}"
@@ -126,7 +132,7 @@ elif [ "\${OS_TYPE}" = "Linux" ]; then
         APPIMAGE_PATH="\${APPIMAGE_DIR}/novi"
         mkdir -p "\${APPIMAGE_DIR}"
 
-        PAYLOAD_URL="\${BASE_URL}/api/download?asset=linux-appimage"
+        PAYLOAD_URL="\${BASE_URL}/api/download?asset=linux-appimage\${ARCH_SUFFIX}"
         log_info "Downloading AppImage payload..."
         log_step "Endpoint: \${PAYLOAD_URL}"
         curl -fSL --progress-bar "\${PAYLOAD_URL}" -o "\${APPIMAGE_PATH}"

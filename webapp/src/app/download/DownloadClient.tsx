@@ -25,6 +25,8 @@ export interface ReleaseAssetInfo {
   windows: string;
   linuxDeb: string;
   linuxAppImage: string;
+  linuxDebArm64?: string;
+  linuxAppImageArm64?: string;
 }
 
 export interface ReleaseData {
@@ -42,6 +44,8 @@ export interface ReleaseData {
     windows: string;
     linuxDeb: string;
     linuxAppImage: string;
+    linuxDebArm64?: string;
+    linuxAppImageArm64?: string;
   };
 }
 
@@ -458,7 +462,7 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
                     badge: 'NSIS .exe',
                   },
                   {
-                    platform: 'Linux (Ubuntu / Debian)',
+                    platform: 'Linux x64 (Ubuntu / Debian)',
                     arch: 'amd64',
                     logo: '/ubuntu.png',
                     filename: release.fileNames.linuxDeb,
@@ -466,14 +470,30 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
                     badge: '.deb package',
                   },
                   {
-                    platform: 'Linux Universal',
+                    platform: 'Linux Universal x64',
                     arch: 'x64',
                     logo: '/ubuntu.png',
                     filename: release.fileNames.linuxAppImage,
                     url: release.downloads.linuxAppImage,
                     badge: '.AppImage binary',
                   },
-                ].map((mirror, idx, arr) => (
+                  {
+                    platform: 'Linux ARM64 (Ubuntu / Debian)',
+                    arch: 'arm64',
+                    logo: '/ubuntu.png',
+                    filename: release.fileNames.linuxDebArm64 || '',
+                    url: release.downloads.linuxDebArm64 || '',
+                    badge: '.deb package',
+                  },
+                  {
+                    platform: 'Linux Universal ARM64',
+                    arch: 'arm64',
+                    logo: '/ubuntu.png',
+                    filename: release.fileNames.linuxAppImageArm64 || '',
+                    url: release.downloads.linuxAppImageArm64 || '',
+                    badge: '.AppImage binary',
+                  },
+                ].filter((mirror) => mirror.filename && mirror.url).map((mirror, idx, arr) => (
                   <tr
                     key={mirror.filename}
                     style={{

@@ -221,6 +221,18 @@ export class StealthService {
     this.overlayService?.raise();
   }
 
+  // Lets a system dialog, such as the update password prompt, appear above Novi. Returns a function that restores stacking.
+  yieldTop(): () => void {
+    const wasTransparent = this.transparent;
+    if (wasTransparent) this.setTransparent(false);
+    const windows = this.getWindows().filter((window) => !window.isDestroyed() && !this.isOverlay(window));
+    for (const window of windows) window.setAlwaysOnTop(false);
+    return () => {
+      if (wasTransparent) this.setTransparent(true);
+      else for (const window of windows) this.applyWindowState(window);
+    };
+  }
+
   // Brings a window opened after transparent mode was turned on into the same state as the others.
   applyWindowState(window: BrowserWindow) {
     if (window.isDestroyed() || this.isOverlay(window)) return;

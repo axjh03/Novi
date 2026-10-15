@@ -53,6 +53,8 @@ export async function GET() {
       windows: `/api/download?asset=windows`,
       linuxDeb: `/api/download?asset=linux-deb`,
       linuxAppImage: `/api/download?asset=linux-appimage`,
+      linuxDebArm64: `/api/download?asset=linux-deb-arm64`,
+      linuxAppImageArm64: `/api/download?asset=linux-appimage-arm64`,
     };
 
     const fileNames: Record<string, string> = { ...fallbackReleaseInfo.fileNames };
@@ -66,9 +68,11 @@ export async function GET() {
         } else if (name.endsWith('.exe')) {
           fileNames.windows = name;
         } else if (name.endsWith('.deb')) {
-          fileNames.linuxDeb = name;
+          if (name.endsWith('_arm64.deb')) fileNames.linuxDebArm64 = name;
+          else fileNames.linuxDeb = name;
         } else if (name.endsWith('.AppImage')) {
-          fileNames.linuxAppImage = name;
+          if (name.endsWith('_arm64.AppImage')) fileNames.linuxAppImageArm64 = name;
+          else fileNames.linuxAppImage = name;
         }
       }
     }

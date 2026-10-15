@@ -820,7 +820,7 @@ export function registerIPC(
       if (win && !win.isDestroyed()) {
         win.webContents.send('update-progress', progress);
       }
-    });
+    }, { yieldWindows: () => services ? services.stealth.yieldTop() : () => {} });
   });
   handle('get-remote-companion-status', async () => {
     return get().remoteCompanion.getStatus();
