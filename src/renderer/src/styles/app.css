@@ -259,6 +259,17 @@ svg { flex-shrink: 0; }
 .conversation-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .messages { max-width: 1100px; margin: 0 auto; padding: 10px 20px 6px; }
 .message { display: flex; gap: 12px; margin: 14px 0 20px; }
+.message.assistant {
+  --panel: #171c24; --surface: #242d3a; --hover: #303b4c;
+  --text: #edf1f7; --muted: #b0bac9; --subtle: #a0adbf; --border: #435066;
+  --accent: #a3c1ff; --selected: #304566; --danger: #ffb4ab; --error-bg: #382628;
+  --lc-add: #7ee2a8; --lc-remove: #ffb4ab; --lc-edit: #f2cc8f;
+  background: #1d2633;
+  color: var(--text);
+  color-scheme: dark;
+  padding: 20px;
+  border-radius: 16px;
+}
 .message-avatar { width: 30px; height: 30px; flex-shrink: 0; border-radius: 8px; background: var(--selected); color: var(--muted); display: flex; align-items: center; justify-content: center; }
 .message-avatar .brand svg { width: 21px; height: 21px; }
 .user .message-avatar { background: var(--surface); border: 1px solid var(--border); }

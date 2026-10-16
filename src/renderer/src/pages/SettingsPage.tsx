@@ -14,10 +14,10 @@ import { errorText, unwrap } from '../services/api';
 const shortcuts = [
   { key: 'clickThroughShortcut', label: 'Interaction toggle shortcut', defaultValue: DEFAULT_CLICK_THROUGH_SHORTCUT, description: 'Press once to enable click-through, then again to restore interaction. Works while transparent mode is on.' },
   { key: 'transparentShortcut', label: 'Transparency toggle shortcut', defaultValue: DEFAULT_TRANSPARENT_SHORTCUT, description: 'Turns transparent stealth mode on or off. While transparent, this is the only way to turn it off.' },
-  { key: 'codingModeShortcut', label: 'Coding Mode hotkey', defaultValue: DEFAULT_CODING_SHORTCUT, description: 'Opens the movable code viewer.' },
-  { key: 'behavioralModeShortcut', label: 'Behavioral Interview Mode hotkey', defaultValue: DEFAULT_BEHAVIORAL_SHORTCUT, description: 'Activates Behavioral Interview Studio with STAR framework guides and candidate story bank.' },
-  { key: 'screenshotShortcut', label: 'Full-screen capture hotkey', defaultValue: DEFAULT_SCREENSHOT_SHORTCUT, description: 'Takes a full-screen screenshot and attaches it to the chat composer.' },
-  { key: 'audioRecordShortcut', label: 'System audio capture hotkey', defaultValue: DEFAULT_AUDIO_RECORD_SHORTCUT, description: 'Captures desktop playback without opening your microphone. Saves locally and then transcribes or attaches it.' },
+  { key: 'codingModeShortcut', label: 'Coding Mode hotkey', defaultValue: DEFAULT_CODING_SHORTCUT },
+  { key: 'behavioralModeShortcut', label: 'Behavioral Interview Mode hotkey', defaultValue: DEFAULT_BEHAVIORAL_SHORTCUT },
+  { key: 'screenshotShortcut', label: 'Full-screen capture hotkey', defaultValue: DEFAULT_SCREENSHOT_SHORTCUT },
+  { key: 'audioRecordShortcut', label: 'System audio capture hotkey', defaultValue: DEFAULT_AUDIO_RECORD_SHORTCUT },
 ] as const;
 
 interface Props { state: Snapshot; onSaved: (state: Snapshot) => void; onBack: () => void; onSignOut: () => void; onCleared: () => void }
@@ -121,7 +121,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                       Display name
                       <input
                         value={value.displayName}
-                        onChange={(e) => change({ ...value, displayName: e.target.value })}
+                        readOnly
                         required
                         maxLength={60}
                       />

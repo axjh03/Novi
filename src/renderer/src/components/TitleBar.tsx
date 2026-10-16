@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Copy, Eye, EyeOff, Maximize2, Minus, QrCode, Square, X } from 'lucide-react';
+import { Copy, Eye, EyeOff, Minus, Move, QrCode, Square, X } from 'lucide-react';
 import { useStealth } from '../hooks/useStealth';
 import { useAppMode } from '../context/AppModeContext';
 import { unwrap } from '../services/api';
@@ -41,12 +41,12 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
               <button type="button" className="titlebar-quick-btn" title={`Larger message and code text (${readingSize}%)`} aria-label="Increase message and code font size" disabled={readingSize >= MAX_READING_SIZE} onClick={() => changeReadingSize(1)}>A+</button>
             </div>
             <button type="button" className="stealth-toggle-btn" aria-label="Reset all window sizes" title="Reset all window sizes"
-              onClick={() => void unwrap(window.novi.resetWorkspaceSizes()).catch(console.error)}><Maximize2 size={14} /></button>
+              onClick={() => void unwrap(window.novi.resetWorkspaceSizes()).catch(console.error)}><Move size={14} /></button>
             <button type="button" className={`stealth-toggle-btn ${transparent ? 'active' : ''} ${transparencyLocked ? 'locked' : ''}`}
               onClick={() => { if (!transparencyLocked) void toggleTransparent(); }} aria-pressed={transparent} aria-disabled={transparencyLocked || undefined}
+              aria-label={transparencyLocked ? `Transparency locked; press ${transparentShortcut} to turn off` : transparent ? 'Turn off transparency' : 'Turn on transparency'}
               title={transparencyLocked ? `Press ${transparentShortcut} to turn off transparent mode` : transparent ? 'Turn off transparent window' : 'Turn on transparent window'}>
               {transparent ? <Eye size={14} /> : <EyeOff size={14} />}
-              <span>{transparencyLocked ? `Transparency (${transparentShortcut})` : transparent ? 'Transparent' : 'Transparency'}</span>
             </button>
           {transparent && (
             <details className="titlebar-appearance">
@@ -77,8 +77,8 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
       )}
 
       <button type="button" className="stealth-toggle-btn titlebar-qr-btn"
-        onClick={() => setShowQRModal(true)} title="Open phone companion">
-        <QrCode size={14} /><span>Phone Remote</span>
+        onClick={() => setShowQRModal(true)} title="Open phone companion" aria-label="Open phone companion">
+        <QrCode size={14} />
       </button>
 
       <div className="titlebar-controls">

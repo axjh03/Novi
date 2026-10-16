@@ -844,12 +844,6 @@ export function DeviceTester() {
               </div>
             )}
 
-            <div className="device-info-badge">
-              <ShieldCheck size={16} color="var(--accent)" style={{ flexShrink: 0, marginTop: 1 }} />
-              <div>
-                <strong>Private:</strong> The recording stays in memory and is never saved. It is sent to your transcription connection only if you press Transcribe.
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -985,12 +979,6 @@ export function DeviceTester() {
               </div>
             )}
 
-            <div className="device-info-badge">
-              <ShieldCheck size={16} color="var(--accent)" style={{ flexShrink: 0, marginTop: 1 }} />
-              <div>
-                <strong>Private:</strong> Captured sound stays in memory for this test and is never saved. It is sent to your transcription connection only if you press Transcribe.
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -1103,9 +1091,6 @@ export function DeviceTester() {
               </div>
             )}
 
-            <small style={{ color: 'var(--muted)' }}>
-              The camera turns off when you stop the test or leave Settings.
-            </small>
           </div>
         </div>
       </section>
@@ -1334,12 +1319,6 @@ export function DeviceTester() {
               </div>
             )}
 
-            <div className="device-info-badge">
-              <ShieldCheck size={16} color="var(--accent)" style={{ flexShrink: 0, marginTop: 1 }} />
-              <div>
-                <strong>Uses your API connection:</strong> Audio is sent to the OpenAI, Gemini or compatible Whisper connection from <b>API Management</b>.
-              </div>
-            </div>
           </div>
         </div>
       </section>

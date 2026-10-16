@@ -230,14 +230,14 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
         selectedId={chat.selectedId}
         displayName={config.displayName}
         busy={sidebarBusy || syncingModel}
-        onNew={() => setConfirmEnd(true)}
+        onNew={() => { setConfirmEnd(true); setSidebarCollapsed(true); }}
         onSelect={(id) => {
           if (id !== chat.selectedId) setComposerKey(key => key + 1);
           if (chat.conversations.find((item) => item.id === id)?.localCoding) setAppMode('local-coding');
-          chat.setSelectedId(id); setSettings(false); chat.setError('');
+          chat.setSelectedId(id); setSettings(false); setSidebarCollapsed(true); chat.setError('');
         }}
         onDelete={setDeleting}
-        onSettings={() => { practice.cancel(); setSettings(true); }}
+        onSettings={() => { practice.cancel(); setSettings(true); setSidebarCollapsed(true); }}
       />
 
       {settings ? (

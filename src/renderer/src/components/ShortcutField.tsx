@@ -8,7 +8,7 @@ interface Props {
   label: string;
   value: string;
   defaultValue: string;
-  description: string;
+  description?: string;
   /** Shortcuts already used by other actions, so one combination cannot be given two jobs. */
   others: Array<{ label: string; value: string }>;
   onChange: (shortcut: string) => void;
@@ -84,6 +84,6 @@ export function ShortcutField({ label, value, defaultValue, description, others,
       <button className="text-button" type="button" onClick={() => input.current?.focus()}>Record</button>
       {!sameShortcut(value, defaultValue) && <button className="text-button" type="button" onClick={() => choose(defaultValue)}>Use default</button>}
     </div>
-    <small id={hintId} role="status">{message || `${description} Default: ${defaultValue}.`}</small>
+    {(message || description) && <small id={hintId} role="status">{message || `${description} Default: ${defaultValue}.`}</small>}
   </label>;
 }
