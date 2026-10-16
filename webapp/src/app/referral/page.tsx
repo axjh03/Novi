@@ -17,9 +17,15 @@ export default function ReferralPage() {
     <main className={styles.main}>
       <section className={styles.hero} aria-labelledby="referral-title">
         <div><span className={styles.eyebrow}>THE NOVI REFERRAL PROGRAM</span><h1 id="referral-title">Bhaichara<br /><em>on Top.</em></h1><p>Bring us a friend. When they buy a plan through your referral code or link, you get <strong>50% of what they pay</strong>—cash credited to your bank account.</p><div className={styles.actions}><a className={styles.primary} href={join}>Get my referral code <ArrowUpRight size={17} /></a><a className={styles.secondary} href="#rewards">Show me the rewards <ArrowDown size={15} /></a></div><span className={styles.tagline}>Bhaichara on Top 🤝</span></div>
-        <div className={styles.friendVisual} aria-label="Bhaichara on Top">
-          <span aria-hidden="true">🤝</span><strong>Good people<br />back each other.</strong><small>Bhaichara on Top.</small>
-        </div>
+        <figure className={styles.gif}>
+          <img src="https://i.redd.it/01f6xv08k19h1.gif" alt="A looping animation cheering on a friend" />
+        </figure>
+      </section>
+
+      <section className={styles.ceoNote} aria-label="A note from Novi CEO Jian Yang">
+        <span className={styles.eyebrow}>CEO OF NOVI · JIAN YANG</span>
+        <blockquote>“Herro. I am Jian-Yang. CEO of Novi. You spend four year learning computah science. Interviewah ask you reverse binary twee. You shit your pants. Very sad. So I make Novi. AI risten, AI write code, you just nod head like fucking genius. Google hire you. You make two hundwed thousand dollah. I make sixteen dollah. Six month later, you get fired. Not my problem. No refund. Fuck ReetCode.”</blockquote>
+        <strong>VERY LEGAL. VERY GOOD.</strong>
       </section>
 
       <section className={styles.how} aria-labelledby="how-title"><div className={styles.sectionHeading}><span className={styles.eyebrow}>THREE STEPS. ONE GOOD INTRODUCTION.</span><h2 id="how-title">You make the introduction.<br />We share the upside.</h2></div><div className={styles.steps}>

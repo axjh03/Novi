@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, Copy, CreditCard, Mail, Monitor } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Copy, CreditCard, Mail } from 'lucide-react';
 import { CONTACT_EMAIL, referralCode, mailto, PLANS, type PlanId } from '@/lib/site';
 import styles from './get-access.module.css';
 
@@ -20,7 +20,6 @@ export default function AccessRequest({ initialPlan, initialReferral = '' }: { i
     "I'd like to get access to Novi. Please send me the payment details for this plan.", '',
     `Plan: ${selected.name}`,
     `Price: ${selected.price} ${selected.unit}`,
-    `Devices: ${selected.devices}`,
     `Billing: ${plan === 'lifetime' ? 'One-time payment for lifetime access' : 'Monthly'}`,
     ...(referral.trim() ? [`Referral code: ${referral.trim()}`] : []),
     `Name: ${name.trim() || '(your name)'}`,
@@ -54,7 +53,6 @@ export default function AccessRequest({ initialPlan, initialReferral = '' }: { i
               <div className={styles.planHeading}><h2>{PLANS[id].name}</h2>{id === 'ultimate' && <span>Complete toolkit</span>}</div>
               <p className={styles.planSummary}>{PLANS[id].summary}</p>
               <p className={styles.price}>{PLANS[id].price}<span>{PLANS[id].unit}</span></p>
-              <p className={styles.devices}><Monitor size={15} aria-hidden="true" />{PLANS[id].devices}</p>
               <button type="button" className={id === 'pro' ? styles.primary : styles.secondary} onClick={() => choosePlan(id)}>Choose {PLANS[id].name}<ArrowRight size={15} aria-hidden="true" /></button>
               <ul className={styles.featureList}>{PLANS[id].features.map(feature => <li key={feature}><Check size={15} aria-hidden="true" /><span>{feature}</span></li>)}</ul>
               {id === 'core' && <p className={styles.planNote}>Pro adds coding and system design. Ultimate adds local coding and the phone companion.</p>}
@@ -102,7 +100,6 @@ export default function AccessRequest({ initialPlan, initialReferral = '' }: { i
           <aside className={styles.orderSummary} aria-label="Order summary">
             <span className={styles.eyebrow}>ORDER SUMMARY</span>
             <h3>Novi {selected.name}</h3><p>{selected.summary}</p>
-            <div className={styles.summaryRow}><span>Device allowance</span><strong>{selected.devices}</strong></div>
             <div className={styles.summaryRow}><span>Billing</span><strong>{plan === 'lifetime' ? 'One-time' : 'Monthly'}</strong></div>
             <div className={`${styles.summaryRow} ${styles.total}`}><span>Plan price</span><strong>{selected.price}<small>{selected.unit}</small></strong></div>
             <p className={styles.hint}>AI provider usage is separate. Your account is activated after payment is confirmed.</p>

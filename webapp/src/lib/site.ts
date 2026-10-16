@@ -28,11 +28,11 @@ export const ADVANCED_FEATURES = [
   'Camera-based eye tracking',
 ] as const;
 export type PlanId = 'core' | 'pro' | 'ultimate' | 'lifetime';
-export const PLANS: Record<PlanId, { name: string; price: string; unit: string; devices: string; summary: string; features: readonly string[] }> = {
-  core: { name: 'Core', price: '$16', unit: '/ month', devices: '1 device', summary: 'Focused support for behavioral interviews and technical screens.', features: CORE_FEATURES },
-  pro: { name: 'Pro', price: '$45', unit: '/ month', devices: '1 device', summary: 'The interview toolkit, with coding, system design, and eye tracking.', features: ['Everything in Core', ...ADVANCED_FEATURES] },
-  ultimate: { name: 'Ultimate', price: '$90', unit: '/ month', devices: '3 devices', summary: 'Your complete workspace, connected across your setup.', features: ['Everything in Pro', 'Local coding agent and project context', 'Phone companion — exclusive to Ultimate', 'Access on up to 3 devices'] },
-  lifetime: { name: 'Lifetime', price: '$399', unit: 'one-time', devices: 'Unlimited devices', summary: 'The Pro toolkit with one payment and lifetime access.', features: ['Everything in Pro', 'Unlimited devices', 'Lifetime access with no monthly Novi fee'] },
+export const PLANS: Record<PlanId, { name: string; price: string; unit: string; summary: string; features: readonly string[] }> = {
+  core: { name: 'Core', price: '$16', unit: '/ month', summary: 'Focused support for behavioral interviews and technical screens.', features: CORE_FEATURES },
+  pro: { name: 'Pro', price: '$45', unit: '/ month', summary: 'The interview toolkit, with coding, system design, and eye tracking.', features: ['Everything in Core', ...ADVANCED_FEATURES] },
+  ultimate: { name: 'Ultimate', price: '$90', unit: '/ month', summary: 'Your complete workspace, connected across your setup.', features: ['Everything in Pro', 'Local coding agent and project context', 'Phone companion — exclusive to Ultimate'] },
+  lifetime: { name: 'Lifetime', price: '$399', unit: 'one-time', summary: 'The Pro toolkit with one payment and lifetime access.', features: ['Everything in Pro', 'Lifetime access with no monthly Novi fee'] },
 };
 export const isPlanId = (value: unknown): value is PlanId => typeof value === 'string' && Object.hasOwn(PLANS, value);
 

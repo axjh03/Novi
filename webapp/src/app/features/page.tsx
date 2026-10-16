@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowRight, ArrowUpRight, AudioLines, Check, Code2, Eye, FileText, FolderOpen, Layers, Network, Smartphone, Sparkles } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, AudioLines, Check, Code2, Eye, FileText, FolderOpen, Layers, Network, Smartphone, Sparkles, X } from 'lucide-react';
 import PublicNavbar from '@/components/PublicNavbar';
 import SiteFooter from '@/components/SiteFooter';
 import { FEATURES, FEATURE_GROUPS } from '@/lib/features';
@@ -9,17 +9,20 @@ import styles from './features.module.css';
 
 export const metadata: Metadata = {
   title: 'Features — Your interview loadout | Novi',
-  description: 'Explore Novi’s interview modes, audio, screenshots, coding, eye tracking, phone companion, and local project context. Compare Novi with Interview Coder and Cluely.',
+  description: 'Explore Novi’s interview modes, audio, screenshots, coding, eye tracking, phone companion, and local project context. Compare Novi with four interview assistant competitors.',
 };
 
 const comparison = [
-  { feature: 'Main workflow', novi: 'Seven session modes, from recruiter calls to local code questions.', interviewCoder: 'Live interview assistance, including coding and system design.', cluely: 'Live meeting answers, transcripts, and meeting notes.' },
-  { feature: 'AI access & billing', novi: 'Bring your own provider keys; AI usage billed separately.', interviewCoder: 'AI models included in paid access; monthly plan lists 1,000 usage credits.', cluely: 'Bundled AI; limited free access and unlimited responses on Pro.' },
-  { feature: 'Camera-based eye tracking', novi: 'Calibrated webcam tracking with a gaze-aware answer HUD.', interviewCoder: 'Not described on the reviewed product page.', cluely: 'Describes a manually movable window; camera calibration is not described.' },
-  { feature: 'Working with your codebase', novi: 'Read-only project snapshots, agent questions, proposed edits, and diff views.', interviewCoder: 'Coding and system design help; project snapshot/diff workflow not described.', cluely: 'Screen-aware answers; project snapshot/diff workflow not described.' },
-  { feature: 'Phone workflow', novi: 'Pair a phone to control your desktop session, capture the screen, and ask questions.', interviewCoder: 'Paired phone controls not described on the reviewed product page.', cluely: 'Offers a mobile app; paired desktop remote controls not described.' },
-  { feature: 'Published paid entry price', novi: `${PLANS.core.price}/month + provider usage. ${PLANS.lifetime.price} lifetime option.`, interviewCoder: '$299/month. $799 lifetime option.', cluely: '$19.99/month Pro. A free tier is also available.' },
-  { feature: 'Screen sharing', novi: 'Transparent mode enables OS capture protection. Check your OS and sharing setup.', interviewCoder: 'Advertises screen-share protection in paid interview plans.', cluely: 'Lists screen-share protection in Pro + Undetectability at $149.99/month.' },
+  { feature: 'Live interview assistance', novi: true, interviewCoder: true, cluely: true, finalRound: true, lockedIn: true },
+  { feature: 'Audio listening / transcription', novi: true, interviewCoder: true, cluely: true, finalRound: true, lockedIn: true },
+  { feature: 'Coding interview support', novi: true, interviewCoder: true, cluely: false, finalRound: true, lockedIn: true },
+  { feature: 'System design support', novi: true, interviewCoder: true, cluely: false, finalRound: true, lockedIn: true },
+  { feature: 'Guided practice / mock rounds', novi: true, interviewCoder: false, cluely: false, finalRound: true, lockedIn: true },
+  { feature: 'Bring your own AI API key', novi: true, interviewCoder: false, cluely: false, finalRound: false, lockedIn: false },
+  { feature: 'Local coding agent / project workflow', novi: true, interviewCoder: false, cluely: false, finalRound: false, lockedIn: false },
+  { feature: 'Webcam eye tracking', novi: true, interviewCoder: false, cluely: false, finalRound: false, lockedIn: false },
+  { feature: 'Phone controls paired to desktop session', novi: true, interviewCoder: false, cluely: false, finalRound: false, lockedIn: false },
+  { feature: 'Published paid price', novi: '$16 Core · $45 Pro · $90 Ultimate/month + AI usage', interviewCoder: '$299/month · $799 lifetime', cluely: '$19.99/month Pro', finalRound: '$25+/month Pro', lockedIn: '$109.98 monthly · $39.99/month billed quarterly' },
 ];
 
 export default function FeaturesPage() {
@@ -64,7 +67,7 @@ export default function FeaturesPage() {
         </section>
 
         <section className={styles.phoneBoard} aria-labelledby="phone-title">
-          <div><span className={styles.badge}>EXCLUSIVE TO ULTIMATE · 3 DEVICES</span><h2 id="phone-title">Your phone. Your session controls.</h2><p>Keep your desktop focused on the question while your phone gives you a second place to interact with Novi. Ask a follow-up, capture your desktop screen, or scroll an answer without reaching for the desktop controls.</p><Link className={styles.primary} href="/get-access?plan=ultimate">Get Ultimate · $90/month <ArrowRight size={16} /></Link></div>
+          <div><span className={styles.badge}>EXCLUSIVE TO ULTIMATE</span><h2 id="phone-title">Your phone. Your session controls.</h2><p>Keep your desktop focused on the question while your phone gives you a second place to interact with Novi. Ask a follow-up, capture your desktop screen, or scroll an answer without reaching for the desktop controls.</p><Link className={styles.primary} href="/get-access?plan=ultimate">Get Ultimate · $90/month <ArrowRight size={16} /></Link></div>
           <ol><li><strong>01 · Pair your phone</strong><p>Open Phone Companion in the desktop app. Choose Same Wi-Fi and scan the QR code with your phone camera. The Anywhere option can connect through a tunnel when it is available.</p></li><li><strong>02 · Control the conversation</strong><p>Use the paired phone to ask questions, request a screen capture, and scroll through responses. The desktop session stays connected to your chosen AI provider.</p></li><li><strong>03 · Keep your focus</strong><p>Place your phone beside your monitor for accessible controls while you review a problem or practice an answer. Your desktop must remain running; the companion extends that session.</p></li></ol>
         </section>
 
@@ -80,11 +83,11 @@ export default function FeaturesPage() {
         </section>
 
         <section className={styles.comparison} id="compare" aria-labelledby="compare-title">
-          <div className={styles.heading}><span className={styles.eyebrow}>SHOW ME THE DIFFERENCE</span><h2 id="compare-title">Novi vs. Interview Coder vs. Cluely.</h2><p>Novi brings your own AI provider, calibrated eye tracking, a paired phone companion, and a read-only project workflow into one interview workspace. Here’s how that compares with their published offerings.</p></div>
-          <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Product comparison, scroll horizontally on smaller screens">
-            <table><caption>Published product features and USD pricing · Reviewed October 15, 2026</caption><thead><tr><th scope="col">What matters</th><th scope="col">novi<span className={styles.tableBadge}>Your loadout</span></th><th scope="col"><a href="https://www.interviewcoder.co/" target="_blank" rel="noreferrer">Interview Coder <ArrowUpRight size={13} aria-hidden="true" /></a></th><th scope="col"><a href="https://cluely.com/" target="_blank" rel="noreferrer">Cluely <ArrowUpRight size={13} aria-hidden="true" /></a></th></tr></thead><tbody>{comparison.map(row => <tr key={row.feature}><th scope="row">{row.feature}</th><td>{row.novi}</td><td>{row.interviewCoder}</td><td>{row.cluely}</td></tr>)}</tbody></table>
+          <div className={styles.heading}><span className={styles.eyebrow}>SIDE-BY-SIDE FEATURE CHECK</span><h2 id="compare-title">Novi and four interview tools.</h2><p>Same checklist for every product: interview help, coding, practice, and the tools that make Novi different.</p><p>They might look and feel pretty. Be real: would you rather use a pretty app, or build a pretty life with your wife?</p></div>
+          <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Feature comparison of Novi and four competitors; scroll horizontally on smaller screens">
+            <table><caption>Published product features and USD prices · Reviewed October 15, 2026</caption><thead><tr><th scope="col">Feature</th><th scope="col">Novi<span className={styles.tableBadge}>Your loadout</span></th><th scope="col"><a href="https://www.interviewcoder.co/" target="_blank" rel="noreferrer">Interview Coder <ArrowUpRight size={13} aria-hidden="true" /></a></th><th scope="col"><a href="https://cluely.com/pricing" target="_blank" rel="noreferrer">Cluely <ArrowUpRight size={13} aria-hidden="true" /></a></th><th scope="col"><a href="https://www.finalroundai.com/interview-copilot" target="_blank" rel="noreferrer">Final Round AI <ArrowUpRight size={13} aria-hidden="true" /></a></th><th scope="col"><a href="https://www.lockedinai.com/" target="_blank" rel="noreferrer">LockedIn AI <ArrowUpRight size={13} aria-hidden="true" /></a></th></tr></thead><tbody>{comparison.map(row => <tr key={row.feature}><th scope="row">{row.feature}</th>{(['novi', 'interviewCoder', 'cluely', 'finalRound', 'lockedIn'] as const).map(key => { const value = row[key]; return <td key={key}>{typeof value === 'boolean' ? <span className={value ? styles.yes : styles.no} aria-label={value ? 'Listed' : 'Not listed'} title={value ? 'Listed in public product information' : 'Not listed in reviewed public product information'}>{value ? <Check size={18} aria-hidden="true" /> : <X size={17} aria-hidden="true" />}</span> : value}</td>; })}</tr>)}</tbody></table>
           </div>
-          <p className={styles.sourceNote}>Sources: <a href="https://www.interviewcoder.co/" target="_blank" rel="noreferrer">Interview Coder’s product &amp; pricing page</a>, <a href="https://cluely.com/" target="_blank" rel="noreferrer">Cluely’s product page</a>, and <a href="https://cluely.com/pricing" target="_blank" rel="noreferrer">Cluely’s pricing page</a>. “Not described” means the feature wasn’t documented on these pages. These are published claims, not an independent performance test. Monthly prices use monthly billing and can change. Novi provider charges are additional.</p>
+          <p className={styles.sourceNote}>Sources: <a href="https://www.interviewcoder.co/" target="_blank" rel="noreferrer">Interview Coder</a>, <a href="https://cluely.com/pricing" target="_blank" rel="noreferrer">Cluely</a>, <a href="https://www.finalroundai.com/interview-copilot" target="_blank" rel="noreferrer">Final Round AI</a>, and <a href="https://www.lockedinai.com/pricing" target="_blank" rel="noreferrer">LockedIn AI</a>. ✓ means the feature is publicly listed; × means we did not find it in the product information reviewed, not proof that it is unavailable. Prices change; LockedIn’s lower monthly equivalent is billed quarterly. Novi plans exclude AI provider usage, which is billed separately.</p>
           <div className={styles.difference}><Network size={26} aria-hidden="true" /><div><h3>The Novi difference: more of your setup, under your control.</h3><p>Bring your context, pick your provider, choose your screen, and connect your phone. Local transcription and local history are available; AI requests and relevant context are still sent to your chosen provider.</p></div></div>
         </section>
 

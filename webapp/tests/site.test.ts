@@ -2,12 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ADVANCED_FEATURES, CONTACT_EMAIL, CORE_FEATURES, referralCode, isPlanId, mailto, PLANS } from '../src/lib/site';
 
-test('public plans match the published prices, billing terms, and device allowances', () => {
-  assert.deepEqual(Object.entries(PLANS).map(([id, plan]) => [id, plan.price, plan.unit, plan.devices]), [
-    ['core', '$16', '/ month', '1 device'],
-    ['pro', '$45', '/ month', '1 device'],
-    ['ultimate', '$90', '/ month', '3 devices'],
-    ['lifetime', '$399', 'one-time', 'Unlimited devices'],
+test('public plans match the published prices and billing terms', () => {
+  assert.deepEqual(Object.entries(PLANS).map(([id, plan]) => [id, plan.price, plan.unit]), [
+    ['core', '$16', '/ month'],
+    ['pro', '$45', '/ month'],
+    ['ultimate', '$90', '/ month'],
+    ['lifetime', '$399', 'one-time'],
   ]);
   assert.deepEqual(PLANS.core.features, CORE_FEATURES);
   assert.deepEqual(PLANS.pro.features, ['Everything in Core', ...ADVANCED_FEATURES]);
@@ -24,7 +24,7 @@ test('plan query parameters reject legacy categories, arrays, and object propert
 
 test('access and sales email links preserve the recipient and safely encode request details', () => {
   const subject = 'Novi access request: Pro & Plus';
-  const body = 'Name: Alex & Sam\nPlan: Lifetime ($399 one-time)\nDevices: Unlimited devices';
+  const body = 'Name: Alex & Sam\nPlan: Lifetime ($399 one-time)';
   const link = new URL(mailto(subject, body));
   assert.equal(link.pathname, CONTACT_EMAIL);
   assert.equal(link.searchParams.get('subject'), subject);

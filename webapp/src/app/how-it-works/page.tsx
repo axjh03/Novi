@@ -14,7 +14,6 @@ export const metadata: Metadata = {
 const faqs = [
   ['What do I need to get locked in?', 'The starter pack: a Novi account, a desktop login, and a configured AI provider. Install the desktop app, connect your provider key through your account, and check microphone and screen capture permissions for the tools you want to use.'],
   ['Which plan handles the technical final boss?', 'Core includes behavioral and technical modes with context, screenshots, transcription, and transparency. Pro and Lifetime add coding, system design, chat, recruiter mode, and eye tracking. Ultimate adds local coding and the exclusive phone companion.'],
-  ['Can I run this on my whole setup?', 'Core and Pro are limited to one device. Ultimate includes a maximum of three devices. Lifetime includes unlimited devices. For consultancy or staffing firm licensing, contact our sales team.'],
   ['Is Local Coding about to YOLO my codebase?', 'Nope. Local Coding reads and searches a selected project folder to answer questions and propose changes. It does not apply those changes or run code. You review and make any changes yourself.'],
   ['Is the AI bill included? No cap?', 'No cap: your plan covers access to Novi. You connect your own AI provider key and pay any provider usage charges separately. The same applies to Lifetime.'],
   ['Phone companion? Eye tracking? What’s the side quest?', 'A little setup first. Pair your phone with the desktop session before using remote controls. For eye tracking, allow camera access and complete calibration for your current camera position and lighting.'],
@@ -94,7 +93,7 @@ export default function HowItWorksPage() {
             <li><strong>Your phone gets a side quest</strong>Pair it with the desktop session to ask questions, capture the screen, and scroll answers. Tiny screen, useful backup.</li>
             <li><strong>Bring your own AI brain</strong>Connect a supported provider with your own API key. Provider usage is billed separately from your Novi plan. Keep that in the budget for the bag.</li>
           </ul>
-          <Link className={styles.textLink} href="/get-access">Compare features and device allowances <ArrowRight size={16} aria-hidden="true" /></Link>
+          <Link className={styles.textLink} href="/get-access">Compare plan features <ArrowRight size={16} aria-hidden="true" /></Link>
         </section>
 
         <section className={styles.section} id="data" aria-labelledby="data-title">
