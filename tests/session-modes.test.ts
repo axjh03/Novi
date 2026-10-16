@@ -2,7 +2,7 @@ import { sendInput } from '../src/main/services/validation';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { SESSION_MODES, isAppMode, modeInstructions, DRAW_DIAGRAM_PROMPT } from '../src/shared/sessionModes';
-import { diagramBlocks } from '../src/shared/diagrams';
+import { diagramBlocks, repairFlowchart } from '../src/shared/diagrams';
 import { presetFields, presetMode, SESSION_ROLES } from '../src/renderer/src/context/sessionPresets';
 import type { ChatMessage } from '../src/shared/types';
 
@@ -68,4 +68,20 @@ test('installed Mermaid parses saved architecture diagrams and rejects invalid s
     content: '# Architecture\n```mermaid\nflowchart LR\nClient --> API\nAPI --> Database\n```' }]);
   assert.equal((await mermaid.parse(blocks[0].code)).diagramType, 'flowchart-v2');
   await assert.rejects(() => mermaid.parse('flowchart LR\nA --> ['));
+});
+
+test('diagram recovery quotes punctuation and only splits known destination IDs', () => {
+  const source = 'flowchart LR\nA[Cache (Redis)]\nB[Database]\nC[Analytics]\nA -- Request (async) --> B / C';
+  const repaired = repairFlowchart(source);
+  assert.match(repaired, /A\["Cache \(Redis\)"\]/);
+  assert.match(repaired, /-- "Request \(async\)" --> B & C/);
+  assert.equal(repairFlowchart(repaired), repaired);
+  for (const code of [
+    'sequenceDiagram\nA->>B: Cache (Redis)',
+    'flowchart LR\nA["Keep A --> B / C"] --> B[(Database)]',
+    'flowchart LR\n%% A[Leave (comment)] --> X / Y\nA --> Missing / Unknown',
+    'flowchart LR\nA[[Subroutine]] --> B[/Input/] --> C[\\Output\\]',
+  ]) assert.equal(repairFlowchart(code), code);
+  assert.match(DRAW_DIAGRAM_PROMPT, /Double-quote all node, edge, and subgraph labels/);
+  assert.match(modeInstructions('system-design'), /never A --> B \/ C/);
 });

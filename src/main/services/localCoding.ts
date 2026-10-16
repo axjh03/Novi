@@ -62,6 +62,7 @@ export class LocalCodingService {
   private pending = new Map<string, Pending>();
   private activeTask: { projectId: string; versionId: string; taskId: string } | null = null;
   private installer: EngineInstaller;
+  private removingEngine = false;
 
   constructor(private deps: { storage: Storage; credentials: CredentialStore; images: ImageService; userData: string; location: RuntimeLocation; agents?: Partial<Record<EngineId, CodingAgent>> }) {
     deps.location = { ...deps.location, managedPath: join(deps.userData, 'coding-runtimes') };
@@ -119,6 +120,17 @@ export class LocalCodingService {
     await this.installer.install(engine);
     this.models.clear();
     return this.readiness();
+  }
+
+  async uninstallEngine(engine: unknown) {
+    if (!isEngineId(engine)) throw new UserError('Choose a coding agent.');
+    if (this.activeTask || this.removingEngine) throw new UserError('Wait for the current Local Coding task to finish, or stop it.');
+    this.removingEngine = true;
+    try {
+      await this.installer.uninstall(engine);
+      this.models.clear();
+      return await this.readiness();
+    } finally { this.removingEngine = false; }
   }
 
   async checkEngineLogin(engine: unknown, connectionId: unknown) {
@@ -325,6 +337,7 @@ export class LocalCodingService {
 
   /** Runs one task. Failures are recorded on the assistant message; only a request that cannot start throws. */
   async run(input: RunInput): Promise<void> {
+    if (this.removingEngine) throw new UserError('Wait for the agent to finish uninstalling.');
     const { conversation, user, assistant, signal, emit, save } = input;
     const binding = conversation.localCoding;
     if (!binding) throw new UserError('This conversation is not a Local Coding session.');

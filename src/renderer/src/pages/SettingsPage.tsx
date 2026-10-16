@@ -233,10 +233,10 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
 
         {tab === 'devices' && <DeviceTester />}
 
-        {tab === 'api' && <>
+        {tab === 'api' && <div className="settings-studio api-studio">
           <ProviderManager state={state} onSaved={onSaved} />
           <EngineReadinessList connections={state.settings?.connections} managed={Boolean(state.user?.managed)} />
-        </>}
+        </div>}
       </div>
     </main>
   );

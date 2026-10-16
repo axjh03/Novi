@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createHash } from 'node:crypto';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { c } from 'tar';
@@ -67,4 +67,39 @@ test('install publishes a verified runtime and preserves it when an update downl
   await assert.rejects(installer.install('codex'), /checksum failed/);
   assert.equal(readFileSync(join(location.managedPath, 'codex', 'current.json'), 'utf8'), pointer);
   assert.equal((await engineRuntime('codex', location)).executable, runtime.executable);
+});
+
+test('uninstall removes managed agent versions, suppresses bundled fallback, and preserves other data', async t => {
+  const root = mkdtempSync(join(tmpdir(), 'novi-agent-remove-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const location = { packaged: true, resourcesPath: join(root, 'bundle'), managedPath: join(root, 'managed') };
+  const engineDir = join(location.managedPath, 'codex');
+  const id = randomUUID(), old = randomUUID();
+  for (const directory of [location.resourcesPath, join(engineDir, id), join(engineDir, old)]) {
+    mkdirSync(join(directory, 'engines', 'codex'), { recursive: true });
+    writeFileSync(join(directory, 'engines', 'codex', 'binary'), 'runtime fixture');
+    writeFileSync(join(directory, 'engines', 'manifest.json'), JSON.stringify({ engines: { codex: { version: '1.2.3', executable: 'binary', pathDirs: [], files: {} } } }));
+  }
+  writeFileSync(join(engineDir, 'current.json'), JSON.stringify({ id }));
+  mkdirSync(join(location.managedPath, 'claude'));
+  writeFileSync(join(location.managedPath, 'claude', 'keep'), 'other agent');
+  writeFileSync(join(root, 'project-history'), 'keep history');
+  const installer = new EngineInstaller(location);
+  assert((await engineRuntime('codex', location)).executable.startsWith(engineDir));
+  await assert.rejects(installer.uninstall('../bundle' as any), /Choose/);
+  symlinkSync(location.resourcesPath, join(location.managedPath, 'antigravity'), process.platform === 'win32' ? 'junction' : 'dir');
+  await assert.rejects(installer.uninstall('antigravity'), /directory is a link/);
+  assert.equal(existsSync(join(location.resourcesPath, 'current.json')), false);
+  installer['installing'].add('codex');
+  await assert.rejects(installer.uninstall('codex'), /already being changed/);
+  installer['installing'].delete('codex');
+  await installer.uninstall('codex');
+  assert.equal(existsSync(join(engineDir, id)), false);
+  assert.equal(existsSync(join(engineDir, old)), false);
+  assert.equal(readFileSync(join(root, 'project-history'), 'utf8'), 'keep history');
+  assert.equal(readFileSync(join(location.managedPath, 'claude', 'keep'), 'utf8'), 'other agent');
+  assert.equal(existsSync(join(location.resourcesPath, 'engines', 'codex', 'binary')), true);
+  await assert.rejects(engineRuntime('codex', location), /uninstalled/);
+  await assert.rejects(engineRuntime('codex', { ...location }), /uninstalled/, 'removal survives restart');
+  await installer.uninstall('codex');
 });

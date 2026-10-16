@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, FileText, FolderOpen, FolderPlus, Loader2, Lock, Play, RefreshCw, X } from 'lucide-react';
+import { ArrowUp, Check, Code2, Download, FileText, FolderOpen, FolderPlus, Loader2, Lock, Play, RefreshCw, Terminal, Trash2, X } from 'lucide-react';
 import { ENGINES, type EngineId, type EngineModel, type EngineReadiness, type EngineUpdate, type SourcePreview } from '../../../shared/localCoding';
 import type { ProviderConnection, Snapshot } from '../../../shared/types';
 import { errorText, unwrap } from '../services/api';
@@ -176,9 +176,9 @@ export function EngineReadinessList({ connections, managed }: { connections?: Pr
     finally { setRefreshing(false); }
   }
   useEffect(() => { void refresh(); }, [connections]);
-  return <section className="provider-manager">
-    <div className="section-title"><div><h2>Local Coding agents</h2><p className="muted">Agents that answer questions about projects on this computer. Each one uses your selected key for its provider; no extra sign-in needed.</p></div>
-      <button type="button" className="text-button" disabled={refreshing} onClick={() => void refresh()}><RefreshCw size={15} className={refreshing ? 'spin' : ''} />Refresh</button></div>
+  return <section className="provider-manager" aria-label="Local Coding agents">
+    <div className="section-title"><div><div className="studio-heading"><Terminal size={18} /><h2>Local Coding agents</h2>{items && <span className="studio-count">{items.filter(item => item.available).length} ready</span>}</div><p className="muted">Connect your projects to an agent. Uses your saved provider key.</p></div>
+      <button type="button" className="studio-refresh" aria-label="Refresh coding agents" title="Refresh agents" disabled={refreshing} onClick={() => void refresh()}><RefreshCw size={15} className={refreshing ? 'spin' : ''} /></button></div>
     {error && <p className="error" role="alert">{error}</p>}
     {!items && !error && <p className="muted" role="status">Checking agents…</p>}
     {items && <ul className="agent-list">{items.map(item => <EngineStatusRow key={item.engine} item={item} connections={connections ?? []} managed={managed} onInstalled={setItems} />)}</ul>}
@@ -189,6 +189,7 @@ function EngineStatusRow({ item, connections, managed, onInstalled }: { item: En
   const [connectionId, setConnectionId] = useState(item.connections[0]?.id ?? '');
   const [update, setUpdate] = useState<EngineUpdate | null>(null);
   const [busy, setBusy] = useState(''), [status, setStatus] = useState(''), [error, setError] = useState('');
+  const [removing, setRemoving] = useState(false);
   useEffect(() => {
     if (!item.connections.some(connection => connection.id === connectionId)) setConnectionId(item.connections[0]?.id ?? '');
   }, [item.connections, connectionId]);
@@ -202,38 +203,45 @@ function EngineStatusRow({ item, connections, managed, onInstalled }: { item: En
   const sameProvider = connections.filter(connection => connection.provider === spec.provider);
   // The main-process text points to this very screen; here, say what to do instead.
   const key = `${/^[AEIOU]/.test(spec.connectionLabel) ? 'an' : 'a'} ${spec.connectionLabel} key`;
-  const hint = state === 'missing' ? (item.problem && !/is (not installed|missing)\. Install it in Settings/.test(item.problem) ? item.problem : `Install it to use ${item.label} in Local Coding.`)
+  const hint = state === 'missing' ? null
     : state === 'ready' ? null
-    : !sameProvider.length ? `Needs ${key}. ${managed ? 'Ask your account owner to add one in the web portal.' : 'Add one with Add provider above.'}`
+    : !sameProvider.length ? `Add ${key} ${managed ? 'in the web portal' : 'above'} to connect.`
     : sameProvider.every(connection => connection.enabled === false) ? `Select your ${spec.connectionLabel} connection above.`
     : item.problem;
-  return <li className={`agent-row is-${state}`}>
-    <div className="agent-head">
-      <div><strong>{item.label}</strong><small>{spec.connectionLabel} key{item.installedVersion ? ` · ${item.installedVersion}` : ''}</small></div>
-      <span className="agent-status">{state === 'ready' ? <><Check size={13} aria-hidden="true" />Ready</> : state === 'missing' ? 'Not installed' : 'Not connected'}</span>
+  return <li className={`agent-row is-${state} ${busy ? 'is-busy' : ''}`} aria-label={item.label} aria-busy={!!busy}>
+    <span className="studio-avatar" aria-hidden="true"><Code2 size={20} /></span>
+    <div className="agent-body"><div className="agent-head">
+      <strong>{item.label}</strong>{item.installedVersion && <span className="agent-version" title={item.installedVersion}>v{item.installedVersion.replace(/-(win32|linux|darwin)-.*$/, '')}</span>}
+      {item.installedVersion && <span className="agent-status">{state === 'ready' ? <><Check size={11} aria-hidden="true" />Ready</> : 'Key needed'}</span>}
     </div>
-    {hint && <p>{hint}</p>}
-    {item.connections.length > 1 && <label>Key to use
+    <small>{spec.connectionLabel}{item.connections.length === 1 && <> · {item.connections[0].name}</>}</small>
+    {hint && <p className="agent-hint">{hint}</p>}
+    {item.installedVersion && item.connections.length > 1 && <label>Connection
       <select value={connectionId} disabled={!!busy} onChange={event => setConnectionId(event.target.value)}>
         {item.connections.map(connection => <option key={connection.id} value={connection.id}>{connection.name}</option>)}
       </select>
     </label>}
-    {item.connections.length === 1 && <p>Uses <strong>{item.connections[0].name}</strong></p>}
-    <div className="agent-actions">
-      {(!item.installedVersion || update?.updateAvailable) && <button type="button" className="primary" disabled={!!busy} onClick={() => void run(item.installedVersion ? 'Updating…' : 'Installing…', async () => {
-        onInstalled(await unwrap(window.novi.installEngine(item.engine)));
-        setUpdate(null); setStatus(`${item.label} is installed.`);
-      })}>{item.installedVersion ? `Update to ${update!.latestVersion}` : 'Install'}</button>}
-      {item.installedVersion && connectionId && <button type="button" className="secondary" disabled={!!busy} onClick={() => void run('Testing key…', async () => {
-        setStatus(await unwrap(window.novi.checkEngineLogin({ engine: item.engine, connectionId })));
-      })}>Test key</button>}
-      {item.installedVersion && !update?.updateAvailable && <button type="button" className="text-button" disabled={!!busy} onClick={() => void run('Checking for updates…', async () => {
-        const result = await unwrap(window.novi.checkEngineUpdate(item.engine));
-        setUpdate(result);
-        setStatus(result.updateAvailable ? `Version ${result.latestVersion} is available.` : `${item.label} is up to date.`);
-      })}>Check for updates</button>}
-    </div>
-    {(busy || status) && <p role="status">{busy ? <><Loader2 size={13} className="spin" aria-hidden="true" />{busy}</> : status}</p>}
+    {item.installedVersion && <div className="agent-links">
+      {connectionId && <button type="button" disabled={!!busy} onClick={() => void run('Testing connection…', async () => {
+        await unwrap(window.novi.checkEngineLogin({ engine: item.engine, connectionId })); setStatus('Connection verified.');
+      })}>Test connection</button>}
+      <button type="button" disabled={!!busy} onClick={() => void run('Checking…', async () => {
+        const result = await unwrap(window.novi.checkEngineUpdate(item.engine)); setUpdate(result);
+        setStatus(result.updateAvailable ? `v${result.latestVersion.replace(/-(win32|linux|darwin)-.*$/, '')} available` : 'Up to date');
+      })}>Check for updates</button>
+      <button type="button" className="agent-uninstall" disabled={!!busy} onClick={() => setRemoving(true)}><Trash2 size={11} />Uninstall</button>
+    </div>}
+    {(busy || status) && <p className="agent-feedback" role="status">{busy ? <><Loader2 size={12} className="spin" aria-hidden="true" />{busy}</> : <><Check size={12} />{status}</>}</p>}
     {error && <p className="error" role="alert">{error}</p>}
+    </div>
+    <div className="agent-actions">
+      {(!item.installedVersion || update?.updateAvailable) && <button type="button" className="secondary" disabled={!!busy} onClick={() => void run(item.installedVersion ? 'Updating…' : 'Installing…', async () => {
+        onInstalled(await unwrap(window.novi.installEngine(item.engine)));
+        setUpdate(null);
+      })}>{busy ? <Loader2 size={14} className="spin" /> : item.installedVersion ? <ArrowUp size={14} /> : <Download size={14} />}{item.installedVersion ? 'Update' : 'Install'}</button>}
+    </div>
+    {removing && <div className="agent-confirm" role="alert"><p>Uninstall {item.label}? Your projects, history, and API connections stay.</p><div><button type="button" className="text-button" disabled={!!busy} onClick={() => setRemoving(false)}>Cancel</button><button type="button" className="danger-button" disabled={!!busy} onClick={() => void run('Uninstalling…', async () => {
+      onInstalled(await unwrap(window.novi.uninstallEngine(item.engine))); setUpdate(null); setRemoving(false);
+    })}>Uninstall agent</button></div></div>}
   </li>;
 }

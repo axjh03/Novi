@@ -82,7 +82,9 @@ export async function engineRuntime(engine: EngineId, location: RuntimeLocation)
   if (location.managedPath) {
     const pointer = join(location.managedPath, engine, 'current.json');
     if (existsSync(pointer)) {
-      const id = JSON.parse(readFileSync(pointer, 'utf8')).id;
+      const record = JSON.parse(readFileSync(pointer, 'utf8'));
+      if (record.disabled === true) throw new Error('This agent was uninstalled. Install it to use Local Coding.');
+      const id = record.id;
       if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/.test(id)) throw new Error('The installed agent record is invalid. Install the agent again.');
       location = { packaged: true, resourcesPath: join(location.managedPath, engine, id) };
     }

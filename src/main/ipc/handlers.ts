@@ -89,7 +89,7 @@ export function registerIPC(
     } catch { /* Warm-up is best effort. */ }
   }
   // Calls that can reach an AI provider need a fresh license check; outages fail only these.
-  const freshAccessChannels = new Set(['send', 'initialize-context', 'start-context', 'start-empty-session', 'list-models', 'test-connection']);
+  const freshAccessChannels = new Set(['send', 'repair-diagram', 'initialize-context', 'start-context', 'start-empty-session', 'list-models', 'test-connection']);
   const accessStatus = (): AccessStatus => ({ offline: Boolean(services?.auth.offline), connectionLost: Boolean(services?.auth.connectionLost) });
   let sentAccess = accessStatus();
   function syncAccessStatus() {
@@ -589,6 +589,7 @@ export function registerIPC(
   handle('local-coding-models', (value, event) => { fromMain(event); const input = object(value); return get().localCoding.listModels(input.engine, input.connectionId); });
   handle('local-coding-check-update', (value, event) => { fromMain(event); return get().localCoding.checkEngineUpdate(object(value).engine); });
   handle('local-coding-install', (value, event) => { fromMain(event); return get().localCoding.installEngine(object(value).engine); });
+  handle('local-coding-uninstall', (value, event) => { fromMain(event); return get().localCoding.uninstallEngine(object(value).engine); });
   handle('local-coding-check-login', (value, event) => { fromMain(event); const input = object(value); return get().localCoding.checkEngineLogin(input.engine, input.connectionId); });
   handle('local-coding-start', async (value, event) => {
     fromMain(event);
@@ -718,6 +719,7 @@ export function registerIPC(
     if (codeViewerWindow && !codeViewerWindow.isDestroyed()) codeViewerWindow.webContents.send('code-viewer-blocks', codeViewerBlocks);
   });
   handle('get-code-viewer-blocks', () => codeViewerBlocks);
+  handle('repair-diagram', (value) => get().chat.repairDiagram(value));
   let workingMonitorId: number | null = null;
   function currentWorkingMonitorId(): number {
     if (workingMonitorId === null) {

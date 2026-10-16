@@ -4,7 +4,8 @@ import { ChatService } from '../src/main/services/chat';
 import { AIProviderFactory } from '../src/main/services/providers';
 import { DRAW_DIAGRAM_PROMPT } from '../src/shared/sessionModes';
 import { diagramBlocks } from '../src/shared/diagrams';
-import type { Conversation } from '../src/shared/types';
+import type { AIProviderConfig, Conversation } from '../src/shared/types';
+import type { ChatRequest } from '../src/main/services/providers';
 
 test('diagram requests use the selected chat connection and report model timeouts accurately', async () => {
   const original = AIProviderFactory.create;
@@ -53,4 +54,26 @@ test('deleting a conversation removes it from storage and persists change', () =
   assert.equal(saved, true);
   assert.equal(account.conversations.length, 1);
   assert.equal(account.conversations[0].id, 'conv-2');
+});
+
+test('diagram repair uses the selected provider, is bounded, and does not alter conversation history', async t => {
+  const connection = { id: 'chosen', name: 'Chosen', provider: 'compatible' as const, model: 'test-model', baseUrl: 'http://localhost:1234/v1', stream: true };
+  const conversations: Conversation[] = [];
+  const save = t.mock.fn();
+  const chat = new ChatService({ conversations, current: () => ({ id: 'owner', settings: { connections: [connection], activeConnectionId: 'chosen' } }), save } as any, { get: () => '' } as any, {} as any);
+  const create = t.mock.method(AIProviderFactory, 'create', (config: AIProviderConfig) => {
+    assert.equal(config.model, 'test-model');
+    return { sendMessage: async (request: ChatRequest) => {
+      assert.match(request.instructions!, /Preserve its components/);
+      assert.equal(request.messages.length, 1);
+      assert.deepEqual(JSON.parse(request.messages[0].content), { diagram: 'flowchart LR\nA --> [', parserError: 'parse error' });
+      assert.equal(request.signal.aborted, false);
+      return { content: '```mermaid\nflowchart LR\nA --> B\n```' };
+    } };
+  });
+  assert.equal(await chat.repairDiagram({ code: 'flowchart LR\nA --> [', error: 'parse error' }), 'flowchart LR\nA --> B');
+  assert.equal(save.mock.callCount(), 0);
+  assert.deepEqual(conversations, []);
+  for (const input of [{ code: 'x'.repeat(50_001), error: 'error' }, { code: '', error: 'error' }, { code: 'graph TD', error: 'x'.repeat(4_001) }]) await assert.rejects(chat.repairDiagram(input), /valid/);
+  assert.equal(create.mock.callCount(), 1, 'invalid requests never reach a provider');
 });

@@ -94,6 +94,17 @@ test('a request becomes a pinned, validated iteration; explanation-only answers 
   assert.equal(env.conversation().messages.at(-1)!.localCoding?.state, 'needs-information');
 });
 
+test('an agent cannot be uninstalled while a Local Coding task uses it', async t => {
+  const env = await setup(t);
+  env.agent.answers.push(async () => {
+    await assert.rejects(env.service.uninstallEngine('codex'), /current Local Coding task/);
+    return answer([]);
+  });
+  await env.send('Explain the project.', env.service.state(env.projectId).selectedVersionId);
+  assert.equal(env.conversation().messages.at(-1)!.status, 'complete');
+  await assert.rejects(env.service.uninstallEngine('invalid'), /Choose a coding agent/);
+});
+
 test('branches: a request from Iteration 1 does not see Iteration 2, and labels never repeat', async (t) => {
   const env = await setup(t);
   const s0 = env.service.state(env.projectId).selectedVersionId;

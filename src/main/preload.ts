@@ -10,6 +10,7 @@ const api: NoviAPI = {
   getAppCommandStatus: () => ipcRenderer.invoke('app-command-status'),
   checkEngineUpdate: engine => ipcRenderer.invoke('local-coding-check-update', { engine }),
   installEngine: engine => ipcRenderer.invoke('local-coding-install', { engine }),
+  uninstallEngine: engine => ipcRenderer.invoke('local-coding-uninstall', { engine }),
   checkEngineLogin: input => ipcRenderer.invoke('local-coding-check-login', input),
   quitApp: () => ipcRenderer.invoke('quit-app'),
   startInterview: input => ipcRenderer.invoke('interview-start', input),
@@ -139,6 +140,7 @@ const api: NoviAPI = {
   setCodeViewerVisible: (visible) => ipcRenderer.invoke('set-code-viewer-visible', { visible }),
   updateCodeViewer: (blocks) => ipcRenderer.invoke('update-code-viewer', blocks),
   getCodeViewerBlocks: () => ipcRenderer.invoke('get-code-viewer-blocks'),
+  repairDiagram: (input) => ipcRenderer.invoke('repair-diagram', input),
   onCodeViewerBlocks: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, blocks: CodeViewerBlock[]) => callback(blocks);
     ipcRenderer.on('code-viewer-blocks', listener);

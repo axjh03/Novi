@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, Copy, Download, ExternalLink, Mic, RefreshCw, ShieldCheck, Sliders, Square, Volume2 } from 'lucide-react';
+import { AudioLines, Check, Copy, Cpu, Download, ExternalLink, FolderOpen, HardDrive, MemoryStick, Mic, RefreshCw, ShieldCheck, Sliders, Square, Volume2 } from 'lucide-react';
 import { selectedSpeechModel, type LocalAISetup as Setup, type LocalModelState } from '../../../shared/localAI';
 import type { Snapshot } from '../../../shared/types';
 import { errorText, unwrap } from '../services/api';
@@ -21,6 +21,7 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [savingModel, setSavingModel] = useState(false);
+  const [modelGroup, setModelGroup] = useState<'asr' | 'addons'>('asr');
   const [testSource, setTestSource] = useState<AudioSource>('microphone'), [testVad, setTestVad] = useState(true);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [testMicId, setTestMicId] = useState(''), [testSystemId, setTestSystemId] = useState('');
@@ -142,7 +143,7 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
     finally { setTestPhase('idle'); setTestLevel(0); }
   }
 
-  if (!setup) return <div className="local-ai-setup"><section className="local-ai-card"><h2>Local AI</h2><p role="status">{error || 'Checking your computer and installed models…'}</p>
+  if (!setup) return <div className="local-ai-setup settings-studio"><section className="local-ai-card"><h2>Local AI</h2><p role="status">{error || 'Checking your computer and installed models…'}</p>
     {error && <button type="button" className="secondary" onClick={() => void refresh().catch(cause => setError(errorText(cause)))}>Try again</button>}</section></div>;
 
   const inProgress = setup.models.some(model => active(model.state));
@@ -177,20 +178,21 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
   function modelCard(model: Setup['models'][number]) {
     const isSelected = model.id === selectedASR?.id;
     const diskTooLow = setup!.device.diskFree !== null && setup!.device.diskFree < model.totalBytes + 256 * 1024 ** 2;
-    return <section className={`local-model-card ${isSelected ? 'is-selected' : ''}`} key={model.id}>
-      <div className="local-ai-row"><span className={`local-ai-badge ${model.state === 'READY' ? 'is-ready' : ''}`}>{stateLabels[model.state]}</span>{isSelected ? <span className="local-ai-eyebrow">Selected</span> : model.recommended && <span className="local-ai-eyebrow">Recommended</span>}</div>
-      <h3>{model.name}</h3>
-      <p>{model.type === 'asr' ? model.liveMode === 'simulated' ? 'Simulated streaming · Interim results may take longer' : 'Native streaming · Live partial results' : model.type === 'vad' ? 'Voice activity detection · Filters silence' : model.type === 'diarization' ? 'Speaker labels · System audio only' : 'Analysis weights · Analysis is not enabled yet'}</p>
-      <div className="local-model-specs"><span><Download size={13} />{size(model.totalBytes)}</span><span>~{size(model.estimatedRamBytes)} RAM</span><span>{model.license}</span></div>
-      {model.memoryWarning && <p className="local-ai-warning">{model.memoryWarning}</p>}
-      {active(model.state) && progress(model)}
-      {model.reason && <p>{model.reason}</p>}
-      {model.error && <p className="error" role="alert">{model.error}</p>}
+    return <section className={`local-model-card ${isSelected ? 'is-selected' : ''}`} key={model.id} aria-label={model.name}>
+      <span className="model-symbol" aria-hidden="true">{model.type === 'asr' ? <AudioLines size={17} /> : <Sliders size={17} />}</span>
+      <div className="local-model-info"><div className="local-model-name"><h3>{model.name}</h3>{isSelected ? <span className="local-ai-eyebrow"><Check size={11} />Selected</span> : model.recommended && <span className="local-ai-eyebrow">Recommended</span>}</div>
+      <div className="local-model-specs"><span>{size(model.totalBytes)}</span><span>~{size(model.estimatedRamBytes)} RAM</span><span>{model.license}</span></div>
+      <p>{model.type === 'asr' ? model.liveMode === 'simulated' ? 'Simulated live · partial results may lag' : 'Live partial results' : model.type === 'vad' ? 'Filters silence' : model.type === 'diarization' ? 'Speaker labels · system audio only' : 'Weights only · analysis is not enabled'}</p></div>
       {!active(model.state) && <div className="local-model-actions">
+        <span className="local-model-state">{model.state === 'READY' ? <><Check size={11} />Installed</> : model.state !== 'NOT_INSTALLED' ? stateLabels[model.state] : ''}</span>
         {model.type === 'asr' && !isSelected && <button type="button" className="secondary" disabled={modelLocked || Boolean(model.reason)} onClick={() => void selectASR(model.id)}>Use this model</button>}
         {model.state !== 'READY' && <button type="button" className="secondary" disabled={modelLocked || Boolean(model.reason) || diskTooLow} title={diskTooLow ? 'Not enough free disk space' : undefined} onClick={() => void download([model.id])}><Download size={14} />{model.state === 'NOT_INSTALLED' ? 'Download' : 'Repair / resume'}</button>}
         {(model.state !== 'NOT_INSTALLED' || model.downloadedBytes > 0) && <button type="button" className="text-button" disabled={modelLocked} onClick={() => setDeleting(model.id)}>Delete files</button>}
       </div>}
+      {active(model.state) && progress(model)}
+      {model.memoryWarning && <p className="local-ai-warning model-notice">{model.memoryWarning}</p>}
+      {model.reason && <p className="model-notice">{model.reason}</p>}
+      {model.error && <p className="error model-notice" role="alert">{model.error}</p>}
       {deleting === model.id && <div className="local-ai-confirm" role="alert"><p>Delete {model.name} and its partial download? You can download it again.</p><div className="local-ai-actions"><button type="button" className="danger-button" disabled={modelLocked} onClick={() => void remove(model.id)}>Delete model</button><button type="button" className="text-button" disabled={busy} onClick={() => setDeleting(null)}>Cancel</button></div></div>}
     </section>;
   }
@@ -198,26 +200,31 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
   const refreshButton = <button type="button" className="text-button" disabled={modelLocked} onClick={() => void refresh().catch(cause => setError(errorText(cause)))}><RefreshCw size={14} />Refresh</button>;
   const installed = setup.models.filter(model => model.state === 'READY').length;
 
-  return <div className="local-ai-setup">
-    <p className="local-ai-intro"><ShieldCheck size={16} />Speech is transcribed on this computer, so your audio never leaves it. Model files download once from Hugging Face.</p>
+  return <div className="local-ai-setup settings-studio">
+    <header className="studio-page-heading"><div><h2>Local AI</h2><p>Private transcription. Powered by your computer.</p></div><span className="studio-privacy"><ShieldCheck size={14} />On-device</span></header>
+    <div className="local-ai-hardware" aria-label="Device resources">
+      <div className="hardware-cpu"><Cpu size={18} /><div><span>Processor</span><strong title={setup.device.cpu}>{setup.device.cpu}</strong><small>{setup.device.platform === 'win32' ? 'Windows' : setup.device.platform === 'darwin' ? 'macOS' : 'Linux'} · {setup.device.arch} · {setup.device.cores} cores</small></div></div>
+      <div><MemoryStick size={18} /><div><span>Available memory</span><strong>{size(setup.device.availableMemory)} <small>/ {size(setup.device.totalMemory)}</small></strong></div></div>
+      <div><HardDrive size={18} /><div><span>Free storage</span><strong>{setup.device.diskFree === null ? 'Unknown' : size(setup.device.diskFree)}</strong></div></div>
+      <button type="button" className="studio-refresh" aria-label="Refresh hardware and models" title="Refresh hardware and models" disabled={modelLocked} onClick={() => void refresh().catch(cause => setError(errorText(cause)))}><RefreshCw size={15} /></button>
+    </div>
     {error && <p className="error" role="alert">{error}</p>}
     {setup.device.availableMemory < 1024 ** 3 && <p className="local-ai-warning" role="status">Memory is low. Close other apps before starting transcription. Optional features may be disabled automatically.</p>}
     <div className="local-ai-workspace">
-      <section className="local-ai-card">
-        <div className="local-ai-section-heading"><span className="local-ai-icon"><Sliders size={19} /></span><div><h3>1 · Choose a speech model</h3><p>Automatic picks the best model your computer can run.</p></div></div>
-        <label>Speech model<select value={selectionValue} disabled={modelLocked} onChange={event => void selectASR(event.target.value)}><option value="auto">Automatic (recommended)</option>{setup.models.filter(model => model.type === 'asr').map(model => <option key={model.id} value={model.id} disabled={Boolean(model.reason)}>{model.name}{model.reason ? ' — unavailable' : ''}</option>)}</select></label>
+      <section className="local-ai-card speech-selector">
+        <label>Speech model<select aria-label="Speech model" value={selectionValue} disabled={modelLocked} onChange={event => void selectASR(event.target.value)}><option value="auto">Automatic (recommended)</option>{setup.models.filter(model => model.type === 'asr').map(model => <option key={model.id} value={model.id} disabled={Boolean(model.reason)}>{model.name}{model.reason ? ' — unavailable' : ''}</option>)}</select><small>Automatic uses the best available model for this computer.</small></label>
         <div className="local-ai-selection" role="status">
           <div className="local-ai-row"><strong>{savingModel ? 'Saving…' : selectedASR?.name || 'No supported speech model'}</strong><span className={`local-ai-badge ${ready ? 'is-ready' : ''}`}>{ready ? <><Check size={13} />Ready</> : selectedASR ? stateLabels[selectedASR.state] : 'Unavailable'}</span></div>
-          <p>{selectedASR ? `${size(selectedASR.totalBytes)} download · about ${size(selectedASR.estimatedRamBytes)} memory · ${selectedASR.languages.map(language).join(', ')} · ${selectedASR.liveMode === 'simulated' ? 'interim results may lag' : 'live results as you speak'}` : 'Refresh your device information or choose another model.'}</p>
+          <p>{selectedASR ? `${selectedASR.languages.map(language).join(', ')} · ${size(selectedASR.totalBytes)} · ~${size(selectedASR.estimatedRamBytes)} RAM · ${selectedASR.liveMode === 'simulated' ? 'simulated live' : 'live transcription'}` : 'Choose a supported model.'}</p>
           {selectedASR?.memoryWarning && <p className="local-ai-warning">{selectedASR.memoryWarning}</p>}
           {selectedASR?.error && <p className="error" role="alert">{selectedASR.error}</p>}
         </div>
         {setup.models.filter(model => active(model.state)).map(progress)}
         {required.length > 0 && !inProgress && <><button type="button" className="primary" disabled={modelLocked || !enoughDisk} onClick={() => void download(required.map(model => model.id))}><Download size={16} />Download · {size(requiredBytes)}</button><p className="local-ai-help">Includes {required.map(model => model.name).join(' and ')}.</p>{!enoughDisk && <div className="local-ai-warning"><p>Not enough free disk space, or it could not be confirmed. Free some space, then refresh.</p>{refreshButton}</div>}</>}
-        <p className="local-ai-help">In a session, set transcription to <strong>Local</strong> to use this model.</p>
       </section>
       <section className="local-ai-card" aria-label="Live transcription model test">
-        <div className="local-ai-section-heading"><span className="local-ai-icon"><Mic size={19} /></span><div><h3>2 · Test it</h3><p>Speak or play audio and watch the transcript appear.</p></div></div>
+        <div className="local-test-heading"><div className="studio-heading"><Mic size={17} /><h3>Live test</h3></div><button type="button" className={testPhase === 'recording' ? 'danger-button' : 'primary'} disabled={testPhase === 'starting' || testPhase === 'stopping' || (!testBusy && (!ready || modelLocked))} onClick={() => void (testPhase === 'recording' ? stopTest() : startTest())}>{testPhase === 'recording' ? <Square size={13} /> : <Mic size={14} />}{testPhase === 'recording' ? 'Stop test' : testPhase === 'starting' ? 'Starting…' : testPhase === 'stopping' ? 'Stopping…' : 'Start live test'}</button></div>
+        <div className="local-ai-test-grid"><div className="local-ai-test-controls">
         <div className="local-ai-inputs">
           <label>Audio source<select value={testSource} disabled={testBusy} onChange={event => { setTestSource(event.target.value as AudioSource); setTestSpeakers(false); }}><option value="microphone">Microphone</option><option value="system">System audio</option></select></label>
           <label>{testSource === 'microphone' ? 'Microphone' : 'Loopback input'}<select value={testSource === 'microphone' ? testMicId : testSystemId} disabled={testBusy} onChange={event => testSource === 'microphone' ? setTestMicId(event.target.value) : setTestSystemId(event.target.value)}><option value="">{testSource === 'microphone' ? 'Default microphone' : 'Display capture / auto-detect'}</option>{audioDevices.map((device, index) => <option key={device.deviceId || index} value={device.deviceId}>{device.label || `Audio input ${index + 1}`}</option>)}</select></label>
@@ -228,37 +235,30 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
           {activePlatformTab === 'windows' && <p>Use display capture with system audio sharing enabled, or select an enabled Stereo Mix / loopback input. If capture has no audio, check Windows sound input settings and choose the loopback device above.</p>}
           {activePlatformTab === 'linux' && <p>Select a PipeWire / PulseAudio monitor input. If no monitor appears, route playback to a loopback input using your sound controls or <code>pavucontrol</code>.</p>}
         </div></details>}
-        <details className="local-ai-details"><summary>Detection options</summary><div className="local-ai-details-content">
-          <label className="checkbox-label"><input type="checkbox" checked={testVad} disabled={testBusy} onChange={event => setTestVad(event.target.checked)} />Voice activity detection</label><p>{vadReady ? 'Silero VAD is installed.' : 'Uses lightweight detection until Silero VAD is installed.'}</p>
-          <label className="checkbox-label"><input type="checkbox" checked={testSpeakers} disabled={testBusy || testSource !== 'system' || !speakersReady} onChange={event => setTestSpeakers(event.target.checked)} />Label speakers</label><p>Requires system audio and the speaker detection model.</p>
-        </div></details>
+        <div className="local-detection-options">
+          <label className="studio-toggle" title={vadReady ? 'Silero VAD filters silence.' : 'Uses lightweight detection until Silero VAD is installed.'}><span>Filter silence</span><input type="checkbox" role="switch" checked={testVad} disabled={testBusy} onChange={event => setTestVad(event.target.checked)} /></label>
+          <label className="studio-toggle" title="Requires system audio and the speaker detection model."><span>Label speakers</span><input type="checkbox" role="switch" checked={testSpeakers} disabled={testBusy || testSource !== 'system' || !speakersReady} onChange={event => setTestSpeakers(event.target.checked)} /></label>
+        </div>
         <div className={`local-ai-listening ${testPhase === 'recording' ? 'is-listening' : ''}`}><AudioMeter level={testLevel} /><div><strong role="status">{phaseLabel}</strong><span>{testBusy && testSession ? runningModel?.name || testSession.modelId : selectedASR?.name || 'Choose a model first'}</span></div></div>
-        <button type="button" className={testPhase === 'recording' ? 'danger-button' : 'primary'} disabled={testPhase === 'starting' || testPhase === 'stopping' || (!testBusy && (!ready || modelLocked))} onClick={() => void (testPhase === 'recording' ? stopTest() : startTest())}>{testPhase === 'recording' ? <Square size={14} /> : <Mic size={16} />}{testPhase === 'recording' ? 'Stop test' : testPhase === 'starting' ? 'Starting…' : testPhase === 'stopping' ? 'Stopping…' : 'Start live test'}</button>
-        {!ready && <p className="local-ai-help">Download the model in step 1 to start a test.</p>}
+        {!ready && <p className="local-ai-help">Download a speech model to start a test.</p>}
         {testWarning && <p role="alert" className="local-ai-warning">{testWarning}</p>}
+        </div>
         <div className="local-test-transcript" ref={testScroller} role="log" aria-label="Live local transcription results" aria-live="off">
           {!testSegments.length && <p className="muted">{testPhase === 'recording' ? 'Listening for speech…' : 'Your live transcript will appear here.'}</p>}
           {testSegments.map(segment => <article key={segment.segmentId} className={segment.isFinal ? 'final' : 'partial'}><strong>{segment.role === 'candidate' ? 'MICROPHONE' : 'SYSTEM AUDIO'}{segment.isFinal ? '' : ' · LIVE'}</strong><p>{segment.text}{segment.isFinal ? '' : ' …'}</p></article>)}
         </div>
+        </div>
         {testLatency !== null && <p className="local-ai-help" role="status">{Math.round(testLatency)} ms processing / 100 ms audio · {testLatency > 100 ? 'Behind real time' : 'Keeping up'}</p>}
-        <p className="local-ai-help">Test transcripts are saved locally in interview history. Raw audio is never saved.</p>
+        <p className="local-ai-help"><ShieldCheck size={12} />Audio stays on-device. Only the transcript is saved to your history.</p>
       </section>
     </div>
-    <details className="local-ai-card local-ai-details"><summary>Manage models <span className="local-ai-help">{installed} installed · download, repair or delete</span></summary><div className="local-ai-details-content">
-      <h4>Speech models</h4>
-      <div className="local-model-list">{setup.models.filter(model => model.type === 'asr').map(modelCard)}</div>
-      <h4>Optional add-ons</h4>
-      <p>Voice detection filters silence, speaker labels tell interviewers apart, and analysis weights are for a future feature.</p>
-      <div className="local-model-list">{setup.models.filter(model => model.type !== 'asr').map(modelCard)}</div>
-    </div></details>
-    <details className="local-ai-card local-ai-details"><summary>This computer & storage</summary><div className="local-ai-details-content">
-      <div className="local-ai-hardware" aria-label="Device resources">
-        <div><span>YOUR COMPUTER</span><strong title={setup.device.cpu}>{setup.device.cpu}</strong><small>{setup.device.platform} · {setup.device.arch} · {setup.device.cores} cores</small></div>
-        <div><span>AVAILABLE MEMORY</span><strong>{size(setup.device.availableMemory)}</strong><small>of {size(setup.device.totalMemory)} RAM</small></div>
-        <div><span>FREE STORAGE</span><strong>{setup.device.diskFree === null ? 'Unknown' : size(setup.device.diskFree)}</strong><small>Models stay installed across updates</small></div>
-        <button type="button" className="icon-button" aria-label="Refresh hardware and models" title="Refresh hardware and models" disabled={modelLocked} onClick={() => void refresh().catch(cause => setError(errorText(cause)))}><RefreshCw size={17} /></button>
-      </div>
-      <p>Models are stored outside the app and stay installed across updates.</p><code>{setup.directory}</code><p>GPU acceleration is unverified until the native runtime is installed and tested.</p><div className="local-ai-capabilities">{setup.features.map(feature => <div key={feature.name}><div className="local-ai-row"><strong>{feature.name}</strong><span className="local-ai-badge">{feature.state}</span></div><p>{feature.reason}</p></div>)}</div>
-    </div></details>
+    <section className="local-model-library" aria-label="Model library">
+      <div className="local-library-heading"><div className="studio-heading"><h3>Model library</h3><span className="studio-count">{installed} installed</span></div><div className="studio-segmented" role="group" aria-label="Model category"><button type="button" aria-pressed={modelGroup === 'asr'} onClick={() => setModelGroup('asr')}>Speech</button><button type="button" aria-pressed={modelGroup === 'addons'} onClick={() => setModelGroup('addons')}>Add-ons</button></div></div>
+      <div className="local-model-list">{setup.models.filter(model => modelGroup === 'asr' ? model.type === 'asr' : model.type !== 'asr').map(modelCard)}</div>
+      <p className="local-ai-help">Models download from Hugging Face once and stay installed across updates. Choose <strong>Local</strong> transcription in a session to use them.</p>
+    </section>
+    <footer className="local-ai-storage"><div><FolderOpen size={14} /><code title={setup.directory}>{setup.directory}</code><button type="button" className="icon-button" aria-label="Copy model folder" title="Copy model folder" onClick={() => void unwrap(window.novi.copyText(setup.directory)).catch(cause => setError(errorText(cause)))}><Copy size={13} /></button></div><p className="local-ai-help">CPU transcription · GPU acceleration is unverified.</p>
+      <div className="local-ai-capabilities">{setup.features.filter(feature => feature.state !== 'supported').map(feature => <span key={feature.name} title={feature.reason} aria-label={`${feature.name}: ${feature.state}. ${feature.reason}`}>{feature.name} · {feature.state}</span>)}</div>
+    </footer>
   </div>;
 }

@@ -1,13 +1,13 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
-import { chmod, cp, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { chmod, cp, lstat, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import { join, relative, resolve } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { t, x } from 'tar';
-import type { EngineId, EngineUpdate } from '../../../shared/localCoding';
+import { isEngineId, type EngineId, type EngineUpdate } from '../../../shared/localCoding';
 import { atomicJSON } from '../storage';
 import { UserError } from '../validation';
 import { CODEX_TRIPLES, engineEnvironment, engineRuntime, isMusl, type Manifest, type RuntimeLocation } from './runtime';
@@ -119,7 +119,7 @@ export class EngineInstaller {
 
   async install(engine: EngineId) {
     if (!this.location.managedPath) throw new UserError('Agent installation is unavailable.');
-    if (this.installing.has(engine)) throw new UserError('This agent is already being installed.');
+    if (this.installing.has(engine)) throw new UserError('This agent is already being changed.');
     this.installing.add(engine);
     const id = randomUUID(), root = join(this.location.managedPath, engine, id);
     let published = false;
@@ -162,5 +162,22 @@ export class EngineInstaller {
       try { if (!published) await rm(root, { recursive: true, force: true }); }
       finally { this.installing.delete(engine); }
     }
+  }
+
+  async uninstall(engine: EngineId) {
+    if (!isEngineId(engine) || !this.location.managedPath) throw new UserError('Choose an installed coding agent.');
+    if (this.installing.has(engine)) throw new UserError('This agent is already being changed.');
+    const root = resolve(this.location.managedPath, engine);
+    if (relative(resolve(this.location.managedPath), root) !== engine) throw new UserError('Invalid agent directory.');
+    this.installing.add(engine);
+    try {
+      await mkdir(root, { recursive: true });
+      if ((await lstat(root)).isSymbolicLink()) throw new UserError('The agent directory is a link. No files were removed.');
+      // Bundled files belong to the app; suppress fallback without modifying its signed installation.
+      atomicJSON(join(root, 'current.json'), { disabled: true });
+      for (const name of await readdir(root)) {
+        if (/^[a-f0-9-]{36}$/.test(name)) await rm(join(root, name), { recursive: true, force: true });
+      }
+    } finally { this.installing.delete(engine); }
   }
 }

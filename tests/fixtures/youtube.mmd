@@ -1,0 +1,59 @@
+graph TD
+    subgraph Users / Clients
+        C[Mobile App / Web Browser]
+    end
+
+    subgraph CDN / Edge
+        CDN_U[CDN Upload Edge]
+        CDN_P[CDN Playback Edge]
+    end
+
+    subgraph Backend Services
+        LB(Load Balancer)
+        UAS[Upload API Service]
+        QM[Queue Manager]
+        TPS[Transcoding Process Service]
+        WMS[Workflow Management Service]
+        VAS[Video API Service]
+        REC[Recommendation Service]
+        ASS[Analytics & Stats Service]
+    end
+
+    subgraph Storage / Database
+        KV_C[Key-Value Cache (e.g., Redis)]
+        DB_SQL[SQL DB (e.g., PostgreSQL/MySQL)]
+        DB_NOSQL[NoSQL DB (e.g., Cassandra/DynamoDB)]
+        OBL[Object Storage (e.g., S3)]
+    end
+
+    C -- 1. Upload Request (Initiate) --> LB --> UAS
+    UAS -- 2. Pre-signed URL --> C
+    C -- 3. Stream Raw Video --> CDN_U
+    CDN_U -- 4. Store Raw Video --> OBL
+    UAS -- 5. Notify Completion & Enqueue Task --> QM
+    QM -- 6. Pull Transcoding Task --> TPS
+    TPS -- 7. Fetch Raw Video --> OBL
+    TPS -- 8. Store Transcoded Videos --> OBL
+    TPS -- 9. Update Video Status --> DB_SQL
+    TPS -- 10. Notify Workflow Mgr --> WMS
+    WMS -- 11. Mark Video Ready / Index --> DB_SQL / REC / ASS
+
+    C -- 12. Browse / Get Recommendations --> LB --> REC
+    REC -- 13. Fetch User History / Popularity --> DB_NOSQL / ASS
+    REC -- 14. Return Video Metadata IDs --> C
+
+    C -- 15. Get Video Details --> LB --> VAS
+    VAS -- 16. Fetch Metadata (Cached) --> KV_C
+    KV_C -- Cache Miss --> DB_SQL
+    VAS -- 17. Increment View Count (Async) --> QM --> ASS
+    ASS -- 18. Store Analytics --> DB_NOSQL
+    VAS -- 19. Return CDN URLs --> C
+
+    C -- 20. Stream Video Playback --> CDN_P
+    CDN_P -- 21. Fetch Transcoded Video --> OBL
+
+    DB_SQL -- Replicated & Sharded --> DB_SQL
+    DB_NOSQL -- Replicated & Sharded --> DB_NOSQL
+    OBL -- Geo-replicated --> OBL
+    KV_C -- Clustered --> KV_C
+    ASS -- Feeds Data --> REC

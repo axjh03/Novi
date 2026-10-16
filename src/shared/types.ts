@@ -178,6 +178,7 @@ export interface AppCommandStatus {
 }
 
 export interface NoviAPI {
+  repairDiagram(input: { code: string; error: string }): Promise<Result<string>>;
   /** Changes each time the app starts. */
   launchId: string;
   getAppMask(): Promise<Result<AppMaskSettings>>;
@@ -210,6 +211,7 @@ export interface NoviAPI {
   getLocalCodingReadiness(): Promise<Result<EngineReadiness[]>>;
   checkEngineUpdate(engine: EngineId): Promise<Result<import('./localCoding').EngineUpdate>>;
   installEngine(engine: EngineId): Promise<Result<EngineReadiness[]>>;
+  uninstallEngine(engine: EngineId): Promise<Result<EngineReadiness[]>>;
   checkEngineLogin(input: { engine: EngineId; connectionId: string }): Promise<Result<string>>;
   listEngineModels(input: { engine: EngineId; connectionId: string }): Promise<Result<EngineModel[]>>;
   captureLocalSources(input: { selectionId: string; engine: EngineId; connectionId: string; model: string }): Promise<Result<{ snapshot: Snapshot; conversationId: string }>>;
