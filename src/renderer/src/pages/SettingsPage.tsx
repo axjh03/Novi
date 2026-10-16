@@ -43,7 +43,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
   const [dirty, setDirty] = useState(false), [leaving, setLeaving] = useState(false), [accountError, setAccountError] = useState('');
 
   function change(next: SettingsInput) { setValue(next); setSaved(false); setDirty(true); }
-  function shortcutField({ key, label, defaultValue, description }: typeof shortcuts[number]) {
+  function shortcutField({ key, label, defaultValue, description }: typeof shortcuts[number] & { description?: string }) {
     return <ShortcutField key={key} label={label} value={value[key] || defaultValue} defaultValue={defaultValue} description={description}
       onChange={(shortcut) => change({ ...value, [key]: shortcut })}
       others={shortcuts.filter((other) => other.key !== key).map((other) => ({ label: other.label, value: value[other.key] || other.defaultValue }))} />;
