@@ -55,13 +55,6 @@ svg { flex-shrink: 0; }
 .danger-button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; color: var(--danger); padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px; }
 .danger-button:hover { background: var(--error-bg); }
 .error { background: var(--error-bg); border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); color: var(--danger); padding: 12px 14px; border-radius: 7px; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
-.privacy-consent-backdrop { position: fixed; inset: 0; z-index: 1100; display: grid; place-items: center; padding: 20px; background: #070a10c9; }
-.privacy-consent { width: min(520px, 100%); padding: 24px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: 0 24px 80px #0008; }
-.privacy-consent h2 { margin: 0 0 12px; font-size: 22px; }
-.privacy-consent p { color: var(--muted); font-size: 13px; line-height: 1.7; }
-.privacy-consent-check { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; margin: 18px 0; line-height: 1.6; }
-.privacy-consent-check input { margin-top: 3px; }
-.privacy-consent-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 .brand { display: inline-flex; align-items: center; gap: 9px; font-size: 29px; font-weight: 650; letter-spacing: -.065em; }
 .brand-mark { color: var(--accent); display: inline-flex; align-items: center; justify-content: center; }
 .brand-logo-img { width: 26px; height: 26px; object-fit: contain; border-radius: 6px; display: block; }

@@ -51,7 +51,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     void unwrap(window.novi.setWorkspaceDocked(true)).catch(console.error);
     return () => { void unwrap(window.novi.setWorkspaceDocked(false)).catch(console.error); };
   }, []);
-  // Chosen in Get ready or Settings: request OS-level capture exclusion at session start.
+  // Chosen in Get ready or Settings: start hidden from screen sharing, exactly as if Transparency were pressed.
   useEffect(() => {
     if (state.settings?.transparentOnStart) void unwrap(window.novi.setTransparent(true)).catch(console.error);
   }, []);
@@ -127,7 +127,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     return () => { mounted = false; };
   }, [sessionId, state.contextSession?.status, state.contextSession?.isEmpty]);
   async function endSession() {
-    setEnding(true); et.stop(); cameraNoticeAccepted.current = false;
+    setEnding(true); et.stop();
     try { onSaved(await unwrap(window.novi.endContext())); }
     catch (error) { chat.setError(errorText(error)); setEnding(false); }
   }
@@ -141,13 +141,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   // ── Eye tracking ──────────────────────────────────────────────────────────
   const et = useEyeTracking();
   const [showDebugDot, setShowDebugDot] = useState(false);
-  const cameraNoticeAccepted = useRef(false);
-  const ensureCameraConsent = useCallback(() => {
-    if (cameraNoticeAccepted.current) return true;
-    const accepted = window.confirm('Novi may briefly access your camera to list devices, and uses camera frames locally to estimate your gaze and position the answer display. It does not record or upload camera video. Continue only if your interview and organization allow this feature.');
-    cameraNoticeAccepted.current = accepted;
-    return accepted;
-  }, []);
 
   // In behavioral mode, automatically route assistant answers into the HUD.
   // Depend on stable fields: `et` is a new object on every gaze update (up to 30/s).
@@ -165,15 +158,13 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
 
   const handleEyeToggle = useCallback(async () => {
     if (et.state === 'idle' || et.state === 'error') {
-      if (!ensureCameraConsent()) return;
       // Reset error state first
       if (et.state === 'error') et.stop();
       await et.start(et.selectedCameraId);
     } else {
       et.stop();
-      cameraNoticeAccepted.current = false;
     }
-  }, [et, ensureCameraConsent]);
+  }, [et]);
 
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -376,7 +367,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
                 selectedDisplayId={et.selectedDisplayId}
                 overlayActive={et.overlayActive}
                 onToggle={() => void handleEyeToggle()}
-                onEnsureCameraConsent={ensureCameraConsent}
                 onToggleDebug={() => setShowDebugDot((v) => !v)}
                 onListCameras={et.listCameras}
                 onSwitchCamera={et.switchCamera}

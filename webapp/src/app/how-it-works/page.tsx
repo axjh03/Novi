@@ -7,8 +7,8 @@ import { JOURNEY } from '@/lib/site';
 import styles from './how-it-works.module.css';
 
 export const metadata: Metadata = {
-  title: 'How it works — Prepare with Novi',
-  description: 'Set up résumé and project context, use Novi to prepare and practice, and review the details before your next interview.',
+  title: 'How it works — Your interview cheat code | Novi',
+  description: 'Your interview cheat code: bring your résumé, capture the question, and get AI backup for answers, code, and follow-ups. Get set up. Chase the bag.',
 };
 
 const faqs = [
@@ -26,10 +26,10 @@ export default function HowItWorksPage() {
       <main>
         <section className={styles.hero}>
           <div className={styles.heroCopy}>
-            <span className={styles.eyebrow}>PREPARE WITH YOUR OWN CONTEXT</span>
-            <h1>Know your work.<br /><em>Explain it clearly.</em></h1>
-            <p>Bring your résumé, role details, notes, and selected project context into one workspace. Prepare, practice, and use Novi only in ways permitted by your interview and organization.</p>
-            <a className={styles.heroAction} href="#setup">See how to get started <ArrowRight size={17} aria-hidden="true" /></a>
+            <span className={styles.eyebrow}>THE INTERVIEW CHEAT CODE</span>
+            <h1>Cheat the interview.<br /><em>Chase the bag.</em></h1>
+            <p>We help you cheat in interviews. For real. Bring your résumé, grab the question, and get AI backup for the answer, the code, and the follow-up they absolutely did not need to ask.</p>
+            <a className={styles.heroAction} href="#setup">Show me the cheat code <ArrowRight size={17} aria-hidden="true" /></a>
             <span className={styles.platforms}>Built for macOS, Windows &amp; Linux</span>
           </div>
           <figure className={styles.heroScene}>
@@ -54,7 +54,7 @@ export default function HowItWorksPage() {
         </section>
 
         <section className={styles.section} id="setup" aria-labelledby="setup-title">
-          <span className={styles.eyebrow}>01 / PREPARE YOUR WORKSPACE</span><h2 id="setup-title">Get set up. Then get ready.</h2>
+          <span className={styles.eyebrow}>01 / EQUIP YOUR CHEAT CODE</span><h2 id="setup-title">Get set up. Then let it cook.</h2>
           <p className={styles.lead}>The pre-interview side quest: choose your plan, connect your AI provider, and install Novi. macOS, Windows, or Linux. Get this done before the recruiter says “can you hear me?”</p>
           <ol className={styles.steps}>{JOURNEY.map((step, index) => {
             const StepIcon = [CreditCard, KeyRound, Monitor][index];
@@ -74,7 +74,7 @@ export default function HowItWorksPage() {
             <div className={styles.responsePreview}><MessageSquare size={20} /><strong>Less brain freeze.<br />More “I’ve got this.”</strong><span className={styles.answerLine} /><span className={styles.answerLine} /><span className={styles.responseTag}>Context → question → follow-up</span></div>
           </div>
           <ol className={styles.phases}>
-            <li><span className={styles.tag}>01 / ADD YOUR CONTEXT</span><h3>Bring the details you can share.</h3><p>Add your résumé, job description, and project notes so Novi has relevant context. Pick a practice mode and check your audio, screen, and provider setup. Only include materials you are permitted to share with your selected provider.</p></li>
+            <li><span className={styles.tag}>01 / DROP THE LORE</span><h3>Your résumé is the cheat sheet.</h3><p>Add your résumé, job description, and project notes so Novi has your actual context. Pick your interview mode. Check your mic, screen capture permissions, and provider connection. Technical difficulties are a terrible opening bit.</p></li>
             <li><span className={styles.tag}>02 / SEND THE QUESTION</span><h3>They ask. You get backup.</h3><p>Type the question, attach a screenshot, or bring in transcribed audio. Ask Novi for an answer, a code explanation, or a way through the problem. “Let’s do a quick technical exercise” just got less fucking terrifying.</p></li>
             <li><span className={styles.tag}>03 / HANDLE THE FOLLOW-UP</span><h3>Keep the plot armor on.</h3><p>They ask “why?” Keep the same conversation going for trade-offs, edge cases, and explanations. Check the details before using the answer. Your saved history is there for the next round of this apparently endless boss fight.</p></li>
           </ol>
@@ -107,7 +107,7 @@ export default function HowItWorksPage() {
         </section>
 
         <section className={styles.section} id="faq" aria-labelledby="faq-title"><span className={styles.eyebrow}>BEFORE YOU SEND IT</span><h2 id="faq-title">The “wait, but…” section.</h2><div className={styles.faq}>{faqs.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</div></section>
-        <section className={styles.cta}><h2>Walk in prepared.</h2><p>Start with Core, or add coding, system design, and project context with higher plans. Use Novi in ways that fit the rules of your interview.</p><div className={styles.ctaActions}><Link className={styles.ctaPrimary} href="/get-access">Compare plans <ArrowUpRight size={16} aria-hidden="true" /></Link></div></section>
+        <section className={styles.cta}><h2>Main quest: get the bag.</h2><p>New role? Side quest income? Start with Core, or bring coding and system design backup with Pro and above. The interview grind can kiss your ass.</p><div className={styles.ctaActions}><Link className={styles.ctaPrimary} href="/get-access">Pick your cheat code <ArrowUpRight size={16} aria-hidden="true" /></Link></div></section>
       </main>
       <SiteFooter />
     </div>

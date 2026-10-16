@@ -24,8 +24,8 @@ export function ReadyCard({ transparent, listenKey, snapshotKey, practiceDisable
           {name}<span className="ready-chip-status">: {status}</span>
         </li>;
       })}
-      <li className={transparent ? 'ok' : ''} title="Novi asks the operating system to exclude its window from capture; behavior varies by OS and sharing app.">
-        <ShieldCheck size={13} aria-hidden="true" />OS capture exclusion<span className="ready-chip-status">: {transparent ? 'on' : 'off'}</span>
+      <li className={transparent ? 'ok' : ''} title="Transparent mode hides Novi from screen sharing and recording.">
+        <ShieldCheck size={13} aria-hidden="true" />Hidden from screen share<span className="ready-chip-status">: {transparent ? 'on' : 'off'}</span>
       </li>
     </ul>
     <p className="ready-keys"><kbd>{listenKey}</kbd> listen and stop · <kbd>Enter</kbd> send · <kbd>{snapshotKey}</kbd> snapshot</p>

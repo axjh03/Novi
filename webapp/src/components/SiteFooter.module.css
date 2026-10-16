@@ -6,7 +6,7 @@
 }
 .inner {
   display: grid;
-  grid-template-columns: 1.35fr .75fr .8fr .85fr 1.15fr;
+  grid-template-columns: 1.5fr .8fr .9fr 1.2fr;
   gap: 40px;
   max-width: 1184px;
   margin: 0 auto;

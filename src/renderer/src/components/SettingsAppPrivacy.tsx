@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { ExternalLink } from 'lucide-react';
 import type { AppCommandStatus, AppMaskSettings } from '../../../shared/types';
 import { errorText, unwrap } from '../services/api';
 
@@ -16,16 +15,7 @@ export function SettingsAppPrivacy() {
   }
   function change(next: AppMaskSettings) { setMask(next); setStatus(''); }
 
-  return <>
-  <section className="settings-section">
-    <div><h2>Privacy & legal</h2><p>Read how Novi handles audio, files, account data, and your plan.</p></div>
-    <div className="settings-fields">
-      {['privacy', 'terms', 'referral-terms'].map((page) => <button key={page} className="text-button" type="button" onClick={() => void unwrap(window.novi.openExternal(`https://novi-virid.vercel.app/${page}`)).catch(err => setError(errorText(err)))}>
-        <ExternalLink size={14} />{page === 'privacy' ? 'Privacy notice' : page === 'terms' ? 'Terms of use' : 'Referral terms'}
-      </button>)}
-    </div>
-  </section>
-  <section className="settings-section">
+  return <section className="settings-section">
     <div><h2>Mask & app controls</h2><p>Saved for this device, including before sign-in.</p></div>
     <div className="settings-fields">
       <p className="muted">Mask hides Novi’s windows from the Windows taskbar or macOS Dock and uses your chosen window name and icon. Linux taskbar hiding depends on the desktop and may be unavailable. Running processes remain visible in Task Manager, Activity Monitor and system tools.</p>
@@ -71,6 +61,5 @@ export function SettingsAppPrivacy() {
       {status && <p role="status">{status}</p>}
       {error && <p className="error" role="alert">{error}</p>}
     </div>
-  </section>
-  </>;
+  </section>;
 }
