@@ -322,7 +322,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
   return (
     <div className="composer-wrap">
       <form
-        className={`composer ${dragging ? 'dragging' : ''}`}
+        className={`composer ${dragging ? 'dragging' : ''} ${appMode === 'system-design' ? 'with-diagram' : ''}`}
         onSubmit={submit}
         onDragEnter={(e) => {
           drag(e);
@@ -398,31 +398,31 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
         {/* Controls Toolbar */}
         <div className="composer-controls">
           <div className="attach-control">
-            <button className="composer-quick-btn" type="button" disabled={attaching}
+            <button className="composer-quick-btn composer-attach" type="button" disabled={attaching}
               onClick={() => void attach()} aria-label="Attach image" title="Attach image">
               <ImagePlus size={14} />
             </button>
-            <button className="composer-quick-btn" type="button" disabled={attaching}
+            <button className="composer-quick-btn composer-snapshot" type="button" disabled={attaching}
               onClick={() => void handleQuickScreenshot()} aria-label="Snapshot" title="Snapshot: capture your working monitor (Alt+3)">
               <Camera size={14} />
             </button>
 
-            {appMode === 'system-design' && <button type="button" className="composer-quick-btn" disabled={busy || attaching || localStarting || localStopping} onClick={() => void submit(undefined, true)}>Draw / update diagram</button>}
+            {appMode === 'system-design' && <button type="button" className="composer-quick-btn composer-diagram" disabled={busy || attaching || localStarting || localStopping} onClick={() => void submit(undefined, true)}>Draw / update diagram</button>}
             <div className="composer-audio-source composer-local-control">
-              <button type="button" className={`composer-quick-btn ${localActive ? 'recording' : ''}`} onClick={() => void toggleListening()}
+              <button type="button" className={`composer-quick-btn composer-mic ${localActive ? 'recording' : ''}`} onClick={() => void toggleListening()}
                 disabled={localStarting || localStopping} aria-pressed={localActive}
                 aria-label={localStarting ? 'Starting listening' : localStopping ? 'Stopping listening' : localActive ? 'Stop listening' : 'Start listening'}
                 title={`${localStarting ? 'Starting…' : localStopping ? 'Stopping…' : localActive ? 'Stop listening' : 'Start listening'} (Alt+A)`}>
                 {localStarting || localStopping ? <Loader2 size={14} className="spin" /> : <Mic size={14} />}
                 {localActive && <AudioMeter level={localLevel} />}
               </button>
-              <select aria-label="Audio input" value={source} disabled={localActive || localStarting || localStopping}
+              <select className="composer-source" aria-label="Audio input" value={source} disabled={localActive || localStarting || localStopping}
                 onChange={(event) => setSource(event.target.value as ListeningSource)}>
                 <option value="system">System audio</option>
                 <option value="both">Mic + system</option>
                 <option value="microphone">Mic only</option>
               </select>
-              <label className="transcription-engine" title="Audio transcription engine"><Brain size={15} />
+              <label className="transcription-engine composer-engine" title="Audio transcription engine"><Brain size={15} />
                 <select aria-label="Audio transcription engine" value={engine} disabled={localActive || localStarting || localStopping}
                   onChange={(event) => setEngine(event.target.value as 'local' | 'cloud')}>
                   <option value="local">Local</option><option value="cloud">Cloud</option>

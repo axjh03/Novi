@@ -3269,16 +3269,15 @@ html.novi-tray #tray-root { padding: 4px 6px; -webkit-app-region: drag; }
 .tray-resize-grip::after { content: ''; position: absolute; top: 50%; left: 2px; width: 2px; height: 24px; max-height: 70%; transform: translateY(-50%); border-radius: 2px; background: var(--border); }
 .tray-resize-grip:hover::after, .tray-resize-grip:focus-visible::after { background: var(--accent); }
 .tray-resize-grip:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
-.tray-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-width: 0; }
+.tray-row { min-width: 0; }
 .tray-shell .chat-mode-tabs { flex: 0 1 auto; order: 0; gap: 2px; }
 .tray-shell .chat-mode-tabs .mode-tab-btn { min-height: 30px; padding: 5px 8px; }
 /* Only the active mode shows its name (see ChatPage); keep it visible at every tray width. */
 html.novi-tray .chat-mode-tabs .mode-tab-btn span { display: inline; }
-.tray-shell .header-model-select-wrapper { min-width: 0; flex: 1 1 200px; flex-wrap: wrap; gap: 4px; }
-.tray-shell .header-model-picker { flex: 1 1 90px; min-width: 0; max-width: 200px; width: 0; }
+.tray-shell .header-model-select-wrapper { min-width: 0; flex-wrap: nowrap; gap: 4px; }
+.tray-shell .header-model-picker { flex: 1 1 0; min-width: 0; max-width: 280px; width: 0; }
 .tray-shell .header-model-select-wrapper .text-button { padding: 4px 6px; min-height: 28px; font-size: 11px; }
-.tray-shell .eye-tracking-panel { flex: 0 0 auto; margin-left: auto; }
-.tray-shell .eye-tracking-panel { position: relative; flex-wrap: wrap; max-width: 100%; gap: 4px; margin-right: 0; }
+.tray-shell .eye-tracking-panel { position: relative; flex: 0 0 auto; flex-wrap: nowrap; gap: 4px; margin: 0; }
 .tray-shell .et-camera-picker, .tray-shell .et-error-wrap { position: static; }
 .tray-shell .et-camera-dropdown, .tray-shell .et-error-detail { min-width: 0; width: min(320px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto; }
 .tray-shell .eye-tracking-toggle, .tray-shell .et-camera-btn { min-height: 30px; min-width: 30px; justify-content: center; border-radius: 7px; background: var(--surface); }
@@ -3287,33 +3286,85 @@ html.novi-tray .chat-mode-tabs .mode-tab-btn span { display: inline; }
 .tray-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--muted); }
 .tray-icon-btn:hover { color: var(--text); background: var(--hover); }
 .tray-icon-btn.active { color: var(--accent); border-color: var(--accent); }
-.tray-tools { display: flex; align-items: center; gap: 6px; margin-left: auto; max-width: 100%; }
+.tray-tools { display: flex; align-items: center; gap: 6px; }
 .tray-shell .tray-tools .eye-tracking-panel { margin-left: 0; }
-.tray-shell .mode-tab-btn.active span { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tray-shell .mode-tab-btn.active span { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tray-shell .behavioral-copilot-bar { padding: 0; border: 0; background: transparent !important; }
 .tray-shell .behavioral-framework-picker { margin: 0; font-size: 11px; }
 .tray-shell .behavioral-framework-picker select { min-height: 30px; }
 .tray-shell .dismissible, .tray-shell .request-options { margin: 0; }
 .tray-shell .composer { box-shadow: none; padding: 6px 8px; }
-.tray-shell .composer-controls { gap: 6px; margin-top: 4px; }
-.tray-shell .composer-controls .attach-control { flex: 1; gap: 4px; }
-.tray-shell .composer-local-control { gap: 4px; }
-.tray-shell .composer-local-control > select { max-width: 120px; }
-.tray-shell .lc-session-bar { flex: 1 1 220px; flex-wrap: wrap; gap: 4px 8px; }
-.tray-shell .lc-session-bar > * { max-width: 100%; }
-@media (min-width: 800px) {
-  .tray-shell .composer { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 6px 10px; }
-  .tray-shell .composer textarea { flex: 1 1 180px; width: 0; min-width: 180px; }
-  .tray-shell .composer-controls { flex: 1 1 auto; margin-top: 0; }
-  .tray-shell .attachment-tray { flex-basis: 100%; margin-bottom: 0; }
+/* One line at every width: the folder name and model shorten with "…" (full text on hover) before anything moves. */
+.tray-shell .lc-session-bar { min-width: 0; flex-wrap: nowrap; gap: 8px; overflow: hidden; }
+.tray-shell .lc-session-bar > * { flex: 0 1 auto; }
+.tray-shell .lc-session-bar > .lc-project { flex-shrink: 4; min-width: 3.5em; color: var(--text); font-weight: 600; }
+.tray-shell .lc-session-bar > .lc-model { min-width: 3em; }
+.tray-shell .lc-session-bar > .lc-engine, .tray-shell .lc-session-bar > .lc-readonly-pill { flex: none; }
+@media (max-width: 479px) {
+  /* The lock icon stays; the engine name and the words stay available to screen readers. */
+  .tray-shell .lc-session-bar > .lc-engine, .tray-shell .lc-readonly-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+/* Tray layout. Each group has a fixed place at every width, and only whole groups move between rows:
+   top row: modes | model | tools (wide) -> modes / model + tools (narrower);
+   composer: message + controls on one line (wide) -> message / controls -> message / buttons + send / audio menus (narrow). */
+.tray-shell .tray-row { display: grid; grid-template-columns: auto minmax(160px, 1fr) auto; grid-template-areas: "modes model tools"; align-items: center; gap: 6px 10px; }
+.tray-row > .chat-mode-tabs { grid-area: modes; min-width: 0; flex-wrap: nowrap; }
+.tray-row > .header-model-select-wrapper, .tray-row > .lc-session-bar { grid-area: model; }
+.tray-row > .tray-tools { grid-area: tools; justify-self: end; }
+/* Behavioral Interview's framework picker sits beside the model, or under it when the row is narrow. */
+.tray-row > .behavioral-copilot-bar { grid-area: extra; justify-self: start; }
+.tray-shell .tray-row:has(> .behavioral-copilot-bar) { grid-template-columns: auto minmax(160px, 1fr) auto auto; grid-template-areas: "modes model extra tools"; }
+@media (max-width: 719px) {
+  .tray-shell .tray-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "modes modes" "model tools"; gap: 6px 8px; }
+  .tray-shell .tray-row:has(> .behavioral-copilot-bar) { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "modes modes" "model tools" "extra extra"; }
+}
+@media (min-width: 720px) and (max-width: 839px) {
+  /* The Local Coding details need more room than a model picker; keep them on their own line until they fit. */
+  .tray-shell .tray-row:has(> .lc-session-bar) { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "modes modes" "model tools"; gap: 6px 8px; }
+  /* The long Behavioral Interview label leaves too little room for both pickers on one line. */
+  .tray-shell .tray-row:has(> .behavioral-copilot-bar) { grid-template-columns: auto minmax(160px, 1fr) auto; grid-template-areas: "modes model tools" "extra extra extra"; }
+}
+@media (max-width: 399px) {
+  html.novi-tray .chat-mode-tabs .mode-tab-btn span, .tray-shell .et-camera-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .tray-shell .chat-mode-tabs .mode-tab-btn { padding: 5px 6px; }
 }
 @media (max-width: 540px) {
-  html.novi-tray .chat-mode-tabs .mode-tab-btn span, .tray-shell .et-camera-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .tray-shell .tray-row { gap: 4px 6px; }
-  .tray-shell .header-model-select-wrapper { order: 2; flex-basis: 100%; }
-  .tray-shell .chat-mode-tabs .mode-tab-btn { padding: 5px 6px; }
   .tray-shell .practice-coach { flex-wrap: wrap; }
   .tray-shell .practice-actions { flex-wrap: wrap; margin-left: auto; }
+}
+
+/* The wrappers step aside so every control is placed directly. */
+.tray-shell .composer-controls .attach-control, .tray-shell .composer-controls .composer-audio-source { display: contents; }
+.tray-shell .composer-controls { display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; margin-top: 4px; min-width: 0; }
+.tray-shell .composer-controls > .send-button { margin-left: auto; }
+.tray-shell .composer-source, .tray-shell .composer-engine select { min-width: 0; }
+.tray-shell .composer-diagram { white-space: nowrap; }
+/* Narrow: buttons and Send stay on the first line; the two audio menus share the second. */
+@media (max-width: 439px) {
+  .tray-shell .composer:not(.with-diagram) .composer-controls { display: grid; grid-template-columns: auto auto auto minmax(0, 1fr) auto; grid-template-areas: "attach snap mic . send" "source source source source engine"; gap: 6px; }
+}
+@media (max-width: 599px) {
+  .tray-shell .composer.with-diagram .composer-controls { display: grid; grid-template-columns: auto auto auto minmax(0, 1fr) auto; grid-template-areas: "attach snap mic . send" "source source source source engine" "diagram diagram diagram diagram diagram"; gap: 6px; }
+}
+.tray-shell .composer-attach { grid-area: attach; }
+.tray-shell .composer-snapshot { grid-area: snap; }
+.tray-shell .composer-mic { grid-area: mic; }
+.tray-shell .composer-source { grid-area: source; }
+.tray-shell .composer-engine { grid-area: engine; }
+.tray-shell .composer-diagram { grid-area: diagram; }
+.tray-shell .composer-controls > .send-button { grid-area: send; justify-self: end; }
+@media (max-width: 439px) { .tray-shell .composer:not(.with-diagram) .composer-source { width: 100%; } .tray-shell .composer:not(.with-diagram) .composer-controls > .send-button { margin-left: 0; } }
+@media (max-width: 599px) { .tray-shell .composer.with-diagram .composer-source { width: 100%; } .tray-shell .composer.with-diagram .composer-controls > .send-button { margin-left: 0; } .tray-shell .composer.with-diagram .composer-diagram { justify-self: start; } }
+/* Wide: the message box fills the line and the controls sit together beside Send. */
+@media (min-width: 760px) {
+  .tray-shell .composer:not(.with-diagram) { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 6px 10px; }
+  .tray-shell .composer:not(.with-diagram) .attachment-tray { grid-column: 1 / -1; margin-bottom: 0; }
+  .tray-shell .composer:not(.with-diagram) .composer-controls { margin-top: 0; }
+}
+@media (min-width: 960px) {
+  .tray-shell .composer.with-diagram { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 6px 10px; }
+  .tray-shell .composer.with-diagram .attachment-tray { grid-column: 1 / -1; margin-bottom: 0; }
+  .tray-shell .composer.with-diagram .composer-controls { margin-top: 0; }
 }
 .tray-status { color: var(--muted); font-size: 11px; }
 .tray-reopen { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; font-size: 11px; }

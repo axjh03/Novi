@@ -307,7 +307,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             </nav>
             {localMode ? (
               <div className="lc-session-bar" aria-label="Local Coding session">
-                {localBinding ? <><strong>Local Coding</strong><span title={local.project?.roots.map((root) => root.canonicalLocalPath).join('\n')}>{localBinding.name}</span><span>{ENGINES.find((item) => item.id === localBinding.engine)?.label}</span><span title={local.project?.reasoningEffort ? `Reasoning ${local.project.reasoningEffort}` : undefined}>{localBinding.model}</span><span className="lc-readonly-pill"><Lock size={11} aria-hidden="true" />Read-only</span></>
+                {localBinding ? <><span className="lc-project" title={local.project?.roots.map((root) => root.canonicalLocalPath).join('\n')}>{localBinding.name}</span><span className="lc-engine">{ENGINES.find((item) => item.id === localBinding.engine)?.label}</span><span className="lc-model" title={local.project?.reasoningEffort ? `Reasoning ${local.project.reasoningEffort}` : localBinding.model}>{localBinding.model}</span><span className="lc-readonly-pill" title="Read-only"><Lock size={11} aria-hidden="true" /><span className="lc-readonly-text">Read-only</span></span></>
                   : <span>Local Coding · choose a working folder in the panel</span>}
               </div>
             ) : <div className="header-model-select-wrapper">
