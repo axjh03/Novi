@@ -37,7 +37,8 @@ export function SettingsAppUpdater({ value, onChange, disabled }: Props) {
   const hasUpdate = status === 'available' && Boolean(result?.hasUpdate);
   const isUpToDate = status === 'up-to-date' && !result?.hasUpdate;
 
-  const currentVersion = result?.currentVersion || '0.1.1';
+  // Unknown until the first check; never show a made-up version.
+  const currentVersion = result?.currentVersion;
   const latestVersion = result?.latestVersion || currentVersion;
 
   return (
@@ -61,9 +62,9 @@ export function SettingsAppUpdater({ value, onChange, disabled }: Props) {
         <div className="updater-info">
           <div className="updater-title">
             <span>Novi Desktop</span>
-            <span className={`updater-badge ${hasUpdate ? 'available' : isUpToDate ? 'up-to-date' : ''}`}>
+            {currentVersion && <span className={`updater-badge ${hasUpdate ? 'available' : isUpToDate ? 'up-to-date' : ''}`}>
               v{currentVersion}
-            </span>
+            </span>}
           </div>
           <div className="updater-subtext">
             {isChecking ? (

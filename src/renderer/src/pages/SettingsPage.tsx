@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { ArrowLeft, Check, LogOut, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, LogOut, Power, Trash2 } from 'lucide-react';
 import { DEFAULT_AUDIO_RECORD_SHORTCUT, DEFAULT_BEHAVIORAL_SHORTCUT, DEFAULT_CLICK_THROUGH_SHORTCUT, DEFAULT_CODING_SHORTCUT, DEFAULT_SCREENSHOT_SHORTCUT, DEFAULT_TRANSPARENT_SHORTCUT, type SettingsInput, type Snapshot } from '../../../shared/types';
 import { ShortcutField } from '../components/ShortcutField';
 import { ProviderManager } from '../components/ProviderManager';
@@ -21,9 +21,12 @@ const shortcuts = [
 ] as const;
 
 interface Props { state: Snapshot; onSaved: (state: Snapshot) => void; onBack: () => void; onSignOut: () => void; onCleared: () => void }
+type Tab = 'general' | 'devices' | 'api' | 'local-ai';
+const tabs: Array<[Tab, string]> = [['general', 'General'], ['api', 'API Management'], ['local-ai', 'Local AI'], ['devices', 'Audio & Camera']];
+const themes = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']] as const;
 
 export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: Props) {
-  const [tab, setTab] = useState<'general' | 'devices' | 'api' | 'local-ai'>('general');
+  const [tab, setTab] = useState<Tab>('general');
   const [value, setValue] = useState<SettingsInput>({
     ...state.settings!,
     clickThroughShortcut: state.settings!.clickThroughShortcut || DEFAULT_CLICK_THROUGH_SHORTCUT,
@@ -37,8 +40,9 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
     checkUpdatesAtStartup: state.settings!.checkUpdatesAtStartup ?? true,
   });
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(false), [confirm, setConfirm] = useState(false);
+  const [dirty, setDirty] = useState(false), [leaving, setLeaving] = useState(false), [accountError, setAccountError] = useState('');
 
-  function change(next: SettingsInput) { setValue(next); setSaved(false); }
+  function change(next: SettingsInput) { setValue(next); setSaved(false); setDirty(true); }
   function shortcutField({ key, label, defaultValue, description }: typeof shortcuts[number]) {
     return <ShortcutField key={key} label={label} value={value[key] || defaultValue} defaultValue={defaultValue} description={description}
       onChange={(shortcut) => change({ ...value, [key]: shortcut })}
@@ -52,23 +56,26 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
       const updated = await unwrap(window.novi.saveSettings(value));
       onSaved(updated);
       setValue({ ...updated.settings! });
-      setSaved(true);
+      setSaved(true); setDirty(false);
+      return true;
     } catch (err) {
       setError(errorText(err));
+      setTab('general'); setLeaving(false);
+      return false;
     } finally {
       setBusy(false);
     }
   }
 
   async function clear() {
-    setBusy(true); setError('');
+    setBusy(true); setAccountError('');
     try {
       await unwrap(window.novi.clearHistory());
       onSaved(await unwrap(window.novi.session()));
       onCleared();
       setConfirm(false);
     } catch (err) {
-      setError(errorText(err));
+      setAccountError(errorText(err));
     } finally {
       setBusy(false);
     }
@@ -77,43 +84,22 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
   return (
     <main className="settings-page">
       <header>
-        <button className="text-button" onClick={onBack} disabled={busy}>
+        <button className="text-button" onClick={() => dirty ? setLeaving(true) : onBack()} disabled={busy}>
           <ArrowLeft size={16} />Back
         </button>
-        <span className="eyebrow">MAKE IT YOURS</span>
+        {leaving && dirty ? <div className="settings-leave" role="alert">
+          <span>You have unsaved changes.</span>
+          <button type="button" className="text-button" disabled={busy} onClick={onBack}>Discard</button>
+          <button type="button" className="primary" disabled={busy} onClick={() => void save().then(ok => { if (ok) onBack(); })}>{busy ? 'Saving…' : 'Save and go back'}</button>
+        </div> : <span className="eyebrow">MAKE IT YOURS</span>}
       </header>
 
       <div className={`settings-content ${tab === 'general' ? '' : 'settings-content-wide'}`}>
         <h1>Settings</h1>
-        <p className="muted">Configure your audio devices, AI models, and interaction preferences.</p>
+        <p className="muted">Your account, shortcuts, AI connections and devices.</p>
 
-        {/* Navigation Tabs */}
         <div className="segmented settings-tabs" aria-label="Settings tabs">
-          <button type="button" aria-pressed={tab === 'local-ai'} className={tab === 'local-ai' ? 'active' : ''} onClick={() => setTab('local-ai')}>Local AI</button>
-          <button
-            type="button"
-            aria-pressed={tab === 'general'}
-            className={tab === 'general' ? 'active' : ''}
-            onClick={() => setTab('general')}
-          >
-            General
-          </button>
-          <button
-            type="button"
-            aria-pressed={tab === 'devices'}
-            className={tab === 'devices' ? 'active' : ''}
-            onClick={() => setTab('devices')}
-          >
-            Audio & Camera
-          </button>
-          <button
-            type="button"
-            aria-pressed={tab === 'api'}
-            className={tab === 'api' ? 'active' : ''}
-            onClick={() => setTab('api')}
-          >
-            API Management
-          </button>
+          {tabs.map(([id, label]) => <button key={id} type="button" aria-pressed={tab === id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>)}
         </div>
 
         {tab === 'local-ai' && <LocalAISetup onSettingsSaved={(updated, modelId) => {
@@ -128,7 +114,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                 <section className="settings-section">
                   <div>
                     <h2>Profile</h2>
-                    <p>A familiar face.</p>
+                    <p>How Novi greets you.</p>
                   </div>
                   <div className="settings-fields">
                     <label>
@@ -140,28 +126,18 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                         maxLength={60}
                       />
                     </label>
-                    <label>
-                      Username
-                      <input value={state.user!.username || state.user!.email} readOnly />
-                      <small>Your assigned desktop account.</small>
-                    </label>
-                    {state.user?.licenseKey && (
-                      <label>
-                        License
-                        <input readOnly value={state.user.licenseKey} />
-                        <small>
-                          Expires {new Date(state.user.licenseExpiresAt!).toLocaleString()} •{' '}
-                          {Math.max(0, Math.ceil((+new Date(state.user.licenseExpiresAt!) - Date.now()) / 86400000))} days remaining
-                        </small>
-                      </label>
-                    )}
+                    <dl className="settings-info">
+                      <div><dt>Username</dt><dd>{state.user!.username || state.user!.email}</dd></div>
+                      {state.user?.licenseKey && <div><dt>License</dt><dd><code>{state.user.licenseKey}</code>
+                        <small>Expires {new Date(state.user.licenseExpiresAt!).toLocaleDateString()} · {Math.max(0, Math.ceil((+new Date(state.user.licenseExpiresAt!) - Date.now()) / 86400000))} days left</small></dd></div>}
+                    </dl>
                   </div>
                 </section>
 
                 <section className="settings-section">
                   <div>
-                    <h2>Interaction</h2>
-                    <p>One shortcut toggles both modes.</p>
+                    <h2>Visibility</h2>
+                    <p>Hide Novi from screen sharing and let clicks pass through it.</p>
                   </div>
                   <div className="settings-fields settings-fields-interaction">
                     {shortcuts.slice(0, 2).map(shortcutField)}
@@ -171,6 +147,15 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                       Start sessions in Transparent mode
                       <small>Hides Novi from screen sharing as soon as a session starts, exactly like pressing Transparency.</small>
                     </label>
+                  </div>
+                </section>
+
+                <section className="settings-section">
+                  <div>
+                    <h2>Hotkeys</h2>
+                    <p>Work from anywhere, even while Novi is in the background.</p>
+                  </div>
+                  <div className="settings-fields settings-fields-interaction">
                     {shortcuts.slice(2).map(shortcutField)}
                   </div>
                 </section>
@@ -181,24 +166,16 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                     <p>Set the mood.</p>
                   </div>
                   <div className="settings-fields">
-                    <label>
-                      Theme
-                      <select
-                        value={value.theme}
-                        onChange={(e) => change({ ...value, theme: e.target.value as SettingsInput['theme'] })}
-                      >
-                        <option value="system">System</option>
-                        <option value="light">Light</option>
-                        <option value="dark">Dark</option>
-                      </select>
-                    </label>
+                    <div className="segmented settings-theme" role="group" aria-label="Theme">
+                      {themes.map(([id, label]) => <button key={id} type="button" aria-pressed={value.theme === id} className={value.theme === id ? 'active' : ''} onClick={() => change({ ...value, theme: id })}>{label}</button>)}
+                    </div>
                   </div>
                 </section>
 
                 <section className="settings-section">
                   <div>
-                    <h2>Application updates</h2>
-                    <p>Manage app version and updates.</p>
+                    <h2>Updates</h2>
+                    <p>Keep Novi current.</p>
                   </div>
                   <div className="settings-fields">
                     <SettingsAppUpdater
@@ -209,11 +186,9 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                   </div>
                 </section>
 
-                {error && <div className="error" role="alert">{error}</div>}
-
-                <div className="settings-save">
-                  <span role="status">{saved && <><Check size={15} />Changes saved</>}</span>
-                  <button className="primary" type="submit">{busy ? 'Saving…' : 'Save changes'}</button>
+                <div className={`settings-save ${dirty ? 'is-dirty' : ''}`}>
+                  {error ? <div className="error" role="alert">{error}</div> : <span role="status">{dirty ? 'Unsaved changes' : saved && <><Check size={15} />Changes saved</>}</span>}
+                  <button className="primary" type="submit" disabled={!dirty}>{busy ? 'Saving…' : 'Save changes'}</button>
                 </div>
               </fieldset>
             </form>
@@ -223,7 +198,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
             <section className="settings-section">
               <div>
                 <h2>Data & account</h2>
-                <p>Always in your hands.</p>
+                <p>Your history, your sign-in, and quitting the app.</p>
               </div>
               <div className="settings-fields">
                 <button
@@ -242,9 +217,15 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                     </div>
                   </div>
                 )}
-                <button className="text-button" disabled={busy} onClick={onSignOut}>
-                  <LogOut size={16} />Sign out
-                </button>
+                <div className="settings-account-actions">
+                  <button className="secondary" disabled={busy} onClick={onSignOut}>
+                    <LogOut size={16} />Sign out
+                  </button>
+                  <button className="secondary" type="button" disabled={busy} onClick={() => {
+                    void unwrap(window.novi.quitApp()).catch(err => setAccountError(errorText(err)));
+                  }}><Power size={16} />Quit Novi</button>
+                </div>
+                {accountError && <p className="error" role="alert">{accountError}</p>}
               </div>
             </section>
           </>
@@ -254,15 +235,8 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
 
         {tab === 'api' && <>
           <ProviderManager state={state} onSaved={onSaved} />
-          <section className="settings-section lc-settings">
-            <div><h2>Local Coding agents</h2><p>Install or update agents here. Codex uses your saved OpenAI API key, Claude uses Anthropic, and Antigravity uses Gemini, each on its official endpoint. Check login verifies the selected key; no separate browser sign-in is needed.</p></div>
-            <EngineReadinessList connections={state.settings?.connections} />
-          </section>
+          <EngineReadinessList connections={state.settings?.connections} managed={Boolean(state.user?.managed)} />
         </>}
-        <button className="danger-button" type="button" onClick={() => {
-          void unwrap(window.novi.quitApp()).catch(err => setError(errorText(err)));
-        }}>Quit Novi</button>
-        {tab !== 'general' && error && <p className="error" role="alert">{error}</p>}
       </div>
     </main>
   );

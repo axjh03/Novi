@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, Copy, Download, ExternalLink, HardDrive, Mic, RefreshCw, ShieldCheck, Sliders, Square, Volume2 } from 'lucide-react';
+import { Check, Copy, Download, ExternalLink, Mic, RefreshCw, ShieldCheck, Sliders, Square, Volume2 } from 'lucide-react';
 import { selectedSpeechModel, type LocalAISetup as Setup, type LocalModelState } from '../../../shared/localAI';
 import type { Snapshot } from '../../../shared/types';
 import { errorText, unwrap } from '../services/api';
@@ -11,6 +11,8 @@ import { AudioMeter } from './AudioMeter';
 const size = (bytes: number) => bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : bytes >= 1024 ** 2 ? `${(bytes / 1024 ** 2).toFixed(1)} MB` : `${Math.max(0, Math.round(bytes / 1024))} KB`;
 const speed = (bytes: number) => `${size(bytes)}/s`;
 const stateLabels: Record<LocalModelState, string> = { NOT_INSTALLED: 'Not installed', DOWNLOADING: 'Downloading', DOWNLOADED: 'Downloaded', VERIFYING: 'Verifying', READY: 'Ready', CORRUPTED: 'Needs repair', FAILED: 'Download failed', DISABLED: 'Unavailable' };
+const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
+const language = (code: string) => { try { return languageNames.of(code) ?? code; } catch { return code; } };
 const active = (state: string) => ['DOWNLOADING', 'DOWNLOADED', 'VERIFYING'].includes(state);
 
 export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot: Snapshot, modelId: string) => void } = {}) {
@@ -163,6 +165,15 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
     } catch (cause) { setTestWarning(errorText(cause)); }
   };
 
+  function progress(model: Setup['models'][number]) {
+    return <div className="local-model-progress" key={model.id}>
+      <div><strong>{model.name} · {stateLabels[model.state]}</strong><span>{Math.min(100, Math.floor(model.downloadedBytes / Math.max(1, model.totalBytes) * 100))}%</span></div>
+      <progress aria-label={`${model.name} download`} max={model.totalBytes || 1} value={model.downloadedBytes} />
+      <div><span>{size(model.downloadedBytes)} / {size(model.totalBytes)}</span><span>{model.speedBytesPerSecond ? speed(model.speedBytesPerSecond) : model.state === 'DOWNLOADING' ? 'Starting…' : 'Checking files…'}</span></div>
+      {model.state === 'DOWNLOADING' && <button type="button" className="secondary" onClick={() => void pause(model.id)}>Pause download</button>}
+    </div>;
+  }
+
   function modelCard(model: Setup['models'][number]) {
     const isSelected = model.id === selectedASR?.id;
     const diskTooLow = setup!.device.diskFree !== null && setup!.device.diskFree < model.totalBytes + 256 * 1024 ** 2;
@@ -172,16 +183,11 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
       <p>{model.type === 'asr' ? model.liveMode === 'simulated' ? 'Simulated streaming · Interim results may take longer' : 'Native streaming · Live partial results' : model.type === 'vad' ? 'Voice activity detection · Filters silence' : model.type === 'diarization' ? 'Speaker labels · System audio only' : 'Analysis weights · Analysis is not enabled yet'}</p>
       <div className="local-model-specs"><span><Download size={13} />{size(model.totalBytes)}</span><span>~{size(model.estimatedRamBytes)} RAM</span><span>{model.license}</span></div>
       {model.memoryWarning && <p className="local-ai-warning">{model.memoryWarning}</p>}
-      {active(model.state) && <div className="local-model-progress">
-        <div><strong>{stateLabels[model.state]}</strong><span>{Math.min(100, Math.floor(model.downloadedBytes / Math.max(1, model.totalBytes) * 100))}%</span></div>
-        <progress aria-label={`${model.name} download`} max={model.totalBytes || 1} value={model.downloadedBytes} />
-        <div><span>{size(model.downloadedBytes)} / {size(model.totalBytes)}</span><span>{model.speedBytesPerSecond ? speed(model.speedBytesPerSecond) : model.state === 'DOWNLOADING' ? 'Starting…' : 'Checking files…'}</span></div>
-        {model.state === 'DOWNLOADING' && <button type="button" className="secondary" onClick={() => void pause(model.id)}>Pause download</button>}
-      </div>}
+      {active(model.state) && progress(model)}
       {model.reason && <p>{model.reason}</p>}
       {model.error && <p className="error" role="alert">{model.error}</p>}
       {!active(model.state) && <div className="local-model-actions">
-        {model.type === 'asr' && !isSelected && <button type="button" className="secondary" disabled={modelLocked || Boolean(model.reason)} onClick={() => void selectASR(model.id)}>Select model</button>}
+        {model.type === 'asr' && !isSelected && <button type="button" className="secondary" disabled={modelLocked || Boolean(model.reason)} onClick={() => void selectASR(model.id)}>Use this model</button>}
         {model.state !== 'READY' && <button type="button" className="secondary" disabled={modelLocked || Boolean(model.reason) || diskTooLow} title={diskTooLow ? 'Not enough free disk space' : undefined} onClick={() => void download([model.id])}><Download size={14} />{model.state === 'NOT_INSTALLED' ? 'Download' : 'Repair / resume'}</button>}
         {(model.state !== 'NOT_INSTALLED' || model.downloadedBytes > 0) && <button type="button" className="text-button" disabled={modelLocked} onClick={() => setDeleting(model.id)}>Delete files</button>}
       </div>}
@@ -189,35 +195,29 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
     </section>;
   }
 
+  const refreshButton = <button type="button" className="text-button" disabled={modelLocked} onClick={() => void refresh().catch(cause => setError(errorText(cause)))}><RefreshCw size={14} />Refresh</button>;
+  const installed = setup.models.filter(model => model.state === 'READY').length;
+
   return <div className="local-ai-setup">
-    <header className="local-ai-header">
-      <div><span className="local-ai-eyebrow">YOUR PRIVATE WORKSPACE</span><h2>Local AI</h2><p>Choose a speech model, check your audio, and work on your own device.</p></div>
-      <span className="local-ai-badge"><ShieldCheck size={15} />On-device transcription</span>
-    </header>
-    <div className="local-ai-hardware" aria-label="Device resources">
-      <div><span>YOUR COMPUTER</span><strong title={setup.device.cpu}>{setup.device.cpu}</strong><small>{setup.device.platform} · {setup.device.arch} · {setup.device.cores} cores</small></div>
-      <div><span>AVAILABLE MEMORY</span><strong>{size(setup.device.availableMemory)}</strong><small>of {size(setup.device.totalMemory)} RAM</small></div>
-      <div><span>FREE STORAGE</span><strong>{setup.device.diskFree === null ? 'Unknown' : size(setup.device.diskFree)}</strong><small>Models remain installed across updates</small></div>
-      <button type="button" className="icon-button" aria-label="Refresh hardware and models" title="Refresh hardware and models" disabled={modelLocked} onClick={() => void refresh().catch(cause => setError(errorText(cause)))}><RefreshCw size={17} /></button>
-    </div>
+    <p className="local-ai-intro"><ShieldCheck size={16} />Speech is transcribed on this computer, so your audio never leaves it. Model files download once from Hugging Face.</p>
     {error && <p className="error" role="alert">{error}</p>}
     {setup.device.availableMemory < 1024 ** 3 && <p className="local-ai-warning" role="status">Memory is low. Close other apps before starting transcription. Optional features may be disabled automatically.</p>}
     <div className="local-ai-workspace">
       <section className="local-ai-card">
-        <div className="local-ai-section-heading"><span className="local-ai-icon"><Sliders size={19} /></span><div><h3>Speech recognition</h3><p>Your saved model for local transcription.</p></div></div>
-        <label>Speech-to-text model<select value={selectionValue} disabled={modelLocked} onChange={event => void selectASR(event.target.value)}><option value="auto">Automatic · best available model</option>{setup.models.filter(model => model.type === 'asr').map(model => <option key={model.id} value={model.id} disabled={Boolean(model.reason)}>{model.name}{model.reason ? ' — unavailable' : ''}</option>)}</select></label>
+        <div className="local-ai-section-heading"><span className="local-ai-icon"><Sliders size={19} /></span><div><h3>1 · Choose a speech model</h3><p>Automatic picks the best model your computer can run.</p></div></div>
+        <label>Speech model<select value={selectionValue} disabled={modelLocked} onChange={event => void selectASR(event.target.value)}><option value="auto">Automatic (recommended)</option>{setup.models.filter(model => model.type === 'asr').map(model => <option key={model.id} value={model.id} disabled={Boolean(model.reason)}>{model.name}{model.reason ? ' — unavailable' : ''}</option>)}</select></label>
         <div className="local-ai-selection" role="status">
-          <div className="local-ai-row"><span className="local-ai-eyebrow">{savingModel ? 'SAVING SELECTION…' : selectionValue === 'auto' ? 'AUTOMATIC CHOICE' : 'SAVED SELECTION'}</span><span className={`local-ai-badge ${ready ? 'is-ready' : ''}`}>{ready ? <><Check size={13} />Ready</> : selectedASR ? stateLabels[selectedASR.state] : 'Unavailable'}</span></div>
-          <strong>{selectedASR?.name || 'No supported speech model'}</strong>
-          <p>{selectedASR ? `${size(selectedASR.estimatedRamBytes)} estimated RAM · ${selectedASR.languages.join(', ')} · ${selectedASR.liveMode === 'simulated' ? 'Simulated streaming' : 'Native streaming'}` : 'Refresh your device information or select another model.'}</p>
-          {selectionValue === 'auto' && <p>Uses an installed model when available. The live test shows the model actually loaded.</p>}
+          <div className="local-ai-row"><strong>{savingModel ? 'Saving…' : selectedASR?.name || 'No supported speech model'}</strong><span className={`local-ai-badge ${ready ? 'is-ready' : ''}`}>{ready ? <><Check size={13} />Ready</> : selectedASR ? stateLabels[selectedASR.state] : 'Unavailable'}</span></div>
+          <p>{selectedASR ? `${size(selectedASR.totalBytes)} download · about ${size(selectedASR.estimatedRamBytes)} memory · ${selectedASR.languages.map(language).join(', ')} · ${selectedASR.liveMode === 'simulated' ? 'interim results may lag' : 'live results as you speak'}` : 'Refresh your device information or choose another model.'}</p>
+          {selectedASR?.memoryWarning && <p className="local-ai-warning">{selectedASR.memoryWarning}</p>}
+          {selectedASR?.error && <p className="error" role="alert">{selectedASR.error}</p>}
         </div>
-        {required.length > 0 && <><button type="button" className="primary" disabled={modelLocked || !enoughDisk} onClick={() => void download(required.map(model => model.id))}><Download size={16} />{inProgress ? 'Download in progress…' : `Download setup · ${size(requiredBytes)}`}</button><p className="local-ai-help">Includes {required.map(model => model.name).join(' and ')}.</p>{!enoughDisk && <p className="local-ai-warning">Free disk space is too low or could not be confirmed. Free space, then refresh.</p>}</>}
-        <p className="local-ai-help">Use local transcription in chat to apply this choice. An explicitly selected model must be installed before it can run.</p>
-        <div className="local-ai-note"><ShieldCheck size={17} /><p>Audio is processed on this computer. Downloads connect to Hugging Face for model files.</p></div>
+        {setup.models.filter(model => active(model.state)).map(progress)}
+        {required.length > 0 && !inProgress && <><button type="button" className="primary" disabled={modelLocked || !enoughDisk} onClick={() => void download(required.map(model => model.id))}><Download size={16} />Download · {size(requiredBytes)}</button><p className="local-ai-help">Includes {required.map(model => model.name).join(' and ')}.</p>{!enoughDisk && <div className="local-ai-warning"><p>Not enough free disk space, or it could not be confirmed. Free some space, then refresh.</p>{refreshButton}</div>}</>}
+        <p className="local-ai-help">In a session, set transcription to <strong>Local</strong> to use this model.</p>
       </section>
       <section className="local-ai-card" aria-label="Live transcription model test">
-        <div className="local-ai-section-heading"><span className="local-ai-icon"><Mic size={19} /></span><div><h3>Try your setup</h3><p>Hear it. See it. Make sure it works.</p></div></div>
+        <div className="local-ai-section-heading"><span className="local-ai-icon"><Mic size={19} /></span><div><h3>2 · Test it</h3><p>Speak or play audio and watch the transcript appear.</p></div></div>
         <div className="local-ai-inputs">
           <label>Audio source<select value={testSource} disabled={testBusy} onChange={event => { setTestSource(event.target.value as AudioSource); setTestSpeakers(false); }}><option value="microphone">Microphone</option><option value="system">System audio</option></select></label>
           <label>{testSource === 'microphone' ? 'Microphone' : 'Loopback input'}<select value={testSource === 'microphone' ? testMicId : testSystemId} disabled={testBusy} onChange={event => testSource === 'microphone' ? setTestMicId(event.target.value) : setTestSystemId(event.target.value)}><option value="">{testSource === 'microphone' ? 'Default microphone' : 'Display capture / auto-detect'}</option>{audioDevices.map((device, index) => <option key={device.deviceId || index} value={device.deviceId}>{device.label || `Audio input ${index + 1}`}</option>)}</select></label>
@@ -234,7 +234,7 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
         </div></details>
         <div className={`local-ai-listening ${testPhase === 'recording' ? 'is-listening' : ''}`}><AudioMeter level={testLevel} /><div><strong role="status">{phaseLabel}</strong><span>{testBusy && testSession ? runningModel?.name || testSession.modelId : selectedASR?.name || 'Choose a model first'}</span></div></div>
         <button type="button" className={testPhase === 'recording' ? 'danger-button' : 'primary'} disabled={testPhase === 'starting' || testPhase === 'stopping' || (!testBusy && (!ready || modelLocked))} onClick={() => void (testPhase === 'recording' ? stopTest() : startTest())}>{testPhase === 'recording' ? <Square size={14} /> : <Mic size={16} />}{testPhase === 'recording' ? 'Stop test' : testPhase === 'starting' ? 'Starting…' : testPhase === 'stopping' ? 'Stopping…' : 'Start live test'}</button>
-        {!ready && <p className="local-ai-help">Download your selected speech model to start a test.</p>}
+        {!ready && <p className="local-ai-help">Download the model in step 1 to start a test.</p>}
         {testWarning && <p role="alert" className="local-ai-warning">{testWarning}</p>}
         <div className="local-test-transcript" ref={testScroller} role="log" aria-label="Live local transcription results" aria-live="off">
           {!testSegments.length && <p className="muted">{testPhase === 'recording' ? 'Listening for speech…' : 'Your live transcript will appear here.'}</p>}
@@ -244,8 +244,21 @@ export function LocalAISetup({ onSettingsSaved }: { onSettingsSaved?: (snapshot:
         <p className="local-ai-help">Test transcripts are saved locally in interview history. Raw audio is never saved.</p>
       </section>
     </div>
-    <section className="local-ai-library" aria-labelledby="speech-library-title"><div className="local-ai-section-heading"><span className="local-ai-icon"><HardDrive size={19} /></span><div><h3 id="speech-library-title">Speech model library</h3><p>Choose the balance of speed, accuracy, and memory that fits your computer.</p></div></div><div className="local-model-list">{setup.models.filter(model => model.type === 'asr').map(modelCard)}</div></section>
-    <details className="local-ai-card local-ai-details"><summary>Optional models <span className="local-ai-help">Voice detection, speaker labels & analysis</span></summary><div className="local-model-list local-ai-details-content">{setup.models.filter(model => model.type !== 'asr').map(modelCard)}</div></details>
-    <details className="local-ai-card local-ai-details"><summary>Storage & capabilities</summary><div className="local-ai-details-content"><p>Models are stored outside the app and stay installed across updates.</p><code>{setup.directory}</code><p>GPU acceleration is unverified until the native runtime is installed and tested.</p><div className="local-ai-capabilities">{setup.features.map(feature => <div key={feature.name}><div className="local-ai-row"><strong>{feature.name}</strong><span className="local-ai-badge">{feature.state}</span></div><p>{feature.reason}</p></div>)}</div></div></details>
+    <details className="local-ai-card local-ai-details"><summary>Manage models <span className="local-ai-help">{installed} installed · download, repair or delete</span></summary><div className="local-ai-details-content">
+      <h4>Speech models</h4>
+      <div className="local-model-list">{setup.models.filter(model => model.type === 'asr').map(modelCard)}</div>
+      <h4>Optional add-ons</h4>
+      <p>Voice detection filters silence, speaker labels tell interviewers apart, and analysis weights are for a future feature.</p>
+      <div className="local-model-list">{setup.models.filter(model => model.type !== 'asr').map(modelCard)}</div>
+    </div></details>
+    <details className="local-ai-card local-ai-details"><summary>This computer & storage</summary><div className="local-ai-details-content">
+      <div className="local-ai-hardware" aria-label="Device resources">
+        <div><span>YOUR COMPUTER</span><strong title={setup.device.cpu}>{setup.device.cpu}</strong><small>{setup.device.platform} · {setup.device.arch} · {setup.device.cores} cores</small></div>
+        <div><span>AVAILABLE MEMORY</span><strong>{size(setup.device.availableMemory)}</strong><small>of {size(setup.device.totalMemory)} RAM</small></div>
+        <div><span>FREE STORAGE</span><strong>{setup.device.diskFree === null ? 'Unknown' : size(setup.device.diskFree)}</strong><small>Models stay installed across updates</small></div>
+        <button type="button" className="icon-button" aria-label="Refresh hardware and models" title="Refresh hardware and models" disabled={modelLocked} onClick={() => void refresh().catch(cause => setError(errorText(cause)))}><RefreshCw size={17} /></button>
+      </div>
+      <p>Models are stored outside the app and stay installed across updates.</p><code>{setup.directory}</code><p>GPU acceleration is unverified until the native runtime is installed and tested.</p><div className="local-ai-capabilities">{setup.features.map(feature => <div key={feature.name}><div className="local-ai-row"><strong>{feature.name}</strong><span className="local-ai-badge">{feature.state}</span></div><p>{feature.reason}</p></div>)}</div>
+    </div></details>
   </div>;
 }

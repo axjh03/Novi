@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, FileText, FolderOpen, FolderPlus, Loader2, Lock, Play, X } from 'lucide-react';
+import { Check, FileText, FolderOpen, FolderPlus, Loader2, Lock, Play, RefreshCw, X } from 'lucide-react';
 import { ENGINES, type EngineId, type EngineModel, type EngineReadiness, type EngineUpdate, type SourcePreview } from '../../../shared/localCoding';
 import type { ProviderConnection, Snapshot } from '../../../shared/types';
 import { errorText, unwrap } from '../services/api';
@@ -166,7 +166,7 @@ export function LocalCodingSetup({ state, onStarted }: { state: Snapshot; onStar
 }
 
 /** Settings: whether each agent can run here, and why not. */
-export function EngineReadinessList({ connections }: { connections?: ProviderConnection[] }) {
+export function EngineReadinessList({ connections, managed }: { connections?: ProviderConnection[]; managed: boolean }) {
   const [items, setItems] = useState<EngineReadiness[] | null>(null), [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   async function refresh() {
@@ -176,14 +176,16 @@ export function EngineReadinessList({ connections }: { connections?: ProviderCon
     finally { setRefreshing(false); }
   }
   useEffect(() => { void refresh(); }, [connections]);
-  return <div>
-    <button type="button" className="text-button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? 'Checking agents…' : 'Refresh agents'}</button>
+  return <section className="provider-manager">
+    <div className="section-title"><div><h2>Local Coding agents</h2><p className="muted">Agents that answer questions about projects on this computer. Each one uses your selected key for its provider; no extra sign-in needed.</p></div>
+      <button type="button" className="text-button" disabled={refreshing} onClick={() => void refresh()}><RefreshCw size={15} className={refreshing ? 'spin' : ''} />Refresh</button></div>
     {error && <p className="error" role="alert">{error}</p>}
-    {items && <ul className="lc-readiness">{items.map(item => <EngineStatusRow key={item.engine} item={item} onInstalled={setItems} />)}</ul>}
-  </div>;
+    {!items && !error && <p className="muted" role="status">Checking agents…</p>}
+    {items && <ul className="agent-list">{items.map(item => <EngineStatusRow key={item.engine} item={item} connections={connections ?? []} managed={managed} onInstalled={setItems} />)}</ul>}
+  </section>;
 }
 
-function EngineStatusRow({ item, onInstalled }: { item: EngineReadiness; onInstalled: (items: EngineReadiness[]) => void }) {
+function EngineStatusRow({ item, connections, managed, onInstalled }: { item: EngineReadiness; connections: ProviderConnection[]; managed: boolean; onInstalled: (items: EngineReadiness[]) => void }) {
   const [connectionId, setConnectionId] = useState(item.connections[0]?.id ?? '');
   const [update, setUpdate] = useState<EngineUpdate | null>(null);
   const [busy, setBusy] = useState(''), [status, setStatus] = useState(''), [error, setError] = useState('');
@@ -195,33 +197,43 @@ function EngineStatusRow({ item, onInstalled }: { item: EngineReadiness; onInsta
     setBusy(label); setError(''); setStatus('');
     try { await action(); } catch (cause) { setError(errorText(cause)); } finally { setBusy(''); }
   }
-  return <li className={item.available ? 'ok' : 'failed'}>
-    {item.available ? <Check size={14} aria-hidden="true" /> : <X size={14} aria-hidden="true" />}
-    <div>
-      <strong>{item.label}</strong>
-      <p>{item.installedVersion ? `Installed · ${item.installedVersion}` : 'Not installed or needs repair'}</p>
-      {item.problem && <p>{item.problem}</p>}
-      {item.connections.length > 0 && <label>API connection
-        <select value={connectionId} disabled={!!busy} onChange={event => setConnectionId(event.target.value)}>
-          {item.connections.map(connection => <option key={connection.id} value={connection.id}>{connection.name}</option>)}
-        </select>
-      </label>}
-      <div>
-        <button type="button" className="text-button" disabled={!!busy || !item.installedVersion || !connectionId} onClick={() => void run('Checking login…', async () => {
-          setStatus(await unwrap(window.novi.checkEngineLogin({ engine: item.engine, connectionId })));
-        })}>Check login</button>
-        {item.installedVersion && <button type="button" className="text-button" disabled={!!busy} onClick={() => void run('Checking updates…', async () => {
-          const result = await unwrap(window.novi.checkEngineUpdate(item.engine));
-          setUpdate(result);
-          setStatus(result.updateAvailable ? `Update available · ${result.latestVersion}` : 'Agent is up to date.');
-        })}>Check for updates</button>}
-        {(!item.installedVersion || update?.updateAvailable) && <button type="button" className="text-button" disabled={!!busy} onClick={() => void run(item.installedVersion ? 'Updating agent…' : 'Installing agent…', async () => {
-          onInstalled(await unwrap(window.novi.installEngine(item.engine)));
-          setUpdate(null); setStatus('Agent installed. Choose a saved connection and check login.');
-        })}>{item.installedVersion ? 'Update' : 'Install'}</button>}
-      </div>
-      {(busy || status) && <p role="status">{busy || status}</p>}
-      {error && <p className="error" role="alert">{error}</p>}
+  const spec = ENGINES.find(engine => engine.id === item.engine)!;
+  const state = !item.installedVersion ? 'missing' : item.available ? 'ready' : 'blocked';
+  const sameProvider = connections.filter(connection => connection.provider === spec.provider);
+  // The main-process text points to this very screen; here, say what to do instead.
+  const key = `${/^[AEIOU]/.test(spec.connectionLabel) ? 'an' : 'a'} ${spec.connectionLabel} key`;
+  const hint = state === 'missing' ? (item.problem && !/is (not installed|missing)\. Install it in Settings/.test(item.problem) ? item.problem : `Install it to use ${item.label} in Local Coding.`)
+    : state === 'ready' ? null
+    : !sameProvider.length ? `Needs ${key}. ${managed ? 'Ask your account owner to add one in the web portal.' : 'Add one with Add provider above.'}`
+    : sameProvider.every(connection => connection.enabled === false) ? `Select your ${spec.connectionLabel} connection above.`
+    : item.problem;
+  return <li className={`agent-row is-${state}`}>
+    <div className="agent-head">
+      <div><strong>{item.label}</strong><small>{spec.connectionLabel} key{item.installedVersion ? ` · ${item.installedVersion}` : ''}</small></div>
+      <span className="agent-status">{state === 'ready' ? <><Check size={13} aria-hidden="true" />Ready</> : state === 'missing' ? 'Not installed' : 'Not connected'}</span>
     </div>
+    {hint && <p>{hint}</p>}
+    {item.connections.length > 1 && <label>Key to use
+      <select value={connectionId} disabled={!!busy} onChange={event => setConnectionId(event.target.value)}>
+        {item.connections.map(connection => <option key={connection.id} value={connection.id}>{connection.name}</option>)}
+      </select>
+    </label>}
+    {item.connections.length === 1 && <p>Uses <strong>{item.connections[0].name}</strong></p>}
+    <div className="agent-actions">
+      {(!item.installedVersion || update?.updateAvailable) && <button type="button" className="primary" disabled={!!busy} onClick={() => void run(item.installedVersion ? 'Updating…' : 'Installing…', async () => {
+        onInstalled(await unwrap(window.novi.installEngine(item.engine)));
+        setUpdate(null); setStatus(`${item.label} is installed.`);
+      })}>{item.installedVersion ? `Update to ${update!.latestVersion}` : 'Install'}</button>}
+      {item.installedVersion && connectionId && <button type="button" className="secondary" disabled={!!busy} onClick={() => void run('Testing key…', async () => {
+        setStatus(await unwrap(window.novi.checkEngineLogin({ engine: item.engine, connectionId })));
+      })}>Test key</button>}
+      {item.installedVersion && !update?.updateAvailable && <button type="button" className="text-button" disabled={!!busy} onClick={() => void run('Checking for updates…', async () => {
+        const result = await unwrap(window.novi.checkEngineUpdate(item.engine));
+        setUpdate(result);
+        setStatus(result.updateAvailable ? `Version ${result.latestVersion} is available.` : `${item.label} is up to date.`);
+      })}>Check for updates</button>}
+    </div>
+    {(busy || status) && <p role="status">{busy ? <><Loader2 size={13} className="spin" aria-hidden="true" />{busy}</> : status}</p>}
+    {error && <p className="error" role="alert">{error}</p>}
   </li>;
 }

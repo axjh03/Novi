@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, CameraOff, Mic, Play, Square, RotateCcw, Radio, ShieldCheck, AlertCircle, Sliders, FileText, Sparkles, Copy, Check, Loader2, Volume2 } from 'lucide-react';
+import { Camera, CameraOff, Mic, Play, Square, RotateCcw, Radio, ShieldCheck, AlertCircle, FileText, Sparkles, Copy, Check, Loader2, Volume2 } from 'lucide-react';
 import { errorText, unwrap } from '../services/api';
 
 async function blobToBase64(blob: Blob): Promise<string> {
@@ -694,15 +694,13 @@ export function DeviceTester() {
       <section className="settings-section">
         <div>
           <h2>Microphone sound test</h2>
-          <p>Choose your microphone and record 10s or 20s to verify input sound.</p>
+          <p>Record a short clip and play it back to hear how you sound.</p>
         </div>
         <div className="settings-fields">
           <div className="device-card">
             {/* Device Selector Row */}
             <div className="device-select-row">
-              <label htmlFor="mic-select-dropdown">
-                <Sliders size={14} /> Select Microphone
-              </label>
+              <label htmlFor="mic-select-dropdown">Microphone</label>
               <select
                 id="mic-select-dropdown"
                 className="device-select-control"
@@ -734,12 +732,12 @@ export function DeviceTester() {
                   <Mic size={18} />
                 </div>
                 <div>
-                  <strong style={{ fontSize: 14 }}>{micDuration}-Second Voice & Audio Check</strong>
+                  <strong style={{ fontSize: 14 }}>Microphone check</strong>
                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                    {micState === 'idle' && `Click Start to record ${micDuration} seconds of voice sound.`}
-                    {micState === 'recording' && `Recording microphone... (${micTimeLeft}s remaining)`}
-                    {micState === 'recorded' && 'Microphone recording complete! Listen to verify clarity.'}
-                    {micState === 'playing' && 'Playing back recorded microphone sound...'}
+                    {micState === 'idle' && `Press Start and speak for ${micDuration} seconds.`}
+                    {micState === 'recording' && `Recording… ${micTimeLeft}s left`}
+                    {micState === 'recorded' && 'Done. Play it back to check how you sound.'}
+                    {micState === 'playing' && 'Playing back…'}
                   </div>
                 </div>
               </div>
@@ -776,7 +774,7 @@ export function DeviceTester() {
               {micState === 'idle' && (
                 <>
                   <button type="button" className="primary" onClick={() => void startMicTest()} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                    <Mic size={15} /> Start {micDuration}s Audio Test
+                    <Mic size={15} /> Start {micDuration}s test
                   </button>
 
                   <div className="duration-pill-group">
@@ -800,7 +798,7 @@ export function DeviceTester() {
 
               {micState === 'recording' && (
                 <button type="button" className="danger-button" onClick={stopMicRecording} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <Square size={14} /> Stop & Review Early
+                  <Square size={14} /> Stop now
                 </button>
               )}
 
@@ -808,18 +806,18 @@ export function DeviceTester() {
                 <>
                   {micState === 'playing' ? (
                     <button type="button" className="primary" onClick={stopMicPlayback} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                      <Square size={14} /> Stop Playback
+                      <Square size={14} /> Stop playback
                     </button>
                   ) : (
                     <button type="button" className="primary" onClick={playMicAudio} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                      <Play size={15} /> Play Back Sound
+                      <Play size={15} /> Play back
                     </button>
                   )}
                   <button type="button" className="text-button" onClick={() => void transcribeMicAudio()} disabled={micTranscribing} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    {micTranscribing ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} {micTranscribing ? 'Transcribing…' : 'Transcribe Audio'}
+                    {micTranscribing ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} {micTranscribing ? 'Transcribing…' : 'Transcribe'}
                   </button>
                   <button type="button" className="text-button" onClick={discardMicAudio} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <RotateCcw size={14} /> Test Again
+                    <RotateCcw size={14} /> Test again
                   </button>
                 </>
               )}
@@ -828,7 +826,7 @@ export function DeviceTester() {
             {micTranscript && (
               <div style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', fontSize: 13 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, color: 'var(--accent)', marginBottom: 6 }}>
-                  <Sparkles size={14} /> Transcript Result:
+                  <Sparkles size={14} /> Transcript
                 </div>
                 <div style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>"{micTranscript}"</div>
               </div>
@@ -849,7 +847,7 @@ export function DeviceTester() {
             <div className="device-info-badge">
               <ShieldCheck size={16} color="var(--accent)" style={{ flexShrink: 0, marginTop: 1 }} />
               <div>
-                <strong>In-memory only:</strong> Microphone recordings are held strictly in temporary memory. Nothing is saved to disk or uploaded.
+                <strong>Private:</strong> The recording stays in memory and is never saved. It is sent to your transcription connection only if you press Transcribe.
               </div>
             </div>
           </div>
@@ -859,8 +857,8 @@ export function DeviceTester() {
       {/* 2. System Audio IN (Desktop / Call Audio Loopback Capture) Test */}
       <section className="settings-section">
         <div>
-          <h2>System audio IN test (Desktop & Call audio)</h2>
-          <p>Verify that Novi can listen to audio playing from your PC (e.g. call partner voice, videos, or system sound).</p>
+          <h2>System audio test</h2>
+          <p>Check that Novi can hear sound playing on your computer, like the other person on a call.</p>
         </div>
         <div className="settings-fields">
           <div className="device-card">
@@ -875,12 +873,12 @@ export function DeviceTester() {
                   <Radio size={18} />
                 </div>
                 <div>
-                  <strong style={{ fontSize: 14 }}>{sysDuration}-Second System Audio Capture Test</strong>
+                  <strong style={{ fontSize: 14 }}>System audio check</strong>
                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                    {sysState === 'idle' && `Click Start to test capturing sound coming from your PC / call partner.`}
-                    {sysState === 'recording' && `Listening to System Audio IN... (${sysTimeLeft}s remaining)`}
-                    {sysState === 'recorded' && 'System audio capture complete! Listen to verify.'}
-                    {sysState === 'playing' && 'Playing back recorded system sound...'}
+                    {sysState === 'idle' && `Play a video or call audio, then press Start.`}
+                    {sysState === 'recording' && `Listening… ${sysTimeLeft}s left`}
+                    {sysState === 'recorded' && 'Done. Play it back to check what Novi heard.'}
+                    {sysState === 'playing' && 'Playing back…'}
                   </div>
                 </div>
               </div>
@@ -897,7 +895,7 @@ export function DeviceTester() {
             {sysState === 'recording' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)' }}>
-                  <span>System Audio IN level</span>
+                  <span>System audio level</span>
                   <span>{sysVolumeLevel}%</span>
                 </div>
                 <div style={{ height: 8, background: 'var(--panel)', borderRadius: 4, overflow: 'hidden' }}>
@@ -917,7 +915,7 @@ export function DeviceTester() {
               {sysState === 'idle' && (
                 <>
                   <button type="button" className="primary" onClick={() => void startSysTest()} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                    <Radio size={15} /> Start {sysDuration}s System Audio Test
+                    <Radio size={15} /> Start {sysDuration}s test
                   </button>
 
                   <div className="duration-pill-group">
@@ -941,7 +939,7 @@ export function DeviceTester() {
 
               {sysState === 'recording' && (
                 <button type="button" className="danger-button" onClick={stopSysRecording} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <Square size={14} /> Stop & Review Early
+                  <Square size={14} /> Stop now
                 </button>
               )}
 
@@ -949,18 +947,18 @@ export function DeviceTester() {
                 <>
                   {sysState === 'playing' ? (
                     <button type="button" className="primary" onClick={stopSysPlayback} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                      <Square size={14} /> Stop Playback
+                      <Square size={14} /> Stop playback
                     </button>
                   ) : (
                     <button type="button" className="primary" onClick={playSysAudio} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                      <Play size={15} /> Play Back System Sound
+                      <Play size={15} /> Play back
                     </button>
                   )}
                   <button type="button" className="text-button" onClick={() => void transcribeSysAudio()} disabled={sysTranscribing} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    {sysTranscribing ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} {sysTranscribing ? 'Transcribing…' : 'Transcribe Audio'}
+                    {sysTranscribing ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} {sysTranscribing ? 'Transcribing…' : 'Transcribe'}
                   </button>
                   <button type="button" className="text-button" onClick={discardSysAudio} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <RotateCcw size={14} /> Test Again
+                    <RotateCcw size={14} /> Test again
                   </button>
                 </>
               )}
@@ -969,7 +967,7 @@ export function DeviceTester() {
             {sysTranscript && (
               <div style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', fontSize: 13 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, color: 'var(--accent)', marginBottom: 6 }}>
-                  <Sparkles size={14} /> Transcript Result:
+                  <Sparkles size={14} /> Transcript
                 </div>
                 <div style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>"{sysTranscript}"</div>
               </div>
@@ -990,7 +988,7 @@ export function DeviceTester() {
             <div className="device-info-badge">
               <ShieldCheck size={16} color="var(--accent)" style={{ flexShrink: 0, marginTop: 1 }} />
               <div>
-                <strong>System Audio IN:</strong> Captures internal audio output (such as YouTube, media, or call partners). Held in temporary memory for test review.
+                <strong>Private:</strong> Captured sound stays in memory for this test and is never saved. It is sent to your transcription connection only if you press Transcribe.
               </div>
             </div>
           </div>
@@ -1001,15 +999,13 @@ export function DeviceTester() {
       <section className="settings-section">
         <div>
           <h2>Camera test</h2>
-          <p>Select camera device and preview video framing.</p>
+          <p>Preview your camera before a session.</p>
         </div>
         <div className="settings-fields">
           <div className="device-card">
             {/* Camera Select Row */}
             <div className="device-select-row">
-              <label htmlFor="cam-select-dropdown">
-                <Sliders size={14} /> Select Camera
-              </label>
+              <label htmlFor="cam-select-dropdown">Camera</label>
               <select
                 id="cam-select-dropdown"
                 className="device-select-control"
@@ -1039,9 +1035,9 @@ export function DeviceTester() {
                   <Camera size={18} />
                 </div>
                 <div>
-                  <strong style={{ fontSize: 14 }}>Camera Preview</strong>
+                  <strong style={{ fontSize: 14 }}>Camera preview</strong>
                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                    {cameraActive ? `Active: ${cameraLabel}` : 'Check your video feed and camera orientation.'}
+                    {cameraActive ? `Showing ${cameraLabel}` : 'Check your framing and lighting.'}
                   </div>
                 </div>
               </div>
@@ -1052,7 +1048,7 @@ export function DeviceTester() {
                 onClick={() => void toggleCamera()}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
               >
-                {cameraActive ? <><CameraOff size={15} /> Stop Camera</> : <><Camera size={15} /> Test Camera</>}
+                {cameraActive ? <><CameraOff size={15} /> Stop camera</> : <><Camera size={15} /> Start camera</>}
               </button>
             </div>
 
@@ -1108,7 +1104,7 @@ export function DeviceTester() {
             )}
 
             <small style={{ color: 'var(--muted)' }}>
-              Hardware indicator LED will automatically turn off as soon as the test stops or when leaving Settings.
+              The camera turns off when you stop the test or leave Settings.
             </small>
           </div>
         </div>
@@ -1118,15 +1114,13 @@ export function DeviceTester() {
       <section className="settings-section">
         <div>
           <h2>Audio transcription test</h2>
-          <p>Test if speech can be captured and converted to text via your selected microphone or system audio.</p>
+          <p>Record a few seconds and turn it into text with your API connection. For on-device transcription, use Local AI.</p>
         </div>
         <div className="settings-fields">
           <div className="device-card">
             {/* Audio Source Mode Selection */}
             <div className="device-select-row">
-              <label>
-                <Sliders size={14} /> Audio Input Mode
-              </label>
+              <label>Source</label>
               <div className="duration-pill-group">
                 <button
                   type="button"
@@ -1135,7 +1129,7 @@ export function DeviceTester() {
                   onClick={() => { setTransSource('mic'); discardTransAudio(); }}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
-                  <Mic size={13} /> Microphone (Voice)
+                  <Mic size={13} /> Microphone
                 </button>
                 <button
                   type="button"
@@ -1144,7 +1138,7 @@ export function DeviceTester() {
                   onClick={() => { setTransSource('system'); discardTransAudio(); }}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
-                  <Radio size={13} /> System Audio IN (PC Sound)
+                  <Radio size={13} /> System audio
                 </button>
               </div>
             </div>
@@ -1152,9 +1146,7 @@ export function DeviceTester() {
             {/* If Microphone: Device Picker Dropdown */}
             {transSource === 'mic' && (
               <div className="device-select-row">
-                <label htmlFor="trans-mic-select-dropdown">
-                  <Mic size={14} /> Select Microphone Device
-                </label>
+                <label htmlFor="trans-mic-select-dropdown">Microphone</label>
                 <select
                   id="trans-mic-select-dropdown"
                   className="device-select-control"
@@ -1188,12 +1180,12 @@ export function DeviceTester() {
                 </div>
                 <div>
                   <strong style={{ fontSize: 14 }}>
-                    {transSource === 'mic' ? 'Microphone Voice Transcription Test' : 'System Audio Loopback Transcription Test'}
+                    {transSource === 'mic' ? 'Microphone transcription' : 'System audio transcription'}
                   </strong>
                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                     {transState === 'idle' && (transSource === 'mic' ? 'Speak a sentence to test speech recognition.' : 'Play a video or podcast to test system audio transcription.')}
-                    {transState === 'recording' && `Recording sound... (${transTimeLeft}s remaining)`}
-                    {transState === 'recorded' && (transLoading ? 'Transcribing speech to text...' : 'Transcription test finished.')}
+                    {transState === 'recording' && `Recording… ${transTimeLeft}s left`}
+                    {transState === 'recorded' && (transLoading ? 'Turning speech into text…' : 'Done.')}
                   </div>
                 </div>
               </div>
@@ -1230,7 +1222,7 @@ export function DeviceTester() {
               {transState === 'idle' && (
                 <>
                   <button type="button" className="primary" onClick={() => void startTransTest()} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                    <Sparkles size={15} /> Start {transDuration}s Transcript Test
+                    <Sparkles size={15} /> Start {transDuration}s test
                   </button>
 
                   <div className="duration-pill-group">
@@ -1261,7 +1253,7 @@ export function DeviceTester() {
 
               {transState === 'recording' && (
                 <button type="button" className="danger-button" onClick={stopTransRecording} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <Square size={14} /> Stop & Transcribe Early
+                  <Square size={14} /> Stop and transcribe
                 </button>
               )}
 
@@ -1269,18 +1261,18 @@ export function DeviceTester() {
                 <>
                   {transPlaying ? (
                     <button type="button" className="primary" onClick={stopTransPlayback} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                      <Square size={14} /> Stop Audio Playback
+                      <Square size={14} /> Stop playback
                     </button>
                   ) : (
                     <button type="button" className="primary" onClick={playTransAudio} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                      <Play size={15} /> Play Recorded Audio
+                      <Play size={15} /> Play back
                     </button>
                   )}
                   <button type="button" className="text-button" onClick={() => void retranscribeAudio()} disabled={transLoading} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                     {transLoading ? <Loader2 size={14} className="spin" /> : <RotateCcw size={14} />} {transLoading ? 'Transcribing…' : 'Re-transcribe'}
                   </button>
                   <button type="button" className="text-button" onClick={discardTransAudio} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <RotateCcw size={14} /> Test New Audio
+                    <RotateCcw size={14} /> Test again
                   </button>
                 </>
               )}
@@ -1290,7 +1282,7 @@ export function DeviceTester() {
             {transLoading && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', background: 'var(--panel)', borderRadius: 10, border: '1px solid var(--border)', fontSize: 13 }}>
                 <Loader2 size={16} className="spin" color="var(--accent)" />
-                <span>Transcribing audio with configured AI connection...</span>
+                <span>Transcribing with your API connection…</span>
               </div>
             )}
 
@@ -1306,7 +1298,7 @@ export function DeviceTester() {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>
-                    <Check size={14} /> TRANSCRIPTION RESULT ({transSource === 'mic' ? 'Microphone' : 'System Audio'})
+                    <Check size={14} /> Transcript · {transSource === 'mic' ? 'Microphone' : 'System audio'}
                   </div>
                   <button
                     type="button"
@@ -1345,7 +1337,7 @@ export function DeviceTester() {
             <div className="device-info-badge">
               <ShieldCheck size={16} color="var(--accent)" style={{ flexShrink: 0, marginTop: 1 }} />
               <div>
-                <strong>Audio Transcript Pipeline:</strong> Audio is processed using your configured Gemini or OpenAI transcription connection (or OpenAI-compatible whisper server) set in the <b>API Management</b> tab.
+                <strong>Uses your API connection:</strong> Audio is sent to the OpenAI, Gemini or compatible Whisper connection from <b>API Management</b>.
               </div>
             </div>
           </div>
