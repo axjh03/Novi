@@ -1,4 +1,4 @@
-import { AudioLines, Bookmark, BookOpen, ClipboardCheck, Code2, Cpu, Download, Eye, FileText, FolderOpen, History, Keyboard, KeyRound, Layers, MessageSquare, Monitor, Network, Palette, Play, ScanLine, ShieldCheck, Smartphone, Terminal } from 'lucide-react';
+import { AudioLines, BookOpen, Code2, Eye, FileText, FolderOpen, Keyboard, Layers, MessageSquare, Monitor, Network, Palette, ScanLine, ShieldCheck, Smartphone } from 'lucide-react';
 
 export const FEATURES = [
   { group: 'context', icon: FileText, title: 'Answers with your context', text: 'Bring your résumé, the job description, and project notes into the conversation. Prepare introductions, explain your experience, and work through follow-ups with the details that matter.', label: 'Every plan' },
@@ -13,24 +13,14 @@ export const FEATURES = [
 
   { group: 'context', icon: MessageSquare, title: 'Seven modes. Every kind of round.', text: 'Chat, Recruiter Call, Technical Screen, and Behavioral Interview cover the conversation. Core includes Technical Screen and Behavioral Interview. Pro adds Chat, Recruiter Call, Code, and System Design. Ultimate adds Local Coding.', label: 'Modes vary by plan' },
   { group: 'context', icon: BookOpen, title: 'Behavioral answers with a structure', text: 'Choose STAR, CAR, PAR, SOAR, or let Novi pick the framework. Use your own experience and session instructions to shape the answer.', label: 'Every plan' },
-  { group: 'setup', icon: Cpu, title: 'On-device speech recognition', text: 'Download and manage local speech models, select a supported model for your hardware, and test it before a call. AI answers still use your selected provider.', label: 'Every plan · Model setup required' },
-  { group: 'setup', icon: AudioLines, title: 'Voice detection & speaker labels', text: 'Filter silence with voice activity detection. Enable optional speaker labels for system audio with the speaker detection model installed.', label: 'Every plan · Model setup required' },
-  { group: 'setup', icon: Bookmark, title: 'Saved session profiles', text: 'Save your provider, model, source folders, company, role, mode, and instructions. Start a profile again with the latest contents of your folders.', label: 'Every plan' },
-  { group: 'setup', icon: ClipboardCheck, title: 'A pre-interview ready check', text: 'Check storage, your AI connection, speech files, microphone, system audio, and screen capture. Pick your monitor and whether to start in Transparent mode.', label: 'Every plan' },
-  { group: 'setup', icon: Play, title: 'A one-minute practice run', text: 'Try a sample interviewer question and walk through listening, stopping, sending, and reading an answer before the real call. Uses your selected AI provider.', label: 'Every plan' },
-  { group: 'setup', icon: KeyRound, title: 'Your provider. Your model.', text: 'Connect supported AI providers with your own API keys and choose your session model. Novi access and AI usage are billed separately.', label: 'Every plan' },
-  { group: 'setup', icon: History, title: 'Local conversation history', text: 'Revisit saved conversations and attachments on your computer. Questions and relevant context still go to your selected provider for AI processing.', label: 'Every plan' },
   { group: 'control', icon: ShieldCheck, title: 'App mask & window identity', text: 'Choose a window name and icon; hide windows from the Windows taskbar or macOS Dock. Linux support varies. Running processes remain visible in system tools.', label: 'Every plan · OS-dependent' },
   { group: 'control', icon: Keyboard, title: 'Shortcuts that keep you moving', text: 'Set hotkeys for transparency, click-through, screenshots, system audio, the code viewer, and Behavioral Studio. Advanced tools follow your plan access.', label: 'Every plan' },
   { group: 'control', icon: Monitor, title: 'Screen capture protection', text: 'Transparent mode enables OS-level capture protection for Novi windows. Results depend on your operating system and capture software; test your actual setup.', label: 'Every plan · OS-dependent' },
   { group: 'control', icon: Palette, title: 'A workspace you can actually read', text: 'Adjust text size, color palettes, and overlay opacity. Move the floating tray and answer windows to the monitor and position that work for you.', label: 'Every plan' },
-  { group: 'setup', icon: Download, title: 'App & coding-engine updates', text: 'Check desktop releases in the app. Manage installation and updates for supported Codex, Claude, and Antigravity engines used by Local Coding.', label: 'Engine use: Ultimate only' },
-  { group: 'setup', icon: Terminal, title: 'Terminal launch & quit controls', text: 'Set up the novi command in an installed desktop build. Use novi start to launch or restore the window and novi stop to close it and stop active work.', label: 'Every plan · Installed app' },
 ] as const;
 
 export const FEATURE_GROUPS = [
   { id: 'context', title: 'Bring the question. And the lore.', description: 'Your background, the live question, and the right conversation mode.' },
   { id: 'technical', title: 'The technical round, equipped.', description: 'Coding, architecture, and real project context. Coding and system design on Pro and Lifetime; local project assistance on Ultimate.' },
   { id: 'control', title: 'Make the workspace yours.', description: 'Control where Novi sits, how it looks, and how you interact with it.' },
-  { id: 'setup', title: 'Get locked in before the call.', description: 'Set up your tools, check your devices, and keep your workflow ready for the next round.' },
 ] as const;
