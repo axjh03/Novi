@@ -3337,8 +3337,14 @@ html.transparent-mode #root {
 .companion-card small { font-size: 11px; color: #aaa; }
 .companion-card footer button { background: #eee; color: #111; }
 
-.mermaid-diagram { padding: 12px; overflow: auto; }
-.mermaid-diagram svg { display: block; min-width: 360px; width: 100%; height: auto; background: transparent; }
+.mermaid-diagram { position: relative; padding: 12px; }
+.mermaid-viewport { max-height: 70vh; overflow: auto; overscroll-behavior: contain; }
+.mermaid-stage { position: relative; }
+.mermaid-stage svg { position: absolute; top: 0; left: 0; display: block; max-width: none; transform-origin: top left; background: transparent; }
+.mermaid-controls { position: sticky; top: 0; z-index: 1; display: flex; justify-content: flex-end; align-items: center; gap: 4px; margin-bottom: 8px; }
+.mermaid-controls button { display: grid; place-items: center; width: 28px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); color: inherit; }
+.mermaid-controls button:disabled { opacity: .45; }
+.mermaid-controls span { min-width: 38px; text-align: center; font-size: 11px; }
 .chat-mode-tabs { flex-wrap: wrap; }
 .transcription-engine { display: inline-flex; flex-direction: row; align-items: center; gap: 4px; margin: 0; }
 .composer-local-control > select, .transcription-engine select { width: auto; min-height: 32px; padding: 5px 8px; font-size: 11px; }
