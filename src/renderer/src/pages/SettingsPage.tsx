@@ -169,7 +169,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                       <input type="checkbox" checked={value.transparentOnStart === true}
                         onChange={(e) => change({ ...value, transparentOnStart: e.target.checked })} />
                       Start sessions in Transparent mode
-                      <small>Hides Novi from screen sharing as soon as a session starts, exactly like pressing Transparency.</small>
+                      <small>Asks the operating system to exclude Novi from capture when a session starts. Results vary by OS and sharing app and are not guaranteed.</small>
                     </label>
                     {shortcuts.slice(2).map(shortcutField)}
                   </div>

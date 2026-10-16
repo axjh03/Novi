@@ -694,7 +694,7 @@ export function DeviceTester() {
       <section className="settings-section">
         <div>
           <h2>Microphone sound test</h2>
-          <p>Choose your microphone and record 10s or 20s to verify input sound.</p>
+          <p>Choose your microphone and record 10s or 20s to verify input sound. The test clip stays in temporary memory for playback and is discarded when the test ends.</p>
         </div>
         <div className="settings-fields">
           <div className="device-card">
@@ -1001,7 +1001,7 @@ export function DeviceTester() {
       <section className="settings-section">
         <div>
           <h2>Camera test</h2>
-          <p>Select camera device and preview video framing.</p>
+          <p>Select a camera and preview its video locally. Novi does not record or upload camera-test video.</p>
         </div>
         <div className="settings-fields">
           <div className="device-card">
@@ -1118,7 +1118,7 @@ export function DeviceTester() {
       <section className="settings-section">
         <div>
           <h2>Audio transcription test</h2>
-          <p>Test if speech can be captured and converted to text via your selected microphone or system audio.</p>
+          <p>Test transcription with your selected microphone or system audio. Local transcription stays on this device; cloud transcription sends audio to your selected AI provider. Only test conversations you have permission to process.</p>
         </div>
         <div className="settings-fields">
           <div className="device-card">

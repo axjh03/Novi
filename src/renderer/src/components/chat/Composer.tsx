@@ -46,6 +46,10 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
   const sending = useRef(false);
   const mounted = useRef(true);
   const [localWarning, setLocalWarning] = useState('');
+  const [audioConsentOpen, setAudioConsentOpen] = useState(false);
+  const [audioConsentChecked, setAudioConsentChecked] = useState(false);
+  const [pendingListeningSource, setPendingListeningSource] = useState<ListeningSource>('system');
+  const audioConsentAccepted = useRef(false);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const textRef = useRef(text);
   const sessionId = useRef('');
@@ -135,12 +139,19 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
       unsubscribeInterview.current?.();
       unsubscribeInterview.current = null;
       sessionId.current = '';
+      audioConsentAccepted.current = false;
       if (mounted.current) { setLocalActive(false); setLocalStopping(false); setLocalLevel(0); }
     }
   }
 
   async function toggleListening(selectedSource: ListeningSource = source) {
     if (localTransition.current) return;
+    if (!sessionId.current && !audioConsentAccepted.current) {
+      setPendingListeningSource(selectedSource);
+      setAudioConsentChecked(false);
+      setAudioConsentOpen(true);
+      return;
+    }
     localTransition.current = true;
     if (sessionId.current) {
       try { await stopListening(); }
@@ -165,6 +176,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
             if (event.type === 'status' && event.sessionId === sessionId.current && event.status !== 'recording') {
               localAudio.current?.close();
               sessionId.current = '';
+              audioConsentAccepted.current = false;
               unsubscribeInterview.current?.();
               unsubscribeInterview.current = null;
               setLocalActive(false); setLocalLevel(0);
@@ -462,6 +474,16 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
           {error || localWarning}
         </div>
       )}
+
+      {audioConsentOpen && <div className="privacy-consent-backdrop">
+        <section className="privacy-consent" role="dialog" aria-modal="true" aria-labelledby="audio-consent-title" aria-describedby="audio-consent-description">
+          <h2 id="audio-consent-title">Before Novi listens</h2>
+          <p id="audio-consent-description">Novi will capture {pendingListeningSource === 'microphone' ? 'your microphone' : pendingListeningSource === 'system' ? 'computer audio' : 'your microphone and computer audio'} and transcribe it. Local transcription stays on this device. Cloud transcription sends audio to your selected AI provider. The transcript is placed in the composer; it is sent for an answer only when you submit it.</p>
+          <p>Only continue if you have the permissions required for everyone on the conversation and this interview allows this use. Novi does not determine whether a recording is lawful.</p>
+          <label className="privacy-consent-check"><input type="checkbox" checked={audioConsentChecked} onChange={event => setAudioConsentChecked(event.target.checked)} />I have permission to capture and process this conversation, and I will follow the interview’s rules.</label>
+          <div className="privacy-consent-actions"><button type="button" className="secondary" onClick={() => setAudioConsentOpen(false)}>Cancel</button><button type="button" className="primary" disabled={!audioConsentChecked} onClick={() => { audioConsentAccepted.current = true; setAudioConsentOpen(false); void toggleListening(pendingListeningSource); }}>Continue</button></div>
+        </section>
+      </div>}
 
     </div>
   );

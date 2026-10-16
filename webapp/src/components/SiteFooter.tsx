@@ -26,6 +26,12 @@ export default function SiteFooter({ onSignIn }: { onSignIn?: () => void }) {
           <Link href="/get-access">Pricing & plans</Link>
           {onSignIn ? <Link href="/#signin" onClick={event => { event.preventDefault(); onSignIn(); }}>Account sign in</Link> : <Link href="/#signin">Account sign in</Link>}
         </nav>
+        <nav className={styles.column} aria-label="Legal">
+          <h2>Legal</h2>
+          <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
+          <Link href="/referral-terms">Referral terms</Link>
+        </nav>
         <div className={styles.column}>
           <h2>Let’s talk</h2>
           <a href={`mailto:${CONTACT_EMAIL}`}><span>{CONTACT_EMAIL}</span><ArrowUpRight size={15} aria-hidden="true" /></a>

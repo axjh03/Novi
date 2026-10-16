@@ -206,7 +206,7 @@ export function SessionPreflight({ state, onSaved, onContinue, onSettings, onFol
         onChange={event => void saveTransparentOnStart(event.target.checked)} />
         <span><ShieldCheck size={15} aria-hidden="true" />Start sessions in Transparent mode</span>
       </label>
-      <small>Transparent mode hides Novi from screen sharing and recording. Like the Transparency button, clicks then pass through Novi; press NumLock (Windows) or {settings.clickThroughShortcut} to click it.</small>
+      <small>Transparent mode asks the operating system to exclude Novi’s window from capture. Results vary by OS and sharing app; this is not guaranteed and does not make use permitted by an interview’s rules. Click-through works as usual: press NumLock (Windows) or {settings.clickThroughShortcut} to click Novi.</small>
     </section>
 
     <div className="preflight-row"><div><strong>Source folders (optional)</strong><p role="status">{folders || 'Choose folders to grant access and read their documents before starting.'}</p></div><button className="secondary" disabled={busy} onClick={() => void (async () => {
@@ -215,7 +215,7 @@ export function SessionPreflight({ state, onSaved, onContinue, onSettings, onFol
       catch (cause) { if (mounted.current) setFolders(errorText(cause)); }
       finally { if (mounted.current) setChoosingFolders(false); }
     })()}>Choose source folders</button></div>
-    <p className="muted">OS privacy settings can require an app restart. Some systems ask you to choose a screen for every capture. Camera and full transcription tests are available in Settings.</p>
+    <p className="muted">Audio checks briefly access your selected microphone or system sound, but are not saved or sent to AI. Don’t test while another person is speaking unless you have permission. OS privacy settings can require an app restart. Camera and full transcription tests are available in Settings.</p>
     {error && <p className="error" role="alert">{error}</p>}
     {!ready && <label className="preflight-ack"><input type="checkbox" checked={acknowledged} onChange={event => setAcknowledged(event.target.checked)} />Continue with missing or untested features. Capture or local transcription may be unavailable.</label>}
     <div className="preflight-actions"><button className="secondary" disabled={busy} onClick={onSettings}>Settings and full tests</button><button className="primary" disabled={busy || !storageReady || (!ready && !acknowledged)} onClick={onContinue}>Continue to session setup</button></div>

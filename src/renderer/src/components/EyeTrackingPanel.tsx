@@ -20,6 +20,7 @@ interface Props {
   selectedDisplayId: number | null;
   overlayActive: boolean;
   onToggle: () => void;
+  onEnsureCameraConsent: () => boolean;
   onToggleDebug: () => void;
   onListCameras: () => Promise<CameraDevice[]>;
   onSwitchCamera: (deviceId: string) => Promise<void>;
@@ -35,7 +36,7 @@ export function EyeTrackingPanel({
   sensitivity, onSetSensitivity,
   cameras, selectedCameraId,
   monitors, selectedDisplayId, overlayActive,
-  onToggle, onToggleDebug,
+  onToggle, onEnsureCameraConsent, onToggleDebug,
   onListCameras, onSwitchCamera,
   onListMonitors, onOpenOverlay, onCloseOverlay, onSetMonitor, onSendSticky,
 }: Props) {
@@ -119,6 +120,7 @@ export function EyeTrackingPanel({
 
   const handleOpenCameras = async () => {
     if (cameraPickerOpen) { setCameraPickerOpen(false); return; }
+    if (!onEnsureCameraConsent()) return;
     setMonitorPickerOpen(false);
     setLoadingCameras(true);
     setCameraPickerOpen(true);

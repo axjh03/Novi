@@ -16,8 +16,8 @@ export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
       <PublicNavbar onSignIn={onSignIn} />
       <main>
         <section className={styles.hero} aria-labelledby="landing-title">
-          <span className={styles.eyebrow}>THE INTERVIEW CHEAT CODE</span>
-          <h1 id="landing-title">Fuck LeetCode.<br />Fuck HackerRank.<br />Fuck Assessment.<br /><em>We&apos;re here.</em></h1>
+          <span className={styles.eyebrow}>THE INTERVIEW TOOLKIT</span>
+          <h1 id="landing-title">Know your work.<br />Own the follow-up.<br /><em>Bring Novi.</em></h1>
           <p className={styles.heroLead}>Another timed puzzle. Another technical grilling. Enough. Bring the question, a screenshot, or audio context. Novi puts AI backup on your desktop for the code, the explanation, and whatever follow-up comes next.</p>
           <div className={styles.actions}>
             <Link className={styles.primaryLink} href="/get-access">Get your backup <ArrowUpRight size={18} aria-hidden="true" /></Link>
@@ -26,26 +26,9 @@ export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
           <div className={styles.heroMeta}><span>macOS · Windows · Linux</span><span>Bring your own AI provider</span><span>From {PLANS.core.price} / month</span></div>
         </section>
 
-        <section className={styles.belsonQuote} aria-label="Novi parody quote from Jian Yang">
-          <div className={styles.belsonPortrait}>
-            <img
-              src="https://siliconvalleyism.com/images/chinese-markets.jpg"
-              alt="Jian-Yang from Silicon Valley standing by a whiteboard"
-              referrerPolicy="no-referrer"
-              width={640}
-              height={800}
-              loading="lazy"
-              decoding="async"
-            />
-            <span>VERY LEGAL. VERY GOOD.</span>
-          </div>
-          <figure className={styles.belsonWords}>
-            <span className={styles.quoteMark} aria-hidden="true">“</span>
-            <blockquote>
-              <p>“Herro. I am Jian-Yang. CEO of Novi. You spend four year learning computah science. Interviewah ask you reverse binary twee. You shit your pants. Very sad. So I make Novi. AI risten, AI write code, you just nod head like fucking genius. Google hire you. You make two hundwed thousand dollah. I make sixteen dollah. Six month later, you get fired. Not my problem. No refund. Fuck ReetCode.”</p>
-            </blockquote>
-            <figcaption><strong>Jian Yang</strong><span>CEO of Novi · <cite>Silicon Valley</cite> parody</span></figcaption>
-          </figure>
+        <section className={styles.intro} aria-labelledby="novi-promise-title">
+          <div><span className={styles.eyebrow}>BUILT FOR THE QUESTION AFTER</span><h2 id="novi-promise-title">Your work.<br />Ready to explain.</h2></div>
+          <p>Bring your role, notes, and project context into one workspace. Novi helps you work through the question, understand the trade-offs, and prepare for the follow-up—in your own words.</p>
         </section>
 
         <section className={styles.intro} aria-labelledby="intro-title">
