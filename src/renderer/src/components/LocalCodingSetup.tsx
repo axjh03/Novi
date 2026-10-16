@@ -223,7 +223,7 @@ function EngineStatusRow({ item, connections, managed, onInstalled }: { item: En
     </label>}
     {item.installedVersion && <div className="agent-links">
       {connectionId && <button type="button" disabled={!!busy} onClick={() => void run('Testing connection…', async () => {
-        await unwrap(window.novi.checkEngineLogin({ engine: item.engine, connectionId })); setStatus('Connection verified.');
+        await unwrap(window.novi.checkEngineLogin({ engine: item.engine, connectionId })); setStatus('API key verified.');
       })}>Test connection</button>}
       <button type="button" disabled={!!busy} onClick={() => void run('Checking…', async () => {
         const result = await unwrap(window.novi.checkEngineUpdate(item.engine)); setUpdate(result);

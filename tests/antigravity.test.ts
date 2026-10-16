@@ -31,6 +31,8 @@ function fixture(t: TestContext, tools: string[], respond: (content: string, emi
     assert.equal(args.includes('test-key'), false);
     assert.equal(JSON.parse(readFileSync(join(options.env.HOME, '.gemini/antigravity-cli/settings.json'), 'utf8')).modelProvider, 'gemini');
     assert.match(readFileSync(join(options.cwd, '.agents/agents/novi.md'), 'utf8'), /tools: \[\]/);
+    const schema = JSON.parse(readFileSync(args[args.indexOf('--json-schema') + 1], 'utf8'));
+    assert.equal(schema.type, 'object', 'Antigravity 1.2.14+ rejects schemas without an explicit object root before initialization');
     setImmediate(() => {
       if (!startup) { emit({ event: 'init', init: { tools } }); return; }
       stderr.write(startup.stderr);
@@ -155,8 +157,10 @@ test('Antigravity reports early exits and startup error envelopes without exposi
     { stderr: 'error: invalid model selection (--model antigravity-preview-05-2026)', expected: /rejected the selected model/ },
     { stderr: 'authentication required', expected: /could not authenticate/ },
     { stderr: 'unknown flag: --input-format', expected: /Update it in Settings/ },
+    { stderr: 'invalid --json-schema: schema root must have type "object"', expected: /response format supplied by Novi/ },
     { stderr: 'unexpected crash', expected: /before initialization \(exit code 1\)/ },
     { stderr: '', output: { status: 'ERROR', error: 'invalid model selection' }, expected: /rejected the selected model/ },
+    { stderr: '', output: { status: 'ERROR', error: 'invalid JSON schema: root must be an object' }, expected: /response format supplied by Novi/ },
   ]) {
     let prompts = 0;
     const f = fixture(t, [], () => { prompts++; }, { ...scenario, code: 1, stderr: `${scenario.stderr}\ntest-key /private/project/source SECRET_SOURCE` });

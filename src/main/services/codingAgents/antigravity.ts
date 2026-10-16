@@ -18,13 +18,15 @@ function failureMessage(detail: string, fallback: string): string {
   if (/authentication required|not authenticated|sign.?in required|GEMINI_API_KEY[^\n]*(?:not set|missing)|invalid api key|api key not valid|unauthenticated|\b401\b/i.test(detail)) return 'Antigravity could not authenticate with the saved Gemini API key. Check the connection in Settings › API Management.';
   if (/resource_exhausted|quota|rate.?limit|\b429\b/i.test(detail)) return 'Antigravity reached the Gemini quota or rate limit. Check the provider account or try again later.';
   if (/unknown flag|unknown option|unrecognized (?:option|argument)|flag provided but not defined/i.test(detail)) return 'Antigravity does not support the required headless options. Update it in Settings › API Management › Local Coding agents.';
+  if (/(?:json[- ]schema|schema)[^\n]*(?:root|must be|invalid)|invalid (?:json )?schema/i.test(detail)) return 'Antigravity rejected the response format supplied by Novi. Update Novi and try again.';
   return fallback;
 }
 
 // agy's stream-json transport exchanges user turns and results, not external tool calls.
 // Disable native tools; structured results request reads that Novi executes against the pinned snapshot.
 export function antigravitySchema(answer: Record<string, unknown>) {
-  return { anyOf: [
+  // agy 1.2.14+ requires an explicit object root, even when every branch is an object.
+  return { type: 'object', anyOf: [
     ...READ_TOOLS.map(tool => ({ type: 'object', additionalProperties: false, required: ['tool', 'arguments'],
       properties: { tool: { type: 'string', enum: [tool] }, arguments: TOOL_SCHEMAS[tool] } })),
     { type: 'object', additionalProperties: false, required: ['answer'], properties: { answer } },
