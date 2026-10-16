@@ -5,6 +5,7 @@ import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
 import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AntigravityAgent } from '../src/main/services/codingAgents/antigravity';
@@ -165,9 +166,14 @@ test('Antigravity reports early exits and startup error envelopes without exposi
     let prompts = 0;
     const f = fixture(t, [], () => { prompts++; }, { ...scenario, code: 1, stderr: `${scenario.stderr}\ntest-key /private/project/source SECRET_SOURCE` });
     try {
-      await assert.rejects(f.agent.run(task(), { apiKey: 'test-key' }), (error: Error) => {
+      await assert.rejects(f.agent.run(task(), { apiKey: 'test-key' }), (error: Error & { diagnostics?: { engineVersion: string; stderr: string; initialized: boolean; exitCode: number; resultError?: string } }) => {
         assert.match(error.message, scenario.expected);
         assert.doesNotMatch(error.message, /test-key|private\/project|SECRET_SOURCE/);
+        assert.equal(error.diagnostics?.engineVersion, '1.2.3');
+        assert.equal(error.diagnostics?.initialized, false);
+        assert.equal(error.diagnostics?.exitCode, 1);
+        assert.match(error.diagnostics!.stderr, /SECRET_SOURCE/);
+        assert.equal(error.diagnostics?.resultError, scenario.output?.error);
         return true;
       });
       assert.equal(prompts, 0);
@@ -183,6 +189,21 @@ test('Antigravity refuses a successful startup envelope before verifying read-on
     await assert.rejects(f.agent.run(task(), { apiKey: 'test-key' }), /before confirming its read-only tools/);
     assert.equal(prompts, 0);
     assert.deepEqual(readdirSync(f.work), []);
+  } finally { f.cleanup(); }
+});
+
+test('Antigravity preserves the original failure when temporary-folder cleanup also fails', { skip: process.platform === 'win32' }, async t => {
+  const f = fixture(t, [], () => {}, { code: 1, stderr: 'startup crashed' });
+  t.mock.method(fsPromises, 'rm', async () => { throw Object.assign(new Error('cleanup denied'), { code: 'EACCES' }); });
+  try {
+    await assert.rejects(f.agent.run(task(), { apiKey: 'test-key' }), (error: Error & { diagnostics?: { stderr: string } }) => {
+      assert.match(error.message, /Antigravity.*clean up/);
+      const cause = error.cause as { error: NodeJS.ErrnoException; failure: Error };
+      assert.equal(cause.error.code, 'EACCES');
+      assert.match(cause.failure.message, /before initialization/);
+      assert.equal(error.diagnostics?.stderr, 'startup crashed');
+      return true;
+    });
   } finally { f.cleanup(); }
 });
 

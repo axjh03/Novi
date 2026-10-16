@@ -79,7 +79,7 @@ export class AntigravityAgent implements CodingAgent {
     } catch (error) {
       signal.throwIfAborted();
       const detail = error as { stderr?: string; message?: string };
-      throw new Error(failureMessage(`${detail.stderr ?? ''}\n${detail.message ?? ''}`, 'Antigravity could not list its models. Install or update it in Settings › API Management › Local Coding agents.'));
+      throw new Error(failureMessage(`${detail.stderr ?? ''}\n${detail.message ?? ''}`, 'Antigravity could not list its models. Install or update it in Settings › API Management › Local Coding agents.'), { cause: { error, engineVersion: runtime.version, stderr: detail.stderr } });
     } finally { await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
   }
 
@@ -91,6 +91,11 @@ export class AntigravityAgent implements CodingAgent {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let failure: Error | null = null;
     let diagnostics = '';
+    let initialized = false, turns = 0, lastEvent = '';
+    let resultError: unknown;
+    const withDiagnostics = (error: unknown) => Object.assign(error instanceof Error ? error : new Error(String(error)), {
+      diagnostics: { engineVersion: runtime.version, initialized, turns, lastEvent, exitCode: engine?.child.exitCode, signal: engine?.child.signalCode, stderr: diagnostics, resultError },
+    });
     const stop = (error: Error) => { failure ??= error; void engine?.stop().catch(() => {}); };
     const abort = () => stop(new Error('Cancelled.'));
     try {
@@ -101,14 +106,13 @@ export class AntigravityAgent implements CodingAgent {
       const schema = join(root, 'schema.json');
       writeFileSync(schema, JSON.stringify(antigravitySchema(task.schema)), { mode: 0o600 });
       engine = spawnEngine(runtime.executable, ['--agent', 'novi', '--model', task.model, '--input-format', 'stream-json', '--output-format', 'stream-json', '--json-schema', schema], { cwd, env });
-      engine.child.once('error', () => stop(new Error('Antigravity could not start. Install or update it in Settings.')));
+      engine.child.once('error', error => stop(new Error('Antigravity could not start. Install or update it in Settings.', { cause: error })));
       engine.child.stderr.on('data', (chunk) => { diagnostics = (diagnostics + chunk.toString()).slice(-16_384); });
-      engine.child.stdin.on('error', () => stop(new Error('Antigravity closed its input unexpectedly.')));
+      engine.child.stdin.on('error', error => stop(new Error('Antigravity closed its input unexpectedly.', { cause: error })));
       const lines = createInterface({ input: engine.child.stdout, crlfDelay: Infinity });
       const send = (content: string) => engine!.child.stdin.write(JSON.stringify({ event: 'user', message: { content } }) + '\n');
       task.signal.addEventListener('abort', abort, { once: true });
       task.signal.throwIfAborted();
-      let initialized = false, turns = 0;
       timer = setTimeout(() => stop(new Error('Antigravity did not initialize within 30 seconds.')), 30_000);
       for await (const line of lines) {
         if (failure) throw failure;
@@ -118,10 +122,11 @@ export class AntigravityAgent implements CodingAgent {
         try { event = JSON.parse(line); }
         catch { throw new Error('Antigravity returned an invalid event. Update the agent in Settings or try again.'); }
         if (!event || typeof event !== 'object' || Array.isArray(event)) throw new Error('Antigravity returned an invalid event. Update the agent in Settings or try again.');
+        lastEvent = String(event.event ?? event.status ?? 'unknown');
         if (event.event === 'init') {
           if (initialized) throw new Error('Antigravity initialized more than once.');
           // Do not send the user's prompt or project data to a CLI that enabled native tools.
-          if (!Array.isArray(event.init?.tools) || event.init.tools.length) throw new Error('This Antigravity version did not disable its built-in tools. Update the agent or choose Codex or Claude.');
+          if (!Array.isArray(event.init?.tools) || event.init.tools.length) throw new Error('Antigravity did not disable its built-in tools. Update the agent or choose Codex or Claude.');
           initialized = true;
           clearTimeout(timer);
           timer = setTimeout(() => stop(new Error('Antigravity timed out. Try a narrower request.')), 30 * 60_000);
@@ -131,6 +136,7 @@ export class AntigravityAgent implements CodingAgent {
         } else if (event.event === 'result' || typeof event.status === 'string') {
           // Startup failures can be bare JSON envelopes, without an init or result event wrapper.
           const terminal = event.event === 'result' ? event.result : event;
+          resultError = terminal?.error;
           if (terminal?.status !== 'SUCCESS') throw new Error(failureMessage(`${terminal?.error ?? ''}\n${diagnostics}`, 'Antigravity could not complete the request. Check the saved Gemini key and model access.'));
           if (!initialized) throw new Error('Antigravity returned a result before confirming its read-only tools. Update the agent in Settings.');
           let result = terminal.structured_output;
@@ -149,11 +155,19 @@ export class AntigravityAgent implements CodingAgent {
       await engine.stop();
       const exit = engine.child.exitCode === null ? '' : ` (exit code ${engine.child.exitCode})`;
       throw failure || new Error(failureMessage(diagnostics, `Antigravity exited ${initialized ? 'before returning an answer' : 'before initialization'}${exit}. Update the agent in Settings and check its Gemini connection and selected model.`));
+    } catch (error) {
+      failure = withDiagnostics(error);
+      throw failure;
     } finally {
       clearTimeout(timer);
       task.signal.removeEventListener('abort', abort);
-      try { await engine?.stop(); }
-      finally { await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+      try {
+        try { await engine?.stop(); }
+        finally { await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+      } catch (error) {
+        throw withDiagnostics(new Error('Antigravity could not clean up its temporary files.', { cause: { error, failure } }));
+      }
+      if (failure) withDiagnostics(failure);
     }
   }
 }

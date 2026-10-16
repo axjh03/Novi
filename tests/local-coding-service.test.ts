@@ -170,6 +170,31 @@ test('cancel, engine failure, audio attachments and wrong connections end cleanl
   assert.equal(env.service.state(env.projectId).versions.length, 1);
 });
 
+test('unexpected engine errors leave a diagnostic log and a matching request ID in chat', async t => {
+  const env = await setup(t);
+  const s0 = env.service.state(env.projectId).selectedVersionId;
+  env.agent.answers.push(() => { throw new TypeError('unexpected failure sk-secret-test'); });
+  await env.send('PRIVATE_PROMPT', s0);
+  const assistant = env.conversation().messages.at(-1)!;
+  const file = join(env.storage.directory, 'logs', 'local-coding.log');
+  assert.match(assistant.error!, /Diagnostic log:/);
+  assert(assistant.error!.includes(file));
+  assert(assistant.error!.includes(assistant.localCoding!.taskId));
+  const raw = readFileSync(file, 'utf8'), record = JSON.parse(raw);
+  assert.equal(record.taskId, assistant.localCoding!.taskId);
+  assert.equal(record.error.name, 'TypeError');
+  assert.match(record.error.message, /unexpected failure/);
+  assert.doesNotMatch(raw, /sk-secret-test|PRIVATE_PROMPT|export function total/);
+  assert.equal(env.service.state(env.projectId).versions.length, 1);
+
+  rmSync(join(env.storage.directory, 'logs'), { recursive: true });
+  writeFileSync(join(env.storage.directory, 'logs'), 'blocked');
+  env.agent.answers.push(() => { throw new Error('Codex: original failure'); });
+  await env.send('Retry.', s0);
+  assert.match(env.conversation().messages.at(-1)!.error!, /Codex: original failure/);
+  assert.match(env.conversation().messages.at(-1)!.error!, /diagnostic log could not be written/);
+});
+
 test('refresh: snapshot, carry forward, conflicts resolved virtually, AI reconcile context', async (t) => {
   const env = await setup(t);
   const s0 = env.service.state(env.projectId).selectedVersionId;

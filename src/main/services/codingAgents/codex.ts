@@ -53,6 +53,7 @@ class RpcClient {
     });
     child.on('exit', () => this.fail(new Error('The Codex engine stopped unexpectedly.')));
     child.on('error', () => this.fail(new Error('The Codex engine could not start.')));
+    child.stdin.on('error', () => this.fail(new Error('The Codex engine closed its input unexpectedly.')));
   }
   private dispatch(line: string) {
     let message: any;
@@ -90,7 +91,8 @@ export class CodexAgent implements CodingAgent {
   readonly id = 'codex' as const;
   constructor(private location: RuntimeLocation, private workRoot: string, private testProvider?: string) {}
 
-  private async start(credential: AgentCredential, handlers: { onNotification: (method: string, params: any) => void; onRequest: (method: string, params: any) => Promise<unknown>; onClose?: (error: Error) => void }) {
+  private async start(credential: AgentCredential, signal: AbortSignal, handlers: { onNotification: (method: string, params: any) => void; onRequest: (method: string, params: any) => Promise<unknown>; onClose?: (error: Error) => void }) {
+    if (signal.aborted) throw new Error('Cancelled.');
     const runtime = await engineRuntime('codex', this.location);
     const run = join(this.workRoot, `codex-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     const home = join(run, 'home'), cwd = join(run, 'workspace');
@@ -102,12 +104,18 @@ export class CodexAgent implements CodingAgent {
     const { child } = engine;
     child.stderr.on('data', () => { /* diagnostics stay private; never logged with request content */ });
     const rpc = new RpcClient(child, handlers.onNotification, handlers.onRequest, handlers.onClose ?? (() => {}));
+    // Fail pending RPCs too: cancellation can arrive before startup or turn/start responds.
+    const abort = () => rpc.fail(new Error('Cancelled.'));
+    signal.addEventListener('abort', abort, { once: true });
     const cleanup = async () => {
+      signal.removeEventListener('abort', abort);
       rpc.fail(new Error('The Codex engine was closed.'));
       await engine.stop();
       await rm(run, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     };
+    const timer = setTimeout(() => rpc.fail(new Error('The Codex engine did not initialize within 30 seconds.')), 30_000);
     try {
+      if (signal.aborted) throw new Error('Cancelled.');
       await rpc.call('initialize', { clientInfo: { name: 'novi', title: 'Novi', version: '1' }, capabilities: { experimentalApi: true, requestAttestation: false } });
       rpc.notify('initialized');
       // The key goes over the private pipe, never as an argument or environment variable, and is not stored.
@@ -116,28 +124,27 @@ export class CodexAgent implements CodingAgent {
       const skills = await rpc.call<{ data: Array<{ skills: Array<{ path: string; enabled: boolean }> }> }>('skills/list', { cwds: [cwd] });
       for (const entry of skills.data) for (const skill of entry.skills) if (skill.enabled) await rpc.call('skills/config/write', { path: skill.path, enabled: false });
     } catch (error) { await cleanup(); throw error; }
+    finally { clearTimeout(timer); }
     return { rpc, cwd, cleanup };
   }
 
   async listModels(credential: AgentCredential, signal: AbortSignal): Promise<EngineModel[]> {
-    const { rpc, cleanup } = await this.start(credential, { onNotification: () => {}, onRequest: async () => { throw new Error('Not available.'); } });
-    const abort = () => rpc.fail(new Error('Cancelled.'));
-    signal.addEventListener('abort', abort, { once: true });
+    const { rpc, cleanup } = await this.start(credential, signal, { onNotification: () => {}, onRequest: async () => { throw new Error('Not available.'); } });
     try {
       if (signal.aborted) throw new Error('Cancelled.');
       const models: EngineModel[] = [];
       let cursor: string | null = null;
       do {
-        const page: { data: Array<{ id: string; displayName: string; hidden: boolean; supportedReasoningEfforts: Array<{ reasoningEffort: string }>; inputModalities: string[] }>; nextCursor?: string | null } = await rpc.call('model/list', { cursor, limit: 100 });
+        const page: { data: Array<{ id: string; displayName: string; hidden: boolean; supportedReasoningEfforts: Array<{ reasoningEffort: string }>; inputModalities?: string[] }>; nextCursor?: string | null } = await rpc.call('model/list', { cursor, limit: 100 });
         for (const model of page.data) {
           if (model.hidden) continue;
           const efforts = model.supportedReasoningEfforts.map((item) => item.reasoningEffort);
-          models.push({ id: model.id, name: model.displayName || model.id, efforts, highestEffort: highestEffort(efforts), images: model.inputModalities.includes('image') });
+          models.push({ id: model.id, name: model.displayName || model.id, efforts, highestEffort: highestEffort(efforts), images: model.inputModalities?.includes('image') ?? true });
         }
         cursor = page.nextCursor ?? null;
       } while (cursor && models.length < 500);
       return models;
-    } finally { signal.removeEventListener('abort', abort); await cleanup(); }
+    } finally { await cleanup(); }
   }
 
   async run(task: AgentTask, credential: AgentCredential): Promise<unknown> {
@@ -147,7 +154,7 @@ export class CodexAgent implements CodingAgent {
     // Startup can fail before the turn is awaited.
     void turnDone.catch(() => {});
     const deny = (what: string) => { task.onDenied(what); };
-    const { rpc, cwd, cleanup } = await this.start(credential, {
+    const { rpc, cwd, cleanup } = await this.start(credential, task.signal, {
       onNotification: (method, params) => {
         if (params?.turnId && turnId && params.turnId !== turnId) return;
         if (method === 'item/completed' && params.item?.type === 'agentMessage') finalText = String(params.item.text ?? '');
@@ -177,11 +184,6 @@ export class CodexAgent implements CodingAgent {
         }
       },
     });
-    const abort = () => {
-      if (threadId && turnId) void rpc.call('turn/interrupt', { threadId, turnId }).catch(() => {});
-      setTimeout(() => settle.reject(new Error('Cancelled.')), 1500);
-    };
-    task.signal.addEventListener('abort', abort, { once: true });
     try {
       if (task.signal.aborted) throw new Error('Cancelled.');
       const thread = await rpc.call<{ thread: { id: string } }>('thread/start', {
@@ -203,7 +205,6 @@ export class CodexAgent implements CodingAgent {
       if (finalText === null) throw new Error('Codex finished without an answer.');
       return finalText;
     } finally {
-      task.signal.removeEventListener('abort', abort);
       await cleanup();
     }
   }

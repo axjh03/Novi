@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { SpawnOptions } from '@anthropic-ai/claude-agent-sdk';
+import type { SDKAssistantMessageError, SpawnOptions } from '@anthropic-ai/claude-agent-sdk';
 import type { EngineModel } from '../../../shared/localCoding';
 import { engineEnvironment, engineRuntime, type RuntimeLocation } from './runtime';
 import { spawnEngine } from './process';
@@ -12,6 +12,16 @@ import { callTool, highestEffort, TOOL_DESCRIPTIONS, type AgentCredential, type 
 // MCP configuration are loaded, sessions are not saved, and any other permission request is denied.
 
 const NOVI_TOOLS = ['mcp__novi__list_files', 'mcp__novi__search_files', 'mcp__novi__read_file'];
+
+// Use SDK error codes; raw provider messages can contain keys or project text.
+const API_ERRORS: Partial<Record<SDKAssistantMessageError, string>> = {
+  authentication_failed: 'Claude could not authenticate with the saved Anthropic API key. Check the connection in Settings › API Management.',
+  billing_error: 'Claude could not run because of an Anthropic billing or credit limit. Check the provider account.',
+  rate_limit: 'Claude reached the Anthropic rate limit. Try again later.',
+  model_not_found: 'Claude could not access the selected model. Choose another model in the Local Coding session settings.',
+  server_error: 'Claude is temporarily unavailable. Try again later.',
+  overloaded: 'Claude is temporarily unavailable. Try again later.',
+};
 
 type Sdk = typeof import('@anthropic-ai/claude-agent-sdk');
 
@@ -125,15 +135,17 @@ export class ClaudeAgent implements CodingAgent {
           maxTurns: 80,
         },
       });
+      let apiError: SDKAssistantMessageError | undefined;
       for await (const message of query) {
         if (task.signal.aborted) throw new Error('Cancelled.');
         if (message.type === 'assistant') {
+          apiError = message.error;
           for (const block of message.message.content) if (block.type === 'text' || block.type === 'thinking') task.onProgress('analyzing');
         } else if (message.type === 'result') {
           if (message.subtype === 'success' && !message.is_error) return message.structured_output ?? message.result;
           const reason = message.subtype === 'error_max_turns' ? 'Claude used every allowed step without finishing. Ask a narrower question.'
             : message.subtype === 'error_max_structured_output_retries' ? 'Claude could not produce a valid answer format.'
-            : 'Claude could not finish this request.';
+            : (apiError && API_ERRORS[apiError]) || 'Claude could not finish this request.';
           throw new Error(reason);
         }
       }

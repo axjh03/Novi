@@ -17,6 +17,7 @@ import type { RuntimeLocation } from './codingAgents/runtime';
 import { engineRuntime } from './codingAgents/runtime';
 import { EngineInstaller } from './codingAgents/install';
 import { listModels as providerModels } from './models';
+import { writeLocalCodingError } from './localCodingLog';
 import type { AgentImage, CodingAgent } from './codingAgents/types';
 
 const ENGINE_INSTRUCTIONS = `You are a read-only coding assistant inside Novi. You analyze one immutable virtual version of the user's project.
@@ -369,9 +370,10 @@ export class LocalCodingService {
     const deadline = setTimeout(() => controller.abort(new Error('timeout')), TASK_TIMEOUT_MS);
     let idle = setTimeout(() => controller.abort(new Error('idle')), IDLE_TIMEOUT_MS);
     const touch = () => { clearTimeout(idle); idle = setTimeout(() => controller.abort(new Error('idle')), IDLE_TIMEOUT_MS); };
+    let apiKey = '';
     try {
       update('preparing', 'Preparing', true);
-      const { apiKey } = this.credential(binding.engine, binding.connectionId);
+      ({ apiKey } = this.credential(binding.engine, binding.connectionId));
       const model = await this.modelInfo(binding);
       result.reasoningEffort = model.highestEffort;
       const images: AgentImage[] = input.imageIds.map((id) => {
@@ -466,6 +468,7 @@ export class LocalCodingService {
       const reason = controller.signal.reason;
       if (signal.aborted) { result.state = 'cancelled'; result.progress = undefined; assistant.content ||= 'Stopped. Earlier iterations are unchanged.'; assistant.status = 'stopped'; }
       else {
+        const log = writeLocalCodingError(this.deps.userData, { taskId, engine: binding.engine, model: binding.model, state: result.state, reason: reason instanceof Error ? reason.message : undefined }, error, apiKey);
         result.state = 'failed'; result.progress = undefined;
         assistant.status = 'error';
         assistant.error = reason instanceof Error && reason.message === 'idle' ? 'The engine stopped responding. Earlier iterations are unchanged; try again.'
@@ -474,6 +477,7 @@ export class LocalCodingService {
           : error instanceof UserError ? error.message
           : error instanceof Error && /^(Codex|Claude|The Codex|The Claude|Antigravity|The Antigravity)/.test(error.message) ? error.message
           : 'The engine could not complete this request. Earlier iterations are unchanged; try again.';
+        assistant.error += log ? `\n\nDiagnostic log: ${log}\nRequest ID: ${taskId}` : '\n\nThe diagnostic log could not be written.';
       }
       emit({ type: 'progress', conversationId: conversation.id, messageId: assistant.id, localCoding: { ...result } });
     } finally {
