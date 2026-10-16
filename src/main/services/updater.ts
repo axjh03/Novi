@@ -86,6 +86,29 @@ else
 fi
 `;
 
+// Wait for normal shutdown (including recordings and engines) before NSIS can replace locked files.
+export function windowsInstallScript(payload: string, parentPid: number): string {
+  const literal = payload.replace(/'/g, "''");
+  return `
+$ErrorActionPreference = 'Stop'
+$installer = '${literal}'
+try {
+  $novi = Get-Process -Id ${parentPid} -ErrorAction SilentlyContinue
+  [Console]::Out.Write("ready\n")
+  if ($novi) { $novi.WaitForExit() }
+  $setup = Start-Process -FilePath $installer -ArgumentList '/S', '--updated', '--force-run' -PassThru -WindowStyle Hidden
+  $setup.WaitForExit()
+  if ($setup.ExitCode -ne 0) { throw "Installer exited with code $($setup.ExitCode)." }
+  Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
+} catch {
+  $_ | Out-File -LiteralPath ($installer + '.log')
+  $notice = New-Object -ComObject WScript.Shell
+  $notice.Popup("Novi could not install the update. Open the downloaded installer to retry:\n" + $installer + "\nDetails: " + $_, 0, 'Novi update failed', 16) | Out-Null
+  exit 1
+}
+`;
+}
+
 interface LatestRelease { version: string; base: string }
 interface InstallOptions {
   /** Lets the system password window appear above Novi's windows; returns a function that restores them. */
@@ -186,10 +209,23 @@ export class AppUpdater {
         const exePath = join(tempDir, 'setup.exe');
         await this.downloadVerified(latest, releaseFile(latest.version, 'win32', process.arch)!, exePath, onProgress);
 
+        const script = Buffer.from(windowsInstallScript(exePath, process.pid), 'utf16le').toString('base64');
+        await new Promise<void>((resolve, reject) => {
+          const helper = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', script], {
+            detached: true, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'],
+          });
+          helper.once('error', reject);
+          helper.once('exit', (code) => reject(new Error(`The Windows update helper exited before it was ready (${code}). Please try again.`)));
+          let output = '';
+          helper.stdout.on('data', (chunk: Buffer) => {
+            output += chunk.toString();
+            if (!output.includes('ready\n')) return;
+            helper.stdout.destroy();
+            helper.unref();
+            resolve();
+          });
+        });
         onProgress({ percent: 100, status: 'Restarting to finish update...' });
-        // Run NSIS silent updater and clean up temporary download payload afterwards
-        const winScript = `start /b cmd /c "timeout /t 2 /nobreak >nul && "${exePath}" /S && timeout /t 4 /nobreak >nul && rmdir /s /q "${tempDir}""`;
-        spawn('cmd.exe', ['/c', winScript], { detached: true, stdio: 'ignore' }).unref();
         setTimeout(() => app.quit(), 400);
 
       } else if (process.platform === 'linux') {
