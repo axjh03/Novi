@@ -10,7 +10,8 @@ import { join } from 'node:path';
 import { AntigravityAgent } from '../src/main/services/codingAgents/antigravity';
 import type { AgentTask } from '../src/main/services/codingAgents/types';
 
-function fixture(t: TestContext, tools: string[], respond: (content: string, emit: (value: unknown) => void) => void) {
+function fixture(t: TestContext, tools: string[], respond: (content: string, emit: (value: unknown) => void) => void,
+  startup?: { code: number; stderr: string; output?: unknown }) {
   const root = mkdtempSync(join(tmpdir(), 'novi-agy-test-'));
   const engine = join(root, 'engines', 'antigravity'), work = join(root, 'work');
   mkdirSync(engine, { recursive: true }); mkdirSync(work);
@@ -24,13 +25,19 @@ function fixture(t: TestContext, tools: string[], respond: (content: string, emi
     try { const event = JSON.parse(String(data)); assert.equal(event.event, 'user'); respond(event.message.content, emit); done(); }
     catch (error) { done(error as Error); }
   } });
-  const child = Object.assign(new EventEmitter(), { stdout, stderr, stdin, pid: 123, exitCode: null, signalCode: null as string | null });
+  const child = Object.assign(new EventEmitter(), { stdout, stderr, stdin, pid: 123, exitCode: null as number | null, signalCode: null as string | null });
   t.mock.method(childProcess, 'spawn', (_command: string, args: string[], options: { env: Record<string, string>; cwd: string }) => {
     assert.equal(options.env.GEMINI_API_KEY, 'test-key');
     assert.equal(args.includes('test-key'), false);
     assert.equal(JSON.parse(readFileSync(join(options.env.HOME, '.gemini/antigravity-cli/settings.json'), 'utf8')).modelProvider, 'gemini');
     assert.match(readFileSync(join(options.cwd, '.agents/agents/novi.md'), 'utf8'), /tools: \[\]/);
-    setImmediate(() => emit({ event: 'init', init: { tools } }));
+    setImmediate(() => {
+      if (!startup) { emit({ event: 'init', init: { tools } }); return; }
+      stderr.write(startup.stderr);
+      if (startup.output !== undefined) emit(startup.output);
+      child.exitCode = startup.code;
+      stdout.end(); stderr.end(); child.emit('close', startup.code, null);
+    });
     return child;
   });
   t.mock.method(process, 'kill', (pid: number) => {
@@ -86,14 +93,111 @@ test('Antigravity rejects native tools and unknown read requests, and handles ca
   }
 });
 
-test('Antigravity model discovery uses the Gemini API and propagates authentication errors', async t => {
-  const agent = new AntigravityAgent({ packaged: false, resourcesPath: '' }, '');
+test('Antigravity offers installed CLI model slugs, not Gemini API ids, and propagates authentication errors', async t => {
+  const f = fixture(t, [], () => {});
+  t.after(() => f.cleanup());
   t.mock.method(globalThis, 'fetch', async (url: string, options: RequestInit) => {
     assert.equal(new URL(url).origin, 'https://generativelanguage.googleapis.com');
     assert.equal(new Headers(options.headers).get('x-goog-api-key'), 'test-key');
-    return Response.json({ models: [{ name: 'models/gemini-test', supportedGenerationMethods: ['generateContent'] }] });
+    return Response.json({ models: [{ name: 'models/antigravity-preview-05-2026', supportedGenerationMethods: ['generateContent'] }] });
   });
-  assert.deepEqual(await agent.listModels({ apiKey: 'test-key' }, new AbortController().signal), [{ id: 'gemini-test', name: 'gemini-test', efforts: [], highestEffort: null, images: false }]);
+  const catalog = t.mock.method(childProcess, 'execFile', (_command: string, args: string[], options: { env: Record<string, string>; cwd: string }, done: Function) => {
+    assert.deepEqual(args, ['models']);
+    assert.equal(options.env.GEMINI_API_KEY, 'test-key');
+    assert.equal(JSON.parse(readFileSync(join(options.env.HOME, '.gemini/antigravity-cli/settings.json'), 'utf8')).modelProvider, 'gemini');
+    assert.notEqual(options.cwd, process.cwd());
+    done(null, '\u001b[32mgemini-test-high\u001b[0m\tGemini test (High)\r\ngemini-test-medium   Gemini test (Medium)\r\nclaude-test  Claude test\n', '');
+  });
+  assert.deepEqual(await f.agent.listModels({ apiKey: 'test-key' }, new AbortController().signal), [
+    { id: 'gemini-test-high', name: 'Gemini test (High)', efforts: [], highestEffort: null, images: false },
+    { id: 'gemini-test-medium', name: 'Gemini test (Medium)', efforts: [], highestEffort: null, images: false },
+  ]);
+  assert.deepEqual(readdirSync(f.work), [], 'model discovery cleans its private home');
   t.mock.method(globalThis, 'fetch', async () => Response.json({ error: { message: 'bad key' } }, { status: 401 }));
-  await assert.rejects(agent.listModels({ apiKey: 'bad' }, new AbortController().signal));
+  await assert.rejects(f.agent.listModels({ apiKey: 'bad' }, new AbortController().signal));
+  assert.equal(catalog.mock.callCount(), 1, 'invalid credentials fail before launching the CLI');
+});
+
+test('Antigravity reads snapshot tools and returns explanations from serialized JSON responses', { skip: process.platform === 'win32' }, async t => {
+  let turns = 0;
+  const f = fixture(t, [], (content, emit) => {
+    const result = ++turns === 1 ? { tool: 'read_file', arguments: { fileId: 'one' } } : { answer: { summary: 'This file contains captured source.', changes: [] } };
+    if (turns === 2) assert.equal(JSON.parse(content).text, 'captured source');
+    emit({ event: 'result', result: { status: 'SUCCESS', response: JSON.stringify(result) } });
+  });
+  try {
+    assert.deepEqual(await f.agent.run(task(), { apiKey: 'test-key' }), { summary: 'This file contains captured source.', changes: [] });
+    assert.equal(turns, 2);
+    assert.deepEqual(readdirSync(f.work), []);
+  } finally { f.cleanup(); }
+});
+
+test('Antigravity never falls back to API model ids when the CLI catalog fails', async t => {
+  const f = fixture(t, [], () => {});
+  t.after(() => f.cleanup());
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ models: [{ name: 'models/antigravity-preview-05-2026', supportedGenerationMethods: ['generateContent'] }] }));
+  let fail = false;
+  t.mock.method(childProcess, 'execFile', (_command: string, _args: string[], _options: unknown, done: Function) => {
+    done(fail ? new Error('PRIVATE_DIAGNOSTIC') : null, 'Available models:\nclaude-test  Claude test\n', 'SECRET_SOURCE test-key');
+  });
+  for (fail of [false, true]) {
+    await assert.rejects(f.agent.listModels({ apiKey: 'test-key' }, new AbortController().signal), (error: Error) => {
+      assert.match(error.message, /Antigravity could not list its models/);
+      assert.doesNotMatch(error.message, /PRIVATE_DIAGNOSTIC|SECRET_SOURCE|test-key/);
+      return true;
+    });
+    assert.deepEqual(readdirSync(f.work), []);
+  }
+});
+
+test('Antigravity reports early exits and startup error envelopes without exposing diagnostics', { skip: process.platform === 'win32' }, async t => {
+  for (const scenario of [
+    { stderr: 'error: invalid model selection (--model antigravity-preview-05-2026)', expected: /rejected the selected model/ },
+    { stderr: 'authentication required', expected: /could not authenticate/ },
+    { stderr: 'unknown flag: --input-format', expected: /Update it in Settings/ },
+    { stderr: 'unexpected crash', expected: /before initialization \(exit code 1\)/ },
+    { stderr: '', output: { status: 'ERROR', error: 'invalid model selection' }, expected: /rejected the selected model/ },
+  ]) {
+    let prompts = 0;
+    const f = fixture(t, [], () => { prompts++; }, { ...scenario, code: 1, stderr: `${scenario.stderr}\ntest-key /private/project/source SECRET_SOURCE` });
+    try {
+      await assert.rejects(f.agent.run(task(), { apiKey: 'test-key' }), (error: Error) => {
+        assert.match(error.message, scenario.expected);
+        assert.doesNotMatch(error.message, /test-key|private\/project|SECRET_SOURCE/);
+        return true;
+      });
+      assert.equal(prompts, 0);
+      assert.deepEqual(readdirSync(f.work), []);
+    } finally { f.cleanup(); }
+  }
+});
+
+test('Antigravity refuses a successful startup envelope before verifying read-only tools', { skip: process.platform === 'win32' }, async t => {
+  let prompts = 0;
+  const f = fixture(t, [], () => { prompts++; }, { code: 0, stderr: '', output: { status: 'SUCCESS', structured_output: { answer: { summary: 'unverified' } } } });
+  try {
+    await assert.rejects(f.agent.run(task(), { apiKey: 'test-key' }), /before confirming its read-only tools/);
+    assert.equal(prompts, 0);
+    assert.deepEqual(readdirSync(f.work), []);
+  } finally { f.cleanup(); }
+});
+
+test('Antigravity rejects empty and malformed results and explains provider errors', { skip: process.platform === 'win32' }, async t => {
+  for (const scenario of [
+    { result: { status: 'SUCCESS', response: '' }, expected: /no valid structured answer/ },
+    { result: { status: 'SUCCESS', response: 'plain text' }, expected: /no valid structured answer/ },
+    { result: { status: 'SUCCESS', structured_output: [] }, expected: /no valid structured answer/ },
+    { result: { status: 'ERROR', error: 'RESOURCE_EXHAUSTED: quota exceeded; test-key' }, expected: /quota or rate limit/ },
+    { result: { status: 'ERROR', error: 'API key not valid: test-key' }, expected: /could not authenticate/ },
+  ]) {
+    const f = fixture(t, [], (_content, emit) => emit({ event: 'result', result: scenario.result }));
+    try {
+      await assert.rejects(f.agent.run(task(), { apiKey: 'test-key' }), (error: Error) => {
+        assert.match(error.message, scenario.expected);
+        assert.doesNotMatch(error.message, /test-key/);
+        return true;
+      });
+      assert.deepEqual(readdirSync(f.work), []);
+    } finally { f.cleanup(); }
+  }
 });
