@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { SESSION_MODES, isAppMode, modeInstructions, DRAW_DIAGRAM_PROMPT } from '../src/shared/sessionModes';
 import { diagramBlocks, repairFlowchart } from '../src/shared/diagrams';
-import { presetFields, presetMode, SESSION_ROLES } from '../src/renderer/src/context/sessionPresets';
+import { defaultPurpose, presetFields, SESSION_ROLES } from '../src/renderer/src/context/sessionPresets';
 import type { ChatMessage } from '../src/shared/types';
 
 test('all seven modes have distinct guidance and respect session instructions', () => {
@@ -18,9 +18,20 @@ test('all seven modes have distinct guidance and respect session instructions', 
   }
   assert(!isAppMode('unknown'));
   assert.match(modeInstructions('behavioral', 'car'), /CAR/);
+  const presetMode = (name: string) => SESSION_ROLES.flatMap(role => role.presets).find(preset => preset.name === name)!.mode;
   assert.equal(presetMode('Coding interview'), 'coding');
   assert.equal(presetMode('System design'), 'system-design');
   assert.equal(presetMode('Behavioral interview'), 'behavioral');
+  // Previously guessed from the name, which sent these two to the wrong mode.
+  assert.equal(presetMode('Pipeline coding'), 'coding');
+  assert.equal(presetMode('Data platform design'), 'system-design');
+  for (const preset of SESSION_ROLES.flatMap(role => role.presets)) assert(isAppMode(preset.mode), preset.name);
+  assert.equal(defaultPurpose(null), '');
+  assert.equal(defaultPurpose('coding'), 'Coding interview.');
+  assert.equal(defaultPurpose('coding', { company: ' Acme ', role: 'Software Engineer II' }), 'Coding interview for the Software Engineer II role at Acme.');
+  const debug = SESSION_ROLES[0].presets.find(preset => preset.name === 'Debug & review')!;
+  assert.equal(defaultPurpose('coding', { preset: debug }), 'Debug & review.');
+  assert.equal(defaultPurpose('behavioral', { preset: debug }), 'Behavioral interview.', 'a preset only names the purpose while its mode is selected');
   const fields = presetFields(SESSION_ROLES[0], SESSION_ROLES[0].presets[0]);
   assert.deepEqual(fields.map(f => f.label), ['Role / perspective', 'Level / experience', 'Output format', 'Additional instructions']);
   assert.match(DRAW_DIAGRAM_PROMPT, /No diagram changes needed/);

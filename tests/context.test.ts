@@ -171,6 +171,10 @@ test('instructions without source folders are retained in new conversations', as
   context.begin({ folderIds: [], purpose: 'Recruiter call', fields });
   assert.match(context.prompt, /Senior, 8 years/);
   assert.match(context.prompt, /Answer in Spanish/);
+  // Without documents the first message confirms the instructions instead of describing files.
+  assert.match(context.prompt, /No documents were provided/);
+  assert(!context.prompt.includes('DOCUMENTS'));
+  assert.deepEqual(context.savedContext.documents, []);
   assert.equal(context.assertActive().status, 'pending');
   assert.throws(() => context.begin({ folderIds: [], purpose: 'Duplicate', fields }), /already active/);
 });
@@ -194,13 +198,14 @@ test('company and role join the instructions, and loaded folders can be saved by
   plain.end();
 
   const context = new ContextService(storage);
+  assert.deepEqual(context.folderSources([]), [], 'no documents needs no loaded folders');
   assert.throws(() => context.folderSources(['missing']), /Load context folders first/);
   const folders = await context.loadFolders([source]);
   const sources = context.folderSources([folders[0].id, folders[0].id]);
   assert.equal(sources.length, 1);
   assert.equal(sources[0].name, 'Resume');
   assert.equal(sources[0].path, realpathSync(source));
-  assert.throws(() => context.folderSources([]), /up to eight/);
+  assert.deepEqual(context.folderSources([]), [], 'a profile may have no documents');
   assert.throws(() => context.folderSources(['other']), /no longer loaded/);
   context.begin({ folderIds: [folders[0].id], purpose: 'Acme onsite', company: ' Acme ', role: 'Software Engineer II', fields });
   assert.match(context.prompt, /Session purpose: Acme onsite\nCompany: Acme\nTarget role: Software Engineer II\nRole \/ perspective:/);

@@ -32,7 +32,7 @@ async function main() {
         checkPermissions: async () => ok({ storage: true, camera: false, microphone: false, screen: false, accessibility: false }),
         localAISetup: async () => ok({ models: [], selectedASR: 'auto' }),
         getCodeViewerBlocks: async () => ok([{ id: 'long', label: 'Long code', language: 'typescript', code: 'const value = 1;\n'.repeat(300) }]),
-        onCodeViewerBlocks: () => () => {},
+        onCodeViewerBlocks: () => () => {}, onReviewTarget: () => () => {}, getReviewTarget: async () => ok(null),
         onSessionEnded: () => () => {}, onAccessStatus: () => () => {}, onStealthState: () => () => {},
         onGlobalAction: () => () => {}, onCodeViewerClosed: () => () => {},
         setCodeViewerVisible: async () => ok(undefined),
@@ -60,11 +60,11 @@ async function main() {
     assert.equal(await page.getByRole('option', { name: 'gemini3.8', exact: true }).count(), 0);
     assert(await page.getByRole('button', { name: 'Next', exact: true }).isDisabled());
     assert(await page.getByRole('button', { name: 'Instructions', exact: true }).isDisabled());
-    assert.equal(await page.getByText('Start in a mode', { exact: true }).count(), 0);
+    assert.equal(await page.locator('#context-panel-brief').isVisible(), false, 'later steps stay hidden until reached');
     assert.equal(await page.getByRole('button', { name: 'Start session', exact: true }).count(), 0);
     await page.getByLabel('Choose model', { exact: true }).selectOption('gemini-chat');
     await page.getByRole('button', { name: 'Next', exact: true }).click();
-    assert(await page.getByRole('button', { name: 'Next', exact: true }).isDisabled());
+    assert(!(await page.getByRole('button', { name: 'Next', exact: true }).isDisabled()), 'documents are optional');
     await page.getByRole('button', { name: 'Choose folders', exact: true }).click();
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     assert(await page.getByRole('button', { name: 'Start session', exact: true }).isDisabled());

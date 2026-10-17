@@ -2791,7 +2791,6 @@ html.transparent-mode #root {
 .context-page { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; padding: 0; background: var(--bg); }
 .context-header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; height: 55px; margin: 0; padding: 0 22px; border-bottom: 1px solid var(--border); background: var(--panel); }
 .context-header-identity, .context-header-actions { display: flex; align-items: center; gap: 12px; }
-.context-header-identity > span { padding-left: 14px; border-left: 1px solid var(--border); color: var(--muted); font-size: 12px; }
 .context-header-actions .text-button { font-size: 12px; }
 .context-workspace { display: grid; grid-template-columns: 218px minmax(0, 1fr); flex: 1; min-height: 0; }
 .context-rail { min-height: 0; display: flex; flex-direction: column; padding: 28px 12px 16px; border-right: 1px solid var(--border); background: var(--panel); }
@@ -2837,9 +2836,12 @@ html.transparent-mode #root {
 .context-brief-editor > label { display: flex; flex-direction: row; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; font-weight: 600; }
 .context-brief-editor > label span, .context-brief-editor summary span { color: var(--muted); font-size: 11px; font-weight: 400; }
 .context-brief-editor textarea, .context-brief-editor input { width: 100%; min-height: 36px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); font: inherit; font-size: 12px; }
-.context-brief-editor > textarea { min-height: 110px; resize: vertical; }
+.context-brief-editor > textarea { min-height: 72px; resize: vertical; }
+.context-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.context-hint .text-button { padding: 2px 6px; font-size: 12px; }
 .context-presets { min-width: 0; margin-top: 22px; padding: 16px; border: 1px solid var(--border); border-radius: 8px; }
 .context-presets legend { padding: 0 6px; font-size: 13px; font-weight: 600; }
+.context-presets legend span { margin-left: 4px; color: var(--muted); font-size: 11px; font-weight: 400; }
 .context-presets > p { color: var(--muted); font-size: 12px; }
 .context-presets > label { margin-bottom: 6px; font-size: 12px; }
 .context-presets > select { min-height: 36px; padding: 7px 10px; font-size: 12px; }
@@ -2851,21 +2853,26 @@ html.transparent-mode #root {
 .context-preset-options span { color: var(--muted); font-size: 11px; line-height: 1.5; }
 .context-preset-preview { margin: 12px 0; font-size: 12px; }
 .context-preset-preview summary { cursor: pointer; line-height: 1.6; }
-.context-preset-preview dl { display: grid; gap: 12px; }
-.context-preset-preview dt { font-weight: 600; }
-.context-preset-preview dd { margin: 4px 0 0; color: var(--muted); line-height: 1.6; }
-.context-presets > .secondary { min-height: 36px; font-size: 12px; }
-.context-presets > small { display: block; margin-top: 8px; }
-.context-preset-notice { display: block; color: var(--accent); font-size: 12px; line-height: 1.6; }
+.context-preset-notice { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--accent); font-size: 12px; line-height: 1.6; }
+.context-preset-notice .text-button { padding: 2px 8px; font-size: 12px; color: var(--text); }
+.context-brief-editor .profile-save { margin: 0 14px 14px; }
 .context-brief-editor .custom-fields-accordion { margin-top: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .context-brief-editor .custom-fields-accordion summary { padding: 12px 14px; cursor: pointer; font-size: 12px; font-weight: 600; }
 .context-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 14px 14px; }
 .context-field { min-width: 0; display: grid; gap: 6px; }
 .context-field textarea { min-height: 62px; resize: vertical; }
 .context-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 68px; padding: 12px 22px; border-top: 1px solid var(--border); background: var(--panel); }
-.context-footer-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); white-space: nowrap; font-size: 11px; }
+.context-footer-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); white-space: nowrap; font-size: 12px; }
+.context-footer-actions { display: flex; align-items: center; gap: 10px; }
+/* What still blocks the next step, right beside the button it blocks. */
+.context-needs { color: var(--text); font-size: 12px; font-weight: 500; }
 .context-footer-status .error { white-space: normal; }
 .context-start { min-height: 38px; flex: none; padding: 8px 15px; font-size: 12px; }
+/* Looks disabled while input is missing, but still answers a press by showing what is missing. */
+.context-start[aria-disabled='true'], .context-start[aria-disabled='true']:hover { opacity: .45; cursor: default; filter: none; }
+.context-skip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; max-width: 680px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border); }
+.context-skip p { margin: 0; color: var(--muted); font-size: 12px; }
+.context-skip .text-button { padding: 6px 10px; font-size: 12px; }
 @media (max-width: 900px) {
   .context-workspace { grid-template-columns: 176px minmax(0, 1fr); }
   .context-rail { padding-top: 22px; }
@@ -3538,7 +3545,7 @@ html.novi-tray .chat-mode-tabs .mode-tab-btn span { display: inline; }
 .profile-card-actions .primary, .profile-card-actions .danger-button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; font-size: 12px; }
 .profile-card-actions .text-button { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
 .profile-tip { max-width: 680px; margin: 18px 0 0; color: var(--muted); font-size: 12px; }
-.context-brief-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.context-brief-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 22px 0 0; }
 .context-brief-row label > span, .context-framework > span { color: var(--muted); font-size: 11px; font-weight: 400; }
 .context-framework { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
 .context-framework .behavioral-copilot-bar { padding: 0; border: 0; background: transparent; }

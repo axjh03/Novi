@@ -340,7 +340,7 @@ export function registerIPC(
     const id = text(value, 'profile ID', 100);
     const profile = storage.current().settings.sessionProfiles?.find((item) => item.id === id);
     if (!profile) throw new UserError('This profile no longer exists.');
-    if (!profile.folders.length) throw new UserError('This profile has no folders. Choose folders, then save it again.');
+    if (!profile.folders.length) return [];
     const missing = profile.folders.find((folder) => !existsSync(folder.path));
     if (missing) throw new UserError(`The folder “${missing.name}” was moved or deleted. Choose your folders again, then save the profile.`);
     return context.loadFolders(profile.folders.map((folder) => folder.path));

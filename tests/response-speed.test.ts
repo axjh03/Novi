@@ -36,6 +36,9 @@ test('source retrieval retains exact code and values and flags missing excerpts 
   assert(!selected[2].content.includes('DO_NOT_INCLUDE'));
   assert.match(contextMessages(context, 'zzzzz', true)[2].content, /Ask for full context/);
   assert.match(contextMessages(context, 'zzzzz', false)[2].content, /DO_NOT_INCLUDE/);
+  // A session without documents sends only its instructions and summary.
+  const plain = contextMessages({ ...context, documents: [] }, 'Explain cedar.ts timeout', true);
+  assert.deepEqual(plain.map(message => message.id), ['context-instructions', 'context-summary']);
 });
 
 test('chat records separate spans and sanitized usage, keeps pinned constraints stable, and sends only real prompts across models', async t => {

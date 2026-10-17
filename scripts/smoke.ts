@@ -100,7 +100,7 @@ async function main() {
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await page.getByLabel(/^Continue with missing or untested features/).check();
     await page.getByRole('button', { name: 'Continue to session setup' }).click();
-    await page.getByRole('heading', { name: 'Temporary session' }).waitFor();
+    await page.getByRole('heading', { name: 'Session setup' }).waitFor();
     assert.equal(await page.getByRole('dialog', { name: 'Phone companion' }).count(), 0);
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'API Management', exact: true }).click();
@@ -125,15 +125,17 @@ async function main() {
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.getByLabel('Purpose').fill('Review the Cedar interface.');
     for (const label of ['Software Engineer', 'Data Analyst', 'Data Scientist', 'Data Engineer']) {
-      await page.getByLabel('Role', { exact: true }).selectOption({ label });
+      await page.getByLabel('Role type', { exact: true }).selectOption({ label });
       assert.equal(await page.getByRole('group', { name: `${label} presets`, exact: true }).getByRole('button').count(), 4);
     }
-    await page.getByLabel('Role', { exact: true }).selectOption({ label: 'Software Engineer' });
+    await page.getByLabel('Role type', { exact: true }).selectOption({ label: 'Software Engineer' });
+    // A preset applies on click: it sets the session type and fills the instructions, which can be undone.
     await page.getByRole('button', { name: /Coding interview Approach/ }).click();
-    await page.getByRole('button', { name: 'Apply preset', exact: true }).click();
+    assert.equal(await page.getByRole('button', { name: /Coding interview Approach/ }).getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('.context-mode-options').getByRole('button', { name: /^Code/ }).getAttribute('aria-pressed'), 'true');
     assert.match(await page.getByLabel('Output format details').inputValue(), /time and space complexity/);
     await page.getByLabel('Additional instructions details').fill('CUSTOM_CONSTRAINT: Explain jargon in plain English.');
-    await page.getByLabel('Role', { exact: true }).selectOption({ label: 'Data Analyst' });
+    await page.getByLabel('Role type', { exact: true }).selectOption({ label: 'Data Analyst' });
     assert.equal(await page.getByLabel('Additional instructions details').inputValue(), 'CUSTOM_CONSTRAINT: Explain jargon in plain English.', 'browsing presets preserves edits');
     assert.equal(await page.getByLabel('Purpose').inputValue(), 'Review the Cedar interface.');
     await page.getByLabel('Role / perspective details').fill('Keep the answer concise.');
@@ -223,9 +225,9 @@ async function main() {
     await page.getByRole('button', { name: 'New session', exact: true }).click();
     await page.getByLabel(/^Continue with missing or untested features/).check();
     await page.getByRole('button', { name: 'Continue to session setup' }).click();
-    await page.getByRole('heading', { name: 'Temporary session' }).waitFor();
+    await page.getByRole('heading', { name: 'Session setup' }).waitFor();
     const setupSteps = page.getByRole('navigation', { name: 'Session setup' });
-    for (const name of ['Model', 'Sources', 'Instructions']) await setupSteps.getByRole('button', { name }).waitFor();
+    for (const name of ['Model', 'Documents', 'Instructions']) await setupSteps.getByRole('button', { name }).waitFor();
     const afterNewSession = await page.evaluate(() => window.novi.session());
     assert(afterNewSession.ok);
     assert.equal(afterNewSession.value.contextSession, null);
@@ -236,14 +238,14 @@ async function main() {
     assert.match(readFileSync(join(source, 'brief.txt'), 'utf8'), /SESSION_SOURCE/);
     assert.equal(await page.getByLabel('Message Novi').count(), 0);
     assert.equal(trayCount(), 0, 'ending the session closes the tray');
-    assert.equal(await page.getByRole('button', { name: 'Skip session setup', exact: true }).count(), 1);
+    assert.equal(await page.getByRole('button', { name: 'Start an empty chat instead', exact: true }).count(), 1);
     for (const mode of ['Recruiter Call', 'Technical Phone/Video Screen', 'Behavioral Interview', 'System Design', 'Code', 'Chat']) {
       await page.getByRole('button', { name: 'Next', exact: true }).click();
       await app.evaluate(({ dialog }, source) => { dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [source] })) as typeof dialog.showOpenDialog; }, source);
       await page.getByRole('button', { name: 'Choose folders', exact: true }).click();
       await page.getByRole('button', { name: 'Next', exact: true }).click();
       await page.getByLabel('Purpose').fill('Review Cedar');
-      await page.locator('.context-preset-options').getByRole('button', { name: new RegExp('^' + mode) }).click();
+      await page.locator('.context-mode-options').getByRole('button', { name: new RegExp('^' + mode) }).click();
       await page.getByRole('button', { name: 'Start session', exact: true }).click();
       tray = await trayPage();
       assert.equal(await tray.getByRole('button', { name: mode, exact: true }).getAttribute('aria-pressed'), 'true');
@@ -251,9 +253,9 @@ async function main() {
       await page.getByRole('alertdialog', { name: 'End context session' }).getByRole('button', { name: 'End session', exact: true }).click();
       await page.getByLabel(/^Continue with missing or untested features/).check();
       await page.getByRole('button', { name: 'Continue to session setup' }).click();
-      await page.getByRole('heading', { name: 'Temporary session' }).waitFor();
+      await page.getByRole('heading', { name: 'Session setup' }).waitFor();
     }
-    await page.getByRole('button', { name: 'Skip session setup', exact: true }).click();
+    await page.getByRole('button', { name: 'Start an empty chat instead', exact: true }).click();
     tray = await trayPage();
     assert.equal(await tray.getByRole('button', { name: 'Chat', exact: true }).getAttribute('aria-pressed'), 'true');
     assert.equal(await page.locator('.message').count(), 0, 'Skipping setup opens a fresh chat, while saved chats remain available');
@@ -261,7 +263,7 @@ async function main() {
     await page.getByRole('alertdialog', { name: 'End context session' }).getByRole('button', { name: 'End session', exact: true }).click();
     await page.getByLabel(/^Continue with missing or untested features/).check();
     await page.getByRole('button', { name: 'Continue to session setup' }).click();
-    await page.getByRole('heading', { name: 'Temporary session' }).waitFor();
+    await page.getByRole('heading', { name: 'Session setup' }).waitFor();
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
     await app.close(); app = await launch(); page = await app.firstWindow();
     await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
