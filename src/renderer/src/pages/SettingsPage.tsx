@@ -94,7 +94,8 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
         </div> : <span className="eyebrow">MAKE IT YOURS</span>}
       </header>
 
-      <div className={`settings-content ${tab === 'general' ? '' : 'settings-content-wide'}`}>
+      {/* One width for every tab, so the page doesn't shift sideways when switching. */}
+      <div className="settings-content">
         <h1>Settings</h1>
         <p className="muted">Your account, shortcuts, AI connections and devices.</p>
 
@@ -117,16 +118,8 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                     <p>How Novi greets you.</p>
                   </div>
                   <div className="settings-fields">
-                    <label>
-                      Display name
-                      <input
-                        value={value.displayName}
-                        readOnly
-                        required
-                        maxLength={60}
-                      />
-                    </label>
                     <dl className="settings-info">
+                      <div><dt>Display name</dt><dd>{value.displayName}</dd></div>
                       <div><dt>Username</dt><dd>{state.user!.username || state.user!.email}</dd></div>
                       {state.user?.licenseKey && <div><dt>License</dt><dd><code>{state.user.licenseKey}</code>
                         <small>Expires {new Date(state.user.licenseExpiresAt!).toLocaleDateString()} · {Math.max(0, Math.ceil((+new Date(state.user.licenseExpiresAt!) - Date.now()) / 86400000))} days left</small></dd></div>}

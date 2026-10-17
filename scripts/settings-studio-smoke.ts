@@ -84,7 +84,7 @@ async function main() {
     await codex.getByRole('button', { name: 'Update', exact: true }).waitFor({ state: 'detached' });
     await agy.getByRole('button', { name: 'Install', exact: true }).click();
     await agy.getByRole('button', { name: 'Test connection' }).click();
-    await agy.getByText('Connection verified.').waitFor();
+    await agy.getByText('API key verified.').waitFor();
     await agy.getByRole('button', { name: 'Uninstall', exact: true }).click();
     await agy.getByRole('button', { name: 'Uninstall agent' }).click();
     await agy.getByRole('button', { name: 'Install', exact: true }).waitFor();

@@ -819,6 +819,7 @@ export function DeviceTester() {
                   <button type="button" className="text-button" onClick={discardMicAudio} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                     <RotateCcw size={14} /> Test again
                   </button>
+                  <small className="device-note">Transcribe sends this recording to your AI provider. Otherwise it stays on this computer and isn’t saved.</small>
                 </>
               )}
             </div>
@@ -954,6 +955,7 @@ export function DeviceTester() {
                   <button type="button" className="text-button" onClick={discardSysAudio} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                     <RotateCcw size={14} /> Test again
                   </button>
+                  <small className="device-note">Transcribe sends this recording to your AI provider. Otherwise it stays on this computer and isn’t saved.</small>
                 </>
               )}
             </div>
