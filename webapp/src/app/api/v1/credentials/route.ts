@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/jwt";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { createAuditLog } from "@/lib/audit";
 
 export async function GET(req: Request) {
+  const actor = requireAdmin(req);
+  if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
   try {
     const { searchParams } = new URL(req.url);
     const organizationId = searchParams.get("organizationId") || searchParams.get("tenantId");
@@ -44,6 +48,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const actor = requireAdmin(req);
+  if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
   try {
     const body = await req.json();
     const { provider, label, secret, scope = "ORGANIZATION", organizationId, tenantId, userId } = body;
@@ -71,7 +78,7 @@ export async function POST(req: Request) {
 
     await createAuditLog({
       organizationId: targetOrgId || undefined,
-      actorId: userId || undefined,
+      actorId: actor.userId,
       action: "API_KEY_CREATED",
       details: { provider, label, scope, credentialId: credential.id },
     });

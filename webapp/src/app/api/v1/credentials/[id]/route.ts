@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/jwt";
 import { createAuditLog } from "@/lib/audit";
 
 export async function DELETE(req: Request, context: { params: Promise<{ id: string }> }) {
+  const actor = requireAdmin(req);
+  if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
   try {
     const { id } = await context.params;
 
@@ -15,7 +19,7 @@ export async function DELETE(req: Request, context: { params: Promise<{ id: stri
 
     await createAuditLog({
       organizationId: existing.organizationId || undefined,
-      actorId: existing.userId || undefined,
+      actorId: actor.userId,
       action: "API_KEY_DELETED",
       details: { provider: existing.provider, label: existing.label },
     });

@@ -1,7 +1,16 @@
 import crypto from "crypto";
 
-const SERVER_SECRET = process.env.LICENSE_SERVER_SECRET || "novi_super_secret_hmac_key_2026";
-const MASTER_KEY_HEX = process.env.ENCRYPTION_MASTER_KEY || "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+// Retired /api/v1 only: refuse to hash, encrypt or decrypt without real secrets.
+function serverSecret() {
+  const value = process.env.LICENSE_SERVER_SECRET;
+  if (!value || value.length < 32) throw new Error("Configure LICENSE_SERVER_SECRET with at least 32 random characters.");
+  return value;
+}
+function masterKey() {
+  const value = process.env.ENCRYPTION_MASTER_KEY || "";
+  if (!/^[a-f0-9]{64}$/i.test(value)) throw new Error("Configure ENCRYPTION_MASTER_KEY with 32 random bytes in hex.");
+  return Buffer.from(value, "hex");
+}
 
 /**
  * Generate high-entropy license key format: NVI-XXXX-XXXX-XXXX-XXXX
@@ -24,7 +33,7 @@ export function generateLicenseKey(): string {
  */
 export function hashLicenseKey(licenseKey: string): string {
   const cleanKey = licenseKey.trim().toUpperCase();
-  return crypto.createHmac("sha256", SERVER_SECRET).update(cleanKey).digest("hex");
+  return crypto.createHmac("sha256", serverSecret()).update(cleanKey).digest("hex");
 }
 
 /**
@@ -42,7 +51,7 @@ export function maskLicenseKey(licenseKey: string): string {
  * AES-256-GCM Encryption for API Credentials
  */
 export function encryptSecret(plaintext: string): string {
-  const key = Buffer.from(MASTER_KEY_HEX.slice(0, 64), "hex");
+  const key = masterKey();
   const iv = crypto.randomBytes(12); // 96-bit IV for GCM
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
   
@@ -59,12 +68,12 @@ export function encryptSecret(plaintext: string): string {
  * AES-256-GCM Decryption for API Credentials
  */
 export function decryptSecret(encryptedBlob: string): string {
+  const key = masterKey();
   try {
     const parts = encryptedBlob.split(":");
     if (parts.length !== 3) return "[Decryption Error]";
     
     const [ivHex, authTagHex, encryptedHex] = parts;
-    const key = Buffer.from(MASTER_KEY_HEX.slice(0, 64), "hex");
     const iv = Buffer.from(ivHex, "hex");
     const authTag = Buffer.from(authTagHex, "hex");
     

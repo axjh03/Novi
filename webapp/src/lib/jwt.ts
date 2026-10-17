@@ -1,6 +1,11 @@
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET || "astra_jwt_super_secret_key_2026_changeme_in_prod";
+// Retired /api/v1 only: refuse to sign or trust tokens without a real secret.
+function secret() {
+  const value = process.env.JWT_SECRET;
+  if (!value || value.length < 32) throw new Error("Configure JWT_SECRET with at least 32 random characters.");
+  return value;
+}
 const JWT_EXPIRES_IN = "8h";
 
 export interface JWTPayload {
@@ -13,12 +18,12 @@ export interface JWTPayload {
 }
 
 export function signToken(payload: JWTPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign(payload, secret(), { algorithm: "HS256", expiresIn: JWT_EXPIRES_IN });
 }
 
 export function verifyToken(token: string): JWTPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as JWTPayload;
+    return jwt.verify(token, secret(), { algorithms: ["HS256"] }) as JWTPayload;
   } catch {
     return null;
   }

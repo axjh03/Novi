@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "@/lib/jwt";
 
 export async function GET(req: Request) {
+  const actor = requireAdmin(req);
+  if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
   try {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
@@ -56,6 +60,9 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const actor = requireAdmin(req);
+  if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
   try {
     const body = await req.json();
     const { organizationId, tenantId, productName, amount, paymentMethod = "CRYPTO", status = "PENDING" } = body;

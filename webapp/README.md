@@ -95,7 +95,7 @@ All paths use `/api/control/`. Success responses are `{ data: ... }`, failures `
 | `requests` | POST | License purchase request |
 | `requests/:id` | PATCH | Admin approve/fulfill or reject |
 
-Legacy `/api/v1/*` prototype endpoints return 410 through `src/proxy.ts`. Their source and database tables remain for deliberate data migration; old local/legacy accounts are not silently granted new permissions. The new schema uses `AccessAccount`, `AccessLicense`, `AccessSession`, `ManagedCredential`, `LicenseRequest`, `AccessAudit`, and `LoginThrottle`.
+Legacy `/api/v1/*` prototype endpoints return 410 through `src/proxy.ts`. Their source and database tables remain for deliberate data migration, and that code refuses to run unless `JWT_SECRET`, `ENCRYPTION_MASTER_KEY` and `LICENSE_SERVER_SECRET` are set to real values; old local/legacy accounts are not silently granted new permissions. The new schema uses `AccessAccount`, `AccessLicense`, `AccessSession`, `ManagedCredential`, `LicenseRequest`, `AccessAudit`, and `LoginThrottle`.
 
 ## Deployment and checks
 

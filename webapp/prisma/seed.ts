@@ -4,7 +4,9 @@ import crypto from "crypto";
 
 const prisma = new PrismaClient();
 
-const SERVER_SECRET = process.env.LICENSE_SERVER_SECRET || "novi_super_secret_hmac_key_2026";
+// Retired /api/v1 data only; license hashes must match the server's real secret.
+const SERVER_SECRET = process.env.LICENSE_SERVER_SECRET || "";
+if (SERVER_SECRET.length < 32) throw new Error("Configure LICENSE_SERVER_SECRET with at least 32 random characters.");
 
 function generateLicenseKey(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
