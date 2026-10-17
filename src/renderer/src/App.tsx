@@ -10,6 +10,7 @@ import { TitleBar } from './components/TitleBar';
 import { AppModeProvider } from './context/AppModeContext';
 import { updaterService } from './services/updaterService';
 import { errorText, unwrap } from './services/api';
+import { applyTheme, rememberTheme, savedTheme } from './services/theme';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -35,9 +36,12 @@ function Application() {
     }
   }, [state?.settings?.checkUpdatesAtStartup]);
   useEffect(() => {
-    const theme = state?.settings?.theme || 'system';
+    // Remember the account's theme so startup and sign-in use it before any account loads.
+    const chosen = state?.settings?.theme;
+    if (chosen) rememberTheme(chosen);
+    const theme = chosen || savedTheme();
     const media = matchMedia('(prefers-color-scheme: dark)');
-    const update = () => { document.documentElement.dataset.theme = theme === 'system' ? media.matches ? 'dark' : 'light' : theme; };
+    const update = () => applyTheme(theme);
     update(); media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
   }, [state?.settings?.theme]);

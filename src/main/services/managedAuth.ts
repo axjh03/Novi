@@ -40,6 +40,7 @@ interface SavedSession {
   deviceId: string;
   encryptedToken?: string;
   server?: string;
+  /** Only the username is remembered. `encryptedPassword` is from older versions and is deleted on load. */
   savedCredentials?: {
     username: string;
     encryptedPassword?: string;
@@ -60,6 +61,8 @@ export class ManagedAuthService {
   constructor(private storage: Storage, private credentials: CredentialStore, private secureStorage = safeStorage) {
     this.file = join(storage.directory, 'access-session.json');
     this.saved = readJSON<SavedSession>(this.file, { deviceId: randomUUID() });
+    // Passwords are never kept on disk; remove any saved by an older version.
+    if (this.saved.savedCredentials) this.saved.savedCredentials = this.saved.savedCredentials.username ? { username: this.saved.savedCredentials.username } : undefined;
     const url = new URL(getEffectiveAccessUrl());
     if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))) throw new UserError('The access server must use HTTPS.');
     if (url.username || url.password || url.search || url.hash) throw new UserError('Invalid access server URL.');
@@ -113,40 +116,12 @@ export class ManagedAuthService {
     this.credentials.clearManaged(); this.storage.data.currentUserId = null; this.storage.save();
     delete this.saved.encryptedToken; atomicJSON(this.file, this.saved);
   }
-  getSavedCredentials(): { username: string; password?: string } | null {
-    if (!this.saved.savedCredentials?.username) return null;
-    let password = '';
-    if (this.saved.savedCredentials.encryptedPassword) {
-      try {
-        this.assertSecure();
-        password = this.secureStorage.decryptString(Buffer.from(this.saved.savedCredentials.encryptedPassword, 'base64'));
-      } catch {
-        password = '';
-      }
-    }
-    return { username: this.saved.savedCredentials.username, password };
+  /** The username remembered by "Keep me signed in", to fill in the sign-in form. */
+  getSavedCredentials(): { username: string } | null {
+    return this.saved.savedCredentials?.username ? { username: this.saved.savedCredentials.username } : null;
   }
-  setSavedCredentials(credentials: { username: string; password?: string } | null) {
-    if (!credentials?.username) {
-      delete this.saved.savedCredentials;
-    } else {
-      let encryptedPassword = '';
-      if (credentials.password) {
-        try {
-          this.assertSecure();
-          encryptedPassword = this.secureStorage.encryptString(credentials.password).toString('base64');
-        } catch {
-          encryptedPassword = '';
-        }
-      }
-      this.saved.savedCredentials = {
-        username: credentials.username,
-        encryptedPassword,
-      };
-    }
-    atomicJSON(this.file, this.saved);
-  }
-  async signIn(username: string, password: string, saveCredentials?: boolean) {
+  /** With keepSignedIn off, nothing is remembered: the session ends when Novi quits. */
+  async signIn(username: string, password: string, keepSignedIn?: boolean) {
     if (this.token) throw new UserError('Sign out of the current account first.');
     this.assertSecure();
     username = text(username, 'username', 64);
@@ -154,12 +129,12 @@ export class ManagedAuthService {
     const result = await this.request<{ token: string }>('login', { username, password, audience: 'desktop', deviceId: this.saved.deviceId, deviceName: hostname().slice(0, 100) });
     this.generation++; this.token = result.token;
     try {
-      this.saved.encryptedToken = this.secureStorage.encryptString(this.token).toString('base64');
-      this.saved.server = this.baseUrl;
-      if (saveCredentials === true) {
-        this.setSavedCredentials({ username, password });
-      } else if (saveCredentials === false) {
-        this.setSavedCredentials(null);
+      if (keepSignedIn === false) {
+        delete this.saved.encryptedToken; delete this.saved.savedCredentials;
+      } else {
+        this.saved.encryptedToken = this.secureStorage.encryptString(this.token).toString('base64');
+        this.saved.server = this.baseUrl;
+        this.saved.savedCredentials = { username };
       }
       atomicJSON(this.file, this.saved);
       //backdoor

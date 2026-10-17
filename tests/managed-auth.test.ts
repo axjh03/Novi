@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { require as tsxRequire } from 'tsx/cjs/api';
@@ -81,19 +81,22 @@ test('managed desktop keeps tokens and keys out of renderer state, preserves sel
   assert.equal(auth.signedIn, false);
 });
 
-test('managed auth saves, retrieves, and clears credentials across sign-out', async t => {
+test('keep me signed in remembers the session and username but never the password', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'novi-creds-test-'));
   const keychain = { isEncryptionAvailable: () => true, getSelectedStorageBackend: () => 'test', encryptString: (value: string) => Buffer.from(value), decryptString: (value: Buffer) => value.toString() };
   const { ManagedAuthService } = tsxRequire('../src/main/services/managedAuth.ts', import.meta.url);
   const { CredentialStore } = tsxRequire('../src/main/services/credentials.ts', import.meta.url);
   const { Storage } = tsxRequire('../src/main/services/storage.ts', import.meta.url);
   t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = join(directory, 'access-session.json');
+  const onDisk = () => readFileSync(file, 'utf8');
 
+  // An older version saved the password; the next launch removes it and keeps only the username.
+  writeFileSync(file, JSON.stringify({ deviceId: 'device-1', savedCredentials: { username: 'old.user', encryptedPassword: Buffer.from('old-secret').toString('base64') } }));
   const storage = new Storage(directory), credentials = new CredentialStore(directory);
   const auth = new ManagedAuthService(storage, credentials, keychain);
-
-  // Initially no credentials saved
-  assert.equal(auth.getSavedCredentials(), null);
+  assert.deepEqual(auth.getSavedCredentials(), { username: 'old.user' });
+  assert(!onDisk().includes('encryptedPassword') && !onDisk().includes(Buffer.from('old-secret').toString('base64')), 'legacy password removed from disk');
 
   t.mock.method(globalThis, 'fetch', async (url: string) => {
     if (url.endsWith('/login')) return Response.json({ data: { token: 'jwt-token' } });
@@ -101,22 +104,24 @@ test('managed auth saves, retrieves, and clears credentials across sign-out', as
     return Response.json({ data: { user: { id: 'u1', username: 'saved.user', name: 'Saved User' }, license: { key: 'KEY', expiresAt: '2099-01-01' }, credentials: [] } });
   });
 
-  // Sign in with saveCredentials = true
+  // Kept signed in: the session survives a restart, only the username is remembered, and the password never reaches disk.
   await auth.signIn('saved.user', 'secret-pass-123', true);
-  const saved = auth.getSavedCredentials();
-  assert.deepEqual(saved, { username: 'saved.user', password: 'secret-pass-123' });
-
-  // Signing out should keep the saved credentials so user does not need to retype them
+  assert.deepEqual(auth.getSavedCredentials(), { username: 'saved.user' });
+  assert(!onDisk().includes('secret-pass-123') && !onDisk().includes(Buffer.from('secret-pass-123').toString('base64')));
+  assert.equal(new ManagedAuthService(storage, credentials, keychain).signedIn, true, 'restart stays signed in');
   await auth.signOut();
-  assert.deepEqual(auth.getSavedCredentials(), { username: 'saved.user', password: 'secret-pass-123' });
+  const afterSignOut = new ManagedAuthService(storage, credentials, keychain);
+  assert.equal(afterSignOut.signedIn, false);
+  assert.deepEqual(afterSignOut.getSavedCredentials(), { username: 'saved.user' }, 'the username is filled in after signing out');
 
-  // Re-instantiating ManagedAuthService (app restart) should still load the saved credentials
+  // Not kept: the session ends with the app and nothing is remembered.
+  await afterSignOut.signIn('saved.user', 'secret-pass-123', false);
+  assert.equal(afterSignOut.signedIn, true, 'signed in for this launch');
+  assert.equal(afterSignOut.getSavedCredentials(), null);
   const restarted = new ManagedAuthService(storage, credentials, keychain);
-  assert.deepEqual(restarted.getSavedCredentials(), { username: 'saved.user', password: 'secret-pass-123' });
-
-  // Clearing saved credentials removes them
-  restarted.setSavedCredentials(null);
+  assert.equal(restarted.signedIn, false, 'a restart asks to sign in again');
   assert.equal(restarted.getSavedCredentials(), null);
+  assert(!onDisk().includes('secret-pass-123') && !onDisk().includes('jwt-token') && !onDisk().includes(Buffer.from('jwt-token').toString('base64')));
 });
 
 test('managed auth reports HTML gateway and captive-portal replies without raw JSON parse errors', async t => {

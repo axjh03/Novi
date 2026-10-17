@@ -1,37 +1,62 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowRight, KeyRound, ShieldCheck } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { ArrowRight, Eye, EyeOff, KeyRound, ShieldCheck } from 'lucide-react';
 import type { Snapshot } from '../../../shared/types';
 import { Brand } from '../components/Brand';
 import { errorText, unwrap } from '../services/api';
 
 export function AuthPage({ onAuthenticated }: { onAuthenticated: (state: Snapshot) => void }) {
   const [username, setUsername] = useState(''), [password, setPassword] = useState('');
-  const [saveCredentials, setSaveCredentials] = useState(false);
+  const [keepSignedIn, setKeepSignedIn] = useState(true);
+  const [showPassword, setShowPassword] = useState(false), [capsLock, setCapsLock] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const passwordInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let mounted = true;
     unwrap(window.novi.getSavedCredentials())
-      .then((creds) => {
-        if (mounted && creds?.username) {
-          setUsername(creds.username);
-          if (creds.password) setPassword(creds.password);
-          setSaveCredentials(true);
-        }
+      .then((saved) => {
+        // A remembered username is filled in, so the password is the only thing left to type.
+        if (mounted && saved?.username) { setUsername(saved.username); passwordInput.current?.focus(); }
       })
       .catch(() => {});
     return () => { mounted = false; };
   }, []);
 
+  // After a failed attempt the password is the likeliest mistake: focus it with its text selected, ready to retype.
+  useEffect(() => {
+    if (!error || busy) return;
+    passwordInput.current?.focus();
+    passwordInput.current?.select();
+  }, [error, busy]);
+
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError('');
-    try { onAuthenticated(await unwrap(window.novi.signIn(username, password, saveCredentials))); }
+    try { onAuthenticated(await unwrap(window.novi.signIn(username, password, keepSignedIn))); }
     catch (error) { setError(errorText(error)); } finally { setBusy(false); }
   }
+  const watchCapsLock = (event: KeyboardEvent<HTMLInputElement>) => setCapsLock(event.getModifierState('CapsLock'));
+
   return <div className="auth-layout managed-auth">
     <aside className="auth-story"><Brand /><div className="story-copy"><span className="eyebrow">YOUR WORKSPACE, CONNECTED</span><h1>A little space.<br />A lot of possibility.</h1><p>Your AI connections. Your context.<br />A considered place to do your best work.</p><div className="orbit-art" aria-hidden="true"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit orbit-three" /><span className="orbit-center">n</span></div></div><div className="story-footer"><span><KeyRound size={14} />One license. Your workspace.</span><span><ShieldCheck size={14} />Secure, managed access.</span></div></aside>
     <main className="auth-main"><div className="auth-form-wrap"><div className="mini-label"><ShieldCheck size={15} />DESKTOP ACCESS</div><h2>Welcome back.</h2><p className="muted">Sign in with your licensed desktop account.</p>
-      <form onSubmit={submit}><fieldset disabled={busy}><label>Username<input autoFocus autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} placeholder="Your assigned username" required maxLength={64} /></label><label>Password<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter your password" required maxLength={128} /></label><label className="auth-checkbox-label"><input type="checkbox" checked={saveCredentials} onChange={(e) => setSaveCredentials(e.target.checked)} /><span>Save my credentials</span></label>{error && <div className="error" role="alert">{error}</div>}<button className="primary wide" type="submit">{busy ? 'Signing in…' : 'Sign in'}<ArrowRight size={17} /></button></fieldset></form>
-      <p className="auth-note"><ShieldCheck size={15} />Use a desktop account created by your standalone owner or sub-corporation. For access or a password reset, contact your administrator.</p><p className="muted">One active device per account. Sign out before switching devices.</p></div><span className="auth-bottom">A quieter place to think.</span></main>
+      <form onSubmit={submit}><fieldset disabled={busy}>
+        <label>Username<input autoFocus autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} placeholder="Your assigned username" required maxLength={64} /></label>
+        <div className="auth-password">
+          <label htmlFor="auth-password">Password</label>
+          {capsLock && <span id="auth-caps" className="auth-caps" role="status">Caps Lock is on</span>}
+          <div className="password-field">
+            <input id="auth-password" ref={passwordInput} type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)}
+              onKeyDown={watchCapsLock} onKeyUp={watchCapsLock} onBlur={() => setCapsLock(false)} aria-describedby={capsLock ? 'auth-caps' : undefined}
+              placeholder="Enter your password" required maxLength={128} />
+            <button type="button" className="icon-button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+          </div>
+        </div>
+        <label className="auth-checkbox-label"><input type="checkbox" checked={keepSignedIn} onChange={(e) => setKeepSignedIn(e.target.checked)} /><span>Keep me signed in</span></label>
+        <small className="auth-keep-note">Novi remembers your username on this computer. Your password is never saved.</small>
+        <button className="primary wide" type="submit">{busy ? 'Signing in…' : 'Sign in'}<ArrowRight size={17} /></button>
+        {/* Below the button, so an error never moves anything you are about to click. */}
+        {error && <div className="error" role="alert">{error}</div>}
+      </fieldset></form>
+      <p className="auth-note"><ShieldCheck size={15} />Use the username and password your Novi admin gave you. To get access or reset your password, contact them.</p><p className="muted">One active device per account. Sign out before switching devices.</p></div><span className="auth-bottom">A quieter place to think.</span></main>
   </div>;
 }

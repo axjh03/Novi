@@ -91,3 +91,29 @@ test('appearance updates persist, reach other windows, and restore the manual pa
     }
   }
 });
+
+test('the last chosen theme is remembered for startup and sign-in, and broken storage falls back to the system theme', async () => {
+  const { themeFor, savedTheme, rememberTheme } = await import('../src/renderer/src/services/theme');
+  assert.equal(themeFor('system', true), 'dark');
+  assert.equal(themeFor('system', false), 'light');
+  assert.equal(themeFor('light', true), 'light');
+  assert.equal(themeFor('dark', false), 'dark');
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const store = new Map<string, string>();
+  try {
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => { store.set(key, value); } } });
+    assert.equal(savedTheme(), 'system', 'nothing chosen yet');
+    rememberTheme('dark');
+    assert.equal(savedTheme(), 'dark');
+    rememberTheme('light');
+    assert.equal(savedTheme(), 'light');
+    store.set('novi_theme', 'purple');
+    assert.equal(savedTheme(), 'system', 'unknown values are ignored');
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, get() { throw new Error('blocked'); } });
+    assert.equal(savedTheme(), 'system');
+    rememberTheme('dark');
+  } finally {
+    if (original) Object.defineProperty(globalThis, 'localStorage', original);
+    else delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
+});

@@ -150,7 +150,7 @@ export function registerIPC(
           'session', 'sign-in', 'sign-out', 'minimize-window', 'maximize-window',
           'close-window', 'is-window-maximized', 'get-stealth-state', 'check-for-updates',
           'install-update', 'check-permissions', 'request-permissions',
-          'get-saved-credentials', 'save-credentials', 'open-external', 'open-audio-midi-setup',
+          'get-saved-credentials', 'open-external', 'open-audio-midi-setup',
           'get-remote-companion-status', 'toggle-remote-tunnel',
           // Window layout only; the tray reports its size whenever its content changes.
           'set-workspace-docked', 'set-tray-height', 'set-tray-width', 'reset-workspace-sizes', 'sample-background-palette',
@@ -214,18 +214,6 @@ export function registerIPC(
   handle('request-permissions', (value) => permissionsService.requestPermissions(Array.isArray(value) ? value as any : undefined));
   handle('session', snapshot);
   handle('get-saved-credentials', () => get().auth.getSavedCredentials());
-  handle('save-credentials', (value) => {
-    if (value === null || value === undefined) {
-      get().auth.setSavedCredentials(null);
-    } else {
-      const v = object(value);
-      get().auth.setSavedCredentials({
-        username: text(v.username, 'username', 64),
-        password: typeof v.password === 'string' ? text(v.password, 'password', 128, true) : undefined,
-      });
-    }
-    return true;
-  });
   handle('sign-in', async (value) => {
     requireNoContext();
     get().chat.assertIdle();
@@ -240,7 +228,7 @@ export function registerIPC(
     await get().auth.signIn(
       v.username as string,
       v.password as string,
-      typeof v.saveCredentials === 'boolean' ? v.saveCredentials : undefined
+      typeof v.keepSignedIn === 'boolean' ? v.keepSignedIn : undefined
     );
     return snapshot();
   });
