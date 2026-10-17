@@ -149,6 +149,12 @@ svg { flex-shrink: 0; }
 .password-field input { padding-right: 44px; }
 .password-field button { position: absolute; right: 6px; top: 6px; }
 .privacy-note { display: flex; gap: 10px; padding: 14px; margin-top: 15px; border-radius: 7px; background: var(--panel); color: var(--muted); }
+/* A field's own problem, right under it, so the fix sits next to the mistake. */
+.field-error { margin: 6px 0 0; color: var(--danger); font-size: 12px; line-height: 1.5; }
+.field-hint { display: block; margin-top: 6px; }
+.field-optional { color: var(--muted); font-weight: 400; }
+.key-help { margin: 8px 0 0; }
+.key-help .text-button { padding: 4px 6px; margin-left: -6px; font-size: 12px; gap: 6px; }
 .privacy-note svg { margin-top: 3px; color: var(--accent); }
 .privacy-note p { font-size: 11px; margin: 0; }
 .checkbox-label { flex-direction: row; align-items: center; gap: 9px; margin: 19px 0 4px; font-size: 12px; }
