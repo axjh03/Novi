@@ -69,8 +69,8 @@ export function registerIPC(
       const window = BrowserWindow.fromId(windowId);
       if (window && !window.isDestroyed()) window.webContents.send('interview-event', event);
     });
+    // Starts listening only when the phone companion is first opened.
     const remoteCompanion = new RemoteCompanionService(stealth, getMainWindow);
-    remoteCompanion.start().catch((err) => console.error('Failed to start remote companion:', err));
     const localCoding = new LocalCodingService({ storage, credentials, images, userData: storage.directory, location: { packaged: app.isPackaged, resourcesPath: process.resourcesPath } });
     return { storage, credentials, images, context, audio, transcription, localModels, interview, localCoding, connections: new ConnectionService(storage, credentials), auth: new ManagedAuthService(storage, credentials), chat: new ChatService(storage, credentials, images, context, localCoding), overlay, stealth, remoteCompanion };
   }
@@ -101,6 +101,8 @@ export function registerIPC(
   // Only for a session the server rejected; outages never end a session.
   async function endManagedSession(error: unknown, fallback: string) {
     await endContext().catch(() => { });
+    // The phone's link controls this account's window, so it ends with the account.
+    get().remoteCompanion.stop();
     await get().auth.signOut();
     for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('session-ended', error instanceof UserError ? error.message : fallback);
   }
@@ -151,7 +153,6 @@ export function registerIPC(
           'close-window', 'is-window-maximized', 'get-stealth-state', 'check-for-updates',
           'install-update', 'check-permissions', 'request-permissions',
           'get-saved-credentials', 'open-external', 'open-audio-midi-setup',
-          'get-remote-companion-status', 'toggle-remote-tunnel',
           // Window layout only; the tray reports its size whenever its content changes.
           'set-workspace-docked', 'set-tray-height', 'set-tray-width', 'reset-workspace-sizes', 'sample-background-palette',
           // Local only and self-expiring; must take effect before the next key press.
@@ -257,7 +258,7 @@ export function registerIPC(
     await context.initialization?.catch(() => { });
     context.end(); images.clearPending(); overlay.closeOverlay();
   }
-  handle('sign-out', async () => { await endContext(); await get().auth.signOut(); });
+  handle('sign-out', async () => { await endContext(); get().remoteCompanion.stop(); await get().auth.signOut(); });
   handle('pick-context-folders', async (_value, event) => {
     get().storage.current(); get().chat.assertIdle();
     if (get().context.session) throw new UserError('End your session before loading folders.');
@@ -822,7 +823,7 @@ export function registerIPC(
     }, { yieldWindows: () => services ? services.stealth.yieldTop() : () => {} });
   });
   handle('get-remote-companion-status', async () => {
-    return get().remoteCompanion.getStatus();
+    return await get().remoteCompanion.start();
   });
   handle('toggle-remote-tunnel', async (value) => {
     const input = object(value);

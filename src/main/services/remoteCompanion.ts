@@ -2,7 +2,7 @@ import { isAppMode } from '../../shared/sessionModes';
 import type { AppMode } from '../../shared/types';
 import http from 'node:http';
 import os from 'node:os';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import type { BrowserWindow } from 'electron';
 import type { StealthService } from './stealth';
 import { generateQRCodeSVG } from './qrCode';
@@ -23,7 +23,10 @@ function getScreen(): { getDisplayMatching: (bounds: any) => { workArea: { x: nu
 export class RemoteCompanionService {
   private server: http.Server | null = null;
   private port = 4890;
-  private readonly token = randomBytes(24).toString('hex');
+  // Same Wi-Fi needs the network; Anywhere only needs cloudflared on this computer.
+  private host: '0.0.0.0' | '127.0.0.1' = '0.0.0.0';
+  // Replaced on every listen, so a link stops working once the server restarts or changes network.
+  private token = '';
   private activeClients = new Map<string, number>();
   private stealth: StealthService;
   private getWindow: () => BrowserWindow | null;
@@ -93,51 +96,75 @@ export class RemoteCompanionService {
     if (shouldEnable) {
       this.tunnelLoading = true;
       try {
+        await this.listen('127.0.0.1');
         await this.tunnel.start(this.port);
+      } catch (error) {
+        // Keep the Same Wi-Fi link working when the tunnel can't start.
+        await this.listen('0.0.0.0').catch(() => {});
+        throw error;
       } finally {
         this.tunnelLoading = false;
       }
     } else {
       this.tunnel.stop();
       this.tunnelLoading = false;
+      await this.listen('0.0.0.0');
     }
     return this.getStatus();
   }
 
   async start(preferredPort = 4890): Promise<RemoteCompanionStatus> {
-    if (this.server && this.server.listening) return this.getStatus();
-    this.port = preferredPort;
+    if (!this.server?.listening) this.port = preferredPort;
+    // A tunnel that exited on its own falls back to Same Wi-Fi, so the link shown works.
+    await this.listen(this.tunnel.isActive() || this.tunnelLoading ? '127.0.0.1' : '0.0.0.0');
+    return this.getStatus();
+  }
 
-    return new Promise((resolve, reject) => {
+  private async listen(host: '0.0.0.0' | '127.0.0.1'): Promise<void> {
+    if (this.server?.listening && this.host === host) return;
+    this.closeServer();
+    this.host = host;
+    this.token = randomBytes(24).toString('hex');
+    await new Promise<void>((resolve, reject) => {
       const srv = http.createServer((req, res) => {
         this.handleRequest(req, res);
       });
 
       srv.on('error', (err: any) => {
-        if (err.code === 'EADDRINUSE') {
+        if (err.code === 'EADDRINUSE' && !srv.listening) {
           this.port++;
-          srv.listen(this.port);
+          srv.listen(this.port, host);
         } else {
           reject(err);
         }
       });
 
-      srv.listen(this.port, () => {
+      srv.listen(this.port, host, () => {
         this.server = srv;
         const address = srv.address();
         if (address && typeof address !== 'string') this.port = address.port;
-        resolve(this.getStatus());
+        resolve();
       });
     });
   }
 
+  private closeServer(): void {
+    if (!this.server) return;
+    this.server.closeAllConnections();
+    this.server.close();
+    this.server = null;
+  }
+
   stop(): void {
     this.tunnel.stop();
-    if (this.server) {
-      this.server.close();
-      this.server = null;
-    }
+    this.closeServer();
     this.activeClients.clear();
+  }
+
+  private authorized(req: http.IncomingMessage): boolean {
+    const given = Buffer.from(req.headers.authorization || '');
+    const expected = Buffer.from(`Bearer ${this.token}`);
+    return Boolean(this.token) && given.length === expected.length && timingSafeEqual(given, expected);
   }
 
   private recordClient(req: http.IncomingMessage) {
@@ -148,17 +175,7 @@ export class RemoteCompanionService {
   }
 
   private handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
-    // CORS headers for local LAN communication
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Client-Id, Authorization');
-
-    if (req.method === 'OPTIONS') {
-      res.writeHead(204);
-      res.end();
-      return;
-    }
-
+    // No CORS headers: the phone page calls its own origin, and other sites must not read these replies.
     const parsedUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     const pathname = parsedUrl.pathname;
 
@@ -166,7 +183,7 @@ export class RemoteCompanionService {
     res.setHeader('Referrer-Policy', 'no-referrer');
 
     // The scanned link authorizes the phone without a PIN prompt.
-    if (pathname.startsWith('/api/') && req.headers.authorization !== `Bearer ${this.token}`) {
+    if (pathname.startsWith('/api/') && !this.authorized(req)) {
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Open the link from Novi to connect.' }));
       return;

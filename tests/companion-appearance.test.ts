@@ -8,24 +8,28 @@ test('phone font buttons dispatch bounded commands through the authenticated han
   const service = new RemoteCompanionService({ getState: () => ({ transparent: true, clickThrough: false }) } as any,
     () => ({ isDestroyed: () => false, webContents: { send: (...args: unknown[]) => actions.push(args) } }) as any);
   service.getLocalIPs = () => ['127.0.0.1'];
-  const token = new URLSearchParams(new URL(service.getBestUrl()).hash.slice(1)).get('token');
-  const request = (path: string, payload?: unknown, authorized = true) => new Promise<{ status: number; body: string }>((resolve) => {
-    const req = Object.assign(new PassThrough(), { url: path, method: path === '/' ? 'GET' : 'POST',
-      headers: { authorization: authorized ? `Bearer ${token}` : '' }, socket: { remoteAddress: '127.0.0.1' } });
-    let status = 0;
-    service['handleRequest'](req as any, { setHeader() {}, writeHead(code: number) { status = code; }, end(body: string) { resolve({ status, body }); } } as any);
-    req.end(JSON.stringify({ action: 'change-reading-size', payload }));
-  });
-  const page = await request('/');
-  assert(page.body.includes('A− Smaller') && page.body.includes('A+ Larger'));
-  assert(!/HUD Scroll|hudWheelSurface|scroll-hud/.test(page.body));
-  assert(!page.body.includes(token!));
-  assert.equal((await request('/api/action', 1, false)).status, 401);
-  assert.equal(actions.length, 0);
-  for (const payload of [-1, 1]) {
-    assert.equal((await request('/api/action', payload)).status, 200);
-    assert.deepEqual(actions.at(-1), ['global-action', { type: 'change-reading-size', payload }]);
-  }
-  for (const payload of [0, 1000, '1', null, {}]) assert.equal((await request('/api/action', payload)).status, 400);
-  assert.equal(actions.length, 2, 'Invalid or unauthorized requests must not reach desktop controls');
+  // The token exists only while the server listens.
+  const token = new URLSearchParams(new URL((await service.start(0)).bestUrl).hash.slice(1)).get('token');
+  assert.match(token!, /^[a-f0-9]{48}$/);
+  try {
+    const request = (path: string, payload?: unknown, authorized = true) => new Promise<{ status: number; body: string }>((resolve) => {
+      const req = Object.assign(new PassThrough(), { url: path, method: path === '/' ? 'GET' : 'POST',
+        headers: { authorization: authorized ? `Bearer ${token}` : '' }, socket: { remoteAddress: '127.0.0.1' } });
+      let status = 0;
+      service['handleRequest'](req as any, { setHeader() {}, writeHead(code: number) { status = code; }, end(body: string) { resolve({ status, body }); } } as any);
+      req.end(JSON.stringify({ action: 'change-reading-size', payload }));
+    });
+    const page = await request('/');
+    assert(page.body.includes('A− Smaller') && page.body.includes('A+ Larger'));
+    assert(!/HUD Scroll|hudWheelSurface|scroll-hud/.test(page.body));
+    assert(!page.body.includes(token!));
+    assert.equal((await request('/api/action', 1, false)).status, 401);
+    assert.equal(actions.length, 0);
+    for (const payload of [-1, 1]) {
+      assert.equal((await request('/api/action', payload)).status, 200);
+      assert.deepEqual(actions.at(-1), ['global-action', { type: 'change-reading-size', payload }]);
+    }
+    for (const payload of [0, 1000, '1', null, {}]) assert.equal((await request('/api/action', payload)).status, 400);
+    assert.equal(actions.length, 2, 'Invalid or unauthorized requests must not reach desktop controls');
+  } finally { service.stop(); }
 });

@@ -45,7 +45,7 @@ export function RemoteCompanionModal({ onClose }: { onClose: () => void }) {
       <div className="companion-code">
         {busy ? <p role="status">Updating link…</p> : status?.running && status.qrSvg
           ? <div role="img" aria-label="Scan to open phone companion" dangerouslySetInnerHTML={{ __html: status.qrSvg }} />
-          : <p role="status">{status ? 'Phone companion is unavailable.' : 'Loading link…'}</p>}
+          : <p role="status">{status || error ? 'Phone companion is unavailable.' : 'Loading link…'}</p>}
       </div>
       <p>{status?.tunnelActive ? 'Open your phone camera and scan.' : 'Connect your phone to the same Wi-Fi, then scan.'}</p>
       <div className="companion-link"><input aria-label="Phone companion link" readOnly value={status?.bestUrl || ''} />
