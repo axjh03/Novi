@@ -145,7 +145,7 @@ export function SettingsAppUpdater({ value, onChange, disabled }: Props) {
       {error && (
         <div className="error" role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span>{error}</span>
-          <button type="button" className="text-button" onClick={handleManualCheck} style={{ padding: '2px 8px', fontSize: 11 }}>
+          <button type="button" className="text-button" onClick={handleManualCheck} style={{ padding: '2px 8px', fontSize: 12 }}>
             Retry
           </button>
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowLeft, ArrowRight, Check, ShieldCheck } from 'lucide-react';
 import { DEFAULT_CLICK_THROUGH_SHORTCUT, type SettingsInput, type Snapshot } from '../../../shared/types';
 import { newConnection, PROVIDERS } from '../../../shared/providers';
@@ -13,6 +13,10 @@ type Problem = FieldProblem | { field: 'displayName'; message: string };
 export function OnboardingPage({ state, onComplete, onSignOut }: { state: Snapshot; onComplete: (state: Snapshot) => void; onSignOut: () => void }) {
   const [step, setStep] = useState(0), [busy, setBusy] = useState<'' | 'checking' | 'saving'>(''), [error, setError] = useState('');
   const [problem, setProblem] = useState<Problem | null>(null);
+  // Onboarding has no Settings, so Sign out stays here, but asks first: it throws away what was entered.
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const keepGoing = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (confirmSignOut) keepGoing.current?.focus(); }, [confirmSignOut]);
   const [value, setValue] = useState<SettingsInput>({ displayName: state.settings!.displayName, theme: state.settings!.theme, clickThroughShortcut: state.settings!.clickThroughShortcut || DEFAULT_CLICK_THROUGH_SHORTCUT, connection: newConnection() });
   const connection = value.connection!;
   const providerName = PROVIDERS[connection.ai.provider].name;
@@ -54,7 +58,13 @@ export function OnboardingPage({ state, onComplete, onSignOut }: { state: Snapsh
   const setConnection = (next: SettingsInput['connection']) => { setValue({ ...value, connection: next }); setProblem(null); };
   const fieldProblem = problem && problem.field !== 'displayName' ? problem : null;
 
-  return <div className="onboarding"><header><Brand /><button className="text-button" onClick={onSignOut} disabled={!!busy}>Sign out</button></header><main className="setup-card"><div className="step-track" aria-label={`Step ${step + 1} of 4`}>{['You', 'Provider', 'API key', 'Model'].map((label, index) => <div key={label} className={index <= step ? 'reached' : ''}><span>{index < step ? <Check size={13} /> : index + 1}</span>{label}</div>)}</div><span className="eyebrow">LET’S MAKE THIS YOURS · 0{step + 1}</span><h1>{titles[step]}</h1><p className="muted setup-description">{descriptions[step]}</p><form onSubmit={submit} noValidate><fieldset disabled={!!busy}>
+  return <div className="onboarding"><header><Brand />{confirmSignOut
+    ? <div className="onboarding-signout" role="alertdialog" aria-labelledby="onboarding-signout-text" onKeyDown={(e) => { if (e.key === 'Escape') setConfirmSignOut(false); }}>
+      <span id="onboarding-signout-text">Sign out? What you’ve entered here won’t be saved.</span>
+      <button ref={keepGoing} type="button" className="text-button" onClick={() => setConfirmSignOut(false)}>Keep going</button>
+      <button type="button" className="danger-button" onClick={onSignOut}>Sign out</button>
+    </div>
+    : <button type="button" className="text-button" onClick={() => setConfirmSignOut(true)} disabled={!!busy}>Sign out</button>}</header><main className="setup-card"><div className="step-track" aria-label={`Step ${step + 1} of 4`}>{['You', 'Provider', 'API key', 'Model'].map((label, index) => <div key={label} className={index <= step ? 'reached' : ''}><span>{index < step ? <Check size={13} /> : index + 1}</span>{label}</div>)}</div><span className="eyebrow">LET’S MAKE THIS YOURS · 0{step + 1}</span><h1>{titles[step]}</h1><p className="muted setup-description">{descriptions[step]}</p><form onSubmit={submit} noValidate><fieldset disabled={!!busy}>
     {step === 0 ? <><label>Display name<input id="onboarding-name" autoFocus value={value.displayName} onChange={(e) => { setValue({ ...value, displayName: e.target.value }); setProblem(null); }} placeholder="Your name" required maxLength={60}
       aria-invalid={problem?.field === 'displayName' || undefined} aria-describedby={problem?.field === 'displayName' ? 'onboarding-name-error' : undefined} /><small>A name that feels like you.</small></label>
       {problem?.field === 'displayName' && <p id="onboarding-name-error" className="field-error" role="alert">{problem.message}</p>}</>

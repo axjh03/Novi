@@ -195,8 +195,8 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     <header className="context-header">
       <div className="context-header-identity"><Brand /></div>
       <div className="context-header-actions">
+        {/* Sign out lives in Settings › General › Data & account, away from the button people use most here. */}
         <button className="text-button" disabled={busy} onClick={() => setSettings(true)}>Settings</button>
-        <button className="text-button" disabled={busy} onClick={onSignOut}>Sign out</button>
       </div>
     </header>
 

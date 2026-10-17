@@ -753,7 +753,7 @@ export function DeviceTester() {
             {/* Volume Meter */}
             {micState === 'recording' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)' }}>
                   <span>Input volume level</span>
                   <span>{micVolumeLevel}%</span>
                 </div>
@@ -889,7 +889,7 @@ export function DeviceTester() {
             {/* Live System Volume Level */}
             {sysState === 'recording' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)' }}>
                   <span>System audio level</span>
                   <span>{sysVolumeLevel}%</span>
                 </div>
@@ -1188,7 +1188,7 @@ export function DeviceTester() {
             {/* Volume Meter */}
             {transState === 'recording' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)' }}>
                   <span>Input sound level</span>
                   <span>{transVolumeLevel}%</span>
                 </div>
@@ -1308,7 +1308,7 @@ export function DeviceTester() {
                 }}>
                   {transText}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', gap: 16 }}>
+                <div style={{ fontSize: 12, color: 'var(--muted)', display: 'flex', gap: 16 }}>
                   <span>Words: {transText.split(/\s+/).filter(Boolean).length}</span>
                   <span>Characters: {transText.length}</span>
                 </div>

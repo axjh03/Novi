@@ -257,6 +257,8 @@ async function main() {
     await page.getByRole('button', { name: 'End session', exact: true }).click();
     await page.getByRole('alertdialog', { name: 'End context session' }).getByRole('button', { name: 'End session', exact: true }).click();
     await page.getByRole('heading', { name: 'Session setup' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Sign out', exact: true }).count(), 0, 'Sign out is in Settings, not beside it');
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
     await app.close(); app = await launch(); page = await app.firstWindow();
     await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
