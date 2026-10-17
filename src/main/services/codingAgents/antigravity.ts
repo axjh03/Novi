@@ -25,11 +25,13 @@ function failureMessage(detail: string, fallback: string): string {
 // agy's stream-json transport exchanges user turns and results, not external tool calls.
 // Disable native tools; structured results request reads that Novi executes against the pinned snapshot.
 export function antigravitySchema(answer: Record<string, unknown>) {
+  // agy injects these finish arguments before validating each additionalProperties:false branch.
+  const metadata = { toolSummary: { type: 'string' }, toolAction: { type: 'string' } };
   // agy 1.2.14+ requires an explicit object root, even when every branch is an object.
   return { type: 'object', anyOf: [
     ...READ_TOOLS.map(tool => ({ type: 'object', additionalProperties: false, required: ['tool', 'arguments'],
-      properties: { tool: { type: 'string', enum: [tool] }, arguments: TOOL_SCHEMAS[tool] } })),
-    { type: 'object', additionalProperties: false, required: ['answer'], properties: { answer } },
+      properties: { tool: { type: 'string', enum: [tool] }, arguments: TOOL_SCHEMAS[tool], ...metadata } })),
+    { type: 'object', additionalProperties: false, required: ['answer'], properties: { answer, ...metadata } },
   ] };
 }
 
@@ -101,8 +103,20 @@ export class AntigravityAgent implements CodingAgent {
     try {
       const agents = join(cwd, '.agents', 'agents');
       mkdirSync(agents, { recursive: true, mode: 0o700 });
+      // agy adds runtime tools to custom agents; only finish may execute to emit structured output.
+      env.NOVI_HOOK_NODE = process.execPath;
+      env.ELECTRON_RUN_AS_NODE = '1';
+      writeFileSync(join(cwd, '.agents', 'novi-tool-gate.cjs'), `const { readFileSync } = require('node:fs');
+const input = JSON.parse(readFileSync(0, 'utf8'));
+process.stdout.write(JSON.stringify({ decision: input.toolCall?.name === 'finish' ? 'allow' : 'deny', reason: 'Use Novi structured snapshot reads instead of native tools.' }));
+`, { mode: 0o600 });
+      // agy's Windows hook launcher escapes inline quotes; keep the quoted executable in a batch file.
+      if (process.platform === 'win32') writeFileSync(join(cwd, '.agents', 'novi-tool-gate.cmd'), '@"%NOVI_HOOK_NODE%" "%~dp0novi-tool-gate.cjs"\r\n', { mode: 0o600 });
+      writeFileSync(join(cwd, '.agents', 'hooks.json'), JSON.stringify({ 'novi-read-only': {
+        PreToolUse: [{ matcher: '*', hooks: [{ command: process.platform === 'win32' ? 'novi-tool-gate.cmd' : '"$NOVI_HOOK_NODE" novi-tool-gate.cjs' }] }],
+      } }), { mode: 0o600 });
       const definitions = READ_TOOLS.map(name => ({ name, description: TOOL_DESCRIPTIONS[name], arguments: TOOL_SCHEMAS[name] }));
-      writeFileSync(join(agents, 'novi.md'), `---\nname: novi\ndescription: Read-only Novi snapshot analysis\nmainAgent: true\nsubagent: false\ntools: []\ncommandExecutionPolicy: off\nskills: []\nplugins: []\n---\n${task.instructions}\n\nReturn a structured tool request to read the pinned project, or {"answer": ...} with your final answer. Novi supplies each tool result in the next user turn. Available reads: ${JSON.stringify(definitions)}\n`, { mode: 0o600 });
+      writeFileSync(join(agents, 'novi.md'), `---\nname: novi\ndescription: Read-only Novi snapshot analysis\nmainAgent: true\nsubagent: false\ntools: [finish]\ncommandExecutionPolicy: off\nskills: []\nplugins: []\n---\n${task.instructions}\n\nCall finish with a structured tool request to read the pinned project, or {"answer": ...} with your final answer. Novi supplies each tool result in the next user turn. Available reads: ${JSON.stringify(definitions)}\n`, { mode: 0o600 });
       const schema = join(root, 'schema.json');
       writeFileSync(schema, JSON.stringify(antigravitySchema(task.schema)), { mode: 0o600 });
       engine = spawnEngine(runtime.executable, ['--agent', 'novi', '--model', task.model, '--input-format', 'stream-json', '--output-format', 'stream-json', '--json-schema', schema], { cwd, env });
@@ -125,13 +139,17 @@ export class AntigravityAgent implements CodingAgent {
         lastEvent = String(event.event ?? event.status ?? 'unknown');
         if (event.event === 'init') {
           if (initialized) throw new Error('Antigravity initialized more than once.');
-          // Do not send the user's prompt or project data to a CLI that enabled native tools.
-          if (!Array.isArray(event.init?.tools) || event.init.tools.length) throw new Error('Antigravity did not disable its built-in tools. Update the agent or choose Codex or Claude.');
+          // init.tools is the CLI catalog, not the selected agent's permitted toolset (agy 1.4).
+          if (event.init?.agent !== 'novi') throw new Error('Antigravity did not select Novi\'s read-only agent. Update the agent or choose Codex or Claude.');
           initialized = true;
           clearTimeout(timer);
           timer = setTimeout(() => stop(new Error('Antigravity timed out. Try a narrower request.')), 30 * 60_000);
           send(task.prompt);
         } else if (event.event === 'step_update') {
+          if (event.step_update?.step_type === 'tool' && event.step_update.tool_name !== 'finish') {
+            task.onDenied(String(event.step_update.tool_name ?? 'unknown'));
+            throw new Error('Antigravity requested a native tool outside the read-only tools.');
+          }
           task.onProgress('analyzing');
         } else if (event.event === 'result' || typeof event.status === 'string') {
           // Startup failures can be bare JSON envelopes, without an init or result event wrapper.

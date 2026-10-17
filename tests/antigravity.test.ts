@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
-import childProcess from 'node:child_process';
+import childProcess, { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
 import { createHash } from 'node:crypto';
@@ -12,7 +12,7 @@ import { AntigravityAgent } from '../src/main/services/codingAgents/antigravity'
 import type { AgentTask } from '../src/main/services/codingAgents/types';
 
 function fixture(t: TestContext, tools: string[], respond: (content: string, emit: (value: unknown) => void) => void,
-  startup?: { code: number; stderr: string; output?: unknown }) {
+  startup?: { code: number; stderr: string; output?: unknown }, agent: string | null = 'novi') {
   const root = mkdtempSync(join(tmpdir(), 'novi-agy-test-'));
   const engine = join(root, 'engines', 'antigravity'), work = join(root, 'work');
   mkdirSync(engine, { recursive: true }); mkdirSync(work);
@@ -31,11 +31,16 @@ function fixture(t: TestContext, tools: string[], respond: (content: string, emi
     assert.equal(options.env.GEMINI_API_KEY, 'test-key');
     assert.equal(args.includes('test-key'), false);
     assert.equal(JSON.parse(readFileSync(join(options.env.HOME, '.gemini/antigravity-cli/settings.json'), 'utf8')).modelProvider, 'gemini');
-    assert.match(readFileSync(join(options.cwd, '.agents/agents/novi.md'), 'utf8'), /tools: \[\]/);
+    assert.match(readFileSync(join(options.cwd, '.agents/agents/novi.md'), 'utf8'), /tools: \[finish\]/);
+    assert.deepEqual(JSON.parse(readFileSync(join(options.cwd, '.agents/hooks.json'), 'utf8')), {
+      'novi-read-only': { PreToolUse: [{ matcher: '*', hooks: [{ command: process.platform === 'win32' ? 'novi-tool-gate.cmd' : '"$NOVI_HOOK_NODE" novi-tool-gate.cjs' }] }] },
+    });
+    assert.equal(options.env.NOVI_HOOK_NODE, process.execPath);
+    assert.equal(options.env.ELECTRON_RUN_AS_NODE, '1');
     const schema = JSON.parse(readFileSync(args[args.indexOf('--json-schema') + 1], 'utf8'));
     assert.equal(schema.type, 'object', 'Antigravity 1.2.14+ rejects schemas without an explicit object root before initialization');
     setImmediate(() => {
-      if (!startup) { emit({ event: 'init', init: { tools } }); return; }
+      if (!startup) { emit({ event: 'init', init: { tools, agent } }); return; }
       stderr.write(startup.stderr);
       if (startup.output !== undefined) emit(startup.output);
       child.exitCode = startup.code;
@@ -43,9 +48,12 @@ function fixture(t: TestContext, tools: string[], respond: (content: string, emi
     });
     return child;
   });
-  t.mock.method(process, 'kill', (pid: number) => {
-    assert.equal(pid, -123);
-    child.signalCode = 'SIGKILL'; stdout.end(); stderr.end(); child.emit('close'); return true;
+  const killed = () => { child.signalCode = 'SIGKILL'; stdout.end(); stderr.end(); child.emit('close'); };
+  t.mock.method(process, 'kill', (pid: number) => { assert.equal(pid, -123); killed(); return true; });
+  t.mock.method(childProcess, 'spawnSync', (command: string, args: string[]) => {
+    assert.equal(command, 'taskkill.exe');
+    assert.deepEqual(args, ['/PID', '123', '/T', '/F']);
+    killed(); return { status: 0 };
   });
   return { work, agent: new AntigravityAgent({ packaged: true, resourcesPath: root }, work), cleanup() { t.mock.restoreAll(); rmSync(root, { recursive: true, force: true }); } };
 }
@@ -57,11 +65,17 @@ function task(): AgentTask {
     tools: { list: () => '', search: async () => '', read: () => 'captured source' } };
 }
 
-test('Antigravity uses saved-key auth, exchanges read results while stdin stays open, and cleans its private home', { skip: process.platform === 'win32' }, async t => {
+test('Antigravity accepts the CLI catalog, exchanges snapshot reads, and cleans its private home', async t => {
   let turns = 0, reads = 0;
-  const f = fixture(t, [], (content, emit) => {
+  const f = fixture(t, ['run_command', 'view_file', 'manage_task'], (content, emit) => {
     if (++turns === 1) {
       assert.equal(content, 'Read file one.');
+      const gate = join(f.work, readdirSync(f.work)[0], 'workspace', '.agents', 'novi-tool-gate.cjs');
+      for (const name of ['finish', 'manage_task', 'run_command', 'view_file', 'future_tool']) {
+        const decision = JSON.parse(execFileSync(process.execPath, [gate], { input: JSON.stringify({ toolCall: { name } }), encoding: 'utf8' }));
+        assert.equal(decision.decision, name === 'finish' ? 'allow' : 'deny');
+      }
+      emit({ event: 'step_update', step_update: { step_type: 'finish', state: 'DONE' } });
       emit({ event: 'result', result: { status: 'SUCCESS', structured_output: { tool: 'read_file', arguments: { fileId: 'one' } } } });
     } else {
       assert.deepEqual(JSON.parse(content), { tool: 'read_file', text: 'captured source', ok: true });
@@ -77,20 +91,21 @@ test('Antigravity uses saved-key auth, exchanges read results while stdin stays 
   } finally { f.cleanup(); }
 });
 
-test('Antigravity rejects native tools and unknown read requests, and handles cancellation', { skip: process.platform === 'win32' }, async t => {
-  for (const scenario of ['native', 'unknown', 'cancel']) {
+test('Antigravity rejects unconfirmed agents, native tools and unknown reads, and handles cancellation', async t => {
+  for (const scenario of ['wrong-agent', 'missing-agent', 'native', 'unknown', 'cancel']) {
     let turns = 0, reads = 0;
     const f = fixture(t, scenario === 'native' ? ['run_command'] : [], (_content, emit) => {
       turns++;
+      if (scenario === 'native') emit({ event: 'step_update', step_update: { step_type: 'tool', tool_name: 'run_command' } });
       if (scenario === 'unknown') emit({ event: 'result', result: { status: 'SUCCESS', structured_output: { tool: 'write_file', arguments: {} } } });
-    });
+    }, undefined, scenario === 'wrong-agent' ? 'default' : scenario === 'missing-agent' ? null : 'novi');
     try {
       const input = task();
       input.tools.read = () => { reads++; return ''; };
       if (scenario === 'cancel') input.signal = AbortSignal.timeout(100);
-      await assert.rejects(f.agent.run(input, { apiKey: 'test-key' }), scenario === 'native' ? /built-in tools/ : scenario === 'unknown' ? /outside the read-only tools/ : /Cancelled|aborted/);
+      await assert.rejects(f.agent.run(input, { apiKey: 'test-key' }), scenario.endsWith('agent') ? /did not select/ : scenario === 'native' || scenario === 'unknown' ? /outside the read-only tools/ : /Cancelled|aborted/);
       assert.equal(reads, 0);
-      if (scenario === 'native') assert.equal(turns, 0, 'No user prompt is sent when native tools remain enabled');
+      if (scenario.endsWith('agent')) assert.equal(turns, 0, 'No user prompt is sent without the restricted agent');
       assert.deepEqual(readdirSync(f.work), []);
     } finally { f.cleanup(); }
   }
@@ -121,7 +136,7 @@ test('Antigravity offers installed CLI model slugs, not Gemini API ids, and prop
   assert.equal(catalog.mock.callCount(), 1, 'invalid credentials fail before launching the CLI');
 });
 
-test('Antigravity reads snapshot tools and returns explanations from serialized JSON responses', { skip: process.platform === 'win32' }, async t => {
+test('Antigravity reads snapshot tools and returns explanations from serialized JSON responses', async t => {
   let turns = 0;
   const f = fixture(t, [], (content, emit) => {
     const result = ++turns === 1 ? { tool: 'read_file', arguments: { fileId: 'one' } } : { answer: { summary: 'This file contains captured source.', changes: [] } };
@@ -153,7 +168,7 @@ test('Antigravity never falls back to API model ids when the CLI catalog fails',
   }
 });
 
-test('Antigravity reports early exits and startup error envelopes without exposing diagnostics', { skip: process.platform === 'win32' }, async t => {
+test('Antigravity reports early exits and startup error envelopes without exposing diagnostics', async t => {
   for (const scenario of [
     { stderr: 'error: invalid model selection (--model antigravity-preview-05-2026)', expected: /rejected the selected model/ },
     { stderr: 'authentication required', expected: /could not authenticate/ },
@@ -182,7 +197,7 @@ test('Antigravity reports early exits and startup error envelopes without exposi
   }
 });
 
-test('Antigravity refuses a successful startup envelope before verifying read-only tools', { skip: process.platform === 'win32' }, async t => {
+test('Antigravity refuses a successful startup envelope before verifying read-only tools', async t => {
   let prompts = 0;
   const f = fixture(t, [], () => { prompts++; }, { code: 0, stderr: '', output: { status: 'SUCCESS', structured_output: { answer: { summary: 'unverified' } } } });
   try {
@@ -192,7 +207,7 @@ test('Antigravity refuses a successful startup envelope before verifying read-on
   } finally { f.cleanup(); }
 });
 
-test('Antigravity preserves the original failure when temporary-folder cleanup also fails', { skip: process.platform === 'win32' }, async t => {
+test('Antigravity preserves the original failure when temporary-folder cleanup also fails', async t => {
   const f = fixture(t, [], () => {}, { code: 1, stderr: 'startup crashed' });
   t.mock.method(fsPromises, 'rm', async () => { throw Object.assign(new Error('cleanup denied'), { code: 'EACCES' }); });
   try {
@@ -207,7 +222,7 @@ test('Antigravity preserves the original failure when temporary-folder cleanup a
   } finally { f.cleanup(); }
 });
 
-test('Antigravity rejects empty and malformed results and explains provider errors', { skip: process.platform === 'win32' }, async t => {
+test('Antigravity rejects empty and malformed results and explains provider errors', async t => {
   for (const scenario of [
     { result: { status: 'SUCCESS', response: '' }, expected: /no valid structured answer/ },
     { result: { status: 'SUCCESS', response: 'plain text' }, expected: /no valid structured answer/ },
