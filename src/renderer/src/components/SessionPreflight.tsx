@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Circle, Loader2, ShieldCheck, X } from 'lucide-react';
-import type { ContextFolder, Snapshot } from '../../../shared/types';
+import type { Snapshot } from '../../../shared/types';
 import { activeConnection } from '../../../shared/providers';
 import { selectedSpeechModel, type LocalAISetup } from '../../../shared/localAI';
 import { errorText, unwrap } from '../services/api';
 import { InterviewAudio } from '../services/interviewAudio';
-import { READINESS_CHECKS, allReady, markReadinessRun, readReadiness, recordReadiness, type Readiness, type ReadinessCheck } from '../services/readiness';
+import { READINESS_CHECKS, allReady, loadReadiness, markReadinessRun, readReadiness, recordReadiness, type Readiness, type ReadinessCheck } from '../services/readiness';
+import { DeviceError, deviceError } from '../services/deviceErrors';
 import { useAppMode } from '../context/AppModeContext';
 import { AudioMeter } from './AudioMeter';
 import { Brand } from './Brand';
@@ -37,19 +38,17 @@ function playChime(): () => void {
   return () => { void context.close().catch(() => {}); };
 }
 
-export function SessionPreflight({ state, onSaved, onContinue, onSettings, onFolders }: {
-  state: Snapshot; onSaved: (state: Snapshot) => void;
-  onContinue: () => void; onSettings: () => void; onFolders: (folders: ContextFolder[]) => void;
+export function SessionPreflight({ state, onSaved, onContinue, onSettings }: {
+  state: Snapshot; onSaved: (state: Snapshot) => void; onContinue: () => void; onSettings: () => void;
 }) {
   const settings = state.settings!;
   const { monitors, workingMonitorId, setWorkingMonitor, refreshMonitors } = useAppMode();
-  const [readiness, setReadiness] = useState<Readiness | null>(readReadiness);
+  const [readiness, setReadiness] = useState<Readiness | null>(() => loadReadiness(state.user!.id));
   const [running, setRunning] = useState<ReadinessCheck | null>(null), [runningAll, setRunningAll] = useState(false);
   const [level, setLevel] = useState(0), [setup, setSetup] = useState<LocalAISetup | null>(null);
-  const [folders, setFolders] = useState(''), [choosingFolders, setChoosingFolders] = useState(false);
-  const [error, setError] = useState(''), [acknowledged, setAcknowledged] = useState(false), [saving, setSaving] = useState(false);
+  const [error, setError] = useState(''), [saving, setSaving] = useState(false);
   const capture = useRef<InterviewAudio | null>(null), mounted = useRef(false);
-  const record = (check: ReadinessCheck, ok: boolean, detail: string) => { const next = recordReadiness(check, { ok, detail }); if (mounted.current) setReadiness(next); };
+  const record = (check: ReadinessCheck, ok: boolean, detail: string, details?: string) => { const next = recordReadiness(check, { ok, detail, ...(details ? { details } : {}) }); if (mounted.current) setReadiness(next); };
 
   async function refreshSetup() {
     const next = await unwrap(window.novi.localAISetup());
@@ -62,7 +61,8 @@ export function SessionPreflight({ state, onSaved, onContinue, onSettings, onFol
     // Storage and speech files can be verified quietly; the other checks need the user.
     void (async () => {
       const permissions = await unwrap(window.novi.checkPermissions());
-      if (permissions.storage && !readReadiness()?.results.storage) record('storage', true, 'Read and write access verified');
+      // A failure is recorded too, so Continue never sits disabled without a reason.
+      if (!readReadiness()?.results.storage) record('storage', permissions.storage, permissions.storage ? 'Read and write access verified' : 'Novi can’t save to your user folder. Check its permissions.');
       const next = await refreshSetup();
       if (speechStatus(next).ready && !readReadiness()?.results.speech) record('speech', true, speechStatus(next).detail);
     })().catch(cause => { if (mounted.current) setError(errorText(cause)); });
@@ -85,7 +85,10 @@ export function SessionPreflight({ state, onSaved, onContinue, onSettings, onFol
     capture.current = audio;
     let stopChime = () => {};
     try {
-      await audio.start('permission-test', Date.now(), source === 'system' ? 'interviewer' : 'conversation', '', '', [source]);
+      await audio.start('permission-test', Date.now(), source === 'system' ? 'interviewer' : 'conversation', '', '', [source]).catch((cause: unknown) => {
+        // Each row is already titled with its device, so drop the "Microphone:" prefix the capture adds.
+        throw new DeviceError(errorText(cause).replace(/^(System audio|Microphone): /, ''), cause instanceof DeviceError ? cause.details : '');
+      });
       if (source === 'system') stopChime = playChime();
       await new Promise(resolve => setTimeout(resolve, source === 'system' ? 4000 : 3000));
       if (peak < 0.001) throw new Error(source === 'system'
@@ -95,7 +98,9 @@ export function SessionPreflight({ state, onSaved, onContinue, onSettings, onFol
     } finally { stopChime(); await audio.stop(); capture.current = null; if (mounted.current) setLevel(0); }
   }
   async function testScreen() {
-    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    // On macOS a capture without Screen Recording permission can still return a live, black stream; ask the system first.
+    if (!(await unwrap(window.novi.checkPermissions())).screen) throw deviceError('screen', new DOMException('Screen Recording permission is not granted.', 'NotAllowedError'));
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false }).catch((cause: unknown) => { throw deviceError('screen', cause); });
     try {
       if (!stream.getVideoTracks().some(track => track.readyState === 'live')) throw new Error('Screen capture is unavailable. Check OS Screen Recording permissions and retry.');
       return 'Snapshots can capture your screen';
@@ -137,9 +142,9 @@ export function SessionPreflight({ state, onSaved, onContinue, onSettings, onFol
   };
 
   async function runCheck(check: ReadinessCheck) {
-    setRunning(check); setError(''); setAcknowledged(false);
+    setRunning(check); setError('');
     try { record(check, true, await tests[check]()); }
-    catch (cause) { record(check, false, errorText(cause)); }
+    catch (cause) { record(check, false, errorText(cause), cause instanceof DeviceError ? cause.details : undefined); }
     finally { if (mounted.current) setRunning(null); }
   }
   // Runs every check in order and keeps going past failures, so one pass shows everything.
@@ -162,21 +167,31 @@ export function SessionPreflight({ state, onSaved, onContinue, onSettings, onFol
     finally { if (mounted.current) setSaving(false); }
   }
 
-  const busy = Boolean(running) || runningAll || choosingFolders;
+  const busy = Boolean(running) || runningAll;
   const ready = allReady(readiness);
   const storageReady = readiness?.results.storage?.ok === true;
   const monitorId = workingMonitorId ?? monitors.find(monitor => monitor.isPrimary)?.id;
-  const ranAt = readiness?.ranAt && new Date(readiness.ranAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const time = (at: number) => new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const ranAt = readiness?.ranAt && time(readiness.ranAt);
+  const failed = READINESS_CHECKS.filter(({ id }) => readiness?.results[id]?.ok === false).map(({ name }) => name);
+  const unchecked = READINESS_CHECKS.filter(({ id }) => !readiness?.results[id]).map(({ name }) => name);
+  const list = (names: string[]) => names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0];
+  // Said next to the button that continues, so nobody has to scroll back up to learn what is missing.
+  const continueStatus = !storageReady ? readiness?.results.storage ? 'App storage failed: Novi can’t save to your user folder. Fix it before continuing.' : error ? 'Check App storage to continue.' : 'Checking app storage…'
+    : ready ? `Everything passed${ranAt ? ` · checked at ${ranAt}` : ''}.`
+    : [failed.length ? `${list(failed)} failed` : '', unchecked.length ? `${list(unchecked)} not checked` : ''].filter(Boolean).join(' · ') + '. Features that rely on them may not work.';
 
   return <main className="session-preflight get-ready">
     <Brand /><h1>Get ready</h1>
-    <p>One click checks everything Novi needs during your interview. Speak when asked and play some sound for the system audio test. Tests stop automatically and are not saved or sent to AI.</p>
+    <p>One click checks everything Novi needs during your interview. Speak when asked and play some sound for the system audio test. Tests stop automatically; their sound is never saved or sent to AI. Results are remembered on this computer until the end of the day.</p>
     <div className="get-ready-run">
       <button type="button" className="primary get-ready-button" disabled={busy} onClick={() => void runAll()}>
         {runningAll ? <><Loader2 size={16} className="spin" />Checking…</> : readiness?.ranAt ? 'Run checks again' : 'Get ready'}
       </button>
       <span className="get-ready-summary" role="status">
-        {running ? PROMPTS[running] : ready ? `You’re ready${ranAt ? ` · checked at ${ranAt}` : ''}` : ranAt ? `Checked at ${ranAt}. Retry anything marked below.` : 'Takes about 15 seconds.'}
+        {running ? PROMPTS[running]
+          : readiness?.restored ? `Results from earlier today (${time(readiness.checkedAt)}). Run the checks again if anything changed.`
+          : ready ? `You’re ready${ranAt ? ` · checked at ${ranAt}` : ''}` : ranAt ? `Checked at ${ranAt}. Retry anything marked below.` : 'Takes about 15 seconds.'}
       </span>
       {(running === 'microphone' || running === 'system') && <AudioMeter level={level} />}
     </div>
@@ -184,12 +199,14 @@ export function SessionPreflight({ state, onSaved, onContinue, onSettings, onFol
     <ul className="get-ready-checks" aria-label="Readiness checks">
       {READINESS_CHECKS.map(({ id, name }) => {
         const result = readiness?.results[id];
+        const verb = !result ? 'Check' : result.ok ? 'Check again' : 'Retry';
         return <li key={id} className={`get-ready-check ${result ? result.ok ? 'ok' : 'failed' : ''}`}>
           <span className="get-ready-icon" aria-hidden="true">
             {running === id ? <Loader2 size={15} className="spin" /> : result ? result.ok ? <Check size={15} /> : <X size={15} /> : <Circle size={15} />}
           </span>
-          <div><strong>{name}</strong><p role="status">{running === id ? 'Testing…' : result?.detail || 'Not checked yet'}</p></div>
-          <button type="button" className="secondary" disabled={busy} aria-label={`${result ? 'Retry' : 'Check'} ${name.toLowerCase()}`} onClick={() => void runCheck(id)}>{result ? 'Retry' : 'Check'}</button>
+          <div><strong>{name}</strong><p role="status">{running === id ? 'Testing…' : result?.detail || 'Not checked yet'}</p>
+            {running !== id && result && !result.ok && result.details && <details className="get-ready-details"><summary>Details</summary><code>{result.details}</code></details>}</div>
+          <button type="button" className="secondary" disabled={busy} aria-label={`${verb} ${name.toLowerCase()}`} onClick={() => void runCheck(id)}>{verb}</button>
         </li>;
       })}
     </ul>
@@ -209,15 +226,12 @@ export function SessionPreflight({ state, onSaved, onContinue, onSettings, onFol
       <small>Transparent mode hides Novi from screen sharing and recording. Like the Transparency button, clicks then pass through Novi; press NumLock (Windows) or {settings.clickThroughShortcut} to click it.</small>
     </section>
 
-    <div className="preflight-row"><div><strong>Source folders (optional)</strong><p role="status">{folders || 'Choose folders to grant access and read their documents before starting.'}</p></div><button className="secondary" disabled={busy} onClick={() => void (async () => {
-      setChoosingFolders(true); setError('');
-      try { const loaded = await unwrap(window.novi.pickContextFolders()); if (loaded.length) onFolders(loaded); if (mounted.current) setFolders(loaded.length ? `${loaded.length} folders loaded` : 'No folders selected'); }
-      catch (cause) { if (mounted.current) setFolders(errorText(cause)); }
-      finally { if (mounted.current) setChoosingFolders(false); }
-    })()}>Choose source folders</button></div>
     <p className="muted">OS privacy settings can require an app restart. Some systems ask you to choose a screen for every capture. Camera and full transcription tests are available in Settings.</p>
     {error && <p className="error" role="alert">{error}</p>}
-    {!ready && <label className="preflight-ack"><input type="checkbox" checked={acknowledged} onChange={event => setAcknowledged(event.target.checked)} />Continue with missing or untested features. Capture or local transcription may be unavailable.</label>}
-    <div className="preflight-actions"><button className="secondary" disabled={busy} onClick={onSettings}>Settings and full tests</button><button className="primary" disabled={busy || !storageReady || (!ready && !acknowledged)} onClick={onContinue}>Continue to session setup</button></div>
+    <div className="preflight-actions">
+      <p role="status">{busy ? 'Checking…' : continueStatus}</p>
+      <div><button className="secondary" disabled={busy} onClick={onSettings}>Settings and full tests</button>
+        <button className="primary" disabled={busy || !storageReady} onClick={onContinue}>{ready ? 'Continue to session setup' : 'Continue anyway'}</button></div>
+    </div>
   </main>;
 }

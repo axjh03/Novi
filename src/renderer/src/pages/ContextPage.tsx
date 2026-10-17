@@ -25,7 +25,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
   const { setAppMode, behavioralFramework, setBehavioralFramework } = useAppMode();
   const [startMode, setStartMode] = useState<AppMode | null>(null);
   const [settings, setSettings] = useState(false);
-  const [preflightDone, setPreflightDone] = useState(getReadyContinued);
+  const [preflightDone, setPreflightDone] = useState(() => getReadyContinued(state.user!.id));
   const [section, setSection] = useState<Section>('model');
   const [folders, setFolders] = useState<ContextFolder[]>([]);
   // The purpose follows the session type, preset, company and role until the user writes their own.
@@ -190,7 +190,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
   }
 
   if (settings) return <SettingsPage state={state} onSaved={onSaved} onBack={() => setSettings(false)} onSignOut={onSignOut} onCleared={() => {}} />;
-  if (!preflightDone) return <SessionPreflight state={state} onSaved={onSaved} onContinue={() => { continueFromGetReady(); setPreflightDone(true); }} onSettings={() => setSettings(true)} onFolders={setFolders} />;
+  if (!preflightDone) return <SessionPreflight state={state} onSaved={onSaved} onContinue={() => { continueFromGetReady(state.user!.id); setPreflightDone(true); }} onSettings={() => setSettings(true)} />;
   return <main className="context-page">
     <header className="context-header">
       <div className="context-header-identity"><Brand /></div>

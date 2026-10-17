@@ -98,8 +98,7 @@ async function main() {
     await page.getByLabel('Username', { exact: true }).fill('desktop.test');
     await page.getByLabel('Password', { exact: true }).fill('novi-test-password');
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-    await page.getByLabel(/^Continue with missing or untested features/).check();
-    await page.getByRole('button', { name: 'Continue to session setup' }).click();
+    await page.getByRole('button', { name: 'Continue anyway', exact: true }).click();
     await page.getByRole('heading', { name: 'Session setup' }).waitFor();
     assert.equal(await page.getByRole('dialog', { name: 'Phone companion' }).count(), 0);
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -223,8 +222,6 @@ async function main() {
       return result.value.conversations;
     });
     await page.getByRole('button', { name: 'New session', exact: true }).click();
-    await page.getByLabel(/^Continue with missing or untested features/).check();
-    await page.getByRole('button', { name: 'Continue to session setup' }).click();
     await page.getByRole('heading', { name: 'Session setup' }).waitFor();
     const setupSteps = page.getByRole('navigation', { name: 'Session setup' });
     for (const name of ['Model', 'Documents', 'Instructions']) await setupSteps.getByRole('button', { name }).waitFor();
@@ -251,8 +248,6 @@ async function main() {
       assert.equal(await tray.getByRole('button', { name: mode, exact: true }).getAttribute('aria-pressed'), 'true');
       await page.getByRole('button', { name: 'End session', exact: true }).click();
       await page.getByRole('alertdialog', { name: 'End context session' }).getByRole('button', { name: 'End session', exact: true }).click();
-      await page.getByLabel(/^Continue with missing or untested features/).check();
-      await page.getByRole('button', { name: 'Continue to session setup' }).click();
       await page.getByRole('heading', { name: 'Session setup' }).waitFor();
     }
     await page.getByRole('button', { name: 'Start an empty chat instead', exact: true }).click();
@@ -261,8 +256,6 @@ async function main() {
     assert.equal(await page.locator('.message').count(), 0, 'Skipping setup opens a fresh chat, while saved chats remain available');
     await page.getByRole('button', { name: 'End session', exact: true }).click();
     await page.getByRole('alertdialog', { name: 'End context session' }).getByRole('button', { name: 'End session', exact: true }).click();
-    await page.getByLabel(/^Continue with missing or untested features/).check();
-    await page.getByRole('button', { name: 'Continue to session setup' }).click();
     await page.getByRole('heading', { name: 'Session setup' }).waitFor();
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
     await app.close(); app = await launch(); page = await app.firstWindow();

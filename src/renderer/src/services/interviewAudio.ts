@@ -1,4 +1,5 @@
 import type { AudioSource, InterviewFrame, InterviewMode } from '../../../shared/interview';
+import { DeviceError, deviceError } from './deviceErrors';
 
 export class AudioCaptureProvider {
   protected systemHelp = 'Choose a system loopback input or enable system audio sharing.';
@@ -37,13 +38,15 @@ export class InterviewAudio {
     const provider = /Mac/.test(navigator.platform) ? new MacAudioCapture() : /Win/.test(navigator.platform) ? new WindowsAudioCapture() : new LinuxAudioCapture();
     if (systemId && microphoneId === systemId && mode !== 'interviewer') throw new Error('Choose different inputs for system audio and your microphone.');
     let count = 0;
-    const errors: string[] = [];
+    const errors: string[] = [], details: string[] = [];
     const sources: AudioSource[] = onlySources || (mode === 'interviewer' ? ['system'] : ['system', 'microphone']);
     for (const source of sources) {
       if (this.cancelled) break;
       let stream: MediaStream | undefined, context: AudioContext | undefined;
       try {
-        stream = await (source === 'system' ? provider.system(systemId) : provider.microphone(microphoneId));
+        // Only the browser's own capture errors are reworded; Novi's messages (loopback help, 16 kHz) pass through.
+        stream = await (source === 'system' ? provider.system(systemId) : provider.microphone(microphoneId))
+          .catch((cause: unknown) => { throw cause instanceof DOMException ? deviceError(source, cause) : cause; });
         if (this.cancelled) { stream.getTracks().forEach(track => track.stop()); break; }
         context = new AudioContext({ sampleRate: 16000 });
         if (context.sampleRate !== 16000) throw new Error('This audio device cannot provide 16 kHz audio. Select another input.');
@@ -72,10 +75,11 @@ export class InterviewAudio {
         if (context && context.state !== 'closed') await context.close();
         const msg = `${source === 'system' ? 'System audio' : 'Microphone'}: ${cause instanceof Error ? cause.message : 'Capture unavailable.'}`;
         errors.push(msg);
+        if (cause instanceof DeviceError && cause.details) details.push(cause.details);
         this.onWarning(msg);
       }
     }
-    if (!count) throw new Error(errors.length ? errors.join('; ') : 'No interview audio input is available. Check permissions and input selection.');
+    if (!count) throw new DeviceError(errors.length ? errors.join('; ') : 'No interview audio input is available. Check permissions and input selection.', details.join('; '));
   }
   close() { this.cancelled = true; this.releases.splice(0).forEach(release => release()); }
   async stop() { this.close(); await Promise.allSettled([...this.pending]); }

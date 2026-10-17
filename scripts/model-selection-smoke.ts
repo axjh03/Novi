@@ -48,13 +48,18 @@ async function main() {
     });
     await page.goto('http://novi.test/index.html');
     await page.getByRole('heading', { name: 'Get ready' }).waitFor();
-    assert(await page.getByRole('button', { name: 'Continue to session setup' }).isDisabled());
-    await page.evaluate(() => { Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: async () => { throw new Error('Microphone permission denied'); } }, configurable: true }); });
+    // Nothing has passed yet: the way forward stays reachable and names what is missing.
+    assert.equal(await page.getByRole('button', { name: 'Continue to session setup' }).count(), 0);
+    assert(await page.getByRole('button', { name: 'Continue anyway', exact: true }).isEnabled());
+    await page.getByText(/not checked\. Features that rely on them may not work\./).waitFor();
+    await page.evaluate(() => { Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: async () => { throw new DOMException('Microphone permission denied', 'NotAllowedError'); } }, configurable: true }); });
     await page.getByRole('button', { name: 'Check microphone', exact: true }).click();
-    await page.getByText('Microphone: Microphone permission denied', { exact: true }).waitFor();
-    assert(await page.getByRole('button', { name: 'Continue to session setup' }).isDisabled());
-    await page.getByLabel(/^Continue with missing or untested features/).check();
-    await page.getByRole('button', { name: 'Continue to session setup' }).click();
+    await page.getByText(/^Microphone access is blocked\./).waitFor();
+    await page.getByText('Details', { exact: true }).click();
+    await page.getByText('NotAllowedError: Microphone permission denied', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Retry microphone', exact: true }).count(), 1);
+    await page.getByText(/^Microphone failed/).waitFor();
+    await page.getByRole('button', { name: 'Continue anyway', exact: true }).click();
     await page.getByText('The previous model is unavailable. Choose a model from the list.').waitFor();
     assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), '');
     assert.equal(await page.getByRole('option', { name: 'gemini3.8', exact: true }).count(), 0);

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { SESSION_MODES } from '../src/shared/sessionModes';
 import { PRACTICE_IDLE, PRACTICE_QUESTIONS, practiceReducer, practiceStepNumber, type PracticeEvent, type PracticeState } from '../src/renderer/src/services/practice';
-import { READINESS_CHECKS, allReady, continueFromGetReady, getReadyContinued, markReadinessRun, readReadiness, recordReadiness } from '../src/renderer/src/services/readiness';
+import { READINESS_CHECKS, allReady, continueFromGetReady, getReadyContinued, loadReadiness, markReadinessRun, readReadiness, recordReadiness } from '../src/renderer/src/services/readiness';
 import { settingsInput } from '../src/main/services/validation';
 
 const run = (events: PracticeEvent[], from: PracticeState = PRACTICE_IDLE) => events.reduce(practiceReducer, from);
@@ -69,8 +69,37 @@ test('settings keep transparentOnStart unless it is sent', () => {
   assert.equal('transparentOnStart' in settingsInput({ ...base, transparentOnStart: 'yes' }), false);
 });
 
-test('Get ready shows once per app launch, then ending a session returns to session setup', () => {
-  assert.equal(getReadyContinued(), false);
-  continueFromGetReady();
-  assert.equal(getReadyContinued(), true);
+test('Get ready shows once per app launch for each account, then ending a session returns to session setup', () => {
+  assert.equal(getReadyContinued('ada'), false);
+  continueFromGetReady('ada');
+  assert.equal(getReadyContinued('ada'), true);
+  assert.equal(getReadyContinued('grace'), false, 'another account in the same launch still gets Get ready');
+});
+
+test('readiness is kept for the rest of the day per account, and survives unreadable storage', () => {
+  const store = new Map<string, string>();
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => { store.set(key, value); } } });
+  try {
+    const now = Date.now();
+    assert.equal(loadReadiness('ada', now), null, 'nothing saved yet');
+    recordReadiness('microphone', { ok: false, detail: 'Blocked', details: 'NotAllowedError: denied' });
+    markReadinessRun();
+    const restored = loadReadiness('ada', now);
+    assert.equal(restored?.restored, true, 'a relaunch the same day restores the results');
+    assert.equal(restored?.results.microphone?.details, 'NotAllowedError: denied');
+    assert.equal(typeof restored?.ranAt, 'number');
+    assert.equal(loadReadiness('grace', now), null, 'another account starts fresh');
+    assert.equal(loadReadiness('ada', now + 86_400_000), null, 'the next day starts fresh');
+    assert.equal(loadReadiness('ada', now)?.restored, true);
+    assert.equal(recordReadiness('ai', { ok: true, detail: 'ok' }).restored, false, 'a new result is from this launch');
+    store.set('novi_readiness', '{not json');
+    assert.equal(loadReadiness('ada', now)?.results.ai?.ok, true, 'a damaged record keeps this launch’s results');
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, get() { throw new Error('blocked'); } });
+    assert.equal(loadReadiness('ada', now)?.results.ai?.ok, true, 'blocked storage keeps this launch’s results');
+    assert.equal(loadReadiness('grace', now), null);
+  } finally {
+    if (original) Object.defineProperty(globalThis, 'localStorage', original);
+    else delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
 });
