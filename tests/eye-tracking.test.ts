@@ -6,6 +6,7 @@ test('camera selection stays off; stopping closes HUD and cancels pending startu
   const { EyeTrackingService } = tsxRequire('../src/renderer/src/eye-tracking/EyeTrackingService.ts', import.meta.url);
   const { GazeEstimator } = tsxRequire('../src/renderer/src/eye-tracking/GazeEstimator.ts', import.meta.url);
   let opens = 0, closes = 0, cameraStarts = 0, cameraStops = 0;
+  const contents: string[] = [];
   let resolveCamera: (() => void) | undefined;
   let waitForCamera = false;
   const originals = new Map<string, PropertyDescriptor | undefined>();
@@ -23,7 +24,7 @@ test('camera selection stays off; stopping closes HUD and cancels pending startu
     openOverlay: async () => { opens++; return { ok: true }; },
     closeOverlay: async () => { closes++; return { ok: true }; },
     getMonitors: async () => ({ ok: true, value: [{ id: 1, isPrimary: true }] }),
-    sendOverlayEvent: async () => ({ ok: true }),
+    sendOverlayEvent: async (event: { type: string; text?: string }) => { if (event.type === 'set-content') contents.push(event.text!); return { ok: true }; },
   } });
   replace('document', {
     createElement: () => ({ style: {}, play: async () => {}, remove() {} }),
@@ -46,6 +47,7 @@ test('camera selection stays off; stopping closes HUD and cancels pending startu
   await service.openOverlay(1);
   assert.equal(opens, 0, 'HUD cannot open while tracking is off');
 
+  service.sendStickyToOverlay('The latest Novi response');
   await service.start();
   assert.equal(service.state, 'running', service.error);
   assert.equal(service.sensitivity, 3.0, 'default sensitivity is 3.0');
@@ -54,11 +56,12 @@ test('camera selection stays off; stopping closes HUD and cancels pending startu
   service.setSensitivity(3.0);
   assert.equal(service.overlayActive, true);
   assert.equal(opens, 1);
-  service.stop();
+  assert.equal(contents.at(-1), 'The latest Novi response', 'startup must not overwrite the answer');
+  await service.closeOverlay();
   assert.equal(service.state, 'idle');
   assert.equal(service.overlayActive, false);
   assert.equal(closes, 1);
-  assert.equal(cameraStops, 1);
+  assert.equal(cameraStops, 1, 'closing HUD releases the camera');
 
   waitForCamera = true;
   const starting = service.start();

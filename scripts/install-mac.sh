@@ -6,6 +6,53 @@
 
 set -euo pipefail
 
+# Run a quiet install step in an alternate screen; restore the terminal even on failure or Ctrl+C.
+pacman_run() (
+    label=$1; shift
+    if [ ! -t 1 ] || [ "${TERM:-dumb}" = dumb ] || [ -n "${CI:-}${NOVI_NO_ANIMATION:-}" ]; then
+        "$@"; exit $?
+    fi
+    log=$(mktemp); job=''
+    cleanup_pacman() {
+        if [ -n "$job" ]; then kill "$job" 2>/dev/null || true; wait "$job" 2>/dev/null || true; fi
+        printf '\033[0m\033[?25h\033[?1049l'
+        rm -f "$log"
+    }
+    trap cleanup_pacman EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    printf '\033[?1049h\033[?25l\033[2J'
+    "$@" >"$log" 2>&1 </dev/null & job=$!
+    frame=0
+    while kill -0 "$job" 2>/dev/null; do
+        cols=$(tput cols 2>/dev/null || echo 80)
+        rows=$(tput lines 2>/dev/null || echo 24)
+        width=$((cols - 8)); [ "$width" -gt 54 ] && width=54
+        if [ "$width" -ge 12 ] && [ "$rows" -ge 10 ]; then
+            left=$(((cols - width) / 2)); top=$(((rows - 7) / 2))
+            track=''; pos=$((frame % (width - 2)))
+            i=0
+            while [ "$i" -lt "$((width - 2))" ]; do
+                if [ "$i" -eq "$pos" ]; then
+                    if [ "$((frame % 2))" -eq 0 ]; then track="${track}C"; else track="${track}O"; fi
+                elif [ "$i" -lt "$pos" ]; then track="${track} "; else track="${track}."; fi
+                i=$((i + 1))
+            done
+            border=$(printf '%*s' "$width" '' | tr ' ' '=')
+            printf '\033[H\033[J\033[%s;%sH\033[1;36mNOVI  /  INSTALLING\033[%s;%sH%s\033[%s;%sH\033[33m|%s|\033[%s;%sH\033[36m%s\033[%s;%sH\033[0m%s\033[%s;%sHCtrl+C to cancel' \
+                "$top" "$left" "$((top + 2))" "$left" "$border" "$((top + 3))" "$left" "$track" \
+                "$((top + 4))" "$left" "$border" "$((top + 6))" "$left" "$label" "$((top + 8))" "$left"
+        fi
+        frame=$((frame + 1)); sleep 0.12
+    done
+    status=0; wait "$job" || status=$?; job=''
+    printf '\033[0m\033[?25h\033[?1049l'
+    trap - EXIT
+    if [ "$status" -ne 0 ]; then cat "$log" >&2; fi
+    rm -f "$log"
+    exit "$status"
+)
+
 # Visual formatting (Technical UNIX style, no emojis)
 C_RESET='\033[0m'
 C_BOLD='\033[1m'
@@ -77,14 +124,16 @@ cleanup() {
     rm -rf "${WORK_DIR}" 2>/dev/null || true
     exit ${exit_code}
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # 4. Fetch release binary
 log_info "Downloading application payload..."
 log_step "Endpoint: ${PAYLOAD_URL}"
 
 if command -v curl >/dev/null 2>&1; then
-    curl -fSL --progress-bar "${PAYLOAD_URL}" -o "${DMG_PATH}"
+    pacman_run "Downloading Novi" curl -fsSL "${PAYLOAD_URL}" -o "${DMG_PATH}"
 else
     log_error "cURL executable not found in PATH."
     exit 1
@@ -98,7 +147,7 @@ fi
 # 5. Disk image attachment
 log_info "Mounting disk image container..."
 mkdir -p "${MOUNT_DIR}"
-hdiutil attach "${DMG_PATH}" -nobrowse -readonly -mountpoint "${MOUNT_DIR}" -quiet
+pacman_run "Opening disk image" hdiutil attach "${DMG_PATH}" -nobrowse -readonly -mountpoint "${MOUNT_DIR}" -quiet
 
 if [ ! -d "${MOUNT_DIR}/Novi.app" ]; then
     log_error "Novi.app bundle not found in attached volume."
@@ -113,7 +162,7 @@ if [ -d "${INSTALL_TARGET}" ]; then
 fi
 
 # Use ditto to maintain full bundle hierarchy, code signatures, and symlinks
-ditto "${MOUNT_DIR}/Novi.app" "${INSTALL_TARGET}"
+pacman_run "Installing Novi" ditto "${MOUNT_DIR}/Novi.app" "${INSTALL_TARGET}"
 
 # 7. Unmount payload container
 log_info "Detaching disk image container..."

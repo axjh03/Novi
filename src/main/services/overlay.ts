@@ -97,6 +97,7 @@ export class OverlayService {
       this.overlayWindow = null;
       this.currentDisplayId = null;
       this.lastContent = null;
+      this.forwardToAllWindows({ type: 'close' });
     });
   }
 
@@ -104,8 +105,6 @@ export class OverlayService {
     this.lastContent = null;
     if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
       this.overlayWindow.close();
-      this.overlayWindow = null;
-      this.currentDisplayId = null;
     }
   }
 

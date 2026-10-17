@@ -48,7 +48,7 @@ jobs:
 
       - name: Check Windows install script
         if: runner.os == 'Windows'
-        run: node --import tsx --test tests/windows-installer.test.ts
+        run: node --import tsx --test tests/windows-installer.test.ts tests/updater.test.ts
 
       - name: Check Local Coding isolation on this platform
         timeout-minutes: 10

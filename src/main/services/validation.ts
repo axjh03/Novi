@@ -114,4 +114,10 @@ function localCodingInput(value: unknown): NonNullable<SendInput['localCoding']>
   if (!Array.isArray(reconcile.fileIds) || !reconcile.fileIds.length || reconcile.fileIds.length > 50) throw new UserError('Choose 1–50 files to reconcile.');
   return { baseVersionId, reconcile: { fromVersionId: text(reconcile.fromVersionId, 'version', 40), fileIds: reconcile.fileIds.map((id) => text(id, 'file', 40)) } };
 }
-export const conversationTitle = (content: string) => content.trim().replace(/\s+/g, ' ').slice(0, 60) || 'Image conversation';
+export function conversationTitle(content: string): string {
+  const title = content.trim().replace(/^#{1,6}\s+/, '').replace(/\s+/g, ' ');
+  if (!title) return 'Image conversation';
+  if (title.length <= 60) return title;
+  const end = title.lastIndexOf(' ', 57);
+  return `${title.slice(0, end > 20 ? end : 57)}…`;
+}

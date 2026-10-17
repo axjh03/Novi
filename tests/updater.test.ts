@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import childProcess, { spawnSync } from 'node:child_process';
 import { PassThrough } from 'node:stream';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createRequire } from 'node:module';
 import { createElement } from 'react';
@@ -390,6 +390,15 @@ test('a manual check with no connection reports the problem instead of claiming 
   await assert.rejects(new AppUpdater().checkForUpdates(), /Could not reach the update server/);
 });
 
+test('Windows handoff waits for the installer tree and relaunches the installed executable', () => {
+  const script = windowsInstallScript("C:\\Temp\\O'Brien\\setup.exe", 123, "C:\\Apps\\Novi Space\\Novi.exe");
+  assert.match(script, /O''Brien/);
+  assert.match(script, /-PassThru -Wait/);
+  assert.match(script, /\("\/D=" \+ \$installDirectory\)/);
+  assert.doesNotMatch(script, /--force-run|WindowStyle Hidden/);
+  assert(script.indexOf('if ($setup.ExitCode') < script.indexOf('Start-Process -FilePath $executable'));
+});
+
 const windowsOnly = { skip: process.platform !== 'win32' ? 'Windows installer' : false };
 const windowsManifest = (data = PAYLOAD) => (file: string) => file === 'latest.yml'
   ? "version: 4.1.0\nfiles:\n  - url: Novi-Setup-4.1.0.exe\n    sha512: " + sha512(data) + "\n    size: " + data.length + "\n" : null;
@@ -412,8 +421,8 @@ test('Windows verifies the installer and waits for helper readiness before quitt
   const [command, args, options] = launch.mock.calls[0].arguments as unknown as [string, string[], object];
   assert.equal(command, 'powershell.exe');
   assert.deepEqual(args.slice(0, 3), ['-NoProfile', '-NonInteractive', '-EncodedCommand']);
-  assert.equal(Buffer.from(args[3], 'base64').toString('utf16le'), windowsInstallScript(join(server.directory, 'novi-in-app-update', 'setup.exe'), process.pid));
-  assert.deepEqual(options, { detached: true, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+  assert.equal(Buffer.from(args[3], 'base64').toString('utf16le'), windowsInstallScript(join(server.directory, 'novi-in-app-update', 'setup.exe'), process.pid, process.execPath));
+  assert.deepEqual(options, { cwd: join(server.directory, 'novi-in-app-update'), detached: true, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
   assert.deepEqual(server.downloads, ['Novi-Setup-4.1.0.exe']);
   assert.deepEqual(readFileSync(join(server.directory, 'novi-in-app-update', 'setup.exe')), PAYLOAD);
   assert.equal(child.unref.mock.callCount(), 1);
@@ -450,8 +459,13 @@ test('Windows helper waits for actual shutdown, preserves paths and reports inst
   // Only the external installer and dialog are faked; PowerShell and the process wait are real.
   const prefix = (code: number) => `
 function Start-Process {
-  param($FilePath, $ArgumentList, [switch]$PassThru, [switch]$Wait, $WindowStyle)
-  @{ file = $FilePath; args = $ArgumentList; wait = [bool]$Wait; passThru = [bool]$PassThru; style = $WindowStyle } | ConvertTo-Json -Compress | Set-Content -LiteralPath ($FilePath + '.args') -Encoding UTF8
+  param($FilePath, $ArgumentList, [switch]$PassThru, [switch]$Wait, $WorkingDirectory)
+  if (-not $PassThru) {
+    if ($FilePath -ne ${quote(process.execPath)} -or $WorkingDirectory -ne ${quote(dirname(process.execPath))}) { throw 'Wrong relaunch path' }
+    'launched' | Set-Content -LiteralPath ${quote(payload + '.launched')}
+    return
+  }
+  @{ file = $FilePath; args = $ArgumentList; wait = [bool]$Wait; passThru = [bool]$PassThru; cwd = $WorkingDirectory } | ConvertTo-Json -Compress | Set-Content -LiteralPath ($FilePath + '.args') -Encoding UTF8
   $setup = [pscustomobject]@{ ExitCode = ${code} }
   $setup | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value {}
   return $setup
@@ -465,9 +479,10 @@ function New-Object {
   for (const code of [0, 7]) {
     writeFileSync(payload, 'verified installer stand-in');
     rmSync(payload + '.args', { force: true });
+    rmSync(payload + '.launched', { force: true });
     const parent = childProcess.spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { windowsHide: true, stdio: 'ignore' });
     t.after(() => parent.kill());
-    const script = prefix(code) + windowsInstallScript(payload, parent.pid!);
+    const script = prefix(code) + windowsInstallScript(payload, parent.pid!, process.execPath);
     const helper = childProcess.spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     t.after(() => helper.kill());
     const completed = new Promise<number | null>((resolve, reject) => { helper.once('error', reject); helper.once('exit', resolve); });
@@ -482,7 +497,8 @@ function New-Object {
     parent.kill();
     assert.equal(await completed, code === 0 ? 0 : 1);
     const invocation = JSON.parse(readFileSync(payload + '.args', 'utf8').replace(/^\uFEFF/, ''));
-    assert.deepEqual(invocation, { file: payload, args: ['/S', '--updated', '--force-run'], wait: false, passThru: true, style: 'Hidden' });
+    assert.deepEqual(invocation, { file: payload, args: ['/S', '--updated', '/D=' + dirname(process.execPath)], wait: true, passThru: true, cwd: directory });
+    assert.equal(existsSync(payload + '.launched'), code === 0, 'relaunch only after successful installation');
     assert.equal(existsSync(payload), code !== 0, 'only a successful install removes the download');
     if (code !== 0) {
       assert.match(readFileSync(payload + '.log', 'utf16le'), /Installer exited with code 7/);

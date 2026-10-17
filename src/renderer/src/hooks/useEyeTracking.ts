@@ -103,6 +103,10 @@ export function useEyeTracking(): UseEyeTrackingReturn {
     syncState();
   }, [syncState]);
 
+  useEffect(() => window.novi.onOverlayEvent(event => {
+    if (event.type === 'close') stop();
+  }), [stop]);
+
   const switchCamera = useCallback(async (deviceId: string) => {
     await eyeTracking.switchCamera(deviceId);
     setSelectedCameraId(deviceId);
@@ -135,8 +139,10 @@ export function useEyeTracking(): UseEyeTrackingReturn {
 
   const closeOverlay = useCallback(async () => {
     await eyeTracking.closeOverlay();
-    setOverlayActive(false);
-  }, []);
+    setGaze(null);
+    setDwellPoint(null);
+    syncState();
+  }, [syncState]);
 
   const sendStickyToOverlay = useCallback((text: string, title?: string) => {
     eyeTracking.sendStickyToOverlay(text, title);

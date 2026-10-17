@@ -1,4 +1,4 @@
-import type { AppMode, BehavioralFramework } from './types';
+import type { AppMode, BehavioralFramework, ChatMessage } from './types';
 import { DIAGRAM_SYNTAX } from './diagrams';
 
 export const SESSION_MODES: Array<{ id: AppMode; name: string; description: string; instructions: string }> = [
@@ -17,3 +17,9 @@ export function modeInstructions(mode: AppMode, framework: BehavioralFramework =
   return `${SESSION_MODES.find((item) => item.id === mode)!.instructions}\n${mode === 'system-design' ? DIAGRAM_SYNTAX : ''}\n${mode === 'behavioral' ? `Framework: ${framework === 'smart' ? 'choose STAR, CAR, PAR, or SOAR only when appropriate to the question' : framework.toUpperCase()}.` : ''}\n${NATURAL_VOICE}\nFollow the session's additional instructions and requested output style over these defaults. Tailor answers to the specified role and level of experience. Treat the resume and sources as factual reference; never invent experience, employers, or metrics.`;
 }
 export const DRAW_DIAGRAM_PROMPT = 'Draw or update the system design diagram using the conversation, latest transcript, and attached images. If there is no system design question, ask for it instead of inventing a design. If requirements are ambiguous, state assumptions or ask a focused question. Compare with the latest diagram: if there is no meaningful architecture change and its syntax is valid, reply "No diagram changes needed" without a code fence. Otherwise return a complete replacement architecture in one fenced mermaid block (flowchart), preceded by a short title. Preserve unchanged components and explain only meaningful changes. Do not include implementation code. ' + DIAGRAM_SYNTAX;
+
+/** These modes use the same answer in chat and on the gaze HUD. */
+export function hudResponse(mode: AppMode, messages: Pick<ChatMessage, 'role' | 'content'>[]): string | null {
+  if (!['normal', 'recruiter', 'technical', 'behavioral'].includes(mode)) return null;
+  return [...messages].reverse().find(message => message.role === 'assistant')?.content ?? '';
+}

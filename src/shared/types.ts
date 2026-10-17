@@ -246,6 +246,8 @@ export interface NoviAPI {
   onAccessStatus(callback: (status: AccessStatus) => void): () => void;
   listModels(input: ConnectionInput): Promise<Result<ModelOption[]>>;
   testConnection(): Promise<Result<void>>;
+  saveConversation(id: string): Promise<Result<void>>;
+  renameConversation(id: string, title: string): Promise<Result<Conversation>>;
   deleteConversation(id: string): Promise<Result<void>>;
   clearHistory(): Promise<Result<void>>;
   pickImages(): Promise<Result<ImageAttachment[]>>;

@@ -1,7 +1,7 @@
 import { sendInput } from '../src/main/services/validation';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { SESSION_MODES, isAppMode, modeInstructions, DRAW_DIAGRAM_PROMPT } from '../src/shared/sessionModes';
+import { hudResponse, SESSION_MODES, isAppMode, modeInstructions, DRAW_DIAGRAM_PROMPT } from '../src/shared/sessionModes';
 import { diagramBlocks, repairFlowchart } from '../src/shared/diagrams';
 import { defaultPurpose, presetFields, SESSION_ROLES } from '../src/renderer/src/context/sessionPresets';
 import type { ChatMessage } from '../src/shared/types';
@@ -95,4 +95,18 @@ test('diagram recovery quotes punctuation and only splits known destination IDs'
   ]) assert.equal(repairFlowchart(code), code);
   assert.match(DRAW_DIAGRAM_PROMPT, /Double-quote all node, edge, and subgraph labels/);
   assert.match(modeInstructions('system-design'), /never A --> B \/ C/);
+});
+
+test('chat and interview HUDs mirror the latest reply exactly and clear stale answers', () => {
+  const messages = [
+    { role: 'assistant' as const, content: 'Old answer' },
+    { role: 'user' as const, content: 'Follow-up' },
+    { role: 'assistant' as const, content: '**Newest** answer\nwith formatting' },
+  ];
+  for (const mode of ['normal', 'recruiter', 'technical', 'behavioral'] as const) {
+    assert.equal(hudResponse(mode, messages), '**Newest** answer\nwith formatting');
+    assert.equal(hudResponse(mode, []), '');
+    assert.equal(hudResponse(mode, [...messages, { role: 'assistant', content: '' }]), '');
+  }
+  for (const mode of ['coding', 'system-design', 'local-coding'] as const) assert.equal(hudResponse(mode, messages), null);
 });

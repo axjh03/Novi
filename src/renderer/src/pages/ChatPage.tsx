@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Award, Code2, FolderCode, Lock, MessageSquare, Network, PanelTop, Phone, Video, X, type LucideIcon } from 'lucide-react';
+import { Award, Brain, Code2, FolderCode, Lock, Menu, MessageSquare, Network, PanelTop, Phone, Video, X, type LucideIcon } from 'lucide-react';
 import type { AppMode, ModelOption, Snapshot } from '../../../shared/types';
 import { Sidebar } from '../components/chat/Sidebar';
 import { Composer } from '../components/chat/Composer';
@@ -12,10 +12,11 @@ import { EyeTrackingPanel } from '../components/EyeTrackingPanel';
 import { unwrap, errorText } from '../services/api';
 import { useAppMode } from '../context/AppModeContext';
 import { codeFromMessages } from '../components/CodingModeHUD';
-import { SESSION_MODES } from '../../../shared/sessionModes';
+import { hudResponse, SESSION_MODES } from '../../../shared/sessionModes';
 import { diagramBlocks } from '../../../shared/diagrams';
 import { BehavioralModeHUD } from '../components/BehavioralModeHUD';
 import { TrayPortal } from '../components/TrayPortal';
+import { TrayMenu } from '../components/TrayMenu';
 import { ReadyCard } from '../components/ReadyCard';
 import { PracticeCoach } from '../components/PracticeCoach';
 import { usePracticeRun } from '../hooks/usePracticeRun';
@@ -42,6 +43,10 @@ const WELCOME_MESSAGES = [
 
 export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSaved: (state: Snapshot) => void; onSignOut: () => void }) {
   const chat = useChat(state.conversations), [settings, setSettings] = useState(false), [deleting, setDeleting] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null), [conversationName, setConversationName] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  const renameDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => { if (renaming) renameDialog.current?.showModal(); }, [renaming]);
   const [composerKey, setComposerKey] = useState(0);
   const [welcomeIndex] = useState(() => Math.floor(Math.random() * WELCOME_MESSAGES.length));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
@@ -142,19 +147,12 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const et = useEyeTracking();
   const [showDebugDot, setShowDebugDot] = useState(false);
 
-  // In behavioral mode, automatically route assistant answers into the HUD.
-  // Depend on stable fields: `et` is a new object on every gaze update (up to 30/s).
+  // Mirror the actual reply, including streamed text; clear the prior conversation's answer.
   useEffect(() => {
-    if (!['behavioral', 'recruiter', 'technical'].includes(appMode)) return;
-    const messages = chat.selected?.messages || [];
-    const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
-    if (lastAssistant && lastAssistant.content.trim()) {
-      et.sendStickyToOverlay(
-        lastAssistant.content,
-        `${SESSION_MODES.find((mode) => mode.id === appMode)?.name} ${appMode === 'behavioral' ? `(${behavioralFramework.toUpperCase()})` : ''}`
-      );
-    }
-  }, [appMode, chat.selected?.messages, behavioralFramework, et.sendStickyToOverlay, et.state, et.overlayActive]);
+    const response = hudResponse(appMode, chat.selected?.messages || []);
+    if (response === null) return;
+    et.sendStickyToOverlay(response, SESSION_MODES.find(mode => mode.id === appMode)?.name);
+  }, [appMode, chat.selected?.messages, et.sendStickyToOverlay, et.state, et.overlayActive]);
 
   const handleEyeToggle = useCallback(async () => {
     if (et.state === 'idle' || et.state === 'error') {
@@ -208,6 +206,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     return () => { cancelled = true; };
   }, [connection?.id, connection?.provider, connection?.baseUrl]);
 
+  const ModeIcon = MODE_ICONS[appMode];
   const enabledConnections = config.connections.filter((c) => c.enabled !== false);
 
   const modelOptions = (() => {
@@ -237,6 +236,8 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
           chat.setSelectedId(id); setSettings(false); setSidebarCollapsed(true); chat.setError('');
         }}
         onDelete={setDeleting}
+        onRename={(id) => { chat.setError(''); setConversationName(chat.conversations.find(item => item.id === id)?.title || ''); setRenaming(id); }}
+        onSave={(id) => { void unwrap(window.novi.saveConversation(id)).catch(error => chat.setError(errorText(error))); }}
         onSettings={() => { practice.cancel(); setSettings(true); setSidebarCollapsed(true); }}
       />
 
@@ -295,22 +296,28 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
       {!settings && trayOpen && (
         <TrayPortal key={trayKey} onClosed={() => { practice.cancel(); setTrayOpen(false); }}>
           <div className="tray-row">
+            <TrayMenu className="tray-mode-menu" label="Change conversation mode" title={<ModeIcon size={14} />}>
             <nav className="chat-mode-tabs" aria-label="Conversation mode">
               {SESSION_MODES.map(({ id: mode, name: label }) => {
                 const Icon = MODE_ICONS[mode];
                 return (
                 <button key={mode} type="button" className={`mode-tab-btn ${appMode === mode ? 'active' : ''}`}
-                  aria-label={label} title={label} aria-pressed={appMode === mode} onClick={() => setAppMode(mode)}>
-                  <Icon size={14} />{appMode === mode && <span>{label}</span>}
+                  aria-label={label} title={label} aria-pressed={appMode === mode} onClick={(event) => { setAppMode(mode); const menu = event.currentTarget.closest('details'); if (menu) { menu.open = false; menu.querySelector('summary')?.focus(); } }}>
+                  <Icon size={14} /><span>{label}</span>
                 </button>
               ); })}
             </nav>
+            {appMode === 'behavioral' && <BehavioralModeHUD framework={behavioralFramework} onSelectFramework={setBehavioralFramework} />}
+            </TrayMenu>
+            <TrayMenu className="tray-model-menu" label="Model settings" title={<Brain size={14} />}>
             {localMode ? (
               <div className="lc-session-bar" aria-label="Local Coding session">
                 {localBinding ? <><span className="lc-project" title={local.project?.roots.map((root) => root.canonicalLocalPath).join('\n')}>{localBinding.name}</span><span className="lc-engine">{ENGINES.find((item) => item.id === localBinding.engine)?.label}</span><span className="lc-model" title={local.project?.reasoningEffort ? `Reasoning ${local.project.reasoningEffort}` : localBinding.model}>{localBinding.model}</span><span className="lc-readonly-pill" title="Read-only"><Lock size={11} aria-hidden="true" /><span className="lc-readonly-text">Read-only</span></span></>
                   : <span>Local Coding · choose a working folder in the panel</span>}
               </div>
-            ) : <div className="header-model-select-wrapper">
+            ) : <>
+              <div className="tray-menu-heading">Model & provider</div>
+              <div className="header-model-select-wrapper">
               <span className="status-dot" />
               {enabledConnections.length > 1 && (
                 <select
@@ -348,12 +355,10 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
                 aria-pressed={connection?.model === roles![role]}
                 title={`${role === 'fast' ? 'Fast' : 'Deep'}: ${roles![role]}`}
                 onClick={() => void handleModelChange(connection!.id, roles![role])}>{role === 'fast' ? 'Fast' : 'Deep'}</button>)}
-            </div>}
-            {/* Eye tracking opens the screen HUD, and the effect above sends it the latest answer in interview modes. */}
-            {appMode === 'behavioral' && (
-              <BehavioralModeHUD framework={behavioralFramework} onSelectFramework={setBehavioralFramework} />
-            )}
-            <div className="tray-tools">
+            </div></>}
+            </TrayMenu>
+            <TrayMenu className="tray-tools" label="More controls" title={<><Menu size={16} />{(et.state !== 'idle' || et.overlayActive) && <span className={`tray-tool-status ${et.state === 'error' ? 'has-error' : ''}`} aria-label={et.state === 'error' ? 'Eye tracking error' : 'Eye tracking or HUD active'} />}</>}>
+              <div className="tray-menu-heading">Eye tracking & screen HUD</div>
               <EyeTrackingPanel
                 state={et.state}
                 error={et.error}
@@ -374,9 +379,9 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
                 onOpenOverlay={et.openOverlay}
                 onCloseOverlay={et.closeOverlay}
                 onSetMonitor={setWorkingMonitor}
-                onSendSticky={et.sendStickyToOverlay}
+                onSendSticky={['coding', 'system-design', 'local-coding'].includes(appMode) ? et.sendStickyToOverlay : undefined}
               />
-            </div>
+            </TrayMenu>
           </div>
           {practice.active && <PracticeCoach state={practice.state} voiced={practice.voiced} listenKey={listenKey}
             onTypeInstead={practice.typeInstead} onRemove={() => void removePractice()} onEnd={practice.cancel} />}
@@ -406,6 +411,22 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
 
       {/* Every way to end a session asks first; focus starts on Keep session and Escape keeps it. */}
       {confirmEnd && <div className="session-confirm" role="alertdialog" aria-modal="true" aria-label="End context session" onKeyDown={(event) => { if (event.key === 'Escape' && !ending) setConfirmEnd(false); }}><div><h2>End this session?</h2><p>Your conversations and attachments stay saved. The temporary AI Context.md file will be removed; source folders stay in place.</p><button className="text-button" autoFocus disabled={ending} onClick={() => setConfirmEnd(false)}>Keep session</button><button className="danger-button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div></div>}
+      {renaming && <dialog ref={renameDialog} className="dialog" aria-labelledby="rename-title" onCancel={() => setRenaming(null)}>
+        <form onSubmit={async (event) => {
+          event.preventDefault(); chat.setError(''); setSavingName(true);
+          try { if (await chat.rename(renaming, conversationName)) setRenaming(null); }
+          finally { setSavingName(false); }
+        }}>
+          <h2 id="rename-title">Rename conversation</h2>
+          <label>Conversation name<input autoFocus value={conversationName} maxLength={100} required
+            onFocus={(event) => event.target.select()} onChange={(event) => setConversationName(event.target.value)} /></label>
+          {chat.error && <p className="error" role="alert">{chat.error}</p>}
+          <div className="conversation-dialog-actions">
+            <button type="button" className="text-button" disabled={savingName} onClick={() => setRenaming(null)}>Cancel</button>
+            <button type="submit" className="primary" disabled={savingName || !conversationName.trim()}>{savingName ? 'Saving…' : 'Save name'}</button>
+          </div>
+        </form>
+      </dialog>}
       {/* Delete dialog */}
       {deleting && (
         <dialog ref={deleteDialog} className="dialog" aria-labelledby="delete-title" onCancel={() => setDeleting(null)}>

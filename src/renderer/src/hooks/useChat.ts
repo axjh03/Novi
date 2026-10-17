@@ -42,6 +42,13 @@ export function useChat(initial: Conversation[]) {
     catch (error) { setError(errorText(error)); return false; }
     finally { sent.current = null; setBusy(false); setActiveId(null); }
   }
+  async function rename(id: string, title: string) {
+    try {
+      const conversation = await unwrap(window.novi.renameConversation(id, title));
+      setConversations(items => items.map(item => item.id === id ? conversation : item));
+      return true;
+    } catch (error) { setError(errorText(error)); return false; }
+  }
   async function remove(id: string) {
     try { await unwrap(window.novi.deleteConversation(id)); setConversations((items) => items.filter((item) => item.id !== id)); if (id === selectedId) setSelectedId(null); }
     catch (error) { setError(errorText(error)); }
@@ -49,7 +56,7 @@ export function useChat(initial: Conversation[]) {
   return {
     conversations: [...conversations].sort((a, b) => b.updatedAt - a.updatedAt),
     selected: conversations.find((item) => item.id === selectedId), selectedId, setSelectedId,
-    busy, activeId, error, setError, send, remove,
+    busy, activeId, error, setError, send, remove, rename,
     clear: () => { setConversations([]); setSelectedId(null); },
   };
 }

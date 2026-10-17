@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GET } from '../webapp/src/app/install.ps1/route';
@@ -12,8 +12,15 @@ test('Windows installer endpoint emits uncached PowerShell with a literal origin
   assert.match(response.headers.get('content-type')!, /text\/plain/);
   assert.match(response.headers.get('cache-control')!, /no-store/);
   const script = await response.text();
+  assert.match(script, /Start-NoviAnimation 'Installing Novi'/);
+  assert.match(script, /finally \{\s+Stop-NoviAnimation/);
   assert.ok(script.includes("'https://novi.example''$(boom)'"));
   assert.ok(!script.includes('$downloadUrl:'));
+});
+
+test('static Windows installer matches the served script', async () => {
+  const script = await (await GET(new Request('https://novi-virid.vercel.app/install.ps1'))).text();
+  assert.equal(readFileSync('webapp/public/install.ps1', 'utf8'), script);
 });
 
 test('Windows PowerShell parses and executes piped installer, including failure cleanup', { skip: process.platform !== 'win32' }, async () => {
@@ -28,6 +35,7 @@ $script:scenario = $args[1]
 $script:downloaded = $null
 $script:launched = $false
 $env:NOVI_BASE_URL = 'https://novi.example'
+$env:NOVI_NO_ANIMATION = '1'
 $env:LOCALAPPDATA = Join-Path $env:TEMP 'local-app-data'
 $env:ProgramFiles = Join-Path $env:TEMP 'program-files'
 function Get-CimInstance { [pscustomobject]@{ Caption = 'Windows test' } }
@@ -39,7 +47,7 @@ function Invoke-WebRequest {
     if ($script:scenario -eq 'download-failure') { throw 'Download failed' }
 }
 function Start-Process {
-    param($FilePath, $ArgumentList, [switch]$PassThru, [switch]$Wait)
+    param($FilePath, $ArgumentList, [switch]$PassThru, [switch]$Wait, $WorkingDirectory)
     if ($PassThru) {
         if ($ArgumentList -ne '/S' -or -not $Wait) { throw 'Wrong installer arguments' }
         if ($script:scenario -eq 'install-failure') { return [pscustomobject]@{ ExitCode = 123 } }

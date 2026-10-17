@@ -2,7 +2,8 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, screen, sh
 import { paletteForBackground } from '../../shared/appearance';
 import { execFile } from 'node:child_process';
 import type { AccessStatus, BehavioralFramework, ChatLatency, CodeViewerBlock, ReviewTarget, SessionProfile, Snapshot } from '../../shared/types';
-import { Storage } from '../services/storage';
+import { atomicJSON, Storage } from '../services/storage';
+import { conversationExport } from '../services/conversationExport';
 import { AccessUnavailableError, ManagedAuthService, SessionChangedError } from '../services/managedAuth';
 import { CredentialStore } from '../services/credentials';
 import { ImageService } from '../services/images';
@@ -423,6 +424,27 @@ export function registerIPC(
     account.settings.modelRoles ||= {};
     account.settings.modelRoles[id] = { ...account.settings.modelRoles[id], [input.role]: model };
     storage.save(); return snapshot();
+  });
+  handle('save-conversation', async (value, event) => {
+    const { storage, images, chat } = get(); chat.assertIdle();
+    const id = text(value, 'conversation ID', 100), account = storage.current();
+    const conversation = storage.conversations.find(item => item.id === id);
+    if (!conversation) throw new UserError('This conversation could not be found.');
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) throw new UserError('The application window is unavailable.');
+    const result = await dialog.showSaveDialog(window, {
+      title: 'Save conversation', defaultPath: 'Novi-conversation.json',
+      filters: [{ name: 'Conversation with attachments', extensions: ['json'] }],
+    });
+    if (result.canceled || !result.filePath) return;
+    chat.assertIdle();
+    if (storage.current() !== account || !storage.conversations.includes(conversation)) throw new UserError('The conversation changed. Please save it again.');
+    atomicJSON(result.filePath, conversationExport(conversation, id => images.dataUrl(id)));
+  });
+  handle('rename-conversation', value => {
+    const { storage, chat } = get(); chat.assertIdle();
+    const input = object(value);
+    return storage.renameConversation(input.id, input.title);
   });
   handle('delete-conversation', (value) => {
     const { storage, images, chat } = get(); chat.assertIdle();

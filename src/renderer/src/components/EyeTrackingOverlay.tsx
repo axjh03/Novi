@@ -238,8 +238,9 @@ export function EyeTrackingOverlay() {
               </button>
               <button
                 className="overlay-action-btn close"
-                title="Dismiss sticky"
-                onClick={() => setSticky((p) => ({ ...p, visible: false }))}
+                title="Close HUD and stop eye tracking"
+                aria-label="Close HUD and stop eye tracking"
+                onClick={() => void window.novi.closeOverlay().catch(console.error)}
               >
                 ✕
               </button>

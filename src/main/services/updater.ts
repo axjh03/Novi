@@ -87,18 +87,22 @@ fi
 `;
 
 // Wait for normal shutdown (including recordings and engines) before NSIS can replace locked files.
-export function windowsInstallScript(payload: string, parentPid: number): string {
+export function windowsInstallScript(payload: string, parentPid: number, executable: string): string {
   const literal = payload.replace(/'/g, "''");
   return `
 $ErrorActionPreference = 'Stop'
 $installer = '${literal}'
+$executable = '${executable.replace(/'/g, "''")}'
+$installDirectory = Split-Path -LiteralPath $executable
 try {
   $novi = Get-Process -Id ${parentPid} -ErrorAction SilentlyContinue
   [Console]::Out.Write("ready\n")
   if ($novi) { $novi.WaitForExit() }
-  $setup = Start-Process -FilePath $installer -ArgumentList '/S', '--updated', '--force-run' -PassThru -WindowStyle Hidden
-  $setup.WaitForExit()
+  # -Wait includes the elevated installer child; do not launch Novi until that child finishes.
+  $setup = Start-Process -FilePath $installer -ArgumentList '/S', '--updated', ("/D=" + $installDirectory) -WorkingDirectory (Split-Path -LiteralPath $installer) -PassThru -Wait
   if ($setup.ExitCode -ne 0) { throw "Installer exited with code $($setup.ExitCode)." }
+  if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) { throw "Installed Novi executable not found: $executable" }
+  Start-Process -FilePath $executable -ArgumentList '--updated' -WorkingDirectory $installDirectory
   Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
 } catch {
   $_ | Out-File -LiteralPath ($installer + '.log')
@@ -209,10 +213,10 @@ export class AppUpdater {
         const exePath = join(tempDir, 'setup.exe');
         await this.downloadVerified(latest, releaseFile(latest.version, 'win32', process.arch)!, exePath, onProgress);
 
-        const script = Buffer.from(windowsInstallScript(exePath, process.pid), 'utf16le').toString('base64');
+        const script = Buffer.from(windowsInstallScript(exePath, process.pid, process.execPath), 'utf16le').toString('base64');
         await new Promise<void>((resolve, reject) => {
           const helper = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', script], {
-            detached: true, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'],
+            cwd: tempDir, detached: true, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'],
           });
           helper.once('error', reject);
           helper.once('exit', (code) => reject(new Error(`The Windows update helper exited before it was ready (${code}). Please try again.`)));

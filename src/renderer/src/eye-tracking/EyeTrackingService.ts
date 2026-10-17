@@ -126,10 +126,9 @@ export class EyeTrackingService {
     }
   }
 
-  /** Close the overlay window. */
+  /** Closing the HUD also releases the camera and cancels pending startup. */
   async closeOverlay(): Promise<void> {
-    this._overlayActive = false;
-    await window.novi.closeOverlay();
+    this.stop();
   }
 
   /** Select a monitor without opening the overlay. */
@@ -207,7 +206,7 @@ export class EyeTrackingService {
       }
 
       if (session !== this.session) return;
-      this.sendStickyToOverlay('Eye tracking active. Look around to position your response.');
+      if (!this._lastSticky) this.sendStickyToOverlay('Eye tracking active. Look around to position your response.');
       this.startLoop();
     } catch (err) {
       if (session !== this.session) return;
@@ -270,7 +269,7 @@ export class EyeTrackingService {
     this.smoother.reset();
     this.dwell.reset();
     this._state = 'running';
-    this.sendStickyToOverlay('Direct eye tracking active. Look around to position your response.');
+    if (!this._lastSticky) this.sendStickyToOverlay('Direct eye tracking active. Look around to position your response.');
     this.startLoop();
   }
 
@@ -356,7 +355,8 @@ export class EyeTrackingService {
   }
 
   private cleanup(): void {
-    void this.closeOverlay().catch((err: unknown) => {
+    this._overlayActive = false;
+    void window.novi.closeOverlay().catch((err: unknown) => {
       this._error = err instanceof Error ? err.message : String(err);
     });
     this.estimator?.destroy();

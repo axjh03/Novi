@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type FormEvent } from 'react';
-import { ArrowUp, Brain, Camera, ImagePlus, Loader2, Mic, Square, X } from 'lucide-react';
+import { ArrowUp, Brain, Camera, ImagePlus, Loader2, Mic, SlidersHorizontal, Square, X } from 'lucide-react';
 import type { ImageAttachment } from '../../../../shared/types';
 import type { InterviewEvent, ListeningSource, TranscriptSegment } from '../../../../shared/interview';
 import { LiveTranscriptDraft, listeningSources } from '../../../../shared/interview';
@@ -7,6 +7,7 @@ import { errorText, unwrap } from '../../services/api';
 import { ImagePreview } from './Message';
 import { useAppMode } from '../../context/AppModeContext';
 import { AudioMeter } from '../AudioMeter';
+import { TrayMenu } from '../TrayMenu';
 import { DRAW_DIAGRAM_PROMPT } from '../../../../shared/sessionModes';
 import { CloudListening } from '../../services/cloudListening';
 import { InterviewAudio } from '../../services/interviewAudio';
@@ -416,18 +417,23 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
                 {localStarting || localStopping ? <Loader2 size={14} className="spin" /> : <Mic size={14} />}
                 {localActive && <AudioMeter level={localLevel} />}
               </button>
+              <TrayMenu className="tray-audio-menu" label="Audio settings" title={<SlidersHorizontal size={14} />}>
+              <div className="tray-menu-heading">Listening settings</div>
+              <label className="tray-audio-input">Audio input
               <select className="composer-source" aria-label="Audio input" value={source} disabled={localActive || localStarting || localStopping}
                 onChange={(event) => setSource(event.target.value as ListeningSource)}>
                 <option value="system">System audio</option>
                 <option value="both">Mic + system</option>
                 <option value="microphone">Mic only</option>
               </select>
-              <label className="transcription-engine composer-engine" title="Audio transcription engine"><Brain size={15} />
+              </label>
+              <label className="transcription-engine composer-engine" title="Audio transcription engine"><Brain size={15} /> Transcription
                 <select aria-label="Audio transcription engine" value={engine} disabled={localActive || localStarting || localStopping}
                   onChange={(event) => setEngine(event.target.value as 'local' | 'cloud')}>
                   <option value="local">Local</option><option value="cloud">Cloud</option>
                 </select>
               </label>
+              </TrayMenu>
             </div>
           </div>
 

@@ -149,6 +149,7 @@ async function main() {
     let tray = await trayPage();
     assert.equal(await page.getByRole('dialog', { name: 'Phone companion' }).count(), 0, 'Starting a session must not open the QR dialog');
     assert.equal(await page.getByRole('button', { name: 'Expand sidebar' }).count(), 1);
+    await tray.getByLabel('Change conversation mode', { exact: true }).click();
     assert.equal(await tray.getByRole('navigation', { name: 'Conversation mode' }).getByRole('button').count(), 7);
     assert.equal(await page.getByRole('navigation', { name: 'Conversation mode' }).count(), 0, 'the output panel holds no input controls');
     assert.equal(await page.getByLabel('Message Novi').count(), 0);
@@ -161,6 +162,7 @@ async function main() {
     assert.equal(await page.getByRole('button', { name: 'Transparency' }).count(), 1);
     assert.equal(await page.getByRole('button', { name: 'End session', exact: true }).count(), 1, 'closing the code viewer keeps the session');
     assert.equal(await page.getByRole('button', { name: 'Camera', exact: true }).count(), 0);
+    await tray.getByLabel('Audio settings', { exact: true }).click();
     await tray.getByLabel('Audio transcription engine').selectOption('cloud');
     await tray.getByLabel('Audio input').selectOption('microphone');
     await page.getByTitle('Settings', { exact: true }).click();
@@ -168,6 +170,7 @@ async function main() {
     assert.equal(trayCount(), 0, 'the tray hides under Settings');
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     tray = await trayPage();
+    await tray.getByLabel('Audio settings', { exact: true }).click();
     assert.equal(await tray.getByLabel('Audio transcription engine').inputValue(), 'cloud');
     assert.equal(await tray.getByLabel('Audio input').inputValue(), 'microphone');
     assert.equal(pings, 2);
@@ -194,6 +197,7 @@ async function main() {
     assert.match(JSON.stringify(requests[1]), /CUSTOM_CONSTRAINT/);
     assert.match(JSON.stringify(requests[1]), /data:image\/png;base64/);
     const diagramWindowEvent = windowAt('#/code-viewer');
+    await tray.getByLabel('Change conversation mode', { exact: true }).click();
     await tray.getByRole('button', { name: 'System Design', exact: true }).click();
     const diagramWindow = await diagramWindowEvent;
     await diagramWindow.getByRole('region', { name: 'Diagram viewer' }).waitFor();
@@ -212,7 +216,9 @@ async function main() {
     await diagramWindow.locator('.mermaid-diagram svg').waitFor();
     assert.equal(await diagramWindow.locator('.diagram-viewer').evaluate(el => getComputedStyle(el).backgroundColor.startsWith('rgb(')), true);
     await diagramWindow.getByRole('button', { name: 'Close diagram window' }).click({ noWaitAfter: true }).catch(() => { /* the viewer window closes */ });
+    await tray.getByLabel('Change conversation mode', { exact: true }).click();
     assert.equal(await tray.getByRole('button', { name: 'System Design', exact: true }).getAttribute('aria-pressed'), 'true');
+    await tray.keyboard.press('Escape');
     const reopenedEvent = windowAt('#/code-viewer');
     await page.getByRole('button', { name: /Open diagrams/ }).click();
     await (await reopenedEvent).locator('.mermaid-diagram svg').waitFor();
@@ -245,14 +251,18 @@ async function main() {
       await page.locator('.context-mode-options').getByRole('button', { name: new RegExp('^' + mode) }).click();
       await page.getByRole('button', { name: 'Start session', exact: true }).click();
       tray = await trayPage();
-      assert.equal(await tray.getByRole('button', { name: mode, exact: true }).getAttribute('aria-pressed'), 'true');
+      await tray.getByLabel('Change conversation mode', { exact: true }).click();
+    assert.equal(await tray.getByRole('button', { name: mode, exact: true }).getAttribute('aria-pressed'), 'true');
+    await tray.keyboard.press('Escape');
       await page.getByRole('button', { name: 'End session', exact: true }).click();
       await page.getByRole('alertdialog', { name: 'End context session' }).getByRole('button', { name: 'End session', exact: true }).click();
       await page.getByRole('heading', { name: 'Session setup' }).waitFor();
     }
     await page.getByRole('button', { name: 'Start an empty chat instead', exact: true }).click();
     tray = await trayPage();
+    await tray.getByLabel('Change conversation mode', { exact: true }).click();
     assert.equal(await tray.getByRole('button', { name: 'Chat', exact: true }).getAttribute('aria-pressed'), 'true');
+    await tray.keyboard.press('Escape');
     assert.equal(await page.locator('.message').count(), 0, 'Skipping setup opens a fresh chat, while saved chats remain available');
     await page.getByRole('button', { name: 'End session', exact: true }).click();
     await page.getByRole('alertdialog', { name: 'End context session' }).getByRole('button', { name: 'End session', exact: true }).click();

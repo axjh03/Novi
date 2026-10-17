@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { join } from 'node:path';
 import { DEFAULT_CLICK_THROUGH_SHORTCUT, DEFAULT_TRANSPARENT_SHORTCUT, LEGACY_TRANSPARENT_SHORTCUT, type AIProviderConfig, type AppSettings, type Conversation, type User } from '../../shared/types';
 import { PROVIDERS } from '../../shared/providers.ts';
-import { UserError } from './validation.ts';
+import { text, UserError } from './validation.ts';
 
 export interface Account extends User { salt: string; passwordHash: string; settings: AppSettings; conversations: Conversation[] }
 interface Database { version: 1 | 2; currentUserId: string | null; accounts: Account[] }
@@ -56,6 +56,15 @@ export class Storage {
       }
     }
     if (this.data.version === 1) { this.data.version = 2; this.save(); }
+  }
+  renameConversation(id: unknown, title: unknown): Conversation {
+    const conversationId = text(id, 'conversation ID', 100);
+    const name = text(title, 'conversation name', 100);
+    const conversation = this.conversations.find(item => item.id === conversationId);
+    if (!conversation) throw new UserError('This conversation could not be found.');
+    conversation.title = name;
+    this.save();
+    return conversation;
   }
   save() { atomicJSON(this.file, this.data); }
   current(): Account {

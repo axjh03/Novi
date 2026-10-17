@@ -27,7 +27,7 @@ interface Props {
   onOpenOverlay: (displayId?: number) => Promise<void>;
   onCloseOverlay: () => Promise<void>;
   onSetMonitor: (displayId: number) => Promise<void> | void;
-  onSendSticky: (text: string, title?: string) => void;
+  onSendSticky?: (text: string, title?: string) => void;
 }
 
 export function EyeTrackingPanel({
@@ -163,7 +163,7 @@ export function EyeTrackingPanel({
   const handleSendCustomSticky = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const textToSend = stickyInput.trim() || 'Look anywhere to summon this sticky box with your gaze.';
-    onSendSticky(textToSend, 'Novi Screen Sticky');
+    onSendSticky?.(textToSend, 'Novi Screen Sticky');
     setStickySent(true);
     setTimeout(() => setStickySent(false), 2000);
   };
@@ -336,7 +336,7 @@ export function EyeTrackingPanel({
             )}
 
             {/* Quick Sticky Sender */}
-            {overlayActive && (
+            {overlayActive && onSendSticky && (
               <>
                 <div className="et-dropdown-divider" />
                 <div className="et-dropdown-section-title">Send Sticky to Screen:</div>
