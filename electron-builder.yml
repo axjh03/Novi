@@ -45,6 +45,8 @@ win:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  # Makes in-app updates wait for Novi to finish closing before installing (see the file for details).
+  include: build/installer.nsh
   createDesktopShortcut: true
   createStartMenuShortcut: true
 

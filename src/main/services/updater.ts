@@ -1,6 +1,6 @@
-import { app, shell } from 'electron';
+import { app, dialog, shell, type BrowserWindow } from 'electron';
 import { dirname, join } from 'node:path';
-import { createWriteStream, rmSync, mkdirSync, mkdtempSync, existsSync, realpathSync, accessSync, chmodSync, renameSync, constants } from 'node:fs';
+import { createWriteStream, rmSync, mkdirSync, mkdtempSync, existsSync, realpathSync, accessSync, chmodSync, renameSync, readFileSync, writeFileSync, constants } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import { exec, execFile, spawn } from 'node:child_process';
@@ -87,82 +87,96 @@ fi
 `;
 
 /**
- * Builds the PowerShell script that installs a downloaded Windows update after Novi has closed.
+ * Command-line arguments for running a downloaded Windows installer as an in-app update.
  *
- * Why a separate helper: Windows locks the files of a running program, so the installer can only
- * replace Novi after it has quit. Novi starts this script (hidden, detached), waits until it prints
- * "ready", then quits normally so recordings, engines and the sign-out finish cleanly first.
+ * Novi starts the NSIS installer itself (detached) and then quits normally. The installer does the rest:
+ * - `--novi-wait-pid=<pid>`: Novi's own process id. build/installer.nsh makes the installer wait (up to
+ *   2 minutes) until that process has ended, so Novi's shutdown (recordings, engines, sign-out) is never
+ *   cut short and no files are locked when the old version is removed.
+ * - `--updated`: tells electron-builder's installer this is an update: keep user data and shortcuts,
+ *   close any leftover Novi process, and pass `--updated` to the relaunched app.
+ * - `/S`: silent, no installer windows (an all-users install still shows Windows' permission prompt).
+ * - `--force-run`: start the new Novi when installation finishes, as the signed-in user.
+ * - `/allusers` or `/currentuser`: keep the install type of the copy that is running now. Novi in
+ *   Program Files was installed for all users; anywhere else it was installed for this user only.
  *
- * What the script does, in order:
- * 1. Prints "ready" so Novi knows the helper is running and can quit.
- * 2. Waits for Novi's main process (`parentPid`) to exit, for at most 2 minutes. If Novi hangs
- *    while closing, the installer still runs: with `--updated` it closes any Novi process itself.
- * 3. Runs the NSIS installer silently: `/S` (no windows), `--updated` (keep data and shortcuts,
- *    and let the installer close a still-running Novi), and `/D=<folder>` (install over the same
- *    folder Novi runs from). `/D=` must be the last argument and is never quoted; NSIS reads the rest
- *    of the command line as the path, so folders with spaces work.
- *    `-Wait` waits for the installer and everything it starts, including the elevated copy that an
- *    all-users install (Program Files) launches after the Windows permission prompt.
- * 4. Checks the result twice: the installer's exit code, AND the version stamped in the installed
- *    Novi.exe. The second check matters because the installer can exit with 0 without installing,
- *    for example when the user declines the Windows permission prompt for an all-users install.
- * 5. Starts the new Novi and deletes the downloaded installer.
+ * There is deliberately no `/D=<folder>`. NSIS needs that argument unquoted, but Node quotes any argument
+ * that contains a space ("C:\Program Files", "C:\Users\Jane Doe"), and electron-builder would then install
+ * into a folder name ending in a quote. Without it, the installer reuses the folder recorded when Novi
+ * was installed, which is the folder it runs from.
  *
- * If anything fails, it reopens whichever Novi is installed (so the user is never left without
- * the app), keeps the installer, and shows a message with the installer's path so the user can
- * run it by hand. Every step is written to "<installer>.log" (UTF-16) for support.
+ * No PowerShell is involved: PowerShell started detached gets no console and exits before doing anything
+ * (that broke every Windows update until v4.0.24), and a hidden PowerShell launched by an app is what
+ * security software blocks as malware.
  *
- * @param payload    full path of the verified installer (Novi-Setup-x.y.z.exe saved as setup.exe).
- * @param parentPid  Novi's main process id; the script waits for it to exit.
- * @param executable full path of the running Novi.exe (process.execPath); the update installs into its folder.
- * @param version    the version being installed, for example "4.0.24"; compared with the installed exe.
- * @returns the script text. Paths are embedded as single-quoted PowerShell strings with ' doubled,
- *   so any character (spaces, &, %, [, ], non-Latin letters) is taken literally.
+ * @param parentPid  Novi's main process id (process.pid).
+ * @param executable the running Novi.exe (process.execPath), used to tell an all-users install apart.
+ * @param env        environment to read the Program Files folders from (tests pass their own).
+ * @returns the arguments, none of which contain spaces.
  */
-export function windowsInstallScript(payload: string, parentPid: number, executable: string, version: string): string {
-  const literal = (value: string) => `'${value.replace(/'/g, "''")}'`;
-  return `
-$ErrorActionPreference = 'Stop'
-$installer = ${literal(payload)}
-$executable = ${literal(executable)}
-$expectedVersion = ${literal(version)}
-$installDirectory = Split-Path -LiteralPath $executable
-$log = $installer + '.log'
-function Write-Step([string]$message) { ('{0:u} {1}' -f (Get-Date), $message) | Out-File -LiteralPath $log -Append -Encoding Unicode }
-# The leading major.minor.patch of the exe's product version ("4.0.24.512" -> "4.0.24"),
-# or '' if Novi.exe is missing or has no readable version.
-function Get-InstalledVersion {
-  if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) { return '' }
-  if ([string](Get-Item -LiteralPath $executable).VersionInfo.ProductVersion -match '^(\\d+)\\.(\\d+)\\.(\\d+)') { return $Matches[1] + '.' + $Matches[2] + '.' + $Matches[3] }
-  return ''
+export function windowsInstallerArgs(parentPid: number, executable: string, env: NodeJS.ProcessEnv = process.env): string[] {
+  const exe = executable.toLowerCase();
+  const allUsers = [env.ProgramFiles, env['ProgramFiles(x86)'], env.ProgramW6432]
+    .filter((root): root is string => Boolean(root))
+    .some(root => exe.startsWith(root.toLowerCase().replace(/[\\/]+$/, '') + '\\'));
+  return [`--novi-wait-pid=${parentPid}`, '--updated', '/S', '--force-run', allUsers ? '/allusers' : '/currentuser'];
 }
-try {
-  Remove-Item -LiteralPath $log -Force -ErrorAction SilentlyContinue
-  Write-Step "Updating Novi to $expectedVersion"
-  $novi = Get-Process -Id ${parentPid} -ErrorAction SilentlyContinue
-  [Console]::Out.Write("ready\n")
-  if ($novi -and -not $novi.WaitForExit(120000)) { Write-Step 'Novi did not close within 2 minutes; the installer will close it.' }
-  # -Wait includes the elevated installer child; do not launch Novi until that child finishes.
-  $setup = Start-Process -FilePath $installer -ArgumentList '/S', '--updated', ("/D=" + $installDirectory) -WorkingDirectory (Split-Path -LiteralPath $installer) -PassThru -Wait
-  Write-Step "Installer exited with code $($setup.ExitCode)"
-  if ($setup.ExitCode -ne 0) { throw "Installer exited with code $($setup.ExitCode)." }
-  $installed = Get-InstalledVersion
-  if ($installed -ne $expectedVersion) { throw "Novi $expectedVersion was not installed (found '$installed'). If Windows asked for permission, the update needs it." }
-  Start-Process -FilePath $executable -ArgumentList '--updated' -WorkingDirectory $installDirectory
-  Write-Step 'Installed and relaunched'
-  Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
-} catch {
-  $failure = $_
-  Write-Step "Failed: $failure"
-  # Reopen whichever Novi is installed, so a failed update never leaves the user without the app.
-  if (Test-Path -LiteralPath $executable -PathType Leaf) {
-    try { Start-Process -FilePath $executable -WorkingDirectory $installDirectory } catch { Write-Step "Could not reopen Novi: $_" }
+
+/** Compares x.y.z versions: positive when a is newer, negative when older, 0 when equal. */
+function compareVersions(a: string, b: string): number {
+  const p1 = (a || '0').split('.').map((n) => parseInt(n, 10) || 0);
+  const p2 = (b || '0').split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+    const difference = (p1[i] || 0) - (p2[i] || 0);
+    if (difference) return difference;
   }
-  $notice = New-Object -ComObject WScript.Shell
-  $notice.Popup("Novi could not install the update. Open the downloaded installer to retry:\n" + $installer + "\nDetails: " + $failure, 0, 'Novi update failed', 16) | Out-Null
-  exit 1
+  return 0;
 }
-`;
+
+/** The note Novi leaves before handing a Windows update to the installer. */
+interface PendingUpdate { version: string; installer: string; startedAt: number }
+/** Where that note is kept: Novi's own data folder, so it survives the update. */
+const pendingUpdateFile = () => join(app.getPath('userData'), 'pending-update.json');
+
+/**
+ * Checks, when Novi starts, whether a Windows update handed to the installer actually finished.
+ *
+ * Once Novi has quit for an update, it can't report anything, so it leaves a note first (see
+ * installUpdate). On the next start:
+ * - this version is the target or newer: the update worked; the note and the downloaded installer
+ *   are deleted;
+ * - the note is less than 3 minutes old: the installer may still be running, so nothing is decided yet;
+ * - otherwise the update did not install (for example the Windows permission prompt was declined, or
+ *   the installer failed): the note is deleted and the user is told, with a button for the download page.
+ *   The downloaded installer is kept so it can be run by hand.
+ *
+ * @param parent the main window, so the message appears on top of Novi (its window stays above others).
+ * @param now    the current time (tests pass a fixed time).
+ */
+export async function reportUnfinishedUpdate(parent?: BrowserWindow, now = Date.now()): Promise<void> {
+  if (!existsSync(pendingUpdateFile())) return;
+  let pending: PendingUpdate | null = null;
+  try { pending = JSON.parse(readFileSync(pendingUpdateFile(), 'utf8')); } catch { /* A damaged note is removed below. */ }
+  if (!pending || typeof pending.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(pending.version)) { rmSync(pendingUpdateFile(), { force: true }); return; }
+  const current = app.getVersion();
+  if (compareVersions(current, pending.version) >= 0) {
+    rmSync(pendingUpdateFile(), { force: true });
+    if (typeof pending.installer === 'string') rmSync(pending.installer, { force: true });
+    return;
+  }
+  if (now - Number(pending.startedAt) < 3 * 60_000) return;
+  rmSync(pendingUpdateFile(), { force: true });
+  const options = {
+    type: 'warning' as const,
+    title: 'Novi update did not finish',
+    message: `Novi ${current} is still installed. The update to ${pending.version} did not finish.`,
+    detail: `If Windows asked for permission, the update needs it. You can try again from Settings › Updates, download Novi from the website, or run the downloaded installer:\n${pending.installer}`,
+    buttons: ['Open download page', 'Close'],
+    defaultId: 0,
+    cancelId: 1,
+  };
+  const { response } = parent ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options);
+  if (response === 0) void shell.openExternal(`${getEffectivePortalUrl()}/download`);
 }
 
 interface LatestRelease { version: string; base: string }
@@ -210,7 +224,7 @@ export class AppUpdater {
     const data = json.data || json;
     const latestVersion = String(data.version || '').replace(/^v/, '');
     if (!/^\d+\.\d+\.\d+$/.test(latestVersion)) throw new Error('The update server returned an unreadable version.');
-    const hasUpdate = this.compareSemver(latestVersion, currentVersion) > 0;
+    const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
     this.latest = hasUpdate ? { version: latestVersion, base: effectiveBase } : null;
 
     return {
@@ -268,22 +282,21 @@ export class AppUpdater {
         const exePath = join(tempDir, 'setup.exe');
         await this.downloadVerified(latest, releaseFile(latest.version, 'win32', process.arch)!, exePath, onProgress);
 
-        const script = Buffer.from(windowsInstallScript(exePath, process.pid, process.execPath, latest.version), 'utf16le').toString('base64');
-        await new Promise<void>((resolve, reject) => {
-          const helper = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', script], {
-            cwd: tempDir, detached: true, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'],
+        // Leave a note first: after Novi quits it can't report a failed install, so the next start checks it.
+        const pending: PendingUpdate = { version: latest.version, installer: exePath, startedAt: Date.now() };
+        writeFileSync(pendingUpdateFile(), JSON.stringify(pending));
+        try {
+          // The installer is a normal windowed program, so it runs detached and outlives Novi.
+          // It waits for this process to end before installing (see windowsInstallerArgs).
+          await new Promise<void>((resolve, reject) => {
+            const installer = spawn(exePath, windowsInstallerArgs(process.pid, process.execPath), { detached: true, stdio: 'ignore' });
+            installer.once('error', reject);
+            installer.once('spawn', () => { installer.unref(); resolve(); });
           });
-          helper.once('error', reject);
-          helper.once('exit', (code) => reject(new Error(`The Windows update helper exited before it was ready (${code}). Please try again.`)));
-          let output = '';
-          helper.stdout.on('data', (chunk: Buffer) => {
-            output += chunk.toString();
-            if (!output.includes('ready\n')) return;
-            helper.stdout.destroy();
-            helper.unref();
-            resolve();
-          });
-        });
+        } catch (error) {
+          rmSync(pendingUpdateFile(), { force: true });
+          throw new Error(`Windows could not start the Novi installer (${error instanceof Error ? error.message : String(error)}). Please try again.`);
+        }
         onProgress({ percent: 100, status: 'Restarting to finish update...' });
         setTimeout(() => app.quit(), 400);
 
@@ -423,18 +436,6 @@ export class AppUpdater {
 
   private assetUrl(latest: LatestRelease, name: string) {
     return `${latest.base}/api/download?file=${encodeURIComponent(name)}`;
-  }
-
-  private compareSemver(v1: string, v2: string): number {
-    const p1 = (v1 || '0').split('.').map((n) => parseInt(n, 10) || 0);
-    const p2 = (v2 || '0').split('.').map((n) => parseInt(n, 10) || 0);
-    for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
-      const num1 = p1[i] || 0;
-      const num2 = p2[i] || 0;
-      if (num1 > num2) return 1;
-      if (num1 < num2) return -1;
-    }
-    return 0;
   }
 
   private async downloadFile(url: string, dest: string, onProgress: (progress: UpdateProgress) => void, redirects = 0): Promise<{ bytes: number; sha512: string }> {

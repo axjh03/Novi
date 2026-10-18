@@ -1,22 +1,24 @@
 /**
  * End-to-end test of Novi's Windows in-app update. Runs on the Windows CI runner after packaging.
  *
- * The unit tests fake the installer; this script uses the real thing, so it proves the whole path a
- * user goes through when they press "Update & Restart":
+ * The unit tests fake the installer; this script uses the real one, so it proves the path a user goes
+ * through when they press "Update & Restart":
  *   1. Install the previous published Novi release (downloaded from GitHub), as a real user has it.
  *   2. Start that Novi.
- *   3. Hand over to the update helper exactly as AppUpdater.installUpdate does: copy the new installer
- *      to <temp>\novi-in-app-update\setup.exe, start PowerShell with windowsInstallScript() (the same
- *      function the app uses), and wait for it to print "ready".
- *   4. Close Novi the way a user would (a normal close, forced only if it hangs).
- *   5. Wait for the helper and check: it succeeded, Novi.exe now carries the new version, the new Novi
- *      was started from the install folder, the downloaded installer was removed, and the helper's log
- *      says "Installed and relaunched".
- *   6. Clean up (close Novi, uninstall).
+ *   3. Start the new installer exactly as AppUpdater.installUpdate does: copied to
+ *      <temp>\novi-in-app-update\setup.exe, started detached with windowsInstallerArgs() (the same
+ *      function the app uses), so it is told to wait for Novi's process.
+ *   4. Check that the installer is really waiting: it is still running and the old version is still
+ *      installed while Novi is open (build/installer.nsh).
+ *   5. Close Novi the way a user would (a normal close, forced only if it hangs).
+ *   6. Wait for the installer and check that Novi.exe now carries the new version and that the new
+ *      Novi was started from the install folder.
+ *   7. Clean up (close Novi, uninstall).
  *
  * It runs twice: a per-user install (%LOCALAPPDATA%\Programs\Novi, what the website installer and most
  * people have) and an all-users install (%ProgramFiles%\Novi, which needs administrator rights; the CI
- * runner has them, so no permission prompt appears).
+ * runner has them, so no permission prompt appears). Both scenarios always run and are reported; a
+ * cleanup problem is printed as a warning and never hides the real result.
  *
  * Usage (Windows only, from the repo root, after `electron-builder` has written dist/):
  *   node --import tsx scripts/windows-update-e2e.ts
@@ -30,7 +32,7 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { setTimeout as delay } from 'node:timers/promises';
-import { releaseFile, windowsInstallScript } from '../src/main/services/updater';
+import { releaseFile, windowsInstallerArgs } from '../src/main/services/updater';
 
 const REPO = 'axjh03/Novi';
 const version: string = JSON.parse(readFileSync('package.json', 'utf8')).version;
@@ -46,8 +48,9 @@ function powershell(command: string): string {
 /** A path as a single-quoted PowerShell string (quotes doubled), so spaces and symbols are literal. */
 const quoted = (value: string) => `'${value.replace(/'/g, "''")}'`;
 
-/** The leading major.minor.patch of an exe's product version ("4.0.24.512" -> "4.0.24"), read the same way the helper does. */
+/** The leading major.minor.patch of an exe's product version ("4.0.24.512" -> "4.0.24"), or '' if it is missing. */
 function installedVersion(exe: string): string {
+  if (!existsSync(exe)) return '';
   return powershell(`if ([string](Get-Item -LiteralPath ${quoted(exe)}).VersionInfo.ProductVersion -match '^(\\d+)\\.(\\d+)\\.(\\d+)') { $Matches[1] + '.' + $Matches[2] + '.' + $Matches[3] }`);
 }
 
@@ -99,7 +102,15 @@ async function waitFor(check: () => boolean, timeoutMs: number, label: string) {
   throw new Error(`Timed out after ${timeoutMs / 1000} s waiting for: ${label}`);
 }
 
-/** Closes every Novi process in `folder` (forcefully, this is cleanup) and uninstalls the copy installed there. */
+/** True once a started child process has ended. */
+const ended = (child: ChildProcess) => child.exitCode !== null || child.signalCode !== null;
+
+/** Runs a cleanup step; a failure there is printed as a warning and never replaces the test's own result. */
+function tidy(label: string, step: () => void) {
+  try { step(); } catch (error) { console.log(`::warning::Cleanup (${label}) failed: ${error instanceof Error ? error.message : String(error)}`); }
+}
+
+/** Closes every Novi process in `folder` (forcefully: this is cleanup) and uninstalls the copy installed there. */
 function uninstall(folder: string, allUsers: boolean) {
   for (const pid of processesIn(folder)) spawnSync('taskkill', ['/PID', String(pid), '/T', '/F']);
   const uninstaller = join(folder, 'Uninstall Novi.exe');
@@ -108,87 +119,94 @@ function uninstall(folder: string, allUsers: boolean) {
   rmSync(folder, { recursive: true, force: true });
 }
 
-/** One complete update: install the previous release, run it, update it through the real helper, check everything. */
+/** One complete update: install the previous release, run it, update it with the real installer, check everything. */
 async function scenario(name: string, allUsers: boolean, previous: { version: string; installer: string }, work: string) {
   console.log(`\n=== ${name}: ${previous.version} -> ${version}`);
   const folder = allUsers ? join(process.env.ProgramFiles!, 'Novi') : join(process.env.LOCALAPPDATA!, 'Programs', 'Novi');
   const exe = join(folder, 'Novi.exe');
-  uninstall(folder, allUsers);
+  let novi: ChildProcess | null = null, installer: ChildProcess | null = null;
+  tidy('remove an earlier copy', () => uninstall(folder, allUsers));
+  try {
+    // 1. Install the previous release silently, like the website installer does (it passes only /S).
+    const install = spawnSync(previous.installer, ['/S', ...(allUsers ? ['/allusers'] : [])], { stdio: 'inherit', timeout: 600_000 });
+    assert.equal(install.status, 0, `the ${previous.version} installer failed (exit ${install.status})`);
+    assert.equal(installedVersion(exe), previous.version, `${previous.version} was not installed at ${exe}`);
 
-  // 1. Install the previous release silently, like the website installer does (it passes only /S).
-  const install = spawnSync(previous.installer, ['/S', ...(allUsers ? ['/allusers'] : [])], { stdio: 'inherit', timeout: 600_000 });
-  assert.equal(install.status, 0, `the ${previous.version} installer failed (exit ${install.status})`);
-  assert.ok(existsSync(exe), `${previous.version} was not installed at ${exe}`);
-  assert.equal(installedVersion(exe), previous.version);
+    // 2. Start the installed Novi with its own data folder, so the runner's profile stays untouched.
+    const env: NodeJS.ProcessEnv = { ...process.env, NOVI_DATA_DIR: mkdtempSync(join(work, `data-${name}-`)) };
+    delete env.ELECTRON_RUN_AS_NODE;
+    novi = spawn(exe, [], { env, stdio: 'ignore' });
+    await delay(8000);
+    // If the runner can't keep a desktop app open, still test the installer with a stand-in process for
+    // Novi, and say clearly that the relaunch could not be checked.
+    const appRuns = !ended(novi);
+    if (!appRuns) {
+      console.log(`::warning::Novi ${previous.version} did not stay open on this runner (exit ${novi.exitCode}); using a stand-in process, so the relaunch is not checked.`);
+      novi = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+    }
 
-  // 2. Start the installed Novi with its own data folder, so the runner's profile stays untouched.
-  const data = mkdtempSync(join(work, `data-${name}-`));
-  const env: NodeJS.ProcessEnv = { ...process.env, NOVI_DATA_DIR: data };
-  delete env.ELECTRON_RUN_AS_NODE;
-  let novi: ChildProcess = spawn(exe, [], { env, stdio: 'ignore' });
-  await delay(8000);
-  // If the runner can't keep a desktop app open, still test the installer and helper with a stand-in
-  // process for Novi, and say clearly that the relaunch could not be checked.
-  const appRuns = novi.exitCode === null && novi.signalCode === null;
-  if (!appRuns) {
-    console.log(`::warning::Novi ${previous.version} did not stay open on this runner (exit ${novi.exitCode}); using a stand-in process, so the relaunch is checked only through the helper's log.`);
-    novi = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+    // 3. Start the new installer exactly like AppUpdater.installUpdate.
+    const updateDir = join(work, `novi-in-app-update-${name}`);
+    mkdirSync(updateDir, { recursive: true });
+    const payload = join(updateDir, 'setup.exe');
+    copyFileSync(newInstaller, payload);
+    const args = windowsInstallerArgs(novi.pid!, exe);
+    console.log(`Starting the installer: setup.exe ${args.join(' ')}`);
+    installer = spawn(payload, args, { detached: true, stdio: 'ignore' });
+    const started = installer;
+    const finished = new Promise<number | null>((resolve, reject) => { started.once('exit', resolve); started.once('error', reject); });
+
+    // 4. The installer must wait while Novi is open: still running, nothing replaced yet.
+    await delay(10_000);
+    assert.equal(ended(installer), false, `the installer did not wait for Novi (it exited with ${installer.exitCode})`);
+    assert.equal(installedVersion(exe), previous.version, 'the installer replaced Novi while it was still open');
+    console.log('The installer is waiting for Novi to close, as intended.');
+
+    // 5. Close Novi normally (WM_CLOSE, like clicking the window's X). Forced only if it is still open after 30 s.
+    const running = novi;
+    spawnSync('taskkill', ['/PID', String(running.pid)]);
+    await waitFor(() => ended(running), 30_000, 'Novi to close').catch(() => {
+      console.log('Novi did not close within 30 s; forcing it closed.');
+      spawnSync('taskkill', ['/PID', String(running.pid), '/T', '/F']);
+    });
+
+    // 6. The installer now installs and relaunches Novi. Give it 10 minutes.
+    const code = await Promise.race([finished, delay(600_000).then(() => 'timeout' as const)]);
+    console.log(`Installer finished: ${code === 'timeout' ? 'still running after 10 minutes' : `exit code ${code}`}`);
+    assert.notEqual(code, 'timeout', 'the installer did not finish within 10 minutes');
+    assert.equal(installedVersion(exe), version, 'Novi.exe does not carry the new version');
+    if (appRuns) await waitFor(() => processesIn(folder).length > 0, 60_000, 'the updated Novi to start');
+    console.log(`${name}: updated to ${version}${appRuns ? ' and relaunched' : ''}.`);
+  } finally {
+    // 7. Clean up for the next scenario, whatever happened above.
+    const leftInstaller = installer, leftNovi = novi;
+    if (leftInstaller && !ended(leftInstaller)) tidy('stop the installer', () => { spawnSync('taskkill', ['/PID', String(leftInstaller.pid), '/T', '/F']); });
+    if (leftNovi && !ended(leftNovi)) tidy('stop Novi', () => { spawnSync('taskkill', ['/PID', String(leftNovi.pid), '/T', '/F']); });
+    tidy('uninstall', () => uninstall(folder, allUsers));
   }
-
-  // 3. Hand over to the helper exactly like AppUpdater.installUpdate.
-  const updateDir = join(work, `novi-in-app-update-${name}`);
-  mkdirSync(updateDir, { recursive: true });
-  const payload = join(updateDir, 'setup.exe');
-  copyFileSync(newInstaller, payload);
-  const script = Buffer.from(windowsInstallScript(payload, novi.pid!, exe, version), 'utf16le').toString('base64');
-  const helper: ChildProcess = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', script], {
-    cwd: updateDir, env, detached: true, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'],
-  });
-  const finished = new Promise<number | null>((resolve, reject) => { helper.once('exit', resolve); helper.once('error', reject); });
-  await new Promise<void>((resolve, reject) => {
-    let output = '';
-    helper.stdout!.on('data', (chunk: Buffer) => { output += chunk.toString(); if (output.includes('ready\n')) resolve(); });
-    helper.once('exit', code => reject(new Error(`The helper exited before it was ready (${code}).`)));
-  });
-  console.log('Helper is ready; closing Novi the normal way.');
-
-  // 4. A normal close (WM_CLOSE). Forced only if Novi is still running after 30 s.
-  spawnSync('taskkill', ['/PID', String(novi.pid)]);
-  await waitFor(() => novi.exitCode !== null || novi.signalCode !== null, 30_000, 'Novi to close').catch(() => {
-    console.log('Novi did not close within 30 s; forcing it closed.');
-    spawnSync('taskkill', ['/PID', String(novi.pid), '/T', '/F']);
-  });
-
-  // 5. The helper waits for the installer; give it 10 minutes.
-  const code = await Promise.race([finished, delay(600_000).then(() => 'timeout' as const)]);
-  const logFile = payload + '.log';
-  const log = existsSync(logFile) ? readFileSync(logFile, 'utf16le').replace(/^﻿/, '') : '(no log written)';
-  console.log(`Helper log:\n${log}`);
-  if (code === 'timeout') { helper.kill(); throw new Error('The update helper did not finish within 10 minutes (a failure message box may be waiting).'); }
-  assert.equal(code, 0, 'the update helper reported a failure');
-  assert.equal(installedVersion(exe), version, 'Novi.exe does not carry the new version');
-  assert.match(log, /Installed and relaunched/);
-  assert.equal(existsSync(payload), false, 'the downloaded installer should be removed after a successful update');
-  if (appRuns) await waitFor(() => processesIn(folder).length > 0, 60_000, 'the updated Novi to start');
-  console.log(`${name}: updated to ${version} and ${appRuns ? 'relaunched' : 'the helper started it (not observable on this runner)'}.`);
-
-  // 6. Clean up for the next scenario.
-  uninstall(folder, allUsers);
 }
 
 async function main() {
   if (process.platform !== 'win32') throw new Error('This test only runs on Windows.');
   assert.ok(existsSync(newInstaller), `${newInstaller} is missing; run electron-builder first.`);
   const work = mkdtempSync(join(tmpdir(), 'novi-update-e2e-'));
+  const failures: string[] = [];
   try {
     const previous = await previousRelease(work);
     if (!previous) { console.log(`No published Windows release other than ${version}; nothing to update from.`); return; }
-    await scenario('per-user', false, previous, work);
-    await scenario('all-users', true, previous, work);
-    console.log(`\nWindows in-app update works: ${previous.version} -> ${version}, per-user and all-users.`);
+    for (const [name, allUsers] of [['per-user', false], ['all-users', true]] as const) {
+      try { await scenario(name, allUsers, previous, work); }
+      catch (error) {
+        console.error(`::error::${name} update failed: ${error instanceof Error ? error.stack || error.message : String(error)}`);
+        failures.push(name);
+      }
+    }
   } finally {
-    rmSync(work, { recursive: true, force: true });
+    // Novi's data folders can stay locked for a moment after it closes; never let that hide the result.
+    tidy('remove the work folder', () => rmSync(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 1000 }));
   }
+  if (failures.length) { console.error(`\nWindows in-app update FAILED: ${failures.join(', ')}.`); process.exit(1); }
+  console.log(`\nWindows in-app update works: per-user and all-users updated to ${version}.`);
 }
 
 main().catch((error) => { console.error(error); process.exit(1); });

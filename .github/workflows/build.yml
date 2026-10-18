@@ -82,8 +82,8 @@ jobs:
       - name: Test the Windows in-app update end to end
         if: runner.os == 'Windows'
         timeout-minutes: 30
-        # Installs the previous published release, runs it, and updates it to this build through the
-        # same helper the app uses, per-user and all-users. See scripts/windows-update-e2e.ts.
+        # Installs the previous published release, runs it, and updates it to this build by starting the
+        # new installer exactly as the app does, per-user and all-users. See scripts/windows-update-e2e.ts.
         run: node --import tsx scripts/windows-update-e2e.ts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

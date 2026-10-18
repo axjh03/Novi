@@ -97,6 +97,9 @@ else void app.whenReady().then(async () => {
   }
   createWindow();
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
+  // After a Windows in-app update, confirm it installed; if not, tell the user (see reportUnfinishedUpdate).
+  const { reportUnfinishedUpdate } = await import('./services/updater');
+  void reportUnfinishedUpdate(mainWindow ?? undefined).catch((error) => console.warn('[Updater] Could not check the last update:', error));
 }).catch((error) => {
   dialog.showErrorBox('Novi could not start', error instanceof Error ? error.message : String(error));
   app.quit();
