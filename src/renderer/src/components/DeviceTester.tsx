@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, CameraOff, Mic, Play, Square, RotateCcw, Radio, ShieldCheck, AlertCircle, FileText, Sparkles, Copy, Check, Loader2, Volume2 } from 'lucide-react';
 import { errorText, unwrap } from '../services/api';
+import { deviceError } from '../services/deviceErrors';
+import { captureProvider } from '../services/interviewAudio';
 
 async function blobToBase64(blob: Blob): Promise<string> {
   return new Promise<string>((resolve, reject) => {
@@ -323,9 +325,10 @@ export function DeviceTester() {
 
       const audioTracks = displayStream.getAudioTracks();
       if (audioTracks.length === 0) {
-        // Stop video track immediately if no audio was selected
+        // No sound track came with the screen share. Novi answers this request itself (no prompt
+        // appears), so give the same advice as listening and Get ready instead of "when prompted".
         displayStream.getTracks().forEach(t => t.stop());
-        throw new Error('System audio capture was not enabled. Please check "Share system audio" when prompted.');
+        throw new Error(captureProvider().systemHelp);
       }
 
       // Stop unused video tracks so we only keep system audio
@@ -386,7 +389,8 @@ export function DeviceTester() {
         if (remaining <= 0) stopSysRecording();
       }, 1000);
     } catch (err) {
-      setSysError((err as Error).message || 'System audio capture denied or unavailable.');
+      // Browser refusals become the same plain sentence sessions show; Novi's own messages pass through unchanged.
+      setSysError(deviceError('system', err).message);
       setSysState('idle');
     }
   }

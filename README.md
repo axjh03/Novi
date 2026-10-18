@@ -4,9 +4,9 @@ A managed Electron AI workspace with a separate Novi web portal for accounts, li
 
 ## Mask and terminal controls
 
-In **Settings → General → Mask & app controls**, enable Mask, choose a window name, and optionally import an application's icon or an image. Click **Apply mask settings**. This device setting also applies before sign-in and to newly opened windows. Disable Mask to restore the usual titles and icons. Windows cannot be minimized while Transparent mode is enabled. A masked window has no taskbar entry, so after minimizing it, open Novi again to bring it back. The Windows taskbar and macOS Dock can be hidden; Linux desktop support varies. This does not hide processes from Task Manager, Activity Monitor, system tools, or change the installed executable's identity. File icon extraction can return a generic icon; PNG/ICO files provide a predictable alternative on Windows/Linux.
+In **Settings › General › Mask**, turn on **Mask Novi**, choose a window name, and optionally pick an application or an image with **Choose icon…**. Click **Save mask settings**. This device setting also applies before sign-in and to newly opened windows. Turn Mask off to restore the usual titles and icons. Windows cannot be minimized while Transparent mode is enabled. A masked window has no taskbar entry, so after minimizing it, open Novi again to bring it back. The Windows taskbar and macOS Dock can be hidden; Linux desktop support varies. This does not hide processes from Task Manager, Activity Monitor, system tools, or change the installed executable's identity. File icon extraction can return a generic icon; PNG/ICO files provide a predictable alternative on Windows/Linux.
 
-In an installed build, Settings detects whether the terminal command is missing, current, or needs updating. Use **Install terminal command**, **Update terminal command**, or **Add command to PATH** as shown. Novi adds its command directory to the Windows user PATH or your bash/zsh/sh/fish profile and refreshes the status. Open a new terminal afterwards; some terminal apps must be fully quit and reopened. Existing terminal processes retain their old environment. **Refresh command status** checks again:
+In an installed build, **Settings › General › Terminal command** shows whether the terminal command is missing, current, or needs updating. Use **Install terminal command**, **Update terminal command**, or **Add command to PATH** as shown. Novi adds its command directory to the Windows user PATH or your bash/zsh/sh/fish profile and refreshes the status. Open a new terminal afterwards; some terminal apps must be fully quit and reopened. Existing terminal processes retain their old environment. **Check again** refreshes the status:
 
 ```sh
 novi start # Launch or restore the main window, including while masked
@@ -30,9 +30,9 @@ fish_add_path "$HOME/.local/bin"
 $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
 ```
 
-For Windows Command Prompt, reopen the terminal app, or use `set "PATH=%APPDATA%\Novi\bin;%PATH%"` for that shell. Novi cannot refresh the environment of an existing parent shell. **Refresh command status** checks installation; it does not reload your terminal. Automatic Unix profile setup follows your configured shell; a different shell may need its own PATH setup.
+For Windows Command Prompt, reopen the terminal app, or use `set "PATH=%APPDATA%\Novi\bin;%PATH%"` for that shell. Novi cannot refresh the environment of an existing parent shell. **Check again** checks installation; it does not reload your terminal. Automatic Unix profile setup follows your configured shell; a different shell may need its own PATH setup.
 
-The launcher requires no separate Node.js installation. Use **Update terminal command** if you move Novi or its AppImage. With a built development checkout, use `npx electron . start` and `npx electron . stop`. Commands address the instance using the same user-data directory (`NOVI_DATA_DIR`, if set). Stopping an already stopped app does not open a window. **Quit Novi** is available on every Settings tab; quitting stops active work, and unsent text is not saved.
+The launcher requires no separate Node.js installation. Use **Update terminal command** if you move Novi or its AppImage. With a built development checkout, use `npx electron . start` and `npx electron . stop`. Commands address the instance using the same user-data directory (`NOVI_DATA_DIR`, if set). Stopping an already stopped app does not open a window. **Quit Novi** is in **Settings › General › Data & account**; quitting stops active work, and unsent text is not saved.
 
 ## Run
 
@@ -68,23 +68,29 @@ npm test            # Dependency-free core checks, using Node's test runner
 npm run test:desktop # Build and exercise the real Electron app with a local API fixture
 ```
 
-`npm run build` creates runnable application assets, not an installer. Signed installers and automatic updates are outside this foundation's scope. Dependencies must be downloaded by `npm install` before building.
+`npm run build` creates runnable application assets, not an installer. Installers come from `npx electron-builder`, and the release workflow (`.github/workflows/build.yml`) builds and publishes them for macOS, Windows and Linux when a `v*` tag is pushed. Installed copies find new releases in **Settings › General › Updates**, with **Check for updates** or automatically at startup, and install them with **Update & Restart**. Installers are not code-signed. Dependencies must be downloaded by `npm install` before building.
 
 ## First launch
 
 ### Context sessions
 
-After sign-in/setup, Novi opens **Context**, not the conversation screen. Choose a provider/model first, click **Load context**, select one or more folders, then enter a required session purpose and up to four optional, editable custom fields. **Start session** opens chat and sends all selected text plus the fields to that provider. The first assistant response confirms/summarizes the reference material and becomes `AI Context.md`.
+After sign-in, Novi shows **Get ready** (below) and then **Session setup**, not the conversation screen. Setup has three steps:
 
-During a session the window docks full height on the right of the working monitor (at least 850 px wide) and shows only the conversation. A floating tray at the top of the screen holds the mode tabs, model picker, eye-tracking controls and the message box; both can be moved, and choosing a monitor moves both. Drag any tray background area to move it; drag either side grip to change its width, or focus a grip and use the arrow keys. Controls wrap to fit, and the tray automatically trims unused height after resizing or closing menus. Buttons and text fields stay interactive. The tray follows transparent mode and click-through like the main window: in transparent mode both stay above other apps, even after you click another app; otherwise they are ordinary windows, and focusing one brings the other forward. If the tray is closed, **Show tray** in the conversation header reopens it. Ending the session closes the tray and restores the window.
+1. **Model**: choose the AI connection and model. Saved profiles can be started here in one click, and **Start an empty chat instead** skips setup and opens a plain chat.
+2. **Documents** (optional): **Choose folders** of resumes, job descriptions or notes.
+3. **Instructions**: the purpose fills itself in from your choices (edit it to use your own words), then pick a **Session type** and optionally add a company, a role and a preset. A preset applies as soon as you click it, and **Undo** puts back what it changed. **More options** holds the four answer instructions and **Save profile**.
 
-Before each session, **Get ready** checks everything in one click: app storage, the AI connection, speech files, microphone, system audio and screen capture. It also sets which screen Novi opens on and whether sessions start in Transparent mode. Results are kept until Novi closes. On the setup's last step, **Save as profile** keeps the model, folders, mode, framework, company, role and instructions; next time, **Start** on the profile begins that session in one click, reading the folders again so updated files are used. At the start of a session, a ready check in the panel lists the results and the main shortcuts, and offers a one-minute **practice run**: Novi plays a sample interviewer question so you can try listen, stop, send and read once before it counts. It sends one question to your AI model.
+**Start session** stays pressable while something is missing and takes you to it instead. It opens chat and sends all selected text plus the instructions to that provider. The first assistant response confirms/summarizes the reference material and becomes `AI Context.md`.
 
-**Local Coding** is a separate mode for questions about a project on your computer. Choose a working folder (type its path or browse with Novi's own explorer), optionally add files or folders, and pick an agent: **Codex** (needs an OpenAI connection on `https://api.openai.com/v1`), **Claude** (needs an Anthropic connection on `https://api.anthropic.com/v1`), or **Antigravity (agy)** (needs a Gemini connection on `https://generativelanguage.googleapis.com/v1beta`). Under **Settings → API Management → Local Coding agents**, Novi checks installed versions and offers **Install** for missing engines, **Check for updates**, and **Update** when a newer release is available. Installs are managed inside Novi’s user-data directory and use the publishers’ official downloads. **Check login** validates the selected saved API key; agents use that key automatically without browser sign-in. Antigravity does not accept screenshots. Novi captures the eligible text files into its own storage as **Local S0**, excluding dependencies, build output, version-control internals, credential files and binaries, and shows what it included. The agent reads only that captured copy, through three read-only tools (list, search, read); it has no shell, no file editing and no web access, and the project folder is never written. Each coding answer is validated and becomes an **iteration**: a virtual version with clickable EDIT, NEW and DELETE cards that open a diff in the viewer (unified or side by side, against the parent or the local snapshot, with copy actions). The selected version is what the next request reads, so you can continue from Iteration 1 or branch from it. **Capture latest local files** takes a new snapshot; **Refresh and carry forward** combines your latest files with the selected iteration and asks you to choose when both changed the same file. Selected files are sent to the agent's provider when it reads them. Proposals are never run or tested.
+During a session the window docks full height on the right of the working monitor (about a third of the screen wide, at most 1000 px) and shows only the conversation. A floating tray at the top of the screen holds the mode tabs, model picker, eye-tracking controls and the message box; both can be moved, and choosing a monitor moves both. Drag any tray background area to move it; drag either side grip to change its width, or focus a grip and use the arrow keys. Controls wrap to fit, and the tray automatically trims unused height after resizing or closing menus. Buttons and text fields stay interactive. The tray follows transparent mode and click-through like the main window: in transparent mode both stay above other apps, even after you click another app; otherwise they are ordinary windows, and focusing one brings the other forward. If the tray is closed, **Show tray** in the conversation header reopens it. Ending the session closes the tray and restores the window.
+
+**Get ready** checks everything in one click: app storage, the AI connection, speech files, microphone, system audio and screen capture. It also sets which screen Novi opens on and whether sessions start in Transparent mode. It opens by itself once per launch for each account. Results are remembered on this computer for the rest of the day, and **Continue anyway** is always available. To run it again later, use **Run Get ready** at the top of session setup. Under **More options** on the setup's last step, **Save profile** keeps the model, folders, session type, framework, company, role and instructions; next time, **Start** on the profile begins that session in one click, reading the folders again so updated files are used. At the start of a session, a ready check in the panel lists the results and the main shortcuts, names anything that isn't ready yet, and offers a one-minute **practice run**: Novi plays a sample interviewer question so you can try listen, stop, send and read once before it counts. It sends one question to your AI model.
+
+**Local Coding** is a separate mode for questions about a project on your computer. Choose a working folder (type its path or browse with Novi's own explorer), optionally add files or folders, and pick an agent: **Codex** (needs an OpenAI connection on `https://api.openai.com/v1`), **Claude** (needs an Anthropic connection on `https://api.anthropic.com/v1`), or **Antigravity (agy)** (needs a Gemini connection on `https://generativelanguage.googleapis.com/v1beta`). Under **Settings › API Management › Local Coding agents**, Novi checks installed versions and offers **Install** for missing engines, **Check for updates**, and **Update** when a newer release is available. Installs are managed inside Novi’s user-data directory and use the publishers’ official downloads. **Test connection** checks the selected saved API key; agents use that key automatically without browser sign-in. Antigravity does not accept screenshots. Novi captures the eligible text files into its own storage as **Local S0**, excluding dependencies, build output, version-control internals, credential files and binaries, and shows what it included. The agent reads only that captured copy, through three read-only tools (list, search, read); it has no shell, no file editing and no web access, and the project folder is never written. Each coding answer is validated and becomes an **iteration**: a virtual version with clickable EDIT, NEW and DELETE cards that open a diff in the viewer (unified or side by side, against the parent or the local snapshot, with copy actions). The selected version is what the next request reads, so you can continue from Iteration 1 or branch from it. **Capture latest local files** takes a new snapshot; **Refresh and carry forward** combines your latest files with the selected iteration and asks you to choose when both changed the same file. Selected files are sent to the agent's provider when it reads them. Proposals are never run or tested.
 
 TXT files must be UTF-8. PDF.js extracts searchable PDF text locally (including page labels); no PDF upload service is used. Scanned/image-only or encrypted PDFs are rejected, and diagrams/layout are not interpreted. Limits: 8 folders, 30 files, 10 MB per file, 50 MB total, 200 pages per PDF, and 80,000 extracted characters. Subfolders are included; symlinks are skipped. Oversized context is rejected, never silently truncated. The selected model may impose a smaller token limit or incur provider charges.
 
-Conversations and their attachments are saved to the signed-in account's local history as messages arrive, and are available in later sessions. New conversations inherit the current session's loaded references and initial AI summary while that session is active; raw reference documents are not written to saved history. The model is fixed for that session. `AI Context.md` is stored at `<Electron userData>/context-session/AI Context.md`; it is deleted on **End session**, sign-out, normal app close, or the next launch after an interrupted exit. Saved images remain until their conversation is deleted or history is cleared. Source folders are not deleted. Deletion is ordinary local deletion, not forensic secure erasure; it cannot remove provider-side records. Context profiles/fields are not saved across sessions in this version.
+Conversations and their attachments are saved to the signed-in account's local history as messages arrive, and are available in later sessions. New conversations inherit the current session's loaded references and initial AI summary while that session is active; raw reference documents are not written to saved history. The model is fixed for that session. `AI Context.md` is stored at `<Electron userData>/context-session/AI Context.md`; it is deleted on **End session**, sign-out, normal app close, or the next launch after an interrupted exit. Saved images remain until their conversation is deleted or history is cleared. Source folders are not deleted. Deletion is ordinary local deletion, not forensic secure erasure; it cannot remove provider-side records. Saved profiles store folder locations and instructions, never the documents' text.
 
 PDF support requires `npm install` to install `pdfjs-dist` and its platform dependencies. If it is missing, TXT sessions still work and PDF loading explains the install requirement. If a context request fails or is stopped, end the session and retry with smaller/different files or another model. Calibration is independent of context: enabling Eye Track starts the 25-target calibration; ending a context session also stops its tracking/HUD.
 
@@ -92,28 +98,33 @@ PDF support requires `npm install` to install `pdfjs-dist` and its platform depe
 2. Sign in as `admin` with `ADMIN_PASSWORD`. Create a standalone account or corporation; corporations can create sub-corporations.
 3. Issue a license to a standalone or sub-corporation owner. That owner creates a desktop account and permanently binds the license.
 4. As the owner, add provider keys and model IDs in **API management**.
-5. In Electron, sign in with the licensed desktop username and password. Open **Settings → API management** to enable and select inherited connections.
+5. In Electron, sign in with the licensed desktop username and password. Open **Settings › API Management** to enable and select inherited connections.
 
 Optional seeded desktop accounts are `standalone.desktop` and `studio.desktop`, using `DEMO_PASSWORD`. Portal sample owners are `standalone`, `corporation`, and `subcorp`. See [webapp/README.md](webapp/README.md) for the role matrix, schema, API, and deployment instructions.
 
-The desktop reads `NOVI_ACCESS_URL` from its launch environment (defaults to `http://localhost:3000`). On PowerShell: `$env:NOVI_ACCESS_URL='https://your-access-server.example'`. Production servers require HTTPS. Normal sign-out releases the account immediately; crashed devices lose their lease after 90 seconds. If the server becomes unreachable, the session stays open and local features keep working; sending to an AI provider needs the server. After 90 seconds offline, Novi shows a reconnecting notice. Only a server rejection (revocation, password reset, license termination, another device signing in, or the 8-hour sign-in limit) ends the session.
+The desktop reads `NOVI_ACCESS_URL` from its launch environment (defaults to `http://localhost:3000`). On PowerShell: `$env:NOVI_ACCESS_URL='https://your-access-server.example'`. Production servers require HTTPS. **Sign out** is in **Settings › General › Data & account**. Signing out releases the account immediately; crashed devices lose their lease after 90 seconds. If the server becomes unreachable, the session stays open and local features keep working; sending to an AI provider needs the server. After 90 seconds offline, Novi shows a reconnecting notice. Only a server rejection (revocation, password reset, license termination, another device signing in, or the 8-hour sign-in limit) ends the session.
 
 The managed provider catalog supports OpenAI, Anthropic, Gemini, and Kimi (Moonshot AI). Owners supply a model ID available to their provider account. Compatible providers use the existing Chat Completions transport; provider destinations are fixed by the server. Redirects are rejected.
 
 Image messages require a vision-capable model. Desktop accounts can select and disable connections; editing keys, destinations, and model IDs is restricted to the web owner portal.
 
+## Phone companion
+
+The QR code button in Novi's title bar (**Open phone companion**) shows a link and QR code that let a phone control Novi. Its small web server starts only when you open it. Choose **Same Wi-Fi** to connect directly over your local network, or **Anywhere** to go through a Cloudflare tunnel (HTTPS); with Anywhere on, Novi accepts only connections that come through the tunnel. A new link is made each time the companion starts or switches between the two, so old links stop working. Signing out disconnects the phone.
+
 ## Architecture
 
-### Local interview work in progress
+### Local speech
 
-**Settings → Local AI** now provides hardware discovery and a versioned local
-model downloader with checksum verification, resumable downloads, and deletion.
-**Local interview** in session setup or chat opens the separate streaming
-system/microphone transcription workflow, with local recovery and optional
-turn-level speaker labeling. Real-device inference/capture validation is still
-pending. Local LLM analysis and offline account access are not enabled yet.
-Existing chat audio still uses the configured cloud provider. See [implementation status](docs/local-ai.md)
-and [inspected architecture](docs/existing-architecture.md).
+**Settings › Local AI** shows this computer's hardware and manages local speech
+models: checksum-verified, resumable downloads, deletion, and a **Live test**.
+During a session, the microphone button in the tray (or the listen shortcut)
+transcribes what Novi hears. In the tray's audio settings, **Audio input**
+chooses system audio, your microphone, or both, and **Transcription** is
+**Local** by default, which keeps the audio on this computer; **Cloud** sends it
+to your AI provider instead. Local LLM analysis and offline account access are
+not enabled yet. See [implementation status](docs/local-ai.md) and
+[inspected architecture](docs/existing-architecture.md).
 
 Run the dependency-free model checks with `npm run test:local-models`.
 
@@ -124,11 +135,7 @@ and VAD on the build host. Packaging needs internet access; speech files are
 copied into each user's model storage on first setup without a download. Larger
 speech models, speaker detection, and local LLM weights remain optional.
 
-Before each session, setup checks writable storage and offers microphone,
-system-audio, screen, and source-folder access tests. Missing or untested features
-require an explicit acknowledgement to continue. OS permission changes may need
-an app restart, and capture pickers can reappear on later captures. The detached
-code/diagram viewer stays scrollable even when the main window passes clicks through.
+The detached code/diagram viewer stays scrollable even when the main window passes clicks through.
 
 ```text
 src/
@@ -174,7 +181,7 @@ Novi uses Electron's `app.getPath('userData')`, typically:
 The exact directory follows Electron's platform conventions. `NOVI_DATA_DIR` can override it for isolated testing; do not point it at an unrelated application's directory.
 
 - `data.json`: local account caches, display preferences, provider metadata, selection, theme, and existing history. Managed passwords and API secrets are never written here. This file is **not encrypted**.
-- `access-session.json`: OS-encrypted JWT and a generated installation identifier. Its server binding prevents reuse against a different access server.
+- `access-session.json`: the OS-encrypted session token (JWT), the access server it belongs to, and a generated installation identifier. With **Keep me signed in** (on by default) it also remembers your username, so the sign-in form is filled in next time; without it, the token and username are deleted and the session ends when Novi quits. Your password is never saved. The server binding prevents reuse against a different access server.
 - Managed provider secrets stay in main-process memory and are cleared on sign-out. The renderer receives metadata only. Legacy `credentials.json` files remain preserved but do not supply managed connections.
 - `images/`: app-owned local copies of attached images, addressed by generated IDs rather than renderer-provided filesystem paths. Copies preserve history if an original file moves. Deleting conversations or clearing history removes unreferenced copies. Unsent copies are pruned on sign-out or next startup.
 
@@ -221,6 +228,6 @@ Other deliberate version-one limits:
 - A response is saved when it finishes or stops. A crash during generation may lose that partial response; the user's submitted message is already saved.
 - Code blocks are styled monospace with a Copy button; token-level syntax highlighting is not included.
 - Image thumbnails are local. Temporary unused image copies are bounded; after many unused selections, signing out clears them.
-- No voice, documents, web browsing, tools, agents, plugins, cloud sync, or autonomous actions.
+- No web browsing, plugins, cloud sync, or autonomous actions. Local Coding agents read only a captured copy of your files, and their proposals are never run.
 
 Implementation references: [Electron security](https://www.electronjs.org/docs/latest/tutorial/security), [Electron safeStorage](https://www.electronjs.org/docs/latest/api/safe-storage), [OpenAI image inputs](https://developers.openai.com/api/docs/guides/images-vision), and [OpenAI streaming](https://developers.openai.com/api/docs/guides/streaming-responses).

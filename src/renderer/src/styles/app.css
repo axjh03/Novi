@@ -3560,7 +3560,7 @@ html.novi-tray .chat-mode-tabs .mode-tab-btn span { display: inline; white-space
 .ready-chips li.failed { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
 /* Read by assistive tech; the chip's icon and colour show it visually. */
 .ready-chip-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.ready-keys { margin: 0; color: var(--muted); font-size: 12px; }
+.ready-keys, .ready-note { margin: 0; color: var(--muted); font-size: 12px; }
 .ready-keys kbd, .practice-coach kbd { padding: 1px 6px; border: 1px solid var(--border); border-radius: 5px; background: var(--panel); font: inherit; font-size: 11px; }
 .ready-practice { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
 .ready-practice button { display: inline-flex; align-items: center; gap: 6px; }

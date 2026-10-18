@@ -94,7 +94,18 @@ async function main() {
     await page.getByRole('button', { name: 'Refresh models', exact: true }).click();
     await page.waitForFunction(() => !(document.querySelector('select[aria-label="Choose model"]') as HTMLSelectElement).disabled);
     assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), 'gemini-chat');
-    console.log('Model UI passed: invalid legacy model, live dropdown, failed ping, immediate startup, discovery failure and retry.');
+    // Get ready opens by itself once per launch; session setup's "Run Get ready" brings it back with
+    // today's results (the microphone failure above), and Continue returns to setup with nothing lost.
+    await page.getByRole('button', { name: 'Run Get ready', exact: true }).click();
+    await page.getByRole('heading', { name: 'Get ready' }).waitFor();
+    await page.getByText(/^Microphone access is blocked\./).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Retry microphone', exact: true }).count(), 1);
+    await page.getByRole('button', { name: 'Continue anyway', exact: true }).click();
+    await page.getByRole('heading', { name: 'Session setup' }).waitFor();
+    await page.waitForFunction(() => !(document.querySelector('select[aria-label="Choose model"]') as HTMLSelectElement | null)?.disabled);
+    assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), 'gemini-chat');
+    assert.equal(await page.getByLabel('Purpose').inputValue(), 'Review the reference', 'what was typed in setup survives the visit to Get ready');
+    console.log('Model UI passed: invalid legacy model, live dropdown, failed ping, immediate startup, discovery failure and retry, Run Get ready.');
     await page.goto('http://novi.test/index.html#/code-viewer');
     await page.reload();
     const scroll = page.getByRole('region', { name: 'Scrollable code' });

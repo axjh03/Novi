@@ -36,7 +36,9 @@ const folderCount = (count: number) => `${count} ${count === 1 ? 'folder' : 'fol
  * Start stays pressable even when something is missing: it then jumps to the missing item instead
  * of doing nothing, which helps when someone is nervous and can't see why nothing happens.
  *
- * Get ready (SessionPreflight) is shown first, once per launch per account.
+ * Get ready (SessionPreflight) is shown first, once per launch per account. After that, ending a
+ * session comes straight back here, and the "Run Get ready" button in the header opens Get ready
+ * again (with today's results filled in), so its checks can be repeated between sessions.
  *
  * @param state     the current app snapshot (signed-in user, settings, profiles).
  * @param onSaved   called with the new snapshot whenever main-process state changes (session started, profile saved...).
@@ -263,6 +265,9 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     <header className="context-header">
       <div className="context-header-identity"><Brand /></div>
       <div className="context-header-actions">
+        {/* Get ready only opens by itself once per launch; this brings it back (the ready card and practice coach point here).
+            Its Continue button returns to this setup, and everything typed here is kept because this page stays mounted. */}
+        <button className="text-button" disabled={busy} onClick={() => setPreflightDone(false)}>Run Get ready</button>
         {/* Sign out lives in Settings › General › Data & account, away from the button people use most here. */}
         <button className="text-button" disabled={busy} onClick={() => setSettings(true)}>Settings</button>
       </div>

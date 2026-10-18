@@ -40,6 +40,18 @@ const MAC_SCREEN = 'System Settings › Privacy & Security › Screen & System A
 /**
  * Messages for "permission was refused" (NotAllowedError, SecurityError, PermissionDeniedError),
  * per device and operating system. macOS needs a restart after the permission is granted.
+ *
+ * Why Windows and Linux are worded differently from macOS:
+ * - Novi answers every screen and system audio request itself (`setDisplayMediaRequestHandler` in
+ *   src/main/main.ts): it picks the first screen and records system audio along with it. So on
+ *   Windows and on Linux with X11 no "choose a screen" picker ever appears, and telling the user to
+ *   choose one "when asked" sends them looking for something that isn't there. A refusal there comes
+ *   from outside Novi, usually security software.
+ * - On Linux with Wayland, the desktop does show its own "share your screen" dialog, so the Linux
+ *   text mentions it only as an "if".
+ * - System audio is recorded together with the screen share (on Linux, Chromium records the
+ *   speakers' "monitor" through PulseAudio or PipeWire), so the system audio text for Linux asks for
+ *   the same screen choice.
  */
 const BLOCKED: Record<CaptureDevice, Record<Platform, string>> = {
   microphone: {
@@ -49,20 +61,26 @@ const BLOCKED: Record<CaptureDevice, Record<Platform, string>> = {
   },
   system: {
     mac: `System audio capture is blocked. Turn on Novi in ${MAC_SCREEN}, then restart Novi.`,
-    windows: 'System audio capture was cancelled or blocked. Retry and allow sharing when asked.',
-    linux: 'System audio capture was cancelled or blocked. Retry and allow sharing when asked.',
+    windows: 'System audio capture was blocked on this computer, often by security software. Check that it allows Novi to record the screen and sound, then retry.',
+    linux: 'System audio capture was cancelled or blocked. Retry, and if your desktop asks which screen to share, pick one.',
   },
   screen: {
     mac: `Screen capture is blocked. Turn on Novi in ${MAC_SCREEN}, then restart Novi.`,
-    windows: 'Screen capture was cancelled or blocked. Retry and choose a screen when asked.',
-    linux: 'Screen capture was cancelled or blocked. Retry and choose a screen when asked.',
+    windows: 'Screen capture was blocked on this computer, often by security software. Check that it allows Novi to record the screen, then retry.',
+    linux: 'Screen capture was cancelled or blocked. Retry, and if your desktop asks which screen to share, pick one.',
   },
 };
 
-/** Messages for "no such device" (NotFoundError, DevicesNotFoundError, OverconstrainedError). */
+/**
+ * Messages for "no such device" (NotFoundError, DevicesNotFoundError, OverconstrainedError).
+ *
+ * These never point to Settings › Audio & Camera: the inputs chosen there only drive that page's own
+ * tests. Sessions and Get ready always use the system's default microphone, and record system audio
+ * with the screen share (or, on macOS, through a loopback device such as BlackHole when one is installed).
+ */
 const MISSING: Record<CaptureDevice, string> = {
-  microphone: 'No microphone was found. Connect one, or choose another input in Settings › Audio & Camera.',
-  system: 'No system audio source was found. Choose a loopback input in Settings › Audio & Camera.',
+  microphone: 'No microphone was found. Connect one, or choose a default microphone in your system’s sound settings, then retry.',
+  system: 'No system audio source was found. If you use a loopback device such as BlackHole or Stereo Mix, check that it is still connected, then retry.',
   screen: 'No screen was found to capture.',
 };
 
