@@ -77,8 +77,8 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
   }
 
   const assets = [
-    { key: 'macArm64', label: 'macOS · Apple Silicon', format: 'DMG' },
-    { key: 'macX64', label: 'macOS · Intel', format: 'DMG' },
+    { key: 'macArm64', label: 'macOS 13 or later · Apple Silicon', format: 'DMG' },
+    { key: 'macX64', label: 'macOS 13 or later · Intel', format: 'DMG' },
     { key: 'windows', label: 'Windows · x64', format: 'EXE' },
     { key: 'linuxDeb', label: 'Linux · x64', format: 'DEB' },
     { key: 'linuxAppImage', label: 'Linux · x64', format: 'AppImage' },

@@ -24,6 +24,10 @@ mac:
   icon: build/icon.icns
   category: public.app-category.productivity
   artifactName: 'Novi-${version}-${arch}.${ext}'
+  # Electron 44 no longer runs on macOS 12. Declaring it makes macOS refuse to open Novi on older
+  # versions with a clear "needs a newer macOS" message instead of a crash. The portal also stops
+  # offering these releases to Macs older than 13 (MACOS_13_FROM in webapp/src/lib/github-releases.ts).
+  minimumSystemVersion: '13.0'
   extendInfo:
     NSAudioCaptureUsageDescription: Novi captures system audio for recordings and local transcription.
     NSMicrophoneUsageDescription: 'Novi requires access to your microphone for voice transcription and audio recording.'

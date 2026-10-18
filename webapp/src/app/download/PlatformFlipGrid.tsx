@@ -7,7 +7,8 @@ import type { ReleaseData, ReleaseAssetInfo } from './DownloadClient';
 import styles from './download.module.css';
 
 const platforms = [
-  { id: 'mac', name: 'macOS', description: 'Apple Silicon & Intel', logo: '/apple-logo.png' },
+  // Novi 4.0.26 and later run on Electron 44, which needs macOS 13 (Ventura) or later.
+  { id: 'mac', name: 'macOS', description: 'macOS 13 or later · Apple Silicon & Intel', logo: '/apple-logo.png' },
   { id: 'windows', name: 'Windows', description: 'Windows 10 & 11 · x64', logo: '/microsoft.png' },
   { id: 'linux', name: 'Linux', description: 'Debian, Ubuntu & AppImage', logo: '/ubuntu.png' },
 ] as const;
