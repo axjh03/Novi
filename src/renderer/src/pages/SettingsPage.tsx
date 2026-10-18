@@ -6,6 +6,7 @@ import { ProviderManager } from '../components/ProviderManager';
 import { DeviceTester } from '../components/DeviceTester';
 import { SettingsAppUpdater } from '../components/SettingsAppUpdater';
 import { SettingsAppPrivacy } from '../components/SettingsAppPrivacy';
+import { DebugPanel } from '../components/DebugPanel';
 import { LocalAISetup } from '../components/LocalAISetup';
 import { EngineReadinessList } from '../components/LocalCodingSetup';
 import { errorText, unwrap } from '../services/api';
@@ -21,8 +22,8 @@ const shortcuts = [
 ] as const;
 
 interface Props { state: Snapshot; onSaved: (state: Snapshot) => void; onBack: () => void; onSignOut: () => void; onCleared: () => void }
-type Tab = 'general' | 'devices' | 'api' | 'local-ai';
-const tabs: Array<[Tab, string]> = [['general', 'General'], ['api', 'API Management'], ['local-ai', 'Local AI'], ['devices', 'Audio & Camera']];
+type Tab = 'general' | 'devices' | 'api' | 'local-ai' | 'debug';
+const tabs: Array<[Tab, string]> = [['general', 'General'], ['api', 'API Management'], ['local-ai', 'Local AI'], ['devices', 'Audio & Camera'], ['debug', 'Debug']];
 const themes = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']] as const;
 
 export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: Props) {
@@ -225,6 +226,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
         )}
 
         {tab === 'devices' && <DeviceTester />}
+        {tab === 'debug' && <DebugPanel />}
 
         {tab === 'api' && <div className="settings-studio api-studio">
           <ProviderManager state={state} onSaved={onSaved} />

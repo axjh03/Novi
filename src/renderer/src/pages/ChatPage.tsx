@@ -18,6 +18,7 @@ import { BehavioralModeHUD } from '../components/BehavioralModeHUD';
 import { TrayPortal } from '../components/TrayPortal';
 import { TrayMenu } from '../components/TrayMenu';
 import { ReadyCard } from '../components/ReadyCard';
+import { DebugPanel } from '../components/DebugPanel';
 import { PracticeCoach } from '../components/PracticeCoach';
 import { usePracticeRun } from '../hooks/usePracticeRun';
 import { useStealthState } from '../hooks/useStealth';
@@ -260,6 +261,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             </div>
           )}
 
+          <DebugPanel compact conversationId={chat.selectedId} />
           {!readyDismissed && !sentInSession && !practice.active && !localMode && (
             <ReadyCard transparent={transparent} listenKey={listenKey} snapshotKey={config.screenshotShortcut || 'Alt+3'}
               practiceDisabled={contextBusy || chat.busy || ending} onPractice={startPractice} onDismiss={() => setReadyDismissed(true)} />

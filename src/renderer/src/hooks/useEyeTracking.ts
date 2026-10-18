@@ -104,7 +104,7 @@ export function useEyeTracking(): UseEyeTrackingReturn {
   }, [syncState]);
 
   useEffect(() => window.novi.onOverlayEvent(event => {
-    if (event.type === 'close') stop();
+    if (event.type === 'close' && (eyeTracking.state !== 'idle' || eyeTracking.overlayActive)) stop();
   }), [stop]);
 
   const switchCamera = useCallback(async (deviceId: string) => {

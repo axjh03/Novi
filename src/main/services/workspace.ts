@@ -5,7 +5,7 @@ const req = typeof require === 'function' ? require : createRequire(import.meta.
 const electron = () => req('electron') as typeof import('electron');
 
 export const TRAY_NAME = /^novi-tray-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const TRAY_WIDTH = 860;
+const TRAY_WIDTH = 600;
 const TRAY_MIN_WIDTH = 320;
 const TRAY_GAP = 12;
 const TRAY_MIN_HEIGHT = 48;

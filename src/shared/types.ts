@@ -1,4 +1,5 @@
 import type { LocalAISetup, LocalModelStatus } from './localAI';
+import type { DebugState } from './debug';
 import type { InterviewEvent, InterviewFrame, InterviewSession, InterviewStart } from './interview';
 import type { BrowseResult, EngineId, EngineModel, EngineReadiness, FileReview, LocalCodingBinding, LocalCodingMessage, LocalCodingRequest, ProjectState, RefreshDecision, RefreshResult, SourcePreview, ChangeOperation } from './localCoding';
 export type SupportedProviderKind = 'openai' | 'anthropic' | 'gemini';
@@ -186,6 +187,9 @@ export interface AppCommandStatus {
 }
 
 export interface NoviAPI {
+  getDebugState(): Promise<Result<DebugState>>;
+  setDebugEnabled(enabled: boolean): Promise<Result<DebugState>>;
+  clearDebug(): Promise<Result<DebugState>>;
   repairDiagram(input: { code: string; error: string }): Promise<Result<string>>;
   /** Changes each time the app starts. */
   launchId: string;

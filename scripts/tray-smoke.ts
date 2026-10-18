@@ -77,7 +77,7 @@ async function main() {
     assert((await tray.locator('.tray-model-menu > summary').boundingBox())!.width <= 40, 'model trigger stays compact');
     const height = () => page.evaluate(() => (window as any).heights.at(-1) as number);
     const sizes: Record<number, number> = {};
-    for (const width of [320, 400, 540, 860, 1200, 320]) {
+    for (const width of [320, 400, 540, 600, 860, 1200, 320]) {
       await tray.setViewportSize({ width, height: 600 });
       await tray.waitForTimeout(100);
       const measured = await height();
@@ -91,6 +91,11 @@ async function main() {
         return rect.width && (rect.left < 0 || rect.right > innerWidth + 1);
       }).map(el => el.getAttribute('aria-label') || el.textContent));
       assert.deepEqual(clipped, [], `No horizontally clipped controls at ${width}`);
+      for (const label of ['Send', 'Attach', 'Snapshot', 'Listen', 'Audio settings']) {
+        const control = (await tray.getByLabel(label, { exact: true }).boundingBox())!;
+        assert.equal(control.height, 30, `${label} has the same toolbar height at ${width}`);
+        assert.equal(control.width, 30, `${label} stays compact at ${width}`);
+      }
     }
     assert(sizes[860] < sizes[320], 'Wider layouts reclaim vertical space');
     await tray.getByLabel('Message Novi').fill('Typing still works');

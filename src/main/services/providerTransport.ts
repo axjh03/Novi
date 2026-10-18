@@ -1,6 +1,7 @@
 import type { AIProviderConfig } from '../../shared/types';
 import { PROVIDERS } from '../../shared/providers.ts';
 import { UserError } from './validation.ts';
+import { debug } from './debug';
 
 export const endpoint = (config: AIProviderConfig) => config.provider === 'compatible' ? config.baseUrl : PROVIDERS[config.provider].baseUrl;
 export function authHeaders(config: AIProviderConfig, key: string): Record<string, string> {
@@ -37,6 +38,10 @@ export function providerError(status: number, code = '', managed = false): UserE
   return new UserError('The AI provider is temporarily unavailable. Try again shortly.');
 }
 export async function providerFetch(url: string, config: AIProviderConfig, key: string, signal: AbortSignal, body?: unknown): Promise<Response> {
+  debug.secret(key);
+  debug.identify({ model: config.model });
+  const started = Date.now();
+  debug.event('Connecting to provider', { provider: config.provider, host: new URL(url).hostname, method: body === undefined ? 'GET' : 'POST' });
   let response: Response;
   try {
     response = await fetch(url, {
@@ -45,9 +50,11 @@ export async function providerFetch(url: string, config: AIProviderConfig, key: 
       ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal,
     });
   } catch (error) {
+    debug.event(signal.aborted ? 'Provider request cancelled or timed out' : 'Provider connection failed', { elapsedMs: Date.now() - started, error: error instanceof Error ? error.name : 'Unknown error' }, signal.aborted ? 'warning' : 'error');
     if (signal.aborted) throw error;
     throw new UserError('Unable to connect to the AI provider.');
   }
+  debug.event('Provider returned HTTP headers', { status: response.status, elapsedMs: Date.now() - started, streaming: Boolean(response.headers.get('content-type')?.includes('text/event-stream')) }, response.ok ? 'info' : 'error');
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     const details = Array.isArray(data.error?.details) ? data.error.details : [];
@@ -93,21 +100,25 @@ export async function* serverEvents(body: ReadableStream<Uint8Array>) {
 export async function readResponse(response: Response, onDelta: (text: string) => void,
   parse: (event: any, streaming: boolean) => { text?: string; done?: boolean }, managed = false) {
   let content = '';
+  debug.event('Waiting for response body');
   const append = (text: unknown) => {
     if (typeof text !== 'string') return;
     content += text;
+    if (text) debug.event('Receiving answer', { characters: content.length }, 'info', 1000);
     if (content.length > 1_000_000) throw new UserError('The response exceeded the local size limit.');
     if (text) onDelta(text);
   };
   try {
     if (response.headers.get('content-type')?.includes('text/event-stream')) {
       if (!response.body) throw new UserError('The provider returned an empty response.');
-      let finished = false;
+      let finished = false, receivedEvents = 0;
       for await (const data of serverEvents(response.body)) {
         if (data.trim() === '[DONE]') { finished = true; break; }
         const event = JSON.parse(data);
         if (event.error) throw providerError(500, event.error.code || event.error.type, managed);
         const result = parse(event, true); append(result.text);
+        receivedEvents++;
+        if (!result.text) debug.event('Provider stream event received', { events: receivedEvents, answerCharacters: content.length }, 'info', 1000);
         if (result.done) finished = true;
       }
       if (!finished) throw new UserError('The connection ended before the response finished. You can send your message again.');
@@ -121,5 +132,6 @@ export async function readResponse(response: Response, onDelta: (text: string) =
     throw new UserError('The provider response was interrupted or could not be read.');
   }
   if (!content.trim()) throw new UserError('The provider returned no text. Check that this model supports chat.');
+  debug.event('Provider response complete', { characters: content.length });
   return { content };
 }

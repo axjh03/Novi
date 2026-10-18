@@ -32,6 +32,7 @@ import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import type { AppMask } from '../services/appMask';
 import { AppCommandService } from '../services/appCommand';
+import { debug } from '../services/debug';
 
 export function registerIPC(
   rendererUrl: string,
@@ -102,6 +103,7 @@ export function registerIPC(
   }
   // Only for a session the server rejected; outages never end a session.
   async function endManagedSession(error: unknown, fallback: string) {
+    debug.reset();
     await endContext().catch(() => { });
     // The phone's link controls this account's window, so it ends with the account.
     get().remoteCompanion.stop();
@@ -124,8 +126,9 @@ export function registerIPC(
     });
     return { user, settings: account.settings, credentialIds: account.settings.connections.filter((c) => credentials.has(user.id, c)).map((c) => c.id), conversations: get().storage.conversations, contextSession: get().context.session, access };
   }
+  const debugChannels = new Set(['send', 'stop', 'repair-diagram', 'test-connection', 'list-models', 'initialize-context', 'start-context', 'start-empty-session', 'local-coding-start', 'local-coding-models', 'local-coding-install', 'local-coding-check-login', 'local-coding-refresh', 'transcribe-audio']);
   const handle = (channel: string, callback: (value: unknown, event: Electron.IpcMainInvokeEvent, timing: ChatLatency) => unknown) => {
-    ipcMain.handle(channel, async (event, value: unknown) => {
+    const execute = async (event: Electron.IpcMainInvokeEvent, value: unknown) => {
       const receivedAt = Date.now();
       const timing: ChatLatency = {};
       try {
@@ -134,8 +137,9 @@ export function registerIPC(
         const baseSender = frameUrl.split('#')[0];
         const isTrusted = baseSender === baseTarget;
         if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || !isTrusted) throw new UserError('Untrusted application request.');
+        if (channel === 'send' && value && typeof value === 'object' && 'conversationId' in value && typeof value.conversationId === 'string' && /^[a-zA-Z0-9-]{1,100}$/.test(value.conversationId)) debug.identify({ conversationId: value.conversationId });
         // Device controls and quitting must work even if account storage or the network is unavailable.
-        if (['app-mask-get', 'app-mask-save', 'app-mask-import-icon', 'app-command-status', 'app-command-install', 'quit-app'].includes(channel)) {
+        if (['app-mask-get', 'app-mask-save', 'app-mask-import-icon', 'app-command-status', 'app-command-install', 'quit-app', 'debug-state', 'debug-enable', 'debug-clear'].includes(channel)) {
           return { ok: true, value: await callback(value, event, timing) };
         }
         // Small, bounded PCM frames belong to a previously authorized interview.
@@ -165,6 +169,7 @@ export function registerIPC(
         ];
         if (!publicChannels.includes(channel)) {
           const accessStart = performance.now();
+          debug.event('Checking account access');
           const auth = get().auth, wasSignedIn = auth.signedIn, fresh = freshAccessChannels.has(channel);
           try { await auth.refresh(fresh); }
           catch (error) {
@@ -181,16 +186,29 @@ export function registerIPC(
           const elapsed = receivedAt - value.sentAt;
           if (elapsed >= 0 && elapsed < 180_000) timing.uiToMainMs = elapsed;
         }
+        debug.event('Running action', { accessMs: Math.round(timing.accessMs || 0) });
         return { ok: true, value: await callback(value, event, timing) };
       } catch (error: any) {
+        debug.event('Action failed', { error: error instanceof Error ? error.name : 'Unknown error' }, 'error');
         console.warn(`[Novi Error] ${channel}:`, error?.message || error);
         const userMsg = error instanceof UserError
           ? error.message
           : (error?.message || 'Novi could not complete that action. Check file access and available disk space, then try again.');
         return { ok: false, error: userMsg };
       } finally { syncAccessStatus(); }
-    });
+    };
+    ipcMain.handle(channel, (event, value: unknown) => debugChannels.has(channel) ? debug.run(channel, () => execute(event, value)) : execute(event, value));
   };
+  const debugOwner = (event: Electron.IpcMainInvokeEvent) => {
+    if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Open diagnostics in the main Novi window.');
+  };
+  handle('debug-state', (_value, event) => { debugOwner(event); return debug.snapshot(); });
+  handle('debug-enable', (value, event) => {
+    debugOwner(event);
+    if (typeof value !== 'boolean') throw new UserError('Invalid debug setting.');
+    return debug.setEnabled(value);
+  });
+  handle('debug-clear', (_value, event) => { debugOwner(event); return debug.clear(); });
   handle('interview-frame', () => {});
   handle('interview-start', (value, event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
@@ -265,7 +283,7 @@ export function registerIPC(
   }
   // Signing out ends the session, disconnects the phone companion (its link controls this account's
   // window), then forgets the account.
-  handle('sign-out', async () => { await endContext(); get().remoteCompanion.stop(); await get().auth.signOut(); });
+  handle('sign-out', async () => { await endContext(); debug.reset(); get().remoteCompanion.stop(); await get().auth.signOut(); });
   handle('pick-context-folders', async (_value, event) => {
     get().storage.current(); get().chat.assertIdle();
     if (get().context.session) throw new UserError('End your session before loading folders.');
@@ -364,6 +382,7 @@ export function registerIPC(
     const settings = storage.current().settings;
     const connection = settings.connections.find(c => c.id === settings.activeConnectionId);
     if (!connection) throw new UserError('Choose a provider and model first.');
+    debug.identify({ connectionId: connection.id, model: connection.model });
     await testConnection({ ...connection }, connections.resolveKey({ id: connection.id, name: connection.name, ai: connection }));
   });
   handle('settings', async (value) => {
@@ -416,6 +435,7 @@ export function registerIPC(
   });
   handle('list-models', (value) => {
     const input = connectionInput(value);
+    debug.identify({ connectionId: input.id });
     const key = get().connections.resolveKey(input);
     // The renderer's connection never says whether its key is managed; the signed-in account does
     // (resolveKey only lets a managed account use managed connections), so key errors name the right fix.

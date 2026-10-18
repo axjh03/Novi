@@ -103,9 +103,11 @@ export class OverlayService {
 
   closeOverlay(): void {
     this.lastContent = null;
-    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
-      this.overlayWindow.close();
-    }
+    const window = this.overlayWindow;
+    this.overlayWindow = null;
+    this.currentDisplayId = null;
+    if (window && !window.isDestroyed()) window.close();
+    if (window) this.forwardToAllWindows({ type: 'close' });
   }
 
   setIgnoreMouse(ignore: boolean): void {

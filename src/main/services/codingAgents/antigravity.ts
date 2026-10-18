@@ -8,6 +8,7 @@ import type { EngineModel } from '../../../shared/localCoding';
 import { listModels } from '../models';
 import { engineEnvironment, engineRuntime, type RuntimeLocation } from './runtime';
 import { spawnEngine } from './process';
+import { debug } from '../debug';
 import { callTool, TOOL_DESCRIPTIONS, TOOL_SCHEMAS, type AgentCredential, type AgentTask, type CodingAgent } from './types';
 
 const READ_TOOLS = ['list_files', 'search_files', 'read_file'] as const;
@@ -86,10 +87,14 @@ export class AntigravityAgent implements CodingAgent {
   }
 
   async run(task: AgentTask, credential: AgentCredential): Promise<unknown> {
+    debug.secret(credential.apiKey);
+    task.onProgress('analyzing', 'Starting Antigravity');
+    debug.event('Preparing Antigravity runtime');
     if (task.images.length) throw new Error('Antigravity does not support images in headless mode. Remove the image or choose Codex or Claude.');
     task.signal.throwIfAborted();
     const { runtime, root, cwd, env } = await this.prepare(credential);
     let engine: ReturnType<typeof spawnEngine> | undefined;
+    debug.event('Antigravity runtime ready', { version: runtime.version });
     let timer: ReturnType<typeof setTimeout> | undefined;
     let failure: Error | null = null;
     let diagnostics = '';
@@ -120,11 +125,20 @@ process.stdout.write(JSON.stringify({ decision: input.toolCall?.name === 'finish
       const schema = join(root, 'schema.json');
       writeFileSync(schema, JSON.stringify(antigravitySchema(task.schema)), { mode: 0o600 });
       engine = spawnEngine(runtime.executable, ['--agent', 'novi', '--model', task.model, '--input-format', 'stream-json', '--output-format', 'stream-json', '--json-schema', schema], { cwd, env });
+      debug.event('Waiting for Antigravity initialization', { pid: engine.child.pid || 0, timeoutSeconds: 30 });
+      task.onProgress('analyzing', 'Waiting for Antigravity to initialize');
       engine.child.once('error', error => stop(new Error('Antigravity could not start. Install or update it in Settings.', { cause: error })));
-      engine.child.stderr.on('data', (chunk) => { diagnostics = (diagnostics + chunk.toString()).slice(-16_384); });
+      engine.child.stderr.on('data', (chunk) => {
+        diagnostics = (diagnostics + chunk.toString()).slice(-16_384);
+        debug.event('Antigravity diagnostic output received', { bytes: chunk.length }, 'warning', 2000);
+      });
       engine.child.stdin.on('error', error => stop(new Error('Antigravity closed its input unexpectedly.', { cause: error })));
       const lines = createInterface({ input: engine.child.stdout, crlfDelay: Infinity });
-      const send = (content: string) => engine!.child.stdin.write(JSON.stringify({ event: 'user', message: { content } }) + '\n');
+      const send = (content: string) => {
+        engine!.child.stdin.write(JSON.stringify({ event: 'user', message: { content } }) + '\n');
+        task.onProgress('analyzing', 'Waiting for Antigravity model response');
+        debug.event('Waiting for Antigravity model response', { turn: turns + 1, charactersSent: content.length });
+      };
       task.signal.addEventListener('abort', abort, { once: true });
       task.signal.throwIfAborted();
       timer = setTimeout(() => stop(new Error('Antigravity did not initialize within 30 seconds.')), 30_000);
@@ -142,6 +156,7 @@ process.stdout.write(JSON.stringify({ decision: input.toolCall?.name === 'finish
           // init.tools is the CLI catalog, not the selected agent's permitted toolset (agy 1.4).
           if (event.init?.agent !== 'novi') throw new Error('Antigravity did not select Novi\'s read-only agent. Update the agent or choose Codex or Claude.');
           initialized = true;
+          debug.event('Antigravity initialized', { version: runtime.version });
           clearTimeout(timer);
           timer = setTimeout(() => stop(new Error('Antigravity timed out. Try a narrower request.')), 30 * 60_000);
           send(task.prompt);
@@ -150,10 +165,13 @@ process.stdout.write(JSON.stringify({ decision: input.toolCall?.name === 'finish
             task.onDenied(String(event.step_update.tool_name ?? 'unknown'));
             throw new Error('Antigravity requested a native tool outside the read-only tools.');
           }
-          task.onProgress('analyzing');
+          const step = event.step_update?.step_type;
+          task.onProgress('analyzing', step === 'finish' ? 'Antigravity is preparing its result' : 'Antigravity is processing the request');
+          debug.event('Antigravity step update', { step: ['tool', 'finish', 'thinking', 'message', 'model'].includes(step) ? step : 'other', turn: turns + 1 }, 'info', 1000);
         } else if (event.event === 'result' || typeof event.status === 'string') {
           // Startup failures can be bare JSON envelopes, without an init or result event wrapper.
           const terminal = event.event === 'result' ? event.result : event;
+          debug.event('Antigravity returned a turn', { success: terminal?.status === 'SUCCESS', turn: turns + 1 });
           resultError = terminal?.error;
           if (terminal?.status !== 'SUCCESS') throw new Error(failureMessage(`${terminal?.error ?? ''}\n${diagnostics}`, 'Antigravity could not complete the request. Check the saved Gemini key and model access.'));
           if (!initialized) throw new Error('Antigravity returned a result before confirming its read-only tools. Update the agent in Settings.');
@@ -166,6 +184,7 @@ process.stdout.write(JSON.stringify({ decision: input.toolCall?.name === 'finish
           if (!READ_TOOLS.includes(result.tool)) { task.onDenied(String(result.tool)); throw new Error('Antigravity requested a tool outside the read-only tools.'); }
           if (++turns > 80) throw new Error('Antigravity reached the read limit. Ask a narrower question.');
           const output = await callTool(task.tools, result.tool, result.arguments, task.onProgress);
+          debug.event('Snapshot tool finished', { tool: result.tool, success: output.ok, characters: output.text.length }, output.ok ? 'info' : 'warning');
           task.signal.throwIfAborted();
           send(JSON.stringify({ tool: result.tool, ...output }));
         }
@@ -174,9 +193,11 @@ process.stdout.write(JSON.stringify({ decision: input.toolCall?.name === 'finish
       const exit = engine.child.exitCode === null ? '' : ` (exit code ${engine.child.exitCode})`;
       throw failure || new Error(failureMessage(diagnostics, `Antigravity exited ${initialized ? 'before returning an answer' : 'before initialization'}${exit}. Update the agent in Settings and check its Gemini connection and selected model.`));
     } catch (error) {
+      debug.event('Antigravity ended without an answer', { initialized, turns, error: error instanceof Error ? error.message : 'Unknown error' }, task.signal.aborted ? 'warning' : 'error');
       failure = withDiagnostics(error);
       throw failure;
     } finally {
+      debug.event('Closing Antigravity and cleaning temporary files');
       clearTimeout(timer);
       task.signal.removeEventListener('abort', abort);
       try {

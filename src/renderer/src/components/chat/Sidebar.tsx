@@ -5,8 +5,10 @@ interface Props { conversations: Conversation[]; selectedId: string | null; disp
 export function Sidebar({ conversations, selectedId, displayName, busy, collapsed, onToggle, onNew, onSelect, onDelete, onRename, onSave, onSettings }: Props) {
   return <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
     <div className="sidebar-brand">
+      {!collapsed && <div className="sidebar-heading"><strong>Novi</strong><span>Your conversations</span></div>}
       <button className="icon-button sidebar-toggle" onClick={onToggle} title={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!collapsed}>
         {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+        {collapsed && <span className="sidebar-expand-label">Open</span>}
       </button>
     </div>
 
@@ -21,7 +23,7 @@ export function Sidebar({ conversations, selectedId, displayName, busy, collapse
       {!conversations.length && !collapsed && <p className="history-empty">A clean slate.<br />Your conversations will live here.</p>}
       {conversations.map((conversation) => (
         <div key={conversation.id} className={`history-item ${selectedId === conversation.id ? 'selected' : ''}`}>
-          <button className="history-open" disabled={busy} title={conversation.title} aria-current={selectedId === conversation.id ? 'page' : undefined} onClick={() => onSelect(conversation.id)}>
+          <button className="history-open" disabled={busy} title={conversation.title} aria-label={conversation.title} aria-current={selectedId === conversation.id ? 'page' : undefined} onClick={() => onSelect(conversation.id)}>
             <MessageSquare size={14} />
             {!collapsed && <span>{conversation.title}</span>}
           </button>
@@ -34,7 +36,7 @@ export function Sidebar({ conversations, selectedId, displayName, busy, collapse
     </nav>
 
     <div className="sidebar-bottom">
-      <button className="settings-link" onClick={onSettings} disabled={busy} title="Settings">
+      <button className="settings-link" onClick={onSettings} title="Settings" aria-label="Settings">
         <Settings size={17} />
         {!collapsed && <span>Settings</span>}
       </button>

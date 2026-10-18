@@ -16,23 +16,23 @@ test('the output panel follows 35% of the display and allows the smaller window 
 });
 
 test('the tray sits top-center and moves left only as far as needed to clear the panel', () => {
-  assert.deepEqual(trayBounds(full, null, 180), { x: 530, y: 12, width: 860, height: 180 });
+  assert.deepEqual(trayBounds(full, null, 180), { x: 660, y: 12, width: 600, height: 180 });
   const docked = trayBounds(full, 1070, 200);
-  assert.deepEqual(docked, { x: 198, y: 12, width: 860, height: 200 });
+  assert.deepEqual(docked, { x: 458, y: 12, width: 600, height: 200 });
   assert(docked.x + docked.width <= 1070 - 12, 'clears the docked panel');
-  assert.deepEqual(trayBounds({ x: 0, y: 0, width: 3840, height: 2120 }, 2840, 200), { x: 1490, y: 12, width: 860, height: 200 }, 'stays truly centered when there is room');
-  assert.deepEqual(trayBounds({ x: 1920, y: 40, width: 1920, height: 1040 }, 2990, 200), { x: 2118, y: 52, width: 860, height: 200 }, 'works on an offset second monitor');
+  assert.deepEqual(trayBounds({ x: 0, y: 0, width: 3840, height: 2120 }, 2840, 200), { x: 1620, y: 12, width: 600, height: 200 }, 'stays truly centered when there is room');
+  assert.deepEqual(trayBounds({ x: 1920, y: 40, width: 1920, height: 1040 }, 2990, 200), { x: 2378, y: 52, width: 600, height: 200 }, 'works on an offset second monitor');
 });
 
 test('on a laptop the tray narrows to fit beside the panel', () => {
-  assert.deepEqual(trayBounds({ x: 0, y: 0, width: 1536, height: 824 }, 686, 200), { x: 12, y: 12, width: 662, height: 200 });
+  assert.deepEqual(trayBounds({ x: 0, y: 0, width: 1536, height: 824 }, 686, 200), { x: 74, y: 12, width: 600, height: 200 });
   assert.deepEqual(trayBounds({ x: 0, y: 0, width: 1366, height: 728 }, 516, 200), { x: 12, y: 12, width: 492, height: 200 });
   assert.deepEqual(trayBounds({ x: 0, y: 0, width: 1280, height: 680 }, 430, 200), { x: 12, y: 12, width: 406, height: 200 });
 });
 
 test('when there is no usable room beside the panel the tray uses the screen width instead', () => {
-  assert.deepEqual(trayBounds({ x: 0, y: 0, width: 1200, height: 700 }, 350, 200), { x: 170, y: 12, width: 860, height: 200 });
-  assert.deepEqual(trayBounds({ x: 0, y: 0, width: 800, height: 600 }, 0, 200), { x: 12, y: 12, width: 776, height: 200 });
+  assert.deepEqual(trayBounds({ x: 0, y: 0, width: 1200, height: 700 }, 350, 200), { x: 300, y: 12, width: 600, height: 200 });
+  assert.deepEqual(trayBounds({ x: 0, y: 0, width: 800, height: 600 }, 0, 200), { x: 100, y: 12, width: 600, height: 200 });
   assert.deepEqual(trayBounds(full, 5000, 200), trayBounds(full, null, 200), 'a panel on another screen is ignored');
 });
 

@@ -18,6 +18,7 @@ import { engineRuntime } from './codingAgents/runtime';
 import { EngineInstaller } from './codingAgents/install';
 import { listModels as providerModels } from './models';
 import { writeLocalCodingError } from './localCodingLog';
+import { debug } from './debug';
 import type { AgentImage, CodingAgent } from './codingAgents/types';
 
 const ENGINE_INSTRUCTIONS = `You are a read-only coding assistant inside Novi. You analyze one immutable virtual version of the user's project.
@@ -155,6 +156,9 @@ export class LocalCodingService {
   async checkEngineLogin(engine: unknown, connectionId: unknown) {
     if (!isEngineId(engine)) throw new UserError('Choose a coding agent.');
     const { connection, apiKey } = this.credential(engine, text(connectionId, 'connection', 100));
+    debug.secret(apiKey);
+    debug.identify({ engine, connectionId: connection.id });
+    debug.event('Checking engine runtime and provider access');
     await engineRuntime(engine, this.deps.location);
     // Engine model catalogs can be local; validate the key against the provider, not that cache.
     const models = await providerModels(connection, apiKey);
@@ -165,12 +169,16 @@ export class LocalCodingService {
   async listModels(engine: unknown, connectionId: unknown): Promise<EngineModel[]> {
     if (!isEngineId(engine)) throw new UserError('Choose Codex, Claude Code, or Antigravity.');
     const { connection, apiKey } = this.credential(engine, text(connectionId, 'connection', 100));
+    debug.secret(apiKey);
+    debug.identify({ engine, connectionId: connection.id });
+    debug.event('Loading engine model catalog');
     const cacheKey = `${this.owner()}:${engine}:${connection.id}`;
     const cached = this.models.get(cacheKey);
-    if (cached && Date.now() - cached.at < 10 * 60_000) return cached.models;
+    if (cached && Date.now() - cached.at < 10 * 60_000) { debug.event('Using cached engine model catalog', { models: cached.models.length }); return cached.models; }
     const models = await this.agents[engine].listModels({ apiKey }, AbortSignal.timeout(60_000));
     if (!models.length) throw new UserError(`${ENGINES.find((item) => item.id === engine)!.label} reported no models for this connection.`);
     this.models.set(cacheKey, { at: Date.now(), models });
+    debug.event('Engine model catalog loaded', { models: models.length });
     return models;
   }
 
@@ -364,6 +372,8 @@ export class LocalCodingService {
     const meta = this.load(binding.projectId);
     const base = this.store.version(meta, input.baseVersionId);
     const taskId = randomUUID();
+    debug.identify({ conversationId: conversation.id, taskId, connectionId: binding.connectionId, engine: binding.engine, model: binding.model });
+    debug.event('Preparing pinned project snapshot', { files: base.files.length, idleTimeoutSeconds: IDLE_TIMEOUT_MS / 1000, timeoutSeconds: TASK_TIMEOUT_MS / 1000 });
     const result: LocalCodingMessage = {
       taskId, projectId: meta.id, baseVersionId: base.id, baseLabel: base.label, state: 'preparing', engine: binding.engine, model: binding.model,
       reasoningEffort: null, proposalId: null, resultingVersionId: null, resultingLabel: null, changes: [], progress: 'Preparing',
@@ -379,6 +389,7 @@ export class LocalCodingService {
       const now = Date.now();
       if (!force && now - lastEmit < 250) return;
       lastEmit = now;
+      debug.event(`Local Coding: ${state}`, {}, state === 'failed' ? 'error' : 'info', 1000);
       emit({ type: 'progress', conversationId: conversation.id, messageId: assistant.id, localCoding: { ...result, changes: [...result.changes] } });
     };
     this.activeTask = { projectId: meta.id, versionId: base.id, taskId };
@@ -392,7 +403,11 @@ export class LocalCodingService {
     try {
       update('preparing', 'Preparing', true);
       ({ apiKey } = this.credential(binding.engine, binding.connectionId));
+      debug.secret(apiKey);
+      debug.event('Checking engine model availability');
       const model = await this.modelInfo(binding);
+      debug.identify({ model: binding.model });
+      debug.event('Engine model ready', { effort: model.highestEffort || 'default' });
       result.reasoningEffort = model.highestEffort;
       const images: AgentImage[] = input.imageIds.map((id) => {
         const image = this.deps.images.resolve(id);
@@ -434,10 +449,14 @@ export class LocalCodingService {
       const attempt = (promptText: string) => agent.run({
         model: binding.model, effort: model.highestEffort, instructions: ENGINE_INSTRUCTIONS, prompt: promptText, images,
         schema: PROPOSAL_SCHEMA as unknown as Record<string, unknown>,
-        tools: { list: (args) => reader.list(args), search: (args) => reader.search(args), read: (args) => reader.read(args) },
+        tools: {
+          list: (args) => { debug.event('Tool: list snapshot files'); return reader.list(args); },
+          search: (args) => { debug.event('Tool: search snapshot files'); return reader.search(args); },
+          read: (args) => { debug.event('Tool: read snapshot file'); return reader.read(args); },
+        },
         signal: controller.signal,
         onProgress: (state, detail) => { touch(); update(state, detail || (state === 'reading' ? 'Reading files' : 'Analyzing')); },
-        onDenied: () => { touch(); denied++; result.deniedRequests = denied; },
+        onDenied: () => { touch(); denied++; result.deniedRequests = denied; debug.event('Engine tool request denied', { denied }, 'warning'); },
       }, { apiKey });
       update('analyzing', 'Analyzing', true);
       let raw = await attempt(prompt);
@@ -482,8 +501,10 @@ export class LocalCodingService {
       assistant.content = describe(proposal, base.label, resulting?.label ?? null, denied);
       update(parsed.questions.length && !changes.length ? 'needs-information' : 'complete', undefined, true);
       save();
+      debug.event('Local Coding result saved', { changedFiles: changes.length, repaired });
     } catch (error) {
       const reason = controller.signal.reason;
+      debug.event(signal.aborted ? 'Local Coding stopped' : 'Local Coding failed', { reason: reason instanceof Error ? reason.message : 'engine error', error: error instanceof Error ? error.name : 'Unknown error' }, signal.aborted ? 'warning' : 'error');
       if (signal.aborted) { result.state = 'cancelled'; result.progress = undefined; assistant.content ||= 'Stopped. Earlier iterations are unchanged.'; assistant.status = 'stopped'; }
       else {
         const log = writeLocalCodingError(this.deps.userData, { taskId, engine: binding.engine, model: binding.model, state: result.state, reason: reason instanceof Error ? reason.message : undefined }, error, apiKey);
@@ -496,6 +517,7 @@ export class LocalCodingService {
           : error instanceof Error && /^(Codex|Claude|The Codex|The Claude|Antigravity|The Antigravity)/.test(error.message) ? error.message
           : 'The engine could not complete this request. Earlier iterations are unchanged; try again.';
         assistant.error += log ? `\n\nDiagnostic log: ${log}\nRequest ID: ${taskId}` : '\n\nThe diagnostic log could not be written.';
+        debug.event('Failure details', { message: assistant.error }, 'error');
       }
       emit({ type: 'progress', conversationId: conversation.id, messageId: assistant.id, localCoding: { ...result } });
     } finally {
