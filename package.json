@@ -30,7 +30,6 @@
     "@mediapipe/tasks-vision": "^1.0.1",
     "@openai/codex": "0.162.1",
     "@types/qrcode": "^1.5.6",
-    "@vercel/analytics": "^2.0.1",
     "diff": "9.0.0",
     "ignore": "7.0.12",
     "koffi": "^3.3.2",
