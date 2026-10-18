@@ -14,7 +14,22 @@ const KEY_PAGES: Partial<Record<ProviderKind, string>> = {
   gemini: 'https://aistudio.google.com/app/apikey',
 };
 
+/**
+ * @param value     the connection being edited.
+ * @param onChange  called with the updated connection on every edit.
+ * @param section   which part to show: 'provider' (name, provider, server URL), 'key', 'model', or all when omitted.
+ * @param hasApiKey true when a key is already saved, so the key field may be left blank to keep it.
+ * @param problem   a validation problem to show under one field (from the parent's check()).
+ */
 interface Props { value: ConnectionInput; onChange: (value: ConnectionInput) => void; section?: 'provider' | 'key' | 'model'; hasApiKey?: boolean; problem?: FieldProblem | null }
+/**
+ * The fields for one AI provider connection: name, provider, server URL (older OpenAI-compatible
+ * connections only), API key with a "Get a key from <provider>" link, and model with live discovery.
+ * Used by onboarding (one section per step) and by Settings › API Management (all at once).
+ *
+ * Errors are shown under the field they belong to, outside its label, and linked with
+ * aria-describedby so screen readers read them with the field.
+ */
 export function ProviderFields({ value, onChange, section, hasApiKey = false, problem = null }: Props) {
   const [visible, setVisible] = useState(false), [models, setModels] = useState<ModelOption[] | null>(null);
   const [loading, setLoading] = useState(false), [error, setError] = useState('');
@@ -23,7 +38,9 @@ export function ProviderFields({ value, onChange, section, hasApiKey = false, pr
   // OpenAI-compatible is no longer offered for new connections; older ones stay editable, and their server may not need a key.
   const compatible = ai.provider === 'compatible';
   const keyOptional = compatible || (hasApiKey && value.apiKey === undefined);
+  // Accessibility attributes for a field: marks it invalid and points at its error text when `problem` is about it.
   const invalid = (field: FieldProblem['field']) => problem?.field === field ? { 'aria-invalid': true, 'aria-describedby': `provider-${field}-error` } : {};
+  // The error paragraph shown under a field when `problem` is about it (announced by screen readers via role="alert").
   const problemText = (field: FieldProblem['field']) => problem?.field === field && <p id={`provider-${field}-error`} className="field-error" role="alert">{problem.message}</p>;
   useEffect(() => {
     request.current++; setModels(null); setError(''); setLoading(false); setVisible(false);

@@ -344,7 +344,7 @@ svg { flex-shrink: 0; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 
 /* ============================================================
-   Eye Tracking — Control Panel
+   Eye Tracking: Control Panel
    ============================================================ */
 .eye-tracking-panel {
   display: flex;
@@ -680,7 +680,7 @@ svg { flex-shrink: 0; }
 }
 
 /* ============================================================
-   Eye Tracking — Calibration Overlay
+   Eye Tracking: Calibration Overlay
    ============================================================ */
 .calibration-overlay {
   position: fixed;
@@ -844,7 +844,7 @@ svg { flex-shrink: 0; }
 }
 
 /* ============================================================
-   Eye Tracking — Gaze Debug Dot
+   Eye Tracking: Gaze Debug Dot
    ============================================================ */
 .gaze-debug-dot {
   position: fixed;
@@ -860,7 +860,7 @@ svg { flex-shrink: 0; }
 }
 
 /* ============================================================
-   Eye Tracking — Gaze Response Box (floating overlay)
+   Eye Tracking: Gaze Response Box (floating overlay)
    ============================================================ */
 .gaze-response-box {
   position: fixed;

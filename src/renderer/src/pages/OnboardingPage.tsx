@@ -10,6 +10,18 @@ const titles = ['Welcome to Novi.', 'Your AI, your choice.', 'Bring your own key
 const descriptions = ['First things first. What should Novi call you?', 'Connect to a provider you love, or a model running on your device.', 'A direct connection between you and your AI provider.', 'Pick a model to start. You can always change it in Settings.'];
 type Problem = FieldProblem | { field: 'displayName'; message: string };
 
+/**
+ * First-run setup for bring-your-own-key accounts, in four steps: your name, provider, API key, model.
+ * (Managed accounts skip this screen today; it is kept correct for when it is used.)
+ *
+ * Each step checks its own input when Continue is pressed and shows the problem under the field.
+ * The API key is checked against the provider on the key step itself, so a wrong key is caught
+ * while the user is still looking at it. Sign out asks for confirmation, because it discards what
+ * was entered.
+ *
+ * @param onComplete called with the new snapshot once settings are saved.
+ * @param onSignOut  called after the user confirms Sign out.
+ */
 export function OnboardingPage({ state, onComplete, onSignOut }: { state: Snapshot; onComplete: (state: Snapshot) => void; onSignOut: () => void }) {
   const [step, setStep] = useState(0), [busy, setBusy] = useState<'' | 'checking' | 'saving'>(''), [error, setError] = useState('');
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -34,6 +46,11 @@ export function OnboardingPage({ state, onComplete, onSignOut }: { state: Snapsh
     return null;
   }
 
+  /**
+   * Continue / Start a conversation: validates the current step, checks the API key with the
+   * provider on the key step (by listing its models), moves to the next step, and on the last step
+   * saves everything.
+   */
   async function submit(event: FormEvent) {
     event.preventDefault(); setError('');
     const found = check();
@@ -55,6 +72,7 @@ export function OnboardingPage({ state, onComplete, onSignOut }: { state: Snapsh
     catch (error) { setError(errorText(error)); }
     finally { setBusy(''); }
   }
+  // Updates the connection being set up and clears the current problem, since the user is fixing it.
   const setConnection = (next: SettingsInput['connection']) => { setValue({ ...value, connection: next }); setProblem(null); };
   const fieldProblem = problem && problem.field !== 'displayName' ? problem : null;
 

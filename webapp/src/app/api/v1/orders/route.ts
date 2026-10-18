@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/jwt";
 
 export async function GET(req: Request) {
+  // Only an old-API admin may list orders (they include organization details and revenue totals).
   const actor = requireAdmin(req);
   if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
@@ -60,6 +61,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  // Only an old-API admin may create an order.
   const actor = requireAdmin(req);
   if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 

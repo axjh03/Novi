@@ -92,7 +92,7 @@ Production: use AWS KMS / Google Cloud KMS`}</Code>
 
       <Section title="MIGRATE TO CLOUD POSTGRESQL">
         <div style={{ fontSize: 12, color: "#555", lineHeight: 1.8 }}>
-          Three steps — no code changes, only config:
+          Three steps. No code changes, only config:
         </div>
         <Code>{`# Step 1: Update prisma/schema.prisma
 datasource db {

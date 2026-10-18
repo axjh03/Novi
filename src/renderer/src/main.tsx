@@ -13,6 +13,8 @@ subscribeAppearance(syncAppearance);
 const isOverlay = window.location.hash.includes('overlay');
 const isCodeViewer = window.location.hash.includes('code-viewer');
 // The main window shows the last chosen theme from its first paint, before any account loads.
+// Apply the last theme used on this device before React renders, so the sign-in screen doesn't flash the
+// wrong colours while the account settings load. The overlay and code viewer windows manage their own look.
 if (!isOverlay && !isCodeViewer) applyTheme(savedTheme());
 
 createRoot(document.getElementById('root')!).render(

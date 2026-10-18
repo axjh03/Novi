@@ -70,7 +70,8 @@ export function registerIPC(
       const window = BrowserWindow.fromId(windowId);
       if (window && !window.isDestroyed()) window.webContents.send('interview-event', event);
     });
-    // Starts listening only when the phone companion is first opened.
+    // Created here but NOT started: the companion only starts listening on the network when the
+    // user opens it (see 'get-remote-companion-status' below), never at launch or before sign-in.
     const remoteCompanion = new RemoteCompanionService(stealth, getMainWindow);
     const localCoding = new LocalCodingService({ storage, credentials, images, userData: storage.directory, location: { packaged: app.isPackaged, resourcesPath: process.resourcesPath } });
     return { storage, credentials, images, context, audio, transcription, localModels, interview, localCoding, connections: new ConnectionService(storage, credentials), auth: new ManagedAuthService(storage, credentials), chat: new ChatService(storage, credentials, images, context, localCoding), overlay, stealth, remoteCompanion };
@@ -227,6 +228,8 @@ export function registerIPC(
       }
     }
     const v = object(value);
+    // keepSignedIn: true or missing saves the encrypted session token so Novi opens signed in next
+    // time; false keeps the session in memory only. The password itself is never saved either way.
     await get().auth.signIn(
       v.username as string,
       v.password as string,
@@ -259,6 +262,8 @@ export function registerIPC(
     await context.initialization?.catch(() => { });
     context.end(); images.clearPending(); overlay.closeOverlay();
   }
+  // Signing out ends the session, disconnects the phone companion (its link controls this account's
+  // window), then forgets the account.
   handle('sign-out', async () => { await endContext(); get().remoteCompanion.stop(); await get().auth.signOut(); });
   handle('pick-context-folders', async (_value, event) => {
     get().storage.current(); get().chat.assertIdle();
@@ -330,6 +335,7 @@ export function registerIPC(
     const id = text(value, 'profile ID', 100);
     const profile = storage.current().settings.sessionProfiles?.find((item) => item.id === id);
     if (!profile) throw new UserError('This profile no longer exists.');
+    // A saved profile may have no document folders (documents are optional), so there is nothing to load.
     if (!profile.folders.length) return [];
     const missing = profile.folders.find((folder) => !existsSync(folder.path));
     if (missing) throw new UserError(`The folder “${missing.name}” was moved or deleted. Choose your folders again, then save the profile.`);
@@ -844,6 +850,9 @@ export function registerIPC(
       }
     }, { yieldWindows: () => services ? services.stealth.yieldTop() : () => {} });
   });
+  // Opening the phone companion starts its server (only the first time; later calls just return
+  // the status). Both companion channels are deliberately NOT in `publicChannels`, so they need a
+  // signed-in account; signed out, the window shows "Sign in with your licensed desktop account."
   handle('get-remote-companion-status', async () => {
     return await get().remoteCompanion.start();
   });

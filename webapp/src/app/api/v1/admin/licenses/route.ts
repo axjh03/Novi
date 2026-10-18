@@ -49,7 +49,7 @@ export async function GET(req: Request) {
   }
 }
 
-// POST /api/v1/admin/licenses — Issue a new license (admin creates, not yet activated)
+// POST /api/v1/admin/licenses: Issue a new license (admin creates, not yet activated)
 // body: { organizationId, tenantId, validDays, activationLimit }
 export async function POST(req: Request) {
   const actor = requireAdmin(req);

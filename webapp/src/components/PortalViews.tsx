@@ -241,12 +241,12 @@ export function CorpPortal({ user }: { user: any }) {
                   return (
                     <tr key={d.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                       <td style={{ padding: "12px 16px", color: "#e2e8f0" }}>{d.name || "Unknown"}</td>
-                      <td style={{ padding: "12px 16px", fontSize: 12, color: "#64748b", fontFamily: "monospace" }}>{d.platform || "—"}</td>
+                      <td style={{ padding: "12px 16px", fontSize: 12, color: "#64748b", fontFamily: "monospace" }}>{d.platform || "Unknown"}</td>
                       <td style={{ padding: "12px 16px", fontSize: 12, color: "#94a3b8" }}>
-                        {activation?.license?.user?.username || "—"}
+                        {activation?.license?.user?.username || "None"}
                       </td>
                       <td style={{ padding: "12px 16px", fontSize: 12, color: "#64748b", fontFamily: "monospace" }}>
-                        {activation?.license?.keyMasked || "—"}
+                        {activation?.license?.keyMasked || "None"}
                       </td>
                       <td style={{ padding: "12px 16px", fontSize: 11, color: "#475569", fontFamily: "monospace" }}>
                         {new Date(d.lastSeenAt).toLocaleString()}
@@ -389,7 +389,7 @@ export function IndividualPortal({ user }: { user: any }) {
             </div>
             <div>
               <div style={{ fontSize: 11, color: "#64748b", marginBottom: 6, letterSpacing: "0.06em" }}>PLATFORM</div>
-              <div style={{ fontSize: 13, color: "#94a3b8", fontFamily: "monospace" }}>{myDevice.platform || "—"}</div>
+              <div style={{ fontSize: 13, color: "#94a3b8", fontFamily: "monospace" }}>{myDevice.platform || "Unknown"}</div>
             </div>
             <div>
               <div style={{ fontSize: 11, color: "#64748b", marginBottom: 6, letterSpacing: "0.06em" }}>LAST SEEN</div>

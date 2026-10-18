@@ -72,7 +72,7 @@ export function EngineFields({ choice, disabled }: { choice: ReturnType<typeof u
         {models?.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
       </select>
     </label>
-    <div className="lc-reasoning"><span>Reasoning</span><strong>{chosen ? chosen.highestEffort ? `Highest supported · ${chosen.highestEffort}` : 'Model default (no reasoning levels)' : '—'}</strong></div>
+    <div className="lc-reasoning"><span>Reasoning</span><strong>{chosen ? chosen.highestEffort ? `Highest supported · ${chosen.highestEffort}` : 'Model default (no reasoning levels)' : 'Choose a model first'}</strong></div>
     {ready && !ready.available && <p className="lc-problem" role="alert">{ready.problem}</p>}
   </div>;
 }

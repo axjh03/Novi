@@ -5,7 +5,7 @@ export interface CameraDevice {
 }
 
 /**
- * CameraService — acquires a video stream from a specific or default camera.
+ * CameraService: acquires a video stream from a specific or default camera.
  * Call listCameras() first (requires a brief getUserMedia to unlock labels),
  * then start(deviceId?) to open the chosen camera.
  */

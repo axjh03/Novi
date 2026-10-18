@@ -17,7 +17,7 @@ export type EyeTrackingState =
   | 'error';
 
 /**
- * EyeTrackingService — the public façade for the entire eye-tracking pipeline.
+ * EyeTrackingService: the public façade for the entire eye-tracking pipeline.
  */
 export class EyeTrackingService {
   private camera: CameraService | null = null;

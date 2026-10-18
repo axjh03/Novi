@@ -39,7 +39,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 }
 
-// DELETE /api/v1/admin/tenants/[id] — cascades to children, licenses, devices
+// DELETE /api/v1/admin/tenants/[id]: cascades to children, licenses, devices
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const actor = requireAdmin(req);
   if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });

@@ -63,7 +63,7 @@ export async function GET(req: Request) {
   }
 }
 
-// POST /api/v1/admin/users — Create user (ADMIN only)
+// POST /api/v1/admin/users: Create user (ADMIN only)
 // body: { username, email, password, name, role, tenantId? (if corp sub-user), parentTenantId? }
 export async function POST(req: Request) {
   const actor = requireAdmin(req);

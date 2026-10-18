@@ -20,12 +20,43 @@ function getScreen(): { getDisplayMatching: (bounds: any) => { workArea: { x: nu
   }
 }
 
+/**
+ * The phone companion: a small web server that lets a phone control Novi's main window.
+ *
+ * How it works:
+ * - The user opens "Phone companion" in Novi, which calls `start()` (see the
+ *   `get-remote-companion-status` IPC handler). Nothing listens before that.
+ * - Novi shows a QR code for `getBestUrl()`. The link carries a random token after `#token=`.
+ *   The phone page reads it and sends it as `Authorization: Bearer <token>` on every API call.
+ * - Two connection types:
+ *   - "Same Wi-Fi": the server listens on all network interfaces (0.0.0.0) so the phone can reach
+ *     this computer directly. The link is plain HTTP on the local network.
+ *   - "Anywhere": a Cloudflare quick tunnel (HTTPS) forwards to this computer. The server then
+ *     listens on 127.0.0.1 only, because only cloudflared (running on this computer) needs to reach it.
+ * - Signing out (or the server ending the session) calls `stop()`, which disconnects the phone.
+ *
+ * Security properties:
+ * - Every /api/ call needs the token, compared in constant time (`authorized()`).
+ * - A new token is made every time the server starts listening, so an old link stops working after
+ *   a restart, a switch between Same Wi-Fi and Anywhere, or a sign-out.
+ * - No CORS headers are sent, so other websites open on this computer can't read the replies.
+ */
 export class RemoteCompanionService {
+  /** The running HTTP server, or `null` when the companion isn't listening. */
   private server: http.Server | null = null;
+  /** The port in use. Starts at 4890 and moves up by one if that port is busy. */
   private port = 4890;
-  // Same Wi-Fi needs the network; Anywhere only needs cloudflared on this computer.
+  /**
+   * Which network interface the server listens on.
+   * '0.0.0.0' (all interfaces) for Same Wi-Fi, so the phone can reach this computer.
+   * '127.0.0.1' (this computer only) for Anywhere, where only the local cloudflared connects.
+   */
   private host: '0.0.0.0' | '127.0.0.1' = '0.0.0.0';
-  // Replaced on every listen, so a link stops working once the server restarts or changes network.
+  /**
+   * The secret the phone must send as `Authorization: Bearer <token>`.
+   * Empty until the server first listens, and replaced with a new random value on every listen,
+   * so a link stops working once the server restarts or changes network.
+   */
   private token = '';
   private activeClients = new Map<string, number>();
   private stealth: StealthService;
@@ -91,6 +122,20 @@ export class RemoteCompanionService {
   }
 
 
+  /**
+   * Switches between "Anywhere" (Cloudflare tunnel) and "Same Wi-Fi".
+   *
+   * Anywhere: first moves the server to 127.0.0.1 (this makes a new token), then starts the tunnel
+   * to that port. If the tunnel fails to start, the server goes back to Same Wi-Fi so the link
+   * Novi shows still works, and the original error is passed on so the user sees why.
+   *
+   * Same Wi-Fi: stops the tunnel and moves the server back to 0.0.0.0 (also a new token).
+   *
+   * Either way the link changes, so the phone has to scan the new QR code.
+   *
+   * @param enable true for Anywhere, false for Same Wi-Fi, omitted to flip the current state.
+   * @returns the new status, including the new link and QR code.
+   */
   async toggleTunnel(enable?: boolean): Promise<RemoteCompanionStatus> {
     const shouldEnable = enable !== undefined ? enable : !this.tunnel.isActive();
     if (shouldEnable) {
@@ -113,6 +158,17 @@ export class RemoteCompanionService {
     return this.getStatus();
   }
 
+  /**
+   * Makes sure the companion server is running and returns its status. Called every time the user
+   * opens the phone companion, so it must be safe to call repeatedly.
+   *
+   * - Not running yet: starts listening on `preferredPort` (or the next free port) with a new token.
+   * - Already running in the right mode: changes nothing, so the phone's existing link keeps working.
+   * - Running on 127.0.0.1 but the tunnel has since exited on its own: switches back to Same Wi-Fi
+   *   (0.0.0.0, new token), because the old tunnel link is dead anyway.
+   *
+   * @param preferredPort the port to try first. Tests pass 0 to get any free port.
+   */
   async start(preferredPort = 4890): Promise<RemoteCompanionStatus> {
     if (!this.server?.listening) this.port = preferredPort;
     // A tunnel that exited on its own falls back to Same Wi-Fi, so the link shown works.
@@ -120,6 +176,16 @@ export class RemoteCompanionService {
     return this.getStatus();
   }
 
+  /**
+   * Starts (or restarts) the HTTP server on the given interface.
+   *
+   * Does nothing if the server is already listening on that interface. Otherwise it closes any
+   * running server (dropping connected phones), creates a new random token, and listens on
+   * `this.port`. If the port is taken (EADDRINUSE), it tries the next port up until one is free.
+   *
+   * @param host '0.0.0.0' for Same Wi-Fi, '127.0.0.1' for Anywhere.
+   * @throws the server's error for anything other than a busy port (for example no permission).
+   */
   private async listen(host: '0.0.0.0' | '127.0.0.1'): Promise<void> {
     if (this.server?.listening && this.host === host) return;
     this.closeServer();
@@ -148,6 +214,10 @@ export class RemoteCompanionService {
     });
   }
 
+  /**
+   * Stops the HTTP server immediately. `closeAllConnections()` drops connected phones right away;
+   * `close()` alone would wait for their open keep-alive connections to finish.
+   */
   private closeServer(): void {
     if (!this.server) return;
     this.server.closeAllConnections();
@@ -155,12 +225,26 @@ export class RemoteCompanionService {
     this.server = null;
   }
 
+  /**
+   * Shuts the companion down completely: stops the tunnel, closes the server and forgets connected
+   * phones. Called on sign-out, when the server ends the session, and when Novi quits.
+   * The next `start()` will listen again with a new token.
+   */
   stop(): void {
     this.tunnel.stop();
     this.closeServer();
     this.activeClients.clear();
   }
 
+  /**
+   * Checks the `Authorization` header against `Bearer <token>`.
+   *
+   * Uses `timingSafeEqual`, which takes the same time whether the first or the last character is
+   * wrong. A plain `===` stops at the first wrong character, which in theory lets an attacker on
+   * the network guess the token one character at a time by measuring reply times.
+   * `timingSafeEqual` needs equal lengths, so the lengths are compared first (that only reveals the
+   * length, which is fixed and public anyway). An empty token (server never started) never matches.
+   */
   private authorized(req: http.IncomingMessage): boolean {
     const given = Buffer.from(req.headers.authorization || '');
     const expected = Buffer.from(`Bearer ${this.token}`);

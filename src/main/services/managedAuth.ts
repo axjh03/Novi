@@ -117,10 +117,33 @@ export class ManagedAuthService {
     delete this.saved.encryptedToken; atomicJSON(this.file, this.saved);
   }
   /** The username remembered by "Keep me signed in", to fill in the sign-in form. */
+  /**
+   * Returns the username remembered from the last "Keep me signed in" sign-in, so the sign-in form
+   * can fill it in. Never returns a password: passwords are not stored anywhere (see the constructor,
+   * which deletes passwords that older versions of Novi saved).
+   *
+   * @returns `{ username }`, or `null` when no username is remembered.
+   */
   getSavedCredentials(): { username: string } | null {
     return this.saved.savedCredentials?.username ? { username: this.saved.savedCredentials.username } : null;
   }
-  /** With keepSignedIn off, nothing is remembered: the session ends when Novi quits. */
+  /**
+   * Signs in to the access server with a username and password.
+   *
+   * What is stored afterwards depends on `keepSignedIn`:
+   * - true or omitted: the session token is saved encrypted with the operating system keychain
+   *   (Electron safeStorage), along with the server address and the username, so Novi opens signed
+   *   in next time.
+   * - false: nothing is saved. Any previously saved token and username are deleted, so the session
+   *   ends when Novi quits.
+   * The password is never saved in either case.
+   *
+   * If anything fails after the server accepted the password (saving, or the first access check),
+   * the new session is signed out again so Novi never ends up half signed in.
+   *
+   * @throws UserError for a wrong password, an inactive account or license, or a device conflict,
+   *   using the server's own message.
+   */
   async signIn(username: string, password: string, keepSignedIn?: boolean) {
     if (this.token) throw new UserError('Sign out of the current account first.');
     this.assertSecure();

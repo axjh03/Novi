@@ -1,7 +1,7 @@
 import type { CalibrationModel, CalibrationSample } from './GazeTypes';
 
 /**
- * GazeCalibrationModel — in-memory ridge regression gaze calibration.
+ * GazeCalibrationModel: in-memory ridge regression gaze calibration.
  *
  * Input feature vector (6 dims):
  *   [leftIrisX, leftIrisY, rightIrisX, rightIrisY, headYaw, headPitch]

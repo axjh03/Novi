@@ -36,7 +36,7 @@ export async function GET(req: Request) {
   }
 }
 
-// POST /api/v1/admin/tenants — create sub-corp for an existing corp organization
+// POST /api/v1/admin/tenants: create sub-corp for an existing corp organization
 export async function POST(req: Request) {
   const actor = requireAdmin(req);
   if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });

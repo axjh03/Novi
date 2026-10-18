@@ -7,7 +7,7 @@ import { JOURNEY } from '@/lib/site';
 import styles from './how-it-works.module.css';
 
 export const metadata: Metadata = {
-  title: 'How it works — Your interview cheat code | Novi',
+  title: 'How it works: Your interview cheat code | Novi',
   description: 'Your interview cheat code: bring your résumé, capture the question, and get AI backup for answers, code, and follow-ups. Get set up. Chase the bag.',
 };
 

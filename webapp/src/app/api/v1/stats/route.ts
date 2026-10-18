@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireAdmin, requireAuth } from "@/lib/jwt";
 
-// GET /api/v1/stats — overview stats for admin dashboard
+// GET /api/v1/stats: overview stats for admin dashboard
 export async function GET(req: Request) {
   const actor = requireAuth(req);
   if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });

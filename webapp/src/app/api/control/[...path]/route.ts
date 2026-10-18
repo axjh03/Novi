@@ -8,8 +8,30 @@ import { handleFileExplorerAdmin, handleFileExplorerClient } from '@/lib/remote-
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// The portal calls this API from its own origin and the desktop app sends no Origin, so no CORS
-// headers are sent and other sites are refused (the same host check Next.js uses for Server Actions).
+/**
+ * Decides whether a request may use this API, based on which website sent it.
+ *
+ * Who calls this API:
+ * - The portal page, which is served from this same site. The browser sends an `Origin` header that
+ *   matches this site's host.
+ * - The desktop app, which calls from Electron's main process. That sends no `Origin` header at all.
+ *
+ * Why it matters: the portal signs people in with a cookie, and browsers attach that cookie to
+ * requests even when another website starts them. Refusing every request whose `Origin` is a
+ * different site stops another website from acting as a signed-in portal user. This API also sends
+ * no CORS headers, so browsers never let other sites read its responses.
+ *
+ * How it decides:
+ * - No `Origin` header: allowed (desktop app, curl, server-to-server).
+ * - `Origin` host equals the host the request was sent to: allowed (the portal itself).
+ *   Behind Vercel, `x-forwarded-host` holds the public host, so it is checked first. Only its
+ *   first entry is used, in case a proxy added more.
+ * - Anything else, including `Origin: null` and values that aren't URLs: refused.
+ *
+ * This is the same comparison Next.js uses to protect Server Actions.
+ *
+ * @returns true when the request may continue, false when it must be refused with 403.
+ */
 function sameSite(req: Request) {
   const origin = req.headers.get('origin');
   if (!origin) return true;
@@ -20,6 +42,7 @@ function sameSite(req: Request) {
 async function route(req: Request, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params;
   try {
+    // Refuse requests started by other websites before reading the body or touching the database.
     if (!sameSite(req)) throw new AccessError('Invalid request origin.', 403);
     if (req.method !== 'GET' && !req.headers.get('content-type')?.startsWith('application/json')) throw new AccessError('JSON content required.', 415);
     let body: Record<string, unknown> = {};

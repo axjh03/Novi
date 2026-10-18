@@ -109,7 +109,7 @@ async function main() {
     await page.getByRole('button', { name: 'Start live test' }).waitFor();
     await page.getByLabel('Speech model', { exact: true }).selectOption('zipformer-en-balanced');
     assert(await page.getByRole('button', { name: 'Start live test' }).isDisabled());
-    const balanced = page.getByRole('region', { name: 'English speech — balanced' });
+    const balanced = page.getByRole('region', { name: 'English speech (balanced)' });
     await balanced.getByRole('button', { name: 'Download', exact: true }).click();
     await balanced.getByText('Installed', { exact: true }).waitFor();
     assert(await page.getByRole('button', { name: 'Start live test' }).isEnabled());

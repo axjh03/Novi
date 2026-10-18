@@ -126,7 +126,7 @@ export function SettingsAppUpdater({ value, onChange, disabled }: Props) {
         <div className="updater-progress-container">
           <div className="updater-progress-label">
             <span>{progress?.status || 'Downloading update payload…'}</span>
-            <span className="updater-progress-pct">{percent === null ? '—' : `${percent}%`}</span>
+            <span className="updater-progress-pct">{percent === null ? '…' : `${percent}%`}</span>
           </div>
           <div className="updater-progress-track" role="progressbar" aria-label={progress?.status || 'Updating Novi'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent ?? undefined}>
             <div className={`updater-progress-fill${percent === null ? ' indeterminate' : ''}`} style={{ width: percent === null ? undefined : `${percent}%` }} />

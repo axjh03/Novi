@@ -76,7 +76,7 @@ export function GazeOverlay({ dwellPoint, gaze, showDebugDot, onClose }: Props) 
         {/* Sample response content */}
         <div className="gaze-response-body">
           <p className="gaze-response-text">
-            I noticed your gaze. This is where Novi would place a contextual response—
+            I noticed your gaze. This is where Novi would place a contextual response,
             right where you're looking, so you never lose your train of thought.
           </p>
           <div className="gaze-response-meta">

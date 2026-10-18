@@ -18,9 +18,30 @@ type Section = 'model' | 'sources' | 'brief';
 type Field = { label: string; value: string };
 type Applied = { role: number; preset: number } | null;
 
+/** The display name of a session type, for example 'coding' => "Coding". */
 const modeName = (mode: AppMode) => SESSION_MODES.find((item) => item.id === mode)?.name ?? mode;
+/** "1 folder" / "3 folders". */
 const folderCount = (count: number) => `${count} ${count === 1 ? 'folder' : 'folders'}`;
 
+/**
+ * Session setup: the screen shown after Get ready and before a session starts.
+ *
+ * Three steps, all rendered at once and shown one at a time (so nothing typed is lost when switching):
+ *   1. Model: choose the AI connection and model. Saved profiles can be started from here in one click.
+ *      "Start an empty chat instead" skips setup entirely.
+ *   2. Documents (optional): load folders of resumes, job descriptions or notes.
+ *   3. Instructions: purpose (auto-suggested), session type, company and role, and optional presets.
+ *      "More options" holds the four detailed answer instructions and Save profile.
+ *
+ * Start stays pressable even when something is missing: it then jumps to the missing item instead
+ * of doing nothing, which helps when someone is nervous and can't see why nothing happens.
+ *
+ * Get ready (SessionPreflight) is shown first, once per launch per account.
+ *
+ * @param state     the current app snapshot (signed-in user, settings, profiles).
+ * @param onSaved   called with the new snapshot whenever main-process state changes (session started, profile saved...).
+ * @param onSignOut passed through to Settings, which is where Sign out lives.
+ */
 export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; onSaved: (state: Snapshot) => void; onSignOut: () => void }) {
   const { setAppMode, behavioralFramework, setBehavioralFramework } = useAppMode();
   const [startMode, setStartMode] = useState<AppMode | null>(null);
@@ -48,17 +69,24 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
   const attempt = useRef(0);
   useEffect(() => () => { attempt.current++; }, []);
   const connection = activeConnection(state.settings!);
+  // The Purpose actually used: the user's own text once they have typed in the field, otherwise the suggestion.
   const purposeValue = purposeEdited ? purpose : defaultPurpose(startMode, { company, role: targetRole, preset: appliedPreset });
+  // The Instructions step is complete when there is a purpose and a session type.
   const briefReady = Boolean(purposeValue.trim() && startMode);
+  // Start really starts only on the Instructions step, with a working model and a complete brief.
   const canStart = !busy && modelReady && briefReady && section === 'brief';
   // What still blocks Start, in the order it appears on the page.
   const missing = !modelReady ? 'model' : purposeEdited && !purposeValue.trim() ? 'purpose' : !startMode ? 'mode' : !purposeValue.trim() ? 'purpose' : null;
+  // The short hint shown next to the step's main button, saying what is still needed ('' when nothing).
   const needs = section === 'model' ? (modelReady ? '' : 'Choose a model to continue')
     : section === 'brief' ? ({ model: 'Choose a model first', purpose: 'Add a purpose', mode: 'Choose a session type' } as const)[missing!] ?? '' : '';
   const profiles = state.settings!.sessionProfiles || [];
+  // The name Save profile will use: the user's own once typed, otherwise "<company> <role>" or the purpose (max 60 characters).
   const nameForProfile = profileNameEdited ? profileName : ([company.trim(), targetRole.trim()].filter(Boolean).join(' ') || purposeValue.trim()).replace(/\s+/g, ' ').slice(0, 60);
+  // A saved profile with the same name (case-insensitive); saving then updates it instead of adding a copy.
   const existingProfile = profiles.find((profile) => profile.name.toLowerCase() === nameForProfile.trim().toLowerCase());
 
+  /** Opens the folder picker and loads the chosen folders' documents. Keeps the current list if the user cancels. */
   async function loadFolders() {
     setBusy(true); setError('');
     try { const loaded = await unwrap(window.novi.pickContextFolders()); if (loaded.length) setFolders(loaded); }
@@ -66,6 +94,11 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     finally { setBusy(false); }
   }
 
+  /**
+   * "Start an empty chat instead": checks the AI connection, then starts a session with no documents
+   * and no instructions, in normal chat mode.
+   * `attempt` guards against a slow reply landing after the user has already done something else.
+   */
   async function startEmpty() {
     if (busy || !modelReady) return;
     const current = ++attempt.current;
@@ -81,6 +114,11 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     finally { if (current === attempt.current) { setBusy(false); setChecking(false); } }
   }
 
+  /**
+   * Starts the session: checks the AI connection first (so a broken key fails here, with the setup
+   * still on screen), then sends the documents, purpose, company, role and instructions to the main
+   * process and switches to the chosen session type.
+   */
   async function start() {
     if (!canStart || !startMode) return;
     const current = ++attempt.current;
@@ -96,7 +134,11 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     finally { if (current === attempt.current) { setBusy(false); setChecking(false); } }
   }
 
-  // Start looks disabled while something is missing; pressing it takes the user to that field instead of doing nothing.
+  /**
+   * Called when Start is pressed while something is missing. Start looks disabled in that state but
+   * stays pressable, and this takes the user to the first missing thing instead of doing nothing:
+   * the Model step, the Purpose field, or the session type buttons (scrolled into view and focused).
+   */
   function showMissing() {
     if (missing === 'model') { setSection('model'); return; }
     const target = missing === 'purpose' ? purposeInput.current : modeOptions.current?.querySelector('button');
@@ -104,13 +146,23 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     target?.focus({ preventScroll: true });
   }
 
+  /** Picks a session type by hand. That replaces what a preset chose, so preset Undo is no longer offered. */
   function chooseMode(mode: AppMode) { setStartMode(mode); setUndo(null); }
 
+  /** Changes one of the four answer-instruction fields. Editing by hand also clears the preset notice and its Undo. */
   function editField(index: number, patch: Partial<Field>) {
     setPresetNotice(''); setUndo(null);
     setFields((items) => items.map((field, i) => i === index ? { ...field, ...patch } : field));
   }
 
+  /**
+   * Applies a preset as soon as it is clicked (no separate Apply button):
+   * - remembers the current fields, session type and preset so Undo can restore them;
+   * - fills the answer instructions from the preset, but keeps the user's own Experience and
+   *   Additional instructions when they already wrote something there;
+   * - sets the session type the preset belongs to;
+   * - says what changed and opens More options so the filled-in fields are visible.
+   */
   function applyPreset(index: number) {
     const preset = role.presets[index];
     setUndo({ fields, startMode, applied });
@@ -122,12 +174,18 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     if (moreOptions.current) moreOptions.current.open = true;
   }
 
+  /** Puts back exactly what the last preset replaced (fields, session type, selected preset). */
   function undoPreset() {
     if (!undo) return;
     setFields(undo.fields); setStartMode(undo.startMode); setApplied(undo.applied);
     setUndo(null); setPresetNotice('Preset undone.');
   }
 
+  /**
+   * Saves the current setup (model, folders, session type, framework, company, role, purpose and
+   * instructions) as a named profile, or updates the profile with the same name. Only allowed when
+   * the setup could be started, so a saved profile is always complete.
+   */
   async function saveProfile() {
     const name = nameForProfile.trim();
     if (!canStart || !startMode || !name) return;
@@ -141,6 +199,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     finally { setBusy(false); }
   }
 
+  /** Deletes a saved profile (after the inline "Delete?" confirmation). */
   async function deleteProfile(id: string) {
     setBusy(true); setError('');
     try { onSaved(await unwrap(window.novi.deleteSessionProfile(id))); setConfirmDelete(null); }
@@ -148,7 +207,16 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     finally { setBusy(false); }
   }
 
-  // Fills the setup from a profile; with startNow it then starts the session exactly as Start session would.
+  /**
+   * Fills the whole setup from a saved profile.
+   *
+   * Steps, in order: behavioral framework, model (switching connection if needed), document folders
+   * (a profile without folders loads none), then either shows the Instructions step for review
+   * (startNow false) or checks the connection and starts the session exactly as Start would (startNow true).
+   *
+   * If a step fails, the error is shown on the step where it happened (`reached`), and folders that
+   * no longer have readable files are reported instead of failing the whole profile.
+   */
   async function applyProfile(profile: SessionProfile, startNow: boolean) {
     if (busy) return;
     const current = ++attempt.current;

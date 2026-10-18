@@ -5,6 +5,20 @@ import { UserError } from './validation';
 export interface ContextDocument { name: string; content: string }
 const MAX_CHARACTERS = 80_000;
 
+/**
+ * Extracts the text of a PDF with pdf.js, page by page, for use as session context.
+ *
+ * Only text is read; nothing is rendered or run. The options keep it that way and avoid touching the
+ * network or the system: no system fonts, no worker fetching, no font loading, no WebAssembly
+ * decoders. (pdf.js 6 removed its old `eval`-based code path entirely, so no flag is needed for it.)
+ *
+ * Limits: at most 200 pages, every page must contain readable text (scanned image-only PDFs are
+ * refused with a clear message), and the total stays within the 80,000-character context limit.
+ *
+ * @param bytes the PDF file contents.
+ * @returns the text with a "[Page N]" header before each page.
+ * @throws UserError with a plain message for missing PDF support, encrypted or damaged files, and the limits above.
+ */
 async function pdfText(bytes: Buffer): Promise<string> {
   // Lazy loading keeps TXT sessions usable if the PDF dependency is not installed.
   const moduleName = 'pdfjs-dist/legacy/build/pdf.mjs';

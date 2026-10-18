@@ -67,7 +67,7 @@ export function codeFromMessages(messages: ChatMessage[]) {
       const fence = match[1].trim();
       const code = match[2].trimEnd();
       const time = new Date(message.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-      return { id: `${message.id}-${index}`, label: `Soln ${++solution} (${time})${file ? ` — ${file}` : ''}`, code, language: languageFor(fence, file, code) };
+      return { id: `${message.id}-${index}`, label: `Soln ${++solution} (${time})${file ? ` · ${file}` : ''}`, code, language: languageFor(fence, file, code) };
     });
   });
 }

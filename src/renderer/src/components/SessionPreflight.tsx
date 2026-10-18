@@ -21,7 +21,13 @@ const PROMPTS: Record<ReadinessCheck, string> = {
   screen: 'If asked, choose the screen to share.',
 };
 
-// A soft three-note chime. Where the system audio capture includes Novi's own sound, it passes the test unaided.
+/**
+ * Plays a soft three-note chime (C, E, G) through the speakers during the system audio test.
+ * On computers where system audio capture also records Novi's own sound, the chime alone is enough
+ * for the test to pass, so the user doesn't have to find a video to play.
+ *
+ * @returns a function that stops the chime and releases the audio device.
+ */
 function playChime(): () => void {
   const context = new AudioContext();
   const gain = context.createGain();
@@ -38,6 +44,20 @@ function playChime(): () => void {
   return () => { void context.close().catch(() => {}); };
 }
 
+/**
+ * Get ready: the checks shown once per launch before session setup.
+ *
+ * Checks, in order: app storage, AI connection, speech files, microphone, system audio, screen
+ * capture. Storage and speech files are checked quietly when the screen opens; the others need the
+ * user (speaking, playing sound, or allowing screen sharing), so they run when asked.
+ *
+ * Results are kept for the rest of the day per account (services/readiness.ts). The Continue bar
+ * stays at the bottom of the screen and says what failed or wasn't checked, but never blocks:
+ * "Continue anyway" is always available unless a check is running or storage is unusable.
+ *
+ * @param onContinue called when the user moves on to session setup.
+ * @param onSettings opens Settings (for fixing a device or connection).
+ */
 export function SessionPreflight({ state, onSaved, onContinue, onSettings }: {
   state: Snapshot; onSaved: (state: Snapshot) => void; onContinue: () => void; onSettings: () => void;
 }) {
@@ -48,8 +68,10 @@ export function SessionPreflight({ state, onSaved, onContinue, onSettings }: {
   const [level, setLevel] = useState(0), [setup, setSetup] = useState<LocalAISetup | null>(null);
   const [error, setError] = useState(''), [saving, setSaving] = useState(false);
   const capture = useRef<InterviewAudio | null>(null), mounted = useRef(false);
+  // Stores one check's result (saved for the day) and updates the screen if it is still open.
   const record = (check: ReadinessCheck, ok: boolean, detail: string, details?: string) => { const next = recordReadiness(check, { ok, detail, ...(details ? { details } : {}) }); if (mounted.current) setReadiness(next); };
 
+  /** Reloads the local speech setup (which models are installed) from the main process. */
   async function refreshSetup() {
     const next = await unwrap(window.novi.localAISetup());
     if (mounted.current) setSetup(next);
@@ -69,12 +91,21 @@ export function SessionPreflight({ state, onSaved, onContinue, onSettings }: {
     return () => { mounted.current = false; capture.current?.close(); };
   }, []);
 
+  /** Speech files are ready when the chosen speech model AND the voice-detection model (silero-vad) are installed and usable. */
   function speechStatus(current: LocalAISetup | null) {
     const speech = current && selectedSpeechModel(current);
     const ready = Boolean(speech?.state === 'READY' && !speech.reason && current?.models.some(model => model.id === 'silero-vad' && model.state === 'READY' && !model.reason));
     return { ready, detail: ready ? `${speech!.name} and voice detection ready` : 'Speech files need installing' };
   }
 
+  /**
+   * Microphone or system audio test: captures for 3 seconds (microphone) or 4 seconds (system audio,
+   * with the chime playing), shows a live level meter, and passes if any sound above silence arrived.
+   *
+   * @returns the success sentence for the row.
+   * @throws DeviceError with a plain-language message when the device can't start or is blocked,
+   *   or an Error saying no sound was detected.
+   */
   async function testAudio(source: 'microphone' | 'system') {
     let peak = 0;
     const audio = new InterviewAudio(async frame => {
@@ -97,6 +128,10 @@ export function SessionPreflight({ state, onSaved, onContinue, onSettings }: {
       return source === 'system' ? 'Novi can hear your computer’s sound' : 'Novi can hear you';
     } finally { stopChime(); await audio.stop(); capture.current = null; if (mounted.current) setLevel(0); }
   }
+  /**
+   * Screen capture test: asks the system whether Novi may record the screen, then opens a capture
+   * and checks it delivers a live video track. The capture is stopped straight away; nothing is saved.
+   */
   async function testScreen() {
     // On macOS a capture without Screen Recording permission can still return a live, black stream; ask the system first.
     if (!(await unwrap(window.novi.checkPermissions())).screen) throw deviceError('screen', new DOMException('Screen Recording permission is not granted.', 'NotAllowedError'));
@@ -106,6 +141,7 @@ export function SessionPreflight({ state, onSaved, onContinue, onSettings }: {
       return 'Snapshots can capture your screen';
     } finally { stream.getTracks().forEach(track => track.stop()); }
   }
+  /** Speech files test: downloads the chosen speech model and voice detection if missing, then verifies both are ready. */
   async function testSpeech() {
     let current = setup || await refreshSetup();
     if (!speechStatus(current).ready) {
@@ -119,6 +155,10 @@ export function SessionPreflight({ state, onSaved, onContinue, onSettings }: {
     if (!status.ready) throw new Error('Speech files could not be verified. Open Settings › Local AI to repair them.');
     return status.detail;
   }
+  /**
+   * AI connection test. If a model is already chosen, sends a tiny request to it. If not (the model
+   * is picked on the next step), checks the key works by listing the provider's models instead.
+   */
   async function testAI() {
     const connection = activeConnection(settings);
     if (!connection) throw new Error('Add or enable an AI connection in Settings.');
@@ -131,16 +171,19 @@ export function SessionPreflight({ state, onSaved, onContinue, onSettings }: {
     await unwrap(window.novi.testConnection());
     return `${connection.name} · ${connection.model} answered`;
   }
+  /** App storage test: asks the main process to confirm Novi can read and write its data folder. */
   async function testStorage() {
     const next = await unwrap(window.novi.requestPermissions(['storage']));
     if (!next.storage) throw new Error('Novi can’t save to your user folder. Check its permissions.');
     return 'Read and write access verified';
   }
+  // Which test function runs for each check id.
   const tests: Record<ReadinessCheck, () => Promise<string>> = {
     storage: testStorage, ai: testAI, speech: testSpeech,
     microphone: () => testAudio('microphone'), system: () => testAudio('system'), screen: testScreen,
   };
 
+  /** Runs one check and records pass or fail. A DeviceError's browser text is kept for the row's Details. */
   async function runCheck(check: ReadinessCheck) {
     setRunning(check); setError('');
     try { record(check, true, await tests[check]()); }
@@ -160,6 +203,7 @@ export function SessionPreflight({ state, onSaved, onContinue, onSettings }: {
     } finally { if (mounted.current) setRunningAll(false); }
   }
 
+  /** Saves the "start sessions in transparent mode" preference shown on this screen. */
   async function saveTransparentOnStart(enabled: boolean) {
     setSaving(true); setError('');
     try { onSaved(await unwrap(window.novi.saveSettings({ ...settings, transparentOnStart: enabled }))); }

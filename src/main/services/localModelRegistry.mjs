@@ -4,7 +4,7 @@ const MiB = 1024 ** 2;
 const GiB = 1024 ** 3;
 export const MODEL_REGISTRY = Object.freeze([
   {
-    id: 'zipformer-en-small', name: 'English speech — lightweight', type: 'asr',
+    id: 'zipformer-en-small', name: 'English speech (lightweight)', type: 'asr',
     repository: 'csukuangfj/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17',
     version: 'd42f2d9f7ca24806fb667456a18a9f1b60f70d16', license: 'Apache-2.0',
     runtime: 'sherpa-onnx', streaming: true, languages: ['en'], quality: 1,
@@ -12,7 +12,7 @@ export const MODEL_REGISTRY = Object.freeze([
     files: ['encoder-epoch-99-avg-1.int8.onnx', 'decoder-epoch-99-avg-1.int8.onnx', 'joiner-epoch-99-avg-1.int8.onnx', 'tokens.txt'],
   },
   {
-    id: 'zipformer-en-balanced', name: 'English speech — balanced', type: 'asr',
+    id: 'zipformer-en-balanced', name: 'English speech (balanced)', type: 'asr',
     repository: 'csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-26',
     version: '672fbf1b30579d6585301139bb363f42a0ad4a24', license: 'Apache-2.0',
     runtime: 'sherpa-onnx', streaming: true, languages: ['en'], quality: 2,
@@ -20,7 +20,7 @@ export const MODEL_REGISTRY = Object.freeze([
     files: ['encoder-epoch-99-avg-1-chunk-16-left-64.int8.onnx', 'decoder-epoch-99-avg-1-chunk-16-left-64.int8.onnx', 'joiner-epoch-99-avg-1-chunk-16-left-64.int8.onnx', 'tokens.txt'],
   },
   {
-    id: 'parakeet-tdt-0.6b', name: 'Parakeet TDT 0.6B — simulated live', type: 'asr',
+    id: 'parakeet-tdt-0.6b', name: 'Parakeet TDT 0.6B (simulated live)', type: 'asr',
     repository: 'csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8',
     version: '1ab9323565ddb038682214b292f588070a538ce2', license: 'CC-BY-4.0',
     runtime: 'sherpa-onnx-offline', liveMode: 'simulated', streaming: false, languages: ['en'], quality: 3,
@@ -28,7 +28,7 @@ export const MODEL_REGISTRY = Object.freeze([
     files: ['encoder.int8.onnx', 'decoder.int8.onnx', 'joiner.int8.onnx', 'tokens.txt'],
   },
   {
-    id: 'whisper-tiny-en', name: 'Whisper tiny.en — simulated live', type: 'asr',
+    id: 'whisper-tiny-en', name: 'Whisper tiny.en (simulated live)', type: 'asr',
     repository: 'csukuangfj/sherpa-onnx-whisper-tiny.en',
     version: '2ffb4044a6556d7c2b4b335845ed4135fd5913ac', license: 'MIT',
     runtime: 'sherpa-onnx-offline', liveMode: 'simulated', streaming: false, languages: ['en'], quality: 2,
@@ -44,7 +44,7 @@ export const MODEL_REGISTRY = Object.freeze([
     files: ['onnx/model.onnx', 'LICENSE'],
   },
   {
-    id: 'campplus-speakers', name: 'Optional speaker detection — Lite', type: 'diarization',
+    id: 'campplus-speakers', name: 'Optional speaker detection (Lite)', type: 'diarization',
     repository: 'csukuangfj/speaker-embedding-models',
     version: '0743f301363dec56491a490f6d6cbc9d67f9a3bf', license: 'Apache-2.0',
     runtime: 'sherpa-onnx', streaming: false, languages: [], quality: 1,
@@ -52,7 +52,7 @@ export const MODEL_REGISTRY = Object.freeze([
     files: ['3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx'],
   },
   {
-    id: 'qwen-0.5b-q4', name: 'Optional interview analysis — lightweight', type: 'llm',
+    id: 'qwen-0.5b-q4', name: 'Optional interview analysis (lightweight)', type: 'llm',
     repository: 'Qwen/Qwen2.5-0.5B-Instruct-GGUF',
     version: '9217f5db79a29953eb74d5343926648285ec7e67', license: 'Apache-2.0',
     runtime: 'llama.cpp', streaming: false, languages: ['en'], quality: 1,

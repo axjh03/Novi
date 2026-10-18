@@ -216,7 +216,7 @@ export function UserManagement() {
                             </div>
                           ) : <span style={{ color: "#888" }}>Unlicensed</span>}
                         </td>
-                        <td style={{ color: "#666" }}>{license ? new Date(license.expiresAt).toLocaleDateString() : "—"}</td>
+                        <td style={{ color: "#666" }}>{license ? new Date(license.expiresAt).toLocaleDateString() : "None"}</td>
                         <td>
                           {license && (
                             <div style={{ display: "flex", gap: 6 }}>

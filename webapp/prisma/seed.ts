@@ -145,7 +145,7 @@ async function main() {
   console.log("✅ Individual:", indvUser.username, "/ indv123");
 
   // ── Issue sample licenses ──────────────────────────────────────────
-  // License for Acme Corp (UNACTIVATED — waiting for user to enter key)
+  // License for Acme Corp (UNACTIVATED: waiting for the user to enter the key)
   const corpLicKey = generateLicenseKey();
   console.log("\n📋 Sample license keys (save these!):");
   console.log("  Acme Corp license:", corpLicKey);

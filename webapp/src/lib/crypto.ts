@@ -1,11 +1,36 @@
 import crypto from "crypto";
 
-// Retired /api/v1 only: refuse to hash, encrypt or decrypt without real secrets.
+/**
+ * License keys and secret encryption for the RETIRED /api/v1 prototype API.
+ *
+ * The live portal uses `access-security.ts` (ACCESS_ENCRYPTION_KEY) instead. Every /api/v1 request is
+ * already answered with "410 retired" by `src/proxy.ts`; this file is kept for a possible data migration.
+ *
+ * Security rule: never fall back to a secret written in the source code. With a published default,
+ * anyone could decrypt the stored API keys or forge license hashes.
+ */
+
+/**
+ * Returns the secret used to hash license keys (HMAC-SHA256), from `LICENSE_SERVER_SECRET`.
+ *
+ * Read on each use (not at import) so the portal still builds when the variable isn't set.
+ *
+ * @throws Error when the variable is missing or shorter than 32 characters.
+ */
 function serverSecret() {
   const value = process.env.LICENSE_SERVER_SECRET;
   if (!value || value.length < 32) throw new Error("Configure LICENSE_SERVER_SECRET with at least 32 random characters.");
   return value;
 }
+/**
+ * Returns the 32-byte AES-256-GCM key used to encrypt stored API keys, from `ENCRYPTION_MASTER_KEY`.
+ *
+ * The variable must be exactly 64 hex characters (32 random bytes), the same format the live portal
+ * uses for ACCESS_ENCRYPTION_KEY. Generate one with:
+ *   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+ *
+ * @throws Error when the variable is missing or not 64 hex characters.
+ */
 function masterKey() {
   const value = process.env.ENCRYPTION_MASTER_KEY || "";
   if (!/^[a-f0-9]{64}$/i.test(value)) throw new Error("Configure ENCRYPTION_MASTER_KEY with 32 random bytes in hex.");
@@ -68,6 +93,8 @@ export function encryptSecret(plaintext: string): string {
  * AES-256-GCM Decryption for API Credentials
  */
 export function decryptSecret(encryptedBlob: string): string {
+  // Read the key before the try block on purpose: a missing key must throw (so the request fails
+  // loudly) instead of being swallowed below and shown as an ordinary "[Decryption Error]".
   const key = masterKey();
   try {
     const parts = encryptedBlob.split(":");

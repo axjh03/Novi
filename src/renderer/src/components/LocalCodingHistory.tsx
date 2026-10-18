@@ -75,7 +75,7 @@ export function LocalCodingHistory({ state, project, busy, onProject, onSnapshot
       </button>)}
     </div>
     <p className="lc-next">
-      Next request uses: <strong>{selected?.label ?? '—'}</strong>
+      Next request uses: <strong>{selected?.label ?? 'No version selected'}</strong>
       {parent && <> · Based on {parent.label}</>}
       {baseline && <> · local baseline {baseline.label}</>}
       {running && running.id !== project.selectedVersionId && <> · running on {running.label}</>}

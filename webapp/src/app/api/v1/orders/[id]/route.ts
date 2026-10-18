@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/jwt";
 import { createAuditLog } from "@/lib/audit";
 
 export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
+  // Only an old-API admin may approve or reject an order.
   const actor = requireAdmin(req);
   if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 

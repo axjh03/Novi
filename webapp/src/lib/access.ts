@@ -30,12 +30,42 @@ async function eligible(db: DB, account: AccessAccount) {
   if (!license || license.ownerId !== account.parentId || license.status !== 'ACTIVE' || license.expiresAt <= new Date()) throw new AccessError('Your license is expired or terminated. Contact your administrator.', 403);
   return license;
 }
-// Vercel overwrites these two headers with the caller's address; others, like cf-connecting-ip, can be forged.
+/**
+ * Returns the caller's IP address, or `null` when it isn't known.
+ *
+ * Used for two things: the per-address sign-in limit in `login()`, and the "last seen from" address
+ * shown for desktop sessions in the portal.
+ *
+ * Only headers that Vercel overwrites with the real caller address are trusted:
+ * - `x-real-ip`
+ * - `x-forwarded-for` (first entry)
+ * Vercel replaces any value the caller sends in these, so they can't be faked. Other headers such as
+ * `cf-connecting-ip` are deliberately ignored: on Vercel they pass straight through from the caller,
+ * so anyone could send a different fake address on every try and dodge the per-address limit.
+ *
+ * If the portal is ever moved behind another proxy (for example Cloudflare), revisit this function,
+ * because that proxy decides which header holds the real address.
+ *
+ * @returns the address (at most 64 characters), or `null` when no trusted header is present.
+ */
 function clientIp(req?: Request) {
   const value = req?.headers.get('x-real-ip') || req?.headers.get('x-forwarded-for')?.split(',')[0];
   const ip = value?.trim();
   return ip && ip.length <= 64 ? ip : null;
 }
+/**
+ * Records one sign-in attempt against a throttle counter and refuses the attempt when it is over the limit.
+ *
+ * Counters live in the `LoginThrottle` table (key, count, expiresAt), so the limit holds across all
+ * server instances. A counter is created on the first attempt with a 15-minute expiry and then only
+ * counts up; `login()` deletes expired counters, and deletes the user's counters after a successful
+ * sign-in.
+ *
+ * @param key   which counter to use, for example `user:alice` or `ip:203.0.113.7|user:alice`.
+ * @param limit how many attempts are allowed in the 15-minute window.
+ * @param now   the time of this attempt, used when the counter is created.
+ * @throws AccessError 429 "Too many sign-in attempts..." once the count goes past `limit`.
+ */
 async function countAttempt(key: string, limit: number, now: Date) {
   const attempt = await prisma.loginThrottle.upsert({ where: { key }, create: { key, expiresAt: new Date(+now + 900_000) }, update: { count: { increment: 1 } } });
   if (attempt.count > limit) throw new AccessError('Too many sign-in attempts. Try again in 15 minutes.', 429);
@@ -49,8 +79,17 @@ export async function login(body: Record<string, unknown>, req?: Request) {
   const now = new Date();
   // Durable throttling also works across server workers. Expired rows are bounded by cleanup.
   await prisma.loginThrottle.deleteMany({ where: { expiresAt: { lt: now } } });
-  // One address gets 10 tries per account and is stopped before it adds more to the account's count,
-  // so locking someone out takes several real addresses instead of 11 requests from anywhere.
+  // Two sign-in limits, both reset 15 minutes after the first attempt:
+  // 1. Per address and account (`ip:<address>|user:<name>`): 10 attempts. Someone mistyping or
+  //    guessing from one place is stopped here.
+  // 2. Per account (`user:<name>`): 50 attempts from all addresses together. A backstop against
+  //    guessing spread over many machines.
+  // Order matters: the per-address counter is checked first and throws first, so a blocked address
+  // stops adding to the account counter. One address can therefore add at most 11 to it, and locking
+  // an account out takes at least 5 different real addresses. (Before this change, 11 wrong
+  // passwords from anywhere locked the account.)
+  // The "ip:" and "user:" prefixes keep the two kinds of counters apart whatever username is typed.
+  // With no known address everyone shares `ip:unknown`, which behaves like the old single counter.
   const throttle = [`ip:${clientIp(req) || 'unknown'}|user:${username}`, `user:${username}`];
   await countAttempt(throttle[0], 10, now);
   await countAttempt(throttle[1], 50, now);
@@ -79,6 +118,8 @@ export async function login(body: Record<string, unknown>, req?: Request) {
     await audit(db, account.id, 'SIGNED_IN', session.id);
     return { token, user: { id: account.id, username: account.username, name: account.name, role: account.role } };
   });
+  // A successful sign-in clears this address's counter and the account counter. Counters for other
+  // addresses (for example one that was guessing) stay, so a blocked address stays blocked.
   await prisma.loginThrottle.deleteMany({ where: { key: { in: throttle } } });
   return result;
 }

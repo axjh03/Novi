@@ -327,7 +327,7 @@ export function ControlPanel({ user }: { user: any }) {
               {navItems.find(n => n.id === section)?.label}
             </div>
             <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-              Platform Admin — {user?.username}
+              Platform Admin: {user?.username}
             </div>
           </div>
           <button onClick={fetchAll} style={{
@@ -344,11 +344,11 @@ export function ControlPanel({ user }: { user: any }) {
         {section === "overview" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 12 }}>
-              <Stat label="TOTAL USERS" value={stats?.users?.total ?? "—"} sub={`${stats?.users?.corp ?? 0} corp · ${stats?.users?.individual ?? 0} individual`} accent="#818cf8" />
-              <Stat label="CORPORATIONS" value={stats?.tenants?.corporations ?? "—"} sub="Root companies" accent="#6366f1" />
-              <Stat label="ACTIVE LICENSES" value={stats?.licenses?.active ?? "—"} sub={`${stats?.licenses?.unactivated ?? 0} unactivated · ${stats?.licenses?.suspended ?? 0} paused`} accent="#10b981" />
-              <Stat label="ACTIVE DEVICES" value={stats?.devices?.active ?? "—"} sub={`${stats?.devices?.total ?? 0} total registered`} accent="#0ea5e9" />
-              <Stat label="REVOKED" value={stats?.licenses?.revoked ?? "—"} sub={`${stats?.licenses?.expired ?? 0} expired`} accent="#ef4444" />
+              <Stat label="TOTAL USERS" value={stats?.users?.total ?? "…"} sub={`${stats?.users?.corp ?? 0} corp · ${stats?.users?.individual ?? 0} individual`} accent="#818cf8" />
+              <Stat label="CORPORATIONS" value={stats?.tenants?.corporations ?? "…"} sub="Root companies" accent="#6366f1" />
+              <Stat label="ACTIVE LICENSES" value={stats?.licenses?.active ?? "…"} sub={`${stats?.licenses?.unactivated ?? 0} unactivated · ${stats?.licenses?.suspended ?? 0} paused`} accent="#10b981" />
+              <Stat label="ACTIVE DEVICES" value={stats?.devices?.active ?? "…"} sub={`${stats?.devices?.total ?? 0} total registered`} accent="#0ea5e9" />
+              <Stat label="REVOKED" value={stats?.licenses?.revoked ?? "…"} sub={`${stats?.licenses?.expired ?? 0} expired`} accent="#ef4444" />
             </div>
             {/* Quick action cards */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -476,7 +476,7 @@ export function ControlPanel({ user }: { user: any }) {
                       </td>
                       <td style={{ padding: "12px 16px" }}><Badge status={t.type} /></td>
                       <td style={{ padding: "12px 16px" }}><Badge status={t.status} /></td>
-                      <td style={{ padding: "12px 16px", fontSize: 12, color: "#64748b" }}>{t.parentTenant?.name || "—"}</td>
+                      <td style={{ padding: "12px 16px", fontSize: 12, color: "#64748b" }}>{t.parentTenant?.name || "None"}</td>
                       <td style={{ padding: "12px 16px", fontSize: 12, color: "#94a3b8" }}>{t._count?.children ?? 0}</td>
                       <td style={{ padding: "12px 16px", fontSize: 12, color: "#94a3b8" }}>{t._count?.licenses ?? 0}</td>
                       <td style={{ padding: "12px 16px", fontSize: 12, color: "#94a3b8" }}>{t.memberships?.length ?? 0}</td>
@@ -591,7 +591,7 @@ export function ControlPanel({ user }: { user: any }) {
                         <div style={{ fontSize: 13, color: "#e2e8f0" }}>{d.name || "Unknown"}</div>
                         <div style={{ fontSize: 10, color: "#475569", fontFamily: "monospace" }}>{d.fingerprintHash.slice(0, 12)}…</div>
                       </td>
-                      <td style={{ padding: "12px 16px", fontSize: 12, color: "#64748b", fontFamily: "monospace" }}>{d.platform || "—"}</td>
+                      <td style={{ padding: "12px 16px", fontSize: 12, color: "#64748b", fontFamily: "monospace" }}>{d.platform || "Unknown"}</td>
                       <td style={{ padding: "12px 16px", fontSize: 12, color: "#94a3b8" }}>{d.tenant?.name}</td>
                       <td style={{ padding: "12px 16px" }}>
                         {activeLicense ? (
@@ -602,7 +602,7 @@ export function ControlPanel({ user }: { user: any }) {
                         ) : <span style={{ fontSize: 11, color: "#475569" }}>None</span>}
                       </td>
                       <td style={{ padding: "12px 16px", fontSize: 12, color: "#64748b" }}>
-                        {activeLicense?.user?.username || d.lastUsedByUserId?.slice(0, 8) || "—"}
+                        {activeLicense?.user?.username || d.lastUsedByUserId?.slice(0, 8) || "None"}
                       </td>
                       <td style={{ padding: "12px 16px", fontSize: 11, color: "#475569", fontFamily: "monospace" }}>
                         {new Date(d.lastSeenAt).toLocaleString()}
@@ -651,9 +651,9 @@ export function ControlPanel({ user }: { user: any }) {
                     <td style={{ padding: "10px 16px", fontSize: 12, color: "#94a3b8", fontFamily: "monospace" }}>
                       {log.actor?.username || "SYSTEM"}
                     </td>
-                    <td style={{ padding: "10px 16px", fontSize: 12, color: "#64748b" }}>{log.tenant?.name || "—"}</td>
+                    <td style={{ padding: "10px 16px", fontSize: 12, color: "#64748b" }}>{log.tenant?.name || "None"}</td>
                     <td style={{ padding: "10px 16px", fontFamily: "monospace", fontSize: 10, color: "#475569", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {log.details || "—"}
+                      {log.details || "None"}
                     </td>
                   </tr>
                 ))}
@@ -675,7 +675,7 @@ export function ControlPanel({ user }: { user: any }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ padding: "12px 14px", background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.3)", borderRadius: 8, fontSize: 12, color: "#eab308" }}>
                 <AlertTriangle size={13} style={{ display: "inline", marginRight: 6 }} />
-                <strong>One-time display.</strong> Copy this key now — only the HMAC hash is stored.
+                <strong>One-time display.</strong> Copy this key now. Only the HMAC hash is stored.
               </div>
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -710,7 +710,7 @@ export function ControlPanel({ user }: { user: any }) {
 
       {/* Renew License */}
       {modal === "renewLicense" && selectedUser && (
-        <Modal title={`Renew License — ${selectedUser.keyMasked}`} onClose={() => { setModal(null); setSelectedUser(null); }}>
+        <Modal title={`Renew License: ${selectedUser.keyMasked}`} onClose={() => { setModal(null); setSelectedUser(null); }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
               {[

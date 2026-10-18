@@ -1,5 +1,5 @@
 /**
- * DwellDetector — detects when the user has held gaze in one place long enough
+ * DwellDetector: detects when the user has held gaze in one place long enough
  * to "select" that location (like a hover without a mouse).
  */
 export class DwellDetector {
@@ -33,7 +33,7 @@ export class DwellDetector {
 
     const dist = Math.hypot(x - this.anchorX, y - this.anchorY);
     if (dist > this.radiusPx) {
-      // Moved — reset anchor
+      // The gaze moved away, so start timing again from this new spot.
       this.anchorX = x;
       this.anchorY = y;
       this.anchorTime = now;

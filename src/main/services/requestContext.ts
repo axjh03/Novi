@@ -50,7 +50,9 @@ export function contextMessages(context: SavedContext, question: string, compact
     }
   }
   const base = [message('context-instructions', 'user', context.instructions), message('context-summary', 'assistant', context.summary)];
-  // A session started without documents has no source data to send.
+  // Every request repeats the session setup: the user's instructions and the AI's confirmation.
+  // A session started without documents has no source files, so the documents message is left out
+  // (sending an empty one would waste tokens and could make the AI look for files that don't exist).
   if (!context.documents.length) return base;
   return [
     ...base,

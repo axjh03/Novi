@@ -177,7 +177,7 @@ export default function ManagementApp() {
   const admin = data.user.role === 'ADMIN';
   const managesPasswords = ['ADMIN', 'CORP', 'SUBCORP'].includes(data.user.role);
   const manageable = ['STANDALONE', 'SUBCORP'].includes(data.user.role);
-  const accountName = (id: string | null) => data.accounts.find(a => a.id === id)?.username || '—';
+  const accountName = (id: string | null) => data.accounts.find(a => a.id === id)?.username || 'None';
   const owners = data.accounts.filter(a => ['STANDALONE', 'SUBCORP'].includes(a.role) && a.status === 'ACTIVE');
   const selectedAccounts = data.accounts.filter(a => (roleFilter === 'ALL' || a.role === roleFilter) && (parentFilter === 'ALL' || a.parentId === parentFilter) && `${a.username} ${a.name}`.toLowerCase().includes(search.toLowerCase()));
   const activeLicenses = data.licenses.filter(l => l.status === 'ACTIVE' && +new Date(l.expiresAt) > Date.now());

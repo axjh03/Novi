@@ -7,7 +7,7 @@ import AccessRequest from './AccessRequest';
 import styles from './get-access.module.css';
 
 export const metadata: Metadata = {
-  title: 'Pricing — Novi',
+  title: 'Pricing | Novi',
   description: 'Novi plans from $16 per month. Compare Core, Pro, Ultimate, and $399 Lifetime access. Consultancies and staffing firms can contact sales for team licensing.',
 };
 

@@ -194,7 +194,7 @@ export function CustomerPortal() {
       <main style={{ flex: 1, padding: "24px 28px", overflowY: "auto" }}>
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: "#111" }}>
-            {selTenant?.name || "—"}
+            {selTenant?.name || "None"}
           </div>
           <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>
             Customer Portal · {navItems.find(n => n.id === section)?.label}

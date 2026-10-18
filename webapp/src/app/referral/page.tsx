@@ -8,10 +8,10 @@ import ReferralGif from './ReferralGif';
 import styles from './referral.module.css';
 
 export const metadata: Metadata = {
-  title: 'Referral program — Bhaichara on Top | Novi',
+  title: 'Referral program: Bhaichara on Top | Novi',
   description: 'Bring a friend to Novi through your referral code or link and earn 50% of the plan they purchase, paid into your bank account.',
 };
-const join = mailto('Novi referral program — get my code', 'Hi Novi team,\n\nI’d like to join the referral program. Please send me my referral code and link, and the bank payout details.\n\nName:\nNovi username (if you have one):\n\nThanks!');
+const join = mailto('Novi referral program: get my code', 'Hi Novi team,\n\nI’d like to join the referral program. Please send me my referral code and link, and the bank payout details.\n\nName:\nNovi username (if you have one):\n\nThanks!');
 const moodboard = 'https://ru.pinterest.com/efrank0193/%D0%BE%D1%84%D0%B8%D1%81/';
 
 export default function ReferralPage() {
@@ -19,7 +19,7 @@ export default function ReferralPage() {
     <PublicNavbar active="referral" />
     <main className={styles.main}>
       <section className={styles.hero} aria-labelledby="referral-title">
-        <div><span className={styles.eyebrow}>THE NOVI REFERRAL PROGRAM</span><h1 id="referral-title">Bhaichara<br /><em>on Top.</em></h1><p>Bring us a friend. When they buy a plan through your referral code or link, you get <strong>50% of what they pay</strong>—cash credited to your bank account.</p><div className={styles.actions}><a className={styles.primary} href={join}>Get my referral code <ArrowUpRight size={17} /></a><a className={styles.secondary} href="#rewards">Show me the rewards <ArrowDown size={15} /></a></div><span className={styles.tagline}>Bhaichara on Top 🤝</span></div>
+        <div><span className={styles.eyebrow}>THE NOVI REFERRAL PROGRAM</span><h1 id="referral-title">Bhaichara<br /><em>on Top.</em></h1><p>Bring us a friend. When they buy a plan through your referral code or link, you get <strong>50% of what they pay</strong>, paid as cash to your bank account.</p><div className={styles.actions}><a className={styles.primary} href={join}>Get my referral code <ArrowUpRight size={17} /></a><a className={styles.secondary} href="#rewards">Show me the rewards <ArrowDown size={15} /></a></div><span className={styles.tagline}>Bhaichara on Top 🤝</span></div>
         <ReferralGif />
       </section>
 

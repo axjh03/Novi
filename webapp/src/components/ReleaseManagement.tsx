@@ -89,7 +89,7 @@ interface ReleaseData {
 
 function elapsedTime(startedAt: string | null | undefined, now: number) {
   const start = startedAt ? Date.parse(startedAt) : NaN;
-  if (!Number.isFinite(start)) return '—';
+  if (!Number.isFinite(start)) return 'Not started';
   const seconds = Math.max(0, Math.floor((now - start) / 1000));
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);

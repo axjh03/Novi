@@ -404,7 +404,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             onListeningChange={practice.onListeningChange}
             prefill={prefill}
             onPrefillApplied={() => setPrefill(undefined)}
-            placeholder={localMode ? localBinding && local.project ? `Ask about ${localBinding.name} — next request uses ${local.project.versions.find((version) => version.id === local.project!.selectedVersionId)?.label ?? 'the selected version'}` : 'Start Local Coding in the panel first' : undefined}
+            placeholder={localMode ? localBinding && local.project ? `Ask about ${localBinding.name}. Next request uses ${local.project.versions.find((version) => version.id === local.project!.selectedVersionId)?.label ?? 'the selected version'}` : 'Start Local Coding in the panel first' : undefined}
           />
         </TrayPortal>
       )}

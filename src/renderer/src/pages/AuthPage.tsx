@@ -4,6 +4,17 @@ import type { Snapshot } from '../../../shared/types';
 import { Brand } from '../components/Brand';
 import { errorText, unwrap } from '../services/api';
 
+/**
+ * The sign-in screen (desktop sign-in is always through the managed access server).
+ *
+ * Built for people signing in under pressure:
+ * - a remembered username is filled in and the cursor goes straight to the password;
+ * - Show/hide password, and a "Caps Lock is on" hint while typing the password;
+ * - after a failed attempt the error appears under the button and the password is selected, ready to retype;
+ * - "Keep me signed in" (on by default) saves only an encrypted session token, never the password.
+ *
+ * @param onAuthenticated called with the app snapshot after a successful sign-in.
+ */
 export function AuthPage({ onAuthenticated }: { onAuthenticated: (state: Snapshot) => void }) {
   const [username, setUsername] = useState(''), [password, setPassword] = useState('');
   const [keepSignedIn, setKeepSignedIn] = useState(true);
@@ -29,11 +40,13 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (state: Snapsho
     passwordInput.current?.select();
   }, [error, busy]);
 
+  /** Sends the username, password and "Keep me signed in" choice to the main process, and shows the server's message on failure. */
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError('');
     try { onAuthenticated(await unwrap(window.novi.signIn(username, password, keepSignedIn))); }
     catch (error) { setError(errorText(error)); } finally { setBusy(false); }
   }
+  // Reads Caps Lock from each key press in the password field, so the hint appears and disappears as it changes.
   const watchCapsLock = (event: KeyboardEvent<HTMLInputElement>) => setCapsLock(event.getModifierState('CapsLock'));
 
   return <div className="auth-layout managed-auth">

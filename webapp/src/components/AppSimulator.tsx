@@ -106,7 +106,7 @@ export function AppSimulator() {
             <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#333" }} />
             <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#333" }} />
             <span style={{ fontSize: 11, color: "#444", marginLeft: 8, fontFamily: "monospace" }}>
-              Novi Desktop — v1.4.0
+              Novi Desktop v1.4.0
             </span>
           </div>
 

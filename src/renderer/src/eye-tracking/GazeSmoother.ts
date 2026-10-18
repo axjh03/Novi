@@ -1,5 +1,5 @@
 /**
- * GazeSmoother — exponential moving average filter for raw gaze coordinates.
+ * GazeSmoother: exponential moving average filter for raw gaze coordinates.
  * High alpha = more responsive but jittery.
  * Low alpha = smoother but lags behind fast eye movements.
  */

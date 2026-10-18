@@ -5,6 +5,7 @@ import { encryptSecret, decryptSecret } from "@/lib/crypto";
 import { createAuditLog } from "@/lib/audit";
 
 export async function GET(req: Request) {
+  // Only an old-API admin may list stored API keys (this route can return them decrypted with ?reveal=true).
   const actor = requireAdmin(req);
   if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
@@ -48,6 +49,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  // Only an old-API admin may store a new API key.
   const actor = requireAdmin(req);
   if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 

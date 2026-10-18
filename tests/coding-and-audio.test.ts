@@ -18,7 +18,7 @@ test('code viewer shows assistant code only, in message order', () => {
     message('a', 'assistant', 'src/a.ts\n```ts\nexport const a = 1;\n```'),
     message('b', 'assistant', '```py\nprint(2)\n```'),
   ]);
-  assert.match(blocks[0].label, /^Soln 1 \(.+\) — src\/a\.ts$/);
+  assert.match(blocks[0].label, /^Soln 1 \(.+\) · src\/a\.ts$/);
   assert.match(blocks[1].label, /^Soln 2 \(.+\)$/);
   assert.deepEqual(blocks.map(({ code }) => code), ['export const a = 1;', 'print(2)']);
   assert.deepEqual(blocks.map(({ language }) => language), ['typescript', 'python']);

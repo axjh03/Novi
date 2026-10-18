@@ -134,7 +134,7 @@ async function main() {
   const server = web(mode === 'dev' ? 'dev' : 'start');
   if (target === 'web') { console.log(`[novi] Portal: http://localhost:${port}`); await server.done; return; }
   await Promise.race([ready(), server.done.then(() => { throw new Error('The web server exited before becoming ready.'); })]);
-  console.log(`\n[novi] Portal: http://localhost:${port} — press Ctrl+C to stop both applications.`);
+  console.log(`\n[novi] Portal: http://localhost:${port}. Press Ctrl+C to stop both applications.`);
   const desktop = startDesktop();
   await Promise.race([server.done, desktop.done]);
 }

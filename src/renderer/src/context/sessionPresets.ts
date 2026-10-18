@@ -142,13 +142,30 @@ export function presetFields(role: typeof SESSION_ROLES[number], preset: Instruc
   ];
 }
 
-// How each session type reads in an auto-filled purpose.
+// How each session type is described at the start of the suggested purpose (see defaultPurpose below).
 const PURPOSE_PHRASES: Record<AppMode, string> = {
   normal: 'General help', recruiter: 'Recruiter call', coding: 'Coding interview', technical: 'Technical screen',
   'system-design': 'System design interview', behavioral: 'Behavioral interview', 'local-coding': 'Questions about a project on this computer',
 };
 
-/** A purpose built from the setup choices, so the required field never starts blank. Empty until a session type is chosen. */
+/**
+ * Builds the suggested "Purpose" text for session setup from what the user already chose, so the
+ * required Purpose field is never blank.
+ *
+ * Examples:
+ *   defaultPurpose('coding', { role: 'Backend engineer', company: 'Acme' })
+ *     => "Coding interview for the Backend engineer role at Acme."
+ *   defaultPurpose('coding', { preset: <"Pipeline coding" preset, mode coding> })
+ *     => "Pipeline coding."
+ *
+ * Session setup shows this until the user types their own purpose; after that the user's text is
+ * kept, and "Use the suggestion instead" brings this back.
+ *
+ * @param mode   the chosen session type, or null when none is chosen yet (returns '').
+ * @param company the company name field (optional).
+ * @param role    the target role field (optional).
+ * @param preset  the applied preset; its name is used only when it belongs to the chosen session type.
+ */
 export function defaultPurpose(mode: AppMode | null, { company = '', role = '', preset }: { company?: string; role?: string; preset?: InstructionPreset | null } = {}): string {
   if (!mode) return '';
   const phrase = preset?.mode === mode ? preset.name : PURPOSE_PHRASES[mode];

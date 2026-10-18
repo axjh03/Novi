@@ -202,7 +202,7 @@ export function LoginScreen({ onLogin }: LoginProps) {
         {/* Sample accounts */}
         <div style={{ marginTop: 24 }}>
           <div style={{ fontSize: 11, color: "#64748b", textAlign: "center", marginBottom: 12, letterSpacing: "0.06em" }}>
-            SAMPLE ACCOUNTS — CLICK TO FILL
+            SAMPLE ACCOUNTS · CLICK TO FILL
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {SAMPLE_ACCOUNTS.map((acc) => (

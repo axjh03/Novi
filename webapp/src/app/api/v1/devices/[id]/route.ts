@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/jwt";
 import { createAuditLog } from "@/lib/audit";
 
-// DELETE /api/v1/devices/[id] — reset device activation slot
+// DELETE /api/v1/devices/[id]: reset device activation slot
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const actor = requireAdmin(req);
   if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
@@ -32,7 +32,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   }
 }
 
-// PATCH /api/v1/devices/[id] — update device status
+// PATCH /api/v1/devices/[id]: update device status
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const actor = requireAdmin(req);
   if (!actor) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
