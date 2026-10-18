@@ -8,3 +8,6 @@ dist/
 .npm-cache/
 .next/
 .DS_Store
+
+# Windows caches created when a tool runs without SystemDrive set
+%SystemDrive%/
