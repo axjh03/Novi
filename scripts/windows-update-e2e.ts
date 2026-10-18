@@ -116,7 +116,9 @@ function uninstall(folder: string, allUsers: boolean) {
   const uninstaller = join(folder, 'Uninstall Novi.exe');
   // _?= makes the NSIS uninstaller run in place and wait, instead of copying itself and returning at once.
   if (existsSync(uninstaller)) spawnSync(uninstaller, ['/S', allUsers ? '/allusers' : '/currentuser', `_?=${folder}`], { stdio: 'inherit', timeout: 300_000 });
-  rmSync(folder, { recursive: true, force: true });
+  // Windows releases a force-closed process's files a moment after taskkill returns, so the first
+  // attempt can fail with EBUSY (it did for the all-users copy in v4.0.24). Retry for a few seconds.
+  rmSync(folder, { recursive: true, force: true, maxRetries: 5, retryDelay: 1000 });
 }
 
 /** One complete update: install the previous release, run it, update it with the real installer, check everything. */
@@ -171,7 +173,11 @@ async function scenario(name: string, allUsers: boolean, previous: { version: st
     });
 
     // 6. The installer now installs and relaunches Novi. Give it 10 minutes.
-    const code = await Promise.race([finished, delay(600_000).then(() => 'timeout' as const)]);
+    // ref: false stops this 10-minute timer from keeping Node alive after the installer has finished;
+    // without it the step sat idle for the full 10 minutes after every successful run (v4.0.24 took
+    // 18 minutes instead of about 9). The running installer process keeps Node alive while we wait,
+    // so the timer still fires if the installer really hangs.
+    const code = await Promise.race([finished, delay(600_000, 'timeout' as const, { ref: false })]);
     console.log(`Installer finished: ${code === 'timeout' ? 'still running after 10 minutes' : `exit code ${code}`}`);
     assert.notEqual(code, 'timeout', 'the installer did not finish within 10 minutes');
     assert.equal(installedVersion(exe), version, 'Novi.exe does not carry the new version');

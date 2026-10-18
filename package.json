@@ -30,6 +30,7 @@
     "@mediapipe/tasks-vision": "^1.0.1",
     "@openai/codex": "0.162.1",
     "@types/qrcode": "^1.5.6",
+    "@vercel/analytics": "^2.0.1",
     "diff": "9.0.0",
     "ignore": "7.0.12",
     "koffi": "^3.3.2",
@@ -41,8 +42,8 @@
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
     "sherpa-onnx-node": "1.13.8",
-    "zod": "4.6.7",
-    "tar": "7.5.22"
+    "tar": "7.5.22",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
