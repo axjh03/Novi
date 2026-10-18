@@ -18,7 +18,9 @@
     "test:access": "tsx --test tests/access.test.ts",
     "test:site": "node --import tsx --test tests/site.test.ts",
     "test:artifacts": "node --import tsx --test tests/artifacts.test.ts",
-    "test:legacy": "node --import tsx --test tests/legacy-api.test.ts"
+    "test:legacy": "node --import tsx --test tests/legacy-api.test.ts",
+    "test:control": "node --import tsx --test tests/control-route.test.ts",
+    "test:throttle": "node --import tsx --test tests/login-throttle.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed-access.ts"

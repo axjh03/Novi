@@ -30,10 +30,15 @@ async function eligible(db: DB, account: AccessAccount) {
   if (!license || license.ownerId !== account.parentId || license.status !== 'ACTIVE' || license.expiresAt <= new Date()) throw new AccessError('Your license is expired or terminated. Contact your administrator.', 403);
   return license;
 }
+// Vercel overwrites these two headers with the caller's address; others, like cf-connecting-ip, can be forged.
 function clientIp(req?: Request) {
-  const value = req?.headers.get('cf-connecting-ip') || req?.headers.get('x-real-ip') || req?.headers.get('x-forwarded-for')?.split(',')[0];
+  const value = req?.headers.get('x-real-ip') || req?.headers.get('x-forwarded-for')?.split(',')[0];
   const ip = value?.trim();
   return ip && ip.length <= 64 ? ip : null;
+}
+async function countAttempt(key: string, limit: number, now: Date) {
+  const attempt = await prisma.loginThrottle.upsert({ where: { key }, create: { key, expiresAt: new Date(+now + 900_000) }, update: { count: { increment: 1 } } });
+  if (attempt.count > limit) throw new AccessError('Too many sign-in attempts. Try again in 15 minutes.', 429);
 }
 export async function login(body: Record<string, unknown>, req?: Request) {
   const username = string(body.username, 'username', 64).toLowerCase();
@@ -44,8 +49,11 @@ export async function login(body: Record<string, unknown>, req?: Request) {
   const now = new Date();
   // Durable throttling also works across server workers. Expired rows are bounded by cleanup.
   await prisma.loginThrottle.deleteMany({ where: { expiresAt: { lt: now } } });
-  const attempt = await prisma.loginThrottle.upsert({ where: { key: username }, create: { key: username, expiresAt: new Date(+now + 900_000) }, update: { count: { increment: 1 } } });
-  if (attempt.count > 10) throw new AccessError('Too many sign-in attempts. Try again in 15 minutes.', 429);
+  // One address gets 10 tries per account and is stopped before it adds more to the account's count,
+  // so locking someone out takes several real addresses instead of 11 requests from anywhere.
+  const throttle = [`ip:${clientIp(req) || 'unknown'}|user:${username}`, `user:${username}`];
+  await countAttempt(throttle[0], 10, now);
+  await countAttempt(throttle[1], 50, now);
   const account = await prisma.accessAccount.findUnique({ where: { username } });
   const valid = await bcrypt.compare(secret, account?.passwordHash || '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxIkqHU2zd2PcBzSVdmjCCoINHa');
   if (!account || !valid) throw new AccessError('Username or password is incorrect.', 401);
@@ -71,7 +79,7 @@ export async function login(body: Record<string, unknown>, req?: Request) {
     await audit(db, account.id, 'SIGNED_IN', session.id);
     return { token, user: { id: account.id, username: account.username, name: account.name, role: account.role } };
   });
-  await prisma.loginThrottle.deleteMany({ where: { key: username } });
+  await prisma.loginThrottle.deleteMany({ where: { key: { in: throttle } } });
   return result;
 }
 export async function authenticate(req: Request, db: DB = prisma) {

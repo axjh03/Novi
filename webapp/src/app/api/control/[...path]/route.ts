@@ -8,24 +8,19 @@ import { handleFileExplorerAdmin, handleFileExplorerClient } from '@/lib/remote-
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function setCors(response: NextResponse, req: Request) {
+// The portal calls this API from its own origin and the desktop app sends no Origin, so no CORS
+// headers are sent and other sites are refused (the same host check Next.js uses for Server Actions).
+function sameSite(req: Request) {
   const origin = req.headers.get('origin');
-  if (origin) {
-    response.headers.set('Access-Control-Allow-Origin', origin);
-    response.headers.set('Access-Control-Allow-Credentials', 'true');
-    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  }
-  return response;
-}
-
-export async function OPTIONS(req: Request) {
-  return setCors(new NextResponse(null, { status: 204 }), req);
+  if (!origin) return true;
+  try { return new URL(origin).host === (req.headers.get('x-forwarded-host') || req.headers.get('host') || '').split(',')[0].trim(); }
+  catch { return false; }
 }
 
 async function route(req: Request, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params;
   try {
+    if (!sameSite(req)) throw new AccessError('Invalid request origin.', 403);
     if (req.method !== 'GET' && !req.headers.get('content-type')?.startsWith('application/json')) throw new AccessError('JSON content required.', 415);
     let body: Record<string, unknown> = {};
     if (req.method !== 'GET') {
@@ -60,7 +55,7 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
         });
       }
       response.headers.set('Cache-Control', 'no-store');
-      return setCors(response, req);
+      return response;
     }
     else if (path.join('/') === 'state' && req.method === 'GET') data = await state(req);
     else if (path.join('/') === 'activity' && req.method === 'GET') data = await activity(req);
@@ -74,7 +69,7 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
     else throw new AccessError('Not found.', 404);
     const response = NextResponse.json({ data }, { headers: { 'Cache-Control': 'no-store' } });
     if (path[0] === 'logout') response.cookies.delete('astra_session');
-    return setCors(response, req);
+    return response;
   } catch (error: any) {
     const known = error instanceof AccessError;
     const conflict = error instanceof Prisma.PrismaClientKnownRequestError && ['P2002', 'P2034', 'P1008'].includes(error.code);
@@ -96,7 +91,7 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
       status: known ? error.status : conflict ? 409 : missing ? 404 : 500,
       headers: { 'Cache-Control': 'no-store' },
     });
-    return setCors(response, req);
+    return response;
   }
 }
 export { route as GET, route as POST, route as PATCH, route as DELETE };

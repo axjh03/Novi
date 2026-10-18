@@ -109,7 +109,11 @@ npm run build
 npm start
 npm run typecheck
 npm run test:access
+npm run test:control
+TEST_DATABASE_URL=postgresql://user@localhost:5432/scratch npm run test:throttle
 ```
+
+`test:throttle` needs a disposable Postgres database; it creates its own schema there and drops it afterwards, and skips when `TEST_DATABASE_URL` is unset. Sign-in allows 10 attempts per address and 50 per account every 15 minutes, so locking an account out takes several addresses. The client address comes from `x-real-ip` / `x-forwarded-for`, which Vercel overwrites; other forwarding headers are ignored because clients can forge them.
 
 Use persistent storage for SQLite and back up the database. This sample deployment targets one persistent application host. A multi-host deployment needs a shared database and equivalent constraints/migrations for that database. The desktop launch environment must set `NOVI_ACCESS_URL` to the server's HTTPS origin. No live payment processing or paid-provider smoke call is included.
 
