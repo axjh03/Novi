@@ -1,11 +1,19 @@
 import { NextResponse } from 'next/server';
 import fallbackReleaseInfo from '@/lib/release-info.json';
-
-const GITHUB_REPO = 'axjh03/Novi';
+import { GITHUB_REPO, newestWithAsset, publishedReleases, updateManifestName, type Release } from '@/lib/github-releases';
 
 export const revalidate = 0;
 
-export async function GET() {
+/**
+ * Describes the newest Novi release for the website's download page and the desktop update check.
+ *
+ * Without parameters it reports GitHub's latest release (what the download page shows).
+ * The desktop app adds `?platform=<process.platform>&arch=<process.arch>`: it then gets the newest
+ * release that contains that system's update manifest (latest.yml, latest-mac.yml,
+ * latest-linux.yml or latest-linux-arm64.yml). So if a release is missing one system's build,
+ * those machines keep seeing the previous complete release instead of an update they can't install.
+ */
+export async function GET(req: Request) {
   const token = process.env.GITHUB_PAT || process.env.GITHUB_TOKEN;
 
   if (!token) {
@@ -17,24 +25,34 @@ export async function GET() {
   }
 
   try {
-    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
-      headers: {
-        Accept: 'application/vnd.github.v3+json',
-        Authorization: `Bearer ${token.trim()}`,
-        'User-Agent': 'Novi-Web',
-      },
-      cache: 'no-store',
-    });
-
-    if (!res.ok) {
-      return NextResponse.json({
-        success: true,
-        live: false,
-        data: fallbackReleaseInfo,
+    const { searchParams } = new URL(req.url);
+    const manifest = updateManifestName(searchParams.get('platform'), searchParams.get('arch'));
+    let data: Release;
+    if (manifest) {
+      // A desktop update check: only a release that can update this machine counts.
+      const found = newestWithAsset(await publishedReleases(token), name => name === manifest);
+      if (!found) return NextResponse.json({ success: true, live: false, data: fallbackReleaseInfo });
+      data = found.release;
+    } else {
+      const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+        headers: {
+          Accept: 'application/vnd.github.v3+json',
+          Authorization: `Bearer ${token.trim()}`,
+          'User-Agent': 'Novi-Web',
+        },
+        cache: 'no-store',
       });
-    }
 
-    const data = await res.json();
+      if (!res.ok) {
+        return NextResponse.json({
+          success: true,
+          live: false,
+          data: fallbackReleaseInfo,
+        });
+      }
+
+      data = await res.json();
+    }
     const tagName = String(data.tag_name || 'v0.1.2');
     const version = tagName.replace(/^v/, '');
 

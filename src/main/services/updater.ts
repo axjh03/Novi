@@ -86,28 +86,80 @@ else
 fi
 `;
 
-// Wait for normal shutdown (including recordings and engines) before NSIS can replace locked files.
-export function windowsInstallScript(payload: string, parentPid: number, executable: string): string {
-  const literal = payload.replace(/'/g, "''");
+/**
+ * Builds the PowerShell script that installs a downloaded Windows update after Novi has closed.
+ *
+ * Why a separate helper: Windows locks the files of a running program, so the installer can only
+ * replace Novi after it has quit. Novi starts this script (hidden, detached), waits until it prints
+ * "ready", then quits normally so recordings, engines and the sign-out finish cleanly first.
+ *
+ * What the script does, in order:
+ * 1. Prints "ready" so Novi knows the helper is running and can quit.
+ * 2. Waits for Novi's main process (`parentPid`) to exit, for at most 2 minutes. If Novi hangs
+ *    while closing, the installer still runs: with `--updated` it closes any Novi process itself.
+ * 3. Runs the NSIS installer silently: `/S` (no windows), `--updated` (keep data and shortcuts,
+ *    and let the installer close a still-running Novi), and `/D=<folder>` (install over the same
+ *    folder Novi runs from). `/D=` must be the last argument and is never quoted; NSIS reads the rest
+ *    of the command line as the path, so folders with spaces work.
+ *    `-Wait` waits for the installer and everything it starts, including the elevated copy that an
+ *    all-users install (Program Files) launches after the Windows permission prompt.
+ * 4. Checks the result twice: the installer's exit code, AND the version stamped in the installed
+ *    Novi.exe. The second check matters because the installer can exit with 0 without installing,
+ *    for example when the user declines the Windows permission prompt for an all-users install.
+ * 5. Starts the new Novi and deletes the downloaded installer.
+ *
+ * If anything fails, it reopens whichever Novi is installed (so the user is never left without
+ * the app), keeps the installer, and shows a message with the installer's path so the user can
+ * run it by hand. Every step is written to "<installer>.log" (UTF-16) for support.
+ *
+ * @param payload    full path of the verified installer (Novi-Setup-x.y.z.exe saved as setup.exe).
+ * @param parentPid  Novi's main process id; the script waits for it to exit.
+ * @param executable full path of the running Novi.exe (process.execPath); the update installs into its folder.
+ * @param version    the version being installed, for example "4.0.24"; compared with the installed exe.
+ * @returns the script text. Paths are embedded as single-quoted PowerShell strings with ' doubled,
+ *   so any character (spaces, &, %, [, ], non-Latin letters) is taken literally.
+ */
+export function windowsInstallScript(payload: string, parentPid: number, executable: string, version: string): string {
+  const literal = (value: string) => `'${value.replace(/'/g, "''")}'`;
   return `
 $ErrorActionPreference = 'Stop'
-$installer = '${literal}'
-$executable = '${executable.replace(/'/g, "''")}'
+$installer = ${literal(payload)}
+$executable = ${literal(executable)}
+$expectedVersion = ${literal(version)}
 $installDirectory = Split-Path -LiteralPath $executable
+$log = $installer + '.log'
+function Write-Step([string]$message) { ('{0:u} {1}' -f (Get-Date), $message) | Out-File -LiteralPath $log -Append -Encoding Unicode }
+# The leading major.minor.patch of the exe's product version ("4.0.24.512" -> "4.0.24"),
+# or '' if Novi.exe is missing or has no readable version.
+function Get-InstalledVersion {
+  if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) { return '' }
+  if ([string](Get-Item -LiteralPath $executable).VersionInfo.ProductVersion -match '^(\\d+)\\.(\\d+)\\.(\\d+)') { return $Matches[1] + '.' + $Matches[2] + '.' + $Matches[3] }
+  return ''
+}
 try {
+  Remove-Item -LiteralPath $log -Force -ErrorAction SilentlyContinue
+  Write-Step "Updating Novi to $expectedVersion"
   $novi = Get-Process -Id ${parentPid} -ErrorAction SilentlyContinue
   [Console]::Out.Write("ready\n")
-  if ($novi) { $novi.WaitForExit() }
+  if ($novi -and -not $novi.WaitForExit(120000)) { Write-Step 'Novi did not close within 2 minutes; the installer will close it.' }
   # -Wait includes the elevated installer child; do not launch Novi until that child finishes.
   $setup = Start-Process -FilePath $installer -ArgumentList '/S', '--updated', ("/D=" + $installDirectory) -WorkingDirectory (Split-Path -LiteralPath $installer) -PassThru -Wait
+  Write-Step "Installer exited with code $($setup.ExitCode)"
   if ($setup.ExitCode -ne 0) { throw "Installer exited with code $($setup.ExitCode)." }
-  if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) { throw "Installed Novi executable not found: $executable" }
+  $installed = Get-InstalledVersion
+  if ($installed -ne $expectedVersion) { throw "Novi $expectedVersion was not installed (found '$installed'). If Windows asked for permission, the update needs it." }
   Start-Process -FilePath $executable -ArgumentList '--updated' -WorkingDirectory $installDirectory
+  Write-Step 'Installed and relaunched'
   Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
 } catch {
-  $_ | Out-File -LiteralPath ($installer + '.log')
+  $failure = $_
+  Write-Step "Failed: $failure"
+  # Reopen whichever Novi is installed, so a failed update never leaves the user without the app.
+  if (Test-Path -LiteralPath $executable -PathType Leaf) {
+    try { Start-Process -FilePath $executable -WorkingDirectory $installDirectory } catch { Write-Step "Could not reopen Novi: $_" }
+  }
   $notice = New-Object -ComObject WScript.Shell
-  $notice.Popup("Novi could not install the update. Open the downloaded installer to retry:\n" + $installer + "\nDetails: " + $_, 0, 'Novi update failed', 16) | Out-Null
+  $notice.Popup("Novi could not install the update. Open the downloaded installer to retry:\n" + $installer + "\nDetails: " + $failure, 0, 'Novi update failed', 16) | Out-Null
   exit 1
 }
 `;
@@ -126,10 +178,13 @@ export class AppUpdater {
   async checkForUpdates(): Promise<UpdateCheckResult> {
     const currentVersion = app.getVersion();
     const primaryUrl = getEffectivePortalUrl();
+    // Ask for the newest release that has an installer for THIS system and chip, so a release whose
+    // Windows (or Mac, or Linux) build is missing is never offered to the machines that can't install it.
+    const latestPath = `/api/releases/latest?platform=${encodeURIComponent(process.platform)}&arch=${encodeURIComponent(process.arch)}`;
     let res: Response;
     let effectiveBase = primaryUrl;
     try {
-      res = await fetch(`${primaryUrl}/api/releases/latest`, {
+      res = await fetch(`${primaryUrl}${latestPath}`, {
         headers: { 'User-Agent': `Novi-Desktop/${currentVersion}` },
         signal: AbortSignal.timeout(4000),
       });
@@ -137,7 +192,7 @@ export class AppUpdater {
       // If in local dev and localhost:3000 is unreachable, fall back to production portal
       if (!app?.isPackaged && primaryUrl.includes('localhost')) {
         effectiveBase = 'https://novi-virid.vercel.app';
-        res = await fetch(`${effectiveBase}/api/releases/latest`, {
+        res = await fetch(`${effectiveBase}${latestPath}`, {
           headers: { 'User-Agent': `Novi-Desktop/${currentVersion}` },
           signal: AbortSignal.timeout(6000),
         });
@@ -213,7 +268,7 @@ export class AppUpdater {
         const exePath = join(tempDir, 'setup.exe');
         await this.downloadVerified(latest, releaseFile(latest.version, 'win32', process.arch)!, exePath, onProgress);
 
-        const script = Buffer.from(windowsInstallScript(exePath, process.pid, process.execPath), 'utf16le').toString('base64');
+        const script = Buffer.from(windowsInstallScript(exePath, process.pid, process.execPath, latest.version), 'utf16le').toString('base64');
         await new Promise<void>((resolve, reject) => {
           const helper = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', script], {
             cwd: tempDir, detached: true, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'],

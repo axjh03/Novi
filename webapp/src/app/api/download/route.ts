@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-
-const GITHUB_REPO = 'axjh03/Novi';
+import { GITHUB_REPO, newestWithAsset, publishedReleases, type ReleaseAsset } from '@/lib/github-releases';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -30,9 +29,9 @@ export async function GET(req: Request) {
     const relData = await relRes.json();
     const assets = Array.isArray(relData.assets) ? relData.assets : [];
 
-    // 2. Identify the target asset
-    let targetAsset = assets.find((a: any) => {
-      const name = (a.name || '').toLowerCase();
+    // 2. Identify the target asset. `wanted` decides whether a (lower-case) asset name is the
+    // requested file, using the same rules for the latest release and for the fallback below.
+    const wanted = (name: string) => {
       if (requestedFile && name === requestedFile.toLowerCase()) return true;
 
       switch (assetType.toLowerCase()) {
@@ -67,11 +66,19 @@ export async function GET(req: Request) {
         default:
           return false;
       }
-    });
+    };
+    // If someone asked for "mac" and no specific chip matched, any .dmg will do.
+    const anyMacDisk = (name: string) => assetType.includes('mac') && name.endsWith('.dmg');
+    const pick = (list: ReleaseAsset[]) => list.find(a => wanted(String(a.name || '').toLowerCase())) || list.find(a => anyMacDisk(String(a.name || '').toLowerCase()));
 
-    // Fallback: if user asked for mac and no specific arch matched, pick first .dmg
-    if (!targetAsset && assetType.includes('mac')) {
-      targetAsset = assets.find((a: any) => a.name.endsWith('.dmg'));
+    let targetAsset = pick(assets);
+
+    // The newest release can be missing a system's files (for example when one build failed). Rather
+    // than leave those users with nothing, serve the file from the newest release that has it.
+    if (!targetAsset) {
+      const releases = await publishedReleases(token);
+      const found = newestWithAsset(releases, wanted) || newestWithAsset(releases, anyMacDisk);
+      targetAsset = found?.asset;
     }
 
     if (!targetAsset || !targetAsset.url) {

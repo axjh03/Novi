@@ -390,13 +390,17 @@ test('a manual check with no connection reports the problem instead of claiming 
   await assert.rejects(new AppUpdater().checkForUpdates(), /Could not reach the update server/);
 });
 
-test('Windows handoff waits for the installer tree and relaunches the installed executable', () => {
-  const script = windowsInstallScript("C:\\Temp\\O'Brien\\setup.exe", 123, "C:\\Apps\\Novi Space\\Novi.exe");
+test('Windows handoff waits for the installer tree, checks the installed version and relaunches', () => {
+  const script = windowsInstallScript("C:\\Temp\\O'Brien\\setup.exe", 123, "C:\\Apps\\Novi Space\\Novi.exe", '4.1.0');
   assert.match(script, /O''Brien/);
+  assert.match(script, /\$expectedVersion = '4\.1\.0'/);
   assert.match(script, /-PassThru -Wait/);
   assert.match(script, /\("\/D=" \+ \$installDirectory\)/);
+  assert.match(script, /WaitForExit\(120000\)/, 'a Novi that hangs while closing cannot block the update forever');
   assert.doesNotMatch(script, /--force-run|WindowStyle Hidden/);
-  assert(script.indexOf('if ($setup.ExitCode') < script.indexOf('Start-Process -FilePath $executable'));
+  const relaunch = script.indexOf("Start-Process -FilePath $executable -ArgumentList '--updated'");
+  assert(script.indexOf('if ($setup.ExitCode') < relaunch, 'relaunch only after the exit code check');
+  assert(script.indexOf('if ($installed -ne $expectedVersion)') < relaunch, 'relaunch only after the version check');
 });
 
 const windowsOnly = { skip: process.platform !== 'win32' ? 'Windows installer' : false };
@@ -421,7 +425,7 @@ test('Windows verifies the installer and waits for helper readiness before quitt
   const [command, args, options] = launch.mock.calls[0].arguments as unknown as [string, string[], object];
   assert.equal(command, 'powershell.exe');
   assert.deepEqual(args.slice(0, 3), ['-NoProfile', '-NonInteractive', '-EncodedCommand']);
-  assert.equal(Buffer.from(args[3], 'base64').toString('utf16le'), windowsInstallScript(join(server.directory, 'novi-in-app-update', 'setup.exe'), process.pid, process.execPath));
+  assert.equal(Buffer.from(args[3], 'base64').toString('utf16le'), windowsInstallScript(join(server.directory, 'novi-in-app-update', 'setup.exe'), process.pid, process.execPath, '4.1.0'));
   assert.deepEqual(options, { cwd: join(server.directory, 'novi-in-app-update'), detached: true, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
   assert.deepEqual(server.downloads, ['Novi-Setup-4.1.0.exe']);
   assert.deepEqual(readFileSync(join(server.directory, 'novi-in-app-update', 'setup.exe')), PAYLOAD);
@@ -451,18 +455,21 @@ test('Windows keeps Novi open on helper failure, allows retry and rejects an unv
   assert.equal(quit.mock.callCount(), 0);
 });
 
-test('Windows helper waits for actual shutdown, preserves paths and reports installer failure', { ...windowsOnly, timeout: 20_000 }, async t => {
+test('Windows helper waits for actual shutdown, checks the installed version, and never leaves Novi closed', { ...windowsOnly, timeout: 40_000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), 'novi-windows-test-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const payload = join(directory, "Novi O'Brien & 100% [test] 雪.exe");
   const quote = (value: string) => "'" + value.replace(/'/g, "''") + "'";
-  // Only the external installer and dialog are faked; PowerShell and the process wait are real.
+  // The "installed Novi" here is node.exe, so the version the helper reads is node.exe's own product version.
+  const installedVersion = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `if ([string](Get-Item -LiteralPath ${quote(process.execPath)}).VersionInfo.ProductVersion -match '^(\\d+)\\.(\\d+)\\.(\\d+)') { $Matches[1] + '.' + $Matches[2] + '.' + $Matches[3] }`], { encoding: 'utf8' }).stdout.trim();
+  assert.match(installedVersion, /^\d+\.\d+\.\d+$/);
+  // Only the external installer and dialog are faked; PowerShell, the process wait and the version check are real.
   const prefix = (code: number) => `
 function Start-Process {
   param($FilePath, $ArgumentList, [switch]$PassThru, [switch]$Wait, $WorkingDirectory)
   if (-not $PassThru) {
     if ($FilePath -ne ${quote(process.execPath)} -or $WorkingDirectory -ne ${quote(dirname(process.execPath))}) { throw 'Wrong relaunch path' }
-    'launched' | Set-Content -LiteralPath ${quote(payload + '.launched')}
+    @{ args = @(if ($ArgumentList) { $ArgumentList }) } | ConvertTo-Json -Compress | Set-Content -LiteralPath ${quote(payload + '.launched')} -Encoding UTF8
     return
   }
   @{ file = $FilePath; args = $ArgumentList; wait = [bool]$Wait; passThru = [bool]$PassThru; cwd = $WorkingDirectory } | ConvertTo-Json -Compress | Set-Content -LiteralPath ($FilePath + '.args') -Encoding UTF8
@@ -476,13 +483,15 @@ function New-Object {
   return $notice
 }
 `;
-  for (const code of [0, 7]) {
+  const json = (file: string) => JSON.parse(readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
+  // 1. success; 2. the installer reports failure; 3. the installer says 0 but the old version is still installed
+  //    (what a declined permission prompt looks like for an all-users install).
+  for (const scenario of [{ code: 0, version: installedVersion, ok: true }, { code: 7, version: installedVersion, ok: false }, { code: 0, version: '0.0.1', ok: false }]) {
     writeFileSync(payload, 'verified installer stand-in');
-    rmSync(payload + '.args', { force: true });
-    rmSync(payload + '.launched', { force: true });
+    for (const suffix of ['.args', '.launched', '.notice', '.log']) rmSync(payload + suffix, { force: true });
     const parent = childProcess.spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { windowsHide: true, stdio: 'ignore' });
     t.after(() => parent.kill());
-    const script = prefix(code) + windowsInstallScript(payload, parent.pid!, process.execPath);
+    const script = prefix(scenario.code) + windowsInstallScript(payload, parent.pid!, process.execPath, scenario.version);
     const helper = childProcess.spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     t.after(() => helper.kill());
     const completed = new Promise<number | null>((resolve, reject) => { helper.once('error', reject); helper.once('exit', resolve); });
@@ -495,13 +504,16 @@ function New-Object {
     await delay(200);
     assert.equal(existsSync(payload + '.args'), false, 'installation must wait for the parent to exit');
     parent.kill();
-    assert.equal(await completed, code === 0 ? 0 : 1);
-    const invocation = JSON.parse(readFileSync(payload + '.args', 'utf8').replace(/^\uFEFF/, ''));
-    assert.deepEqual(invocation, { file: payload, args: ['/S', '--updated', '/D=' + dirname(process.execPath)], wait: true, passThru: true, cwd: directory });
-    assert.equal(existsSync(payload + '.launched'), code === 0, 'relaunch only after successful installation');
-    assert.equal(existsSync(payload), code !== 0, 'only a successful install removes the download');
-    if (code !== 0) {
-      assert.match(readFileSync(payload + '.log', 'utf16le'), /Installer exited with code 7/);
+    assert.equal(await completed, scenario.ok ? 0 : 1);
+    assert.deepEqual(json(payload + '.args'), { file: payload, args: ['/S', '--updated', '/D=' + dirname(process.execPath)], wait: true, passThru: true, cwd: directory });
+    // Novi is always reopened: the new version after success, the installed one after a failure.
+    assert.deepEqual(json(payload + '.launched'), { args: scenario.ok ? ['--updated'] : [] });
+    assert.equal(existsSync(payload), !scenario.ok, 'only a successful install removes the download');
+    const log = readFileSync(payload + '.log', 'utf16le');
+    assert.match(log, new RegExp(`Installer exited with code ${scenario.code}`));
+    if (scenario.ok) assert.match(log, /Installed and relaunched/);
+    else {
+      assert.match(log, scenario.code ? /Failed: Installer exited with code 7/ : /Failed: Novi 0\.0\.1 was not installed \(found '\d+\.\d+\.\d+'\)/);
       assert.match(readFileSync(payload + '.notice', 'utf16le'), /Novi could not install the update/);
     }
   }

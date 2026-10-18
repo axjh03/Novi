@@ -1,5 +1,15 @@
 name: Build and Release Executables (.dmg, .exe, .deb)
 
+# How a release works:
+# 1. "build" runs once per system (macOS, Windows, Linux). Each job tests, packages, checks that its
+#    installers match their update manifests, and uploads its files as a workflow artifact.
+#    The Windows job also installs the previous release and updates it to this build for real.
+# 2. "publish" runs only when ALL three build jobs succeeded, downloads their files and creates the
+#    GitHub release in one step. A failure on any system therefore publishes nothing, instead of a
+#    release that is missing one system's installer (v4.0.23 was published without a Windows build,
+#    which broke the website's Windows download and Windows in-app updates).
+# To retry after a failure, use "Re-run failed jobs": the publish job runs again once all builds pass.
+
 on:
   workflow_dispatch:
     inputs:
@@ -20,7 +30,7 @@ permissions:
 
 jobs:
   build:
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       max-parallel: 1
@@ -64,23 +74,66 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Artifacts
-        # Release builds publish these files directly in the next step.
-        if: github.event_name == 'workflow_dispatch' && inputs.tag_name == '' && !startsWith(github.ref, 'refs/tags/v')
+      - name: Check release files match their update manifests
+        # Every installer Novi's updater can request on this system must exist with the size and
+        # SHA-512 its latest*.yml lists, or users' updates would be refused after downloading.
+        run: node --import tsx scripts/verify-release-files.ts
+
+      - name: Test the Windows in-app update end to end
+        if: runner.os == 'Windows'
+        timeout-minutes: 30
+        # Installs the previous published release, runs it, and updates it to this build through the
+        # same helper the app uses, per-user and all-users. See scripts/windows-update-e2e.ts.
+        run: node --import tsx scripts/windows-update-e2e.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload this system's release files
         uses: actions/upload-artifact@v6
         with:
-          name: executables-${{ matrix.os }}
-          retention-days: 1
+          name: release-${{ matrix.os }}
+          retention-days: 3
+          # Installers are already compressed; zipping them again only costs time.
+          compression-level: 0
+          if-no-files-found: error
           path: |
             dist/*.dmg
             dist/*.exe
             dist/*.deb
             dist/*.AppImage
-          if-no-files-found: ignore
+            dist/*.zip
+            dist/latest*.yml
+
+  publish:
+    # Runs only if every build job above succeeded (a job with "needs" is skipped when one fails).
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag_name != '')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Download all release files
+        uses: actions/download-artifact@v7
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
+      - name: Check every system's files are present
+        # Belt and braces: never publish a release without an installer and update manifest for each system.
+        shell: bash
+        run: |
+          ls -la dist
+          missing=0
+          for pattern in 'Novi-Setup-*.exe' 'latest.yml' 'Novi-*-arm64.dmg' 'Novi-*-x64.dmg' 'latest-mac.yml' \
+                         'novi_*_amd64.deb' 'novi_*_arm64.deb' 'novi_*_x86_64.AppImage' 'novi_*_arm64.AppImage' \
+                         'latest-linux.yml' 'latest-linux-arm64.yml'; do
+            if ! compgen -G "dist/$pattern" > /dev/null; then echo "::error::Missing $pattern"; missing=1; fi
+          done
+          exit $missing
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.tag_name != '')
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.tag_name }}
           name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.tag_name }}
