@@ -32,7 +32,7 @@ export class OpenAICompatibleProvider implements AIProvider {
       if (event.usage) onUsage?.({ input: event.usage.prompt_tokens, cachedInput: event.usage.prompt_tokens_details?.cached_tokens, reasoning: event.usage.completion_tokens_details?.reasoning_tokens, output: event.usage.completion_tokens });
       const choice = event.choices?.[0];
       return { text: streaming ? choice?.delta?.content || choice?.delta?.refusal : choice?.message?.content || choice?.message?.refusal, done: Boolean(choice?.finish_reason) };
-    });
+    }, this.config.managed === true);
   }
 }
 export const AIProviderFactory = {

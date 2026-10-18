@@ -81,6 +81,8 @@ export function SettingsAppUpdater({ value, onChange, disabled }: Props) {
               'Ready to check for updates.'
             )}
           </div>
+          {/* The portal explains when a newer release can't run here (for example on macOS 12). */}
+          {result?.notice && !isChecking && <div className="updater-subtext">{result.notice}</div>}
         </div>
 
         <div className="updater-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>

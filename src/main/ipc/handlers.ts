@@ -8,7 +8,7 @@ import { AccessUnavailableError, ManagedAuthService, SessionChangedError } from 
 import { CredentialStore } from '../services/credentials';
 import { ImageService } from '../services/images';
 import { ChatService } from '../services/chat';
-import { connectionInput, object, settingsInput, text, UserError } from '../services/validation';
+import { connectionInput, externalUrl, object, settingsInput, text, UserError } from '../services/validation';
 import { ConnectionService } from '../services/connections';
 import { listModels, testConnection } from '../services/models';
 import { OverlayService } from '../services/overlay';
@@ -154,7 +154,8 @@ export function registerIPC(
           'session', 'sign-in', 'sign-out', 'minimize-window', 'maximize-window',
           'close-window', 'is-window-maximized', 'get-stealth-state', 'check-for-updates',
           'install-update', 'check-permissions', 'request-permissions',
-          'get-saved-credentials', 'open-external', 'open-audio-midi-setup',
+          // open-external is not here: every link Novi opens is on a screen behind sign-in.
+          'get-saved-credentials', 'open-audio-midi-setup',
           // Window layout only; the tray reports its size whenever its content changes.
           'set-workspace-docked', 'set-tray-height', 'set-tray-width', 'reset-workspace-sizes', 'sample-background-palette',
           // Local only and self-expiring; must take effect before the next key press.
@@ -413,7 +414,13 @@ export function registerIPC(
     }
     return snapshot();
   });
-  handle('list-models', (value) => { const input = connectionInput(value); return listModels(input.ai, get().connections.resolveKey(input)); });
+  handle('list-models', (value) => {
+    const input = connectionInput(value);
+    const key = get().connections.resolveKey(input);
+    // The renderer's connection never says whether its key is managed; the signed-in account does
+    // (resolveKey only lets a managed account use managed connections), so key errors name the right fix.
+    return listModels({ ...input.ai, managed: get().storage.current().managed === true }, key);
+  });
   handle('set-model-role', async value => {
     const { storage, chat, connections } = get(); chat.assertIdle();
     const input = object(value), account = storage.current();
@@ -480,11 +487,10 @@ export function registerIPC(
   });
   handle('drop-images', (value) => get().images.import(value));
   handle('preview-image', (value) => get().images.preview(text(value, 'image ID', 100)));
-  handle('copy-text', (value) => { get().storage.current(); text(value, 'clipboard text', 1_000_000, true); clipboard.writeText(value as string); });
-  handle('open-external', (value) => {
-    const url = String(value || '');
-    if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
-  });
+  // Awaited: Electron 44 makes clipboard writes asynchronous (on Electron 41 this awaits nothing).
+  handle('copy-text', async (value) => { get().storage.current(); text(value, 'clipboard text', 1_000_000, true); await clipboard.writeText(value as string); });
+  // Only Novi's own help and key pages; anything else is refused (see externalUrl).
+  handle('open-external', async (value) => { await shell.openExternal(externalUrl(value)); });
   handle('open-audio-midi-setup', () => {
     if (process.platform === 'darwin') execFile('open', ['-a', 'Audio MIDI Setup'], () => {});
   });

@@ -82,6 +82,22 @@ export class LocalCodingService {
 
   private owner() { return this.deps.storage.current().id; }
 
+  /**
+   * How the user can get a usable connection for an engine, worded for where keys live.
+   * Desktop accounts are managed: keys come from the web portal and can't be added in the app, but
+   * the user can turn an existing connection on in Settings › API Management. Old local accounts
+   * still add their own keys there.
+   *
+   * @param spec    the engine's entry in ENGINES (its connection label and official address).
+   * @param subject what needs the connection, for example "Claude Code" (or "" to start with "Needs").
+   */
+  private missingConnection(spec: (typeof ENGINES)[number], subject = '') {
+    const needs = `${subject ? `${subject} needs` : 'Needs'} an enabled ${spec.connectionLabel} connection using ${spec.officialBaseUrl}.`;
+    return this.deps.storage.current().managed
+      ? `${needs} Turn one on in Settings › API Management, or ask your Novi admin to add one in the web portal.`
+      : `${needs} Add one in Settings › API Management.`;
+  }
+
   // ── Connections and engines ────────────────────────────────────────────
 
   private eligible(engine: EngineId): ProviderConnection[] {
@@ -94,9 +110,11 @@ export class LocalCodingService {
   private credential(engine: EngineId, connectionId: string) {
     const connection = this.eligible(engine).find((item) => item.id === connectionId);
     const spec = ENGINES.find((item) => item.id === engine)!;
-    if (!connection) throw new UserError(`${spec.label} needs a saved ${spec.connectionLabel} connection using ${spec.officialBaseUrl}. Choose one in Local Coding setup, or add it in Settings › API Management.`);
+    if (!connection) throw new UserError(`${this.missingConnection(spec, spec.label)} Then choose it in Local Coding setup.`);
     const apiKey = this.deps.credentials.get(this.owner(), connection);
-    if (!apiKey) throw new UserError(`Add the API key for ${connection.name} in Settings.`);
+    if (!apiKey) throw new UserError(this.deps.storage.current().managed
+      ? `The API key for ${connection.name} is missing. Ask your Novi admin to add it in the web portal, then press the refresh button in Settings › API Management.`
+      : `Add the API key for ${connection.name} in Settings › API Management.`);
     return { connection, apiKey };
   }
 
@@ -106,7 +124,7 @@ export class LocalCodingService {
       let installedVersion: string | null = null;
       try { installedVersion = (await engineRuntime(spec.id, this.deps.location)).version; } catch (error) { problem = error instanceof Error ? error.message : 'Not installed.'; }
       const connections = this.eligible(spec.id).map((item) => ({ id: item.id, name: item.name }));
-      if (!problem && !connections.length) problem = `Needs a saved ${spec.connectionLabel} connection using ${spec.officialBaseUrl}. Add one in Settings › API Management.`;
+      if (!problem && !connections.length) problem = this.missingConnection(spec);
       return { engine: spec.id, label: spec.label, available: !problem, installedVersion, problem, connections };
     }));
   }

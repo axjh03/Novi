@@ -38,7 +38,7 @@ export class ConnectionService {
     const user = this.storage.current();
     const connection = user.settings.connections.find((item) => item.id === text(id, 'connection ID', 100));
     if (!connection) throw new UserError('Choose a saved provider connection.');
-    if (connection.enabled === false) throw new UserError('Enable this connection in API management first.');
+    if (connection.enabled === false) throw new UserError('Enable this connection in Settings › API Management first.');
     if (model !== undefined) connection.model = connectionInput({ id: connection.id, name: connection.name, ai: { ...connection, model: text(model, 'model selection', 200) } }).ai.model;
     user.settings.activeConnectionId = connection.id;
     this.storage.save();

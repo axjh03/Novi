@@ -231,6 +231,13 @@ export async function getReleaseStatus(req: Request) {
   };
 }
 
+/**
+ * The portal's "Build & Release" button: starts the release workflow for a new version.
+ *
+ * Only an admin may do this. The version must be plain "x.y.z" (it becomes the tag v<version>), and
+ * the tag must not exist yet. The release notes are what users read in Novi's Settings › Updates;
+ * empty is allowed, and the workflow then uses release-notes/v<version>.md from the repository.
+ */
 export async function triggerRelease(req: Request, body: Record<string, unknown>) {
   const { account } = await authenticate(req);
   if (account.role !== 'ADMIN') {
@@ -238,74 +245,54 @@ export async function triggerRelease(req: Request, body: Record<string, unknown>
   }
 
   const rawVersion = typeof body.version === 'string' ? body.version.trim().replace(/^v/, '') : '';
-  if (!rawVersion || !/^\d+\.\d+\.\d+.*$/.test(rawVersion)) {
-    throw new AccessError('Invalid SemVer format. Example: 0.1.3', 400);
+  // Plain x.y.z only: the tag also names release-notes/<tag>.md inside the workflow.
+  if (!/^\d+\.\d+\.\d+$/.test(rawVersion)) {
+    throw new AccessError('Enter the version as three numbers, for example 4.0.25.', 400);
+  }
+  const releaseNotes = typeof body.releaseNotes === 'string' ? body.releaseNotes.trim().slice(0, 20_000) : '';
+  return startReleaseBuild(rawVersion, releaseNotes);
+}
+
+/**
+ * Starts the release workflow (.github/workflows/build.yml) for a version that has no tag yet.
+ *
+ * It uses workflow_dispatch with the tag name and the notes, instead of creating the tag first:
+ * a tag created through the API starts the workflow without any notes, which is how releases used
+ * to reach users with no notes at all. The workflow builds main, and its publish step creates the
+ * tag at exactly the commit it built, only when macOS, Windows and Linux all succeeded.
+ *
+ * An existing tag is refused: building today's main into an older tag's release would publish
+ * installers that don't match the tagged code. A failed release is retried with "Re-run failed
+ * jobs" on its GitHub Actions run instead.
+ *
+ * @param version       the version, already checked to be x.y.z.
+ * @param releaseNotes  plain-text notes for users, or '' to use release-notes/v<version>.md.
+ * @throws AccessError when the tag exists or GitHub refuses or can't be reached.
+ */
+export async function startReleaseBuild(version: string, releaseNotes: string) {
+  const tagName = `v${version}`;
+  const existing = await githubFetch(`/repos/${GITHUB_REPO}/git/ref/tags/${tagName}`);
+  if (existing.ok) {
+    throw new AccessError(`${tagName} already exists. Choose a new version, or open its run on GitHub Actions and use "Re-run failed jobs" to retry it.`, 409);
+  }
+  if (existing.status !== 404) {
+    throw new AccessError(`Could not check whether ${tagName} exists (GitHub answered ${existing.status}). Try again.`, 502);
   }
 
-  const tagName = `v${rawVersion}`;
-  const releaseNotes = typeof body.releaseNotes === 'string' && body.releaseNotes.trim()
-    ? body.releaseNotes.trim()
-    : `Release ${tagName}`;
-
-  // 1. Get SHA of main branch head
-  const refRes = await githubFetch(`/repos/${GITHUB_REPO}/git/ref/heads/main`);
-  if (!refRes.ok) {
-    const err = await refRes.text();
-    throw new AccessError(`Failed to fetch main branch ref from GitHub: ${err}`, 500);
-  }
-  const refData = await refRes.json();
-  const mainSha = refData?.object?.sha;
-  if (!mainSha) {
-    throw new AccessError('Could not determine HEAD SHA of main branch.', 500);
-  }
-
-  // 2. Create the git tag on GitHub (this triggers push: tags: 'v*')
-  let tagCreated = false;
-  const tagRes = await githubFetch(`/repos/${GITHUB_REPO}/git/refs`, {
+  const dispatch = await githubFetch(`/repos/${GITHUB_REPO}/actions/workflows/build.yml/dispatches`, {
     method: 'POST',
-    body: JSON.stringify({
-      ref: `refs/tags/${tagName}`,
-      sha: mainSha,
-    }),
+    body: JSON.stringify({ ref: 'main', inputs: { tag_name: tagName, release_notes: releaseNotes } }),
   });
-
-  if (tagRes.ok) {
-    tagCreated = true;
-  } else if (tagRes.status === 422) {
-    // Tag already exists; fall back to workflow_dispatch
-    tagCreated = true;
-    await githubFetch(`/repos/${GITHUB_REPO}/actions/workflows/build.yml/dispatches`, {
-      method: 'POST',
-      body: JSON.stringify({
-        ref: 'main',
-        inputs: {
-          tag_name: tagName,
-          release_notes: releaseNotes,
-        },
-      }),
-    });
-  } else {
-    const err = await tagRes.text();
-    console.warn('Could not create tag via git/refs API:', err);
-    // Try dispatch
-    await githubFetch(`/repos/${GITHUB_REPO}/actions/workflows/build.yml/dispatches`, {
-      method: 'POST',
-      body: JSON.stringify({
-        ref: 'main',
-        inputs: {
-          tag_name: tagName,
-          release_notes: releaseNotes,
-        },
-      }),
-    });
+  if (!dispatch.ok) {
+    const detail = await dispatch.text().catch(() => '');
+    throw new AccessError(`GitHub did not start the release build (status ${dispatch.status}). ${detail.slice(0, 300)}`.trim(), 502);
   }
 
   return {
     success: true,
     tag: tagName,
-    version: rawVersion,
-    tagCreated,
-    message: `Release ${tagName} triggered! GitHub Actions is building installers sequentially for macOS, Windows, and Linux.`,
+    version,
+    message: `Release ${tagName} started. GitHub Actions builds macOS, Windows and Linux one after another and publishes only when all three succeed.`,
     actionsUrl: `https://github.com/${GITHUB_REPO}/actions`,
   };
 }

@@ -9,6 +9,12 @@ name: Build and Release Executables (.dmg, .exe, .deb)
 #    release that is missing one system's installer (v4.0.23 was published without a Windows build,
 #    which broke the website's Windows download and Windows in-app updates).
 # To retry after a failure, use "Re-run failed jobs": the publish job runs again once all builds pass.
+#
+# Release notes are what users read in Novi's Settings › Updates (shown as plain text), so they are
+# written by hand, never generated from commits:
+# - the portal's Release form sends them with its workflow_dispatch (release_notes input), or
+# - for a tag pushed from a terminal, commit them first as release-notes/<tag>.md (for example
+#   release-notes/v4.0.25.md). The portal's notes win when both exist.
 
 on:
   workflow_dispatch:
@@ -18,9 +24,9 @@ on:
         required: false
         default: ''
       release_notes:
-        description: 'Release Notes'
+        description: 'Release notes (plain text, shown in the app). Leave empty to use release-notes/<tag>.md'
         required: false
-        default: 'Automated Release'
+        default: ''
   push:
     tags:
       - 'v*'
@@ -112,6 +118,31 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      - name: Check out the release notes
+        uses: actions/checkout@v5
+        with:
+          # The commit this run built, so the notes match the code being released.
+          ref: ${{ github.sha }}
+          sparse-checkout: release-notes
+
+      - name: Choose the release notes
+        shell: bash
+        env:
+          # Passed through the environment, never pasted into the script, so notes can contain anything.
+          PORTAL_NOTES: ${{ inputs.release_notes }}
+          TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.tag_name }}
+        run: |
+          if [ -n "${PORTAL_NOTES//[[:space:]]/}" ]; then
+            printf '%s\n' "$PORTAL_NOTES" > "$RUNNER_TEMP/release-notes.md"
+            echo "Using the release notes from the portal."
+          elif [ -f "release-notes/$TAG.md" ]; then
+            cp "release-notes/$TAG.md" "$RUNNER_TEMP/release-notes.md"
+            echo "Using release-notes/$TAG.md."
+          else
+            : > "$RUNNER_TEMP/release-notes.md"
+            echo "::warning::No release notes for $TAG. Users will see none; add them to the GitHub release (they appear in the app right away)."
+          fi
+
       - name: Download all release files
         uses: actions/download-artifact@v7
         with:
@@ -137,7 +168,9 @@ jobs:
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.tag_name }}
           name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.tag_name }}
-          body: ${{ inputs.release_notes || '' }}
+          # A portal release has no tag yet; create it at the exact commit this run built.
+          target_commitish: ${{ github.sha }}
+          body_path: ${{ runner.temp }}/release-notes.md
           files: |
             dist/*.dmg
             dist/*.exe
@@ -146,7 +179,8 @@ jobs:
             dist/*.zip
             dist/latest*.yml
           fail_on_unmatched_files: false
-          generate_release_notes: true
+          # GitHub's generated notes only added a "Full Changelog" link, which Novi showed as raw text.
+          generate_release_notes: false
           draft: false
           prerelease: false
         env:

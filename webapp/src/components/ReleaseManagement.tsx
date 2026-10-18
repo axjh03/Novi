@@ -135,13 +135,8 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
         setSelectedType('patch');
       }
 
-      // Auto-fill release notes from commits
-      if (!releaseNotes && relData.commits?.length > 0) {
-        const bulletList = relData.commits
-          .map((c: CommitItem) => `• ${c.message}`)
-          .join('\n');
-        setReleaseNotes(bulletList);
-      }
+      // Release notes are never filled in from commits: users read them in Settings › Updates, and
+      // commit messages are written for developers. The commit list stays on the right for reference.
     } catch (err: any) {
       setError(err.message || 'Error fetching release info');
     } finally {
@@ -760,16 +755,18 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
             {/* Release Notes */}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>
-                  Release Notes / Changelog
+                <label htmlFor="release-notes" style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>
+                  Release notes
                 </label>
-                <span style={{ fontSize: 11, color: '#888' }}>Auto-filled from git</span>
+                <span style={{ fontSize: 11, color: '#888' }}>Shown to users in Settings › Updates</span>
               </div>
               <textarea
-                rows={4}
+                id="release-notes"
+                rows={6}
                 value={releaseNotes}
                 onChange={(e) => setReleaseNotes(e.target.value)}
-                placeholder="List features or bug fixes in this release..."
+                placeholder={"What's new in Novi\n\n• One short line per change, in plain words\n• What the user notices, not how it was built"}
+                aria-describedby="release-notes-hint"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
@@ -781,15 +778,18 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                   resize: 'vertical',
                 }}
               />
+              <p id="release-notes-hint" style={{ margin: '6px 0 0', fontSize: 11, color: '#777' }}>
+                Plain text, shown exactly as typed. Leave empty to use <code>release-notes/v{customVersion || 'x.y.z'}.md</code> from the repository.
+              </p>
             </div>
 
             <div style={{ background: '#f8f8f8', border: '1px solid #eaeaea', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: '#555' }}>
-              <div style={{ fontWeight: 600, color: '#111', marginBottom: 4 }}>Sequential compilation pipeline:</div>
+              <div style={{ fontWeight: 600, color: '#111', marginBottom: 4 }}>What happens next:</div>
               <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
-                <li>Step 1: <strong>macOS 14</strong> builds Universal .dmg (Apple Silicon & Intel).</li>
-                <li>Step 2: <strong>Windows Latest</strong> builds standalone Setup .exe.</li>
-                <li>Step 3: <strong>Ubuntu 24.04</strong> packages Debian .deb & AppImage.</li>
-                <li>Direct CDN mirror links update automatically on <code>/download</code>.</li>
+                <li>Step 1: <strong>macOS 15</strong> builds the Apple Silicon and Intel .dmg files.</li>
+                <li>Step 2: <strong>Windows</strong> builds the Setup .exe and tests a real in-app update to it.</li>
+                <li>Step 3: <strong>Ubuntu 24.04</strong> builds .deb and AppImage files for x64 and arm64.</li>
+                <li>The release is published only if all three succeed; <code>/download</code> and in-app updates then offer it.</li>
               </ul>
             </div>
 

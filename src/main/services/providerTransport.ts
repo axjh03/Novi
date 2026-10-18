@@ -8,8 +8,22 @@ export function authHeaders(config: AIProviderConfig, key: string): Record<strin
   if (config.provider === 'gemini') return { 'x-goog-api-key': key };
   return key ? { Authorization: `Bearer ${key}` } : {};
 }
-export function providerError(status: number, code = ''): UserError {
-  if (status === 401 || ['API_KEY_INVALID', 'API_KEY_EXPIRED', 'invalid_api_key', 'authentication_error'].includes(code)) return new UserError('Your API key was rejected. Check or replace the saved key in API management.');
+/**
+ * Turns a provider's HTTP status or error code into one plain sentence for the user.
+ *
+ * @param status  the HTTP status (500 for errors reported inside a successful stream).
+ * @param code    the provider's own error code or reason, when it sent one.
+ * @param managed true when the key comes from the user's Novi account (see AIProviderConfig.managed).
+ *   A rejected managed key can only be replaced by the account's admin in the web portal, so the
+ *   message says so instead of pointing at Settings, where the key is hidden and read-only.
+ *   Both versions keep the words "API key was rejected", which onboarding looks for.
+ */
+export function providerError(status: number, code = '', managed = false): UserError {
+  if (status === 401 || ['API_KEY_INVALID', 'API_KEY_EXPIRED', 'invalid_api_key', 'authentication_error'].includes(code)) {
+    return new UserError(managed
+      ? 'Your API key was rejected by the provider. This key comes from your Novi account, so ask your Novi admin to replace it in the web portal, then press the refresh button in Settings › API Management.'
+      : 'Your API key was rejected. Check or replace the saved key in Settings › API Management.');
+  }
   if (code === 'SERVICE_DISABLED') return new UserError('The API is disabled for this key’s project. Enable the provider API in the project settings.');
   if (code === 'BILLING_DISABLED') return new UserError('Billing is disabled for this key’s project. Check billing with the provider.');
   if (code === 'API_KEY_HTTP_REFERRER_BLOCKED') return new UserError('This key’s website restrictions block this request. Ask the key owner to configure a key that permits this app.');
@@ -38,7 +52,7 @@ export async function providerFetch(url: string, config: AIProviderConfig, key: 
     const data = await response.json().catch(() => ({}));
     const details = Array.isArray(data.error?.details) ? data.error.details : [];
     const code = [...details.map((detail: any) => detail?.reason), data.error?.status, data.error?.type, data.error?.code].find(value => typeof value === 'string' && value) || '';
-    const error = providerError(response.status, code);
+    const error = providerError(response.status, code, config.managed === true);
     const operation = body === undefined ? 'model list' : 'model request';
     throw new UserError(`${PROVIDERS[config.provider].name} ${operation} failed (HTTP ${response.status}): ${error.message}`);
   }
@@ -70,8 +84,14 @@ export async function* serverEvents(body: ReadableStream<Uint8Array>) {
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 
+/**
+ * Reads a provider's reply, streamed (server-sent events) or whole, passing text to `onDelta` as it arrives.
+ *
+ * @param managed whether the key comes from the user's Novi account; only changes the wording of a
+ *   key error reported inside the reply (see providerError).
+ */
 export async function readResponse(response: Response, onDelta: (text: string) => void,
-  parse: (event: any, streaming: boolean) => { text?: string; done?: boolean }) {
+  parse: (event: any, streaming: boolean) => { text?: string; done?: boolean }, managed = false) {
   let content = '';
   const append = (text: unknown) => {
     if (typeof text !== 'string') return;
@@ -86,14 +106,14 @@ export async function readResponse(response: Response, onDelta: (text: string) =
       for await (const data of serverEvents(response.body)) {
         if (data.trim() === '[DONE]') { finished = true; break; }
         const event = JSON.parse(data);
-        if (event.error) throw providerError(500, event.error.code || event.error.type);
+        if (event.error) throw providerError(500, event.error.code || event.error.type, managed);
         const result = parse(event, true); append(result.text);
         if (result.done) finished = true;
       }
       if (!finished) throw new UserError('The connection ended before the response finished. You can send your message again.');
     } else {
       const event = await response.json();
-      if (event.error) throw providerError(500, event.error.code || event.error.type);
+      if (event.error) throw providerError(500, event.error.code || event.error.type, managed);
       append(parse(event, false).text);
     }
   } catch (error) {

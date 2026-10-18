@@ -166,6 +166,13 @@ test('cancel, engine failure, audio attachments and wrong connections end cleanl
   await env.chat.send({ appMode: 'local-coding', conversationId: env.conversation().id, content: 'Listen to this', imageIds: ['audio-1'], localCoding: { baseVersionId: s0 } }, () => {});
   assert.match(env.conversation().messages.at(-1)!.error!, /images and text/);
   await assert.rejects(env.service.updateEngine(env.projectId, { engine: 'codex', connectionId: 'proxy', model: 'gpt-test' }, env.storage.conversations), /official|api\.openai\.com/);
+  // Own-key accounts add keys in Settings; managed (desktop) accounts can only ask their admin or turn a connection on.
+  await assert.rejects(env.service.updateEngine(env.projectId, { engine: 'codex', connectionId: 'proxy', model: 'gpt-test' }, env.storage.conversations), /Add one in Settings › API Management\. Then choose it in Local Coding setup\./);
+  env.storage.current().managed = true;
+  try {
+    await assert.rejects(env.service.updateEngine(env.projectId, { engine: 'codex', connectionId: 'proxy', model: 'gpt-test' }, env.storage.conversations),
+      /Codex needs an enabled OpenAI connection using https:\/\/api\.openai\.com\/v1\. Turn one on in Settings › API Management, or ask your Novi admin to add one in the web portal\. Then choose it in Local Coding setup\.$/);
+  } finally { env.storage.current().managed = false; }
   await assert.rejects(env.chat.send({ appMode: 'normal', conversationId: env.conversation().id, content: 'hi', imageIds: [] }, () => {}), /Local Coding conversation/);
   assert.equal(env.service.state(env.projectId).versions.length, 1);
 });

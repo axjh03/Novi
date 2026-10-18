@@ -68,7 +68,7 @@ npm test            # Dependency-free core checks, using Node's test runner
 npm run test:desktop # Build and exercise the real Electron app with a local API fixture
 ```
 
-`npm run build` creates runnable application assets, not an installer. Installers come from `npx electron-builder`, and the release workflow (`.github/workflows/build.yml`) builds and publishes them for macOS, Windows and Linux when a `v*` tag is pushed. Installed copies find new releases in **Settings › General › Updates**, with **Check for updates** or automatically at startup, and install them with **Update & Restart**. Installers are not code-signed. Dependencies must be downloaded by `npm install` before building.
+`npm run build` creates runnable application assets, not an installer. Installers come from `npx electron-builder`, and the release workflow (`.github/workflows/build.yml`) builds and publishes them for macOS, Windows and Linux when a `v*` tag is pushed. Installed copies find new releases in **Settings › General › Updates**, with **Check for updates** or automatically at startup, and install them with **Update & Restart**. Installers are not code-signed. Release notes are plain text that users read in **Settings › General › Updates**: type them in the portal's release form, or, for a tag pushed from a terminal, commit them first as `release-notes/vX.Y.Z.md`. Dependencies must be downloaded by `npm install` before building.
 
 ## First launch
 

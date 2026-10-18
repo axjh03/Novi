@@ -225,7 +225,7 @@ test('manifest reading takes only the named file entry and rejects incomplete en
 const PAYLOAD = Buffer.from('new release payload '.repeat(500));
 const sha512 = (data: Buffer) => createHash('sha512').update(data).digest('base64');
 
-function releaseServer(t: TestContext, options: { version?: string; manifest?: (name: string) => string | null; online?: boolean } = {}) {
+function releaseServer(t: TestContext, options: { version?: string; manifest?: (name: string) => string | null; online?: boolean; notice?: string } = {}) {
   const version = options.version ?? '4.1.0';
   const requests: string[] = [];
   process.env.NOVI_PORTAL_URL = 'http://update.test';
@@ -234,7 +234,7 @@ function releaseServer(t: TestContext, options: { version?: string; manifest?: (
     if (options.online === false) throw new TypeError('fetch failed');
     const url = new URL(input);
     requests.push(url.pathname + url.search);
-    if (url.pathname === '/api/releases/latest') return new Response(JSON.stringify({ data: { version, releaseNotes: 'Notes' } }));
+    if (url.pathname === '/api/releases/latest') return new Response(JSON.stringify({ data: { version, releaseNotes: 'Notes', ...(options.notice ? { notice: options.notice } : {}) } }));
     const file = url.searchParams.get('file') || '';
     const manifest = options.manifest ? options.manifest(file) : `version: ${version}\nfiles:\n  - url: NAME\n    sha512: ${sha512(PAYLOAD)}\n    size: ${PAYLOAD.length}\n`;
     return manifest === null ? new Response('missing', { status: 404 }) : new Response(manifest);
@@ -395,6 +395,18 @@ test('a manual check with no connection reports the problem instead of claiming 
   await assert.rejects(new AppUpdater().checkForUpdates(), /Could not reach the update server/);
 });
 
+test('a Mac sends its macOS version, and the portal\'s reason for holding a release back reaches Settings', async t => {
+  const original = Object.getOwnPropertyDescriptor(process, 'platform')!;
+  Object.defineProperty(process, 'platform', { value: 'darwin' });
+  // process.getSystemVersion only exists inside Electron; stand in for a Mac on macOS 12.
+  (process as any).getSystemVersion = () => '12.7.6';
+  t.after(() => { Object.defineProperty(process, 'platform', original); delete (process as any).getSystemVersion; });
+  const server = releaseServer(t, { version: '4.0.25', notice: 'Novi 4.0.26 and later need macOS 13 or later.' });
+  const result = await new AppUpdater().checkForUpdates();
+  assert(server.requests.some(request => request.startsWith('/api/releases/latest?platform=darwin&arch=') && request.endsWith('&os=12.7.6')), server.requests.join(', '));
+  assert.equal(result.notice, 'Novi 4.0.26 and later need macOS 13 or later.');
+});
+
 test('Windows update arguments wait for Novi, keep the install type, and never need quoting', () => {
   const env = { ProgramFiles: 'C:\\Program Files', 'ProgramFiles(x86)': 'C:\\Program Files (x86)', ProgramW6432: 'C:\\Program Files' };
   assert.deepEqual(windowsInstallerArgs(4321, 'C:\\Users\\Jane Doe\\AppData\\Local\\Programs\\Novi\\Novi.exe', env), ['--novi-wait-pid=4321', '--updated', '/S', '--force-run', '/currentuser']);
@@ -435,6 +447,7 @@ test('Windows starts the verified installer detached with the update arguments, 
   assert.deepEqual(readFileSync(installer), PAYLOAD, 'the verified download is what runs');
   assert.deepEqual(server.downloads, ['Novi-Setup-4.1.0.exe']);
   assert(server.requests.some(request => request.startsWith('/api/releases/latest?platform=win32&arch=')), 'the update check names this system');
+  assert(!server.requests.some(request => request.includes('os=')), 'only Macs send their system version');
   const note = JSON.parse(readFileSync(join(server.directory, 'pending-update.json'), 'utf8'));
   assert.equal(note.version, '4.1.0');
   assert.equal(note.installer, installer);

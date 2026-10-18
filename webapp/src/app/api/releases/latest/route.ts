@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import fallbackReleaseInfo from '@/lib/release-info.json';
-import { GITHUB_REPO, newestWithAsset, publishedReleases, updateManifestName, type Release } from '@/lib/github-releases';
+import { GITHUB_REPO, newestWithAsset, publishedReleases, releaseForMac, updateManifestName, type Release } from '@/lib/github-releases';
 
 export const revalidate = 0;
 
@@ -12,6 +12,9 @@ export const revalidate = 0;
  * release that contains that system's update manifest (latest.yml, latest-mac.yml,
  * latest-linux.yml or latest-linux-arm64.yml). So if a release is missing one system's build,
  * those machines keep seeing the previous complete release instead of an update they can't install.
+ * Macs also send `&os=<macOS version>` (Novi 4.0.25 and later): releases built on Electron 44 are
+ * only offered to macOS 13 or later, and a Mac held back gets a `notice` explaining why
+ * (see releaseForMac).
  */
 export async function GET(req: Request) {
   const token = process.env.GITHUB_PAT || process.env.GITHUB_TOKEN;
@@ -28,7 +31,14 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const manifest = updateManifestName(searchParams.get('platform'), searchParams.get('arch'));
     let data: Release;
-    if (manifest) {
+    let notice: string | undefined;
+    if (manifest === 'latest-mac.yml') {
+      // A Mac's update check: only a release this Mac's macOS can run counts.
+      const chosen = releaseForMac(await publishedReleases(token), searchParams.get('os'));
+      if (!chosen.release) return NextResponse.json({ success: true, live: false, data: fallbackReleaseInfo });
+      data = chosen.release;
+      notice = chosen.notice;
+    } else if (manifest) {
       // A desktop update check: only a release that can update this machine counts.
       const found = newestWithAsset(await publishedReleases(token), name => name === manifest);
       if (!found) return NextResponse.json({ success: true, live: false, data: fallbackReleaseInfo });
@@ -106,6 +116,7 @@ export async function GET(req: Request) {
         updatedAt: data.published_at || new Date().toISOString(),
         repo: GITHUB_REPO,
         releaseNotes: data.body || '',
+        ...(notice ? { notice } : {}),
         downloads,
         fileNames,
       },

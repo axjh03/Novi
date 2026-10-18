@@ -21,6 +21,13 @@ export interface AIProviderConfig {
   baseUrl: string;
   model: string;
   stream: boolean;
+  /**
+   * True when the API key comes from the user's Novi account in the web portal, where only the
+   * account's admin can add or replace it (the app shows it read-only). Error messages use this to
+   * send the user to the person who can actually fix a bad key. Every desktop account is managed;
+   * false or missing only for old local accounts that typed in their own key.
+   */
+  managed?: boolean;
 }
 export interface AppSettings {
   displayName: string;
@@ -337,6 +344,8 @@ export interface UpdateCheckResult {
   latestVersion: string;
   releaseNotes?: string;
   releaseDate?: string;
+  /** Why a newer release isn't offered to this computer, for example "needs macOS 13 or later". */
+  notice?: string;
 }
 
 export interface FileItem {

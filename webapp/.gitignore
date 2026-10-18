@@ -42,3 +42,8 @@ prisma/access.db*
 *.tsbuildinfo
 next-env.d.ts
 z
+
+# Local SQLite databases from before the move to Postgres (Supabase). They hold accounts and
+# password hashes, so they must never be committed.
+/prisma/*.db
+/prisma/*.db-journal

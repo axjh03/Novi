@@ -61,6 +61,7 @@ test('provider errors distinguish invalid keys from permission failures without 
   await assert.rejects(fetchModels, /key was rejected/);
   reason = ''; status = 401;
   await assert.rejects(() => providerFetch(`${config.baseUrl}/models/chat:generateContent`, config, 'private-key', new AbortController().signal, {}), /model request failed \(HTTP 401\).*key was rejected/);
+  await assert.rejects(() => providerFetch(`${config.baseUrl}/models`, { ...config, managed: true }, 'private-key', new AbortController().signal), /HTTP 401\): Your API key was rejected by the provider\. This key comes from your Novi account, so ask your Novi admin/);
 });
 
 test('native providers send correct auth, images and history; streaming and JSON agree', async () => {

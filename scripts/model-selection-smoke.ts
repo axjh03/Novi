@@ -10,6 +10,10 @@ async function main() {
   try {
     const page = await browser.newPage();
     page.on('pageerror', error => console.error(error.message));
+    // The page runs under the packaged app's Content Security Policy (src/renderer/index.html), which no
+    // longer allows 'unsafe-eval'; anything it blocks shows up as a console message and fails the smoke.
+    const blocked: string[] = [];
+    page.on('console', message => { if (/Content Security Policy/i.test(message.text())) blocked.push(message.text()); });
     await page.route('http://novi.test/**', route => {
       const root = resolve('out/renderer');
       const file = resolve(root, '.' + new URL(route.request().url()).pathname);
@@ -117,7 +121,8 @@ async function main() {
     await scroll.focus();
     await page.keyboard.press('Control+End');
     await page.waitForFunction(() => { const el = document.querySelector('.code-viewer-scroll')!; return el.scrollTop > 500; });
-    console.log('Preflight denial/acknowledgement and code viewer mouse/keyboard scrolling passed.');
+    assert.deepEqual(blocked, [], 'the Content Security Policy blocked something the app needs');
+    console.log('Preflight denial/acknowledgement and code viewer mouse/keyboard scrolling passed, with no CSP violations.');
   } finally { await browser.close(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

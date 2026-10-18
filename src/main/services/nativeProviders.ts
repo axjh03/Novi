@@ -25,7 +25,7 @@ export class OpenAIProvider implements AIProvider {
       if (event.type === 'error') throw new UserError('The provider could not complete this response. Check your model and try again.');
       if (!streaming) return { text: (event.output || []).map((item: any) => textBlocks(item.content)).join('') };
       return { text: ['response.output_text.delta', 'response.refusal.delta'].includes(event.type) ? event.delta : '', done: event.type === 'response.completed' };
-    });
+    }, this.config.managed === true);
   }
 }
 
@@ -50,7 +50,7 @@ export class AnthropicProvider implements AIProvider {
         text: event.type === 'content_block_delta' && event.delta?.type === 'text_delta' ? event.delta.text : event.type === 'content_block_start' && event.content_block?.type === 'text' ? event.content_block.text : '',
         done: event.type === 'message_stop',
       };
-    });
+    }, this.config.managed === true);
   }
 }
 
@@ -73,6 +73,6 @@ export class GeminiProvider implements AIProvider {
       const candidate = event.candidates?.[0];
       if (event.promptFeedback?.blockReason || (candidate?.finishReason && candidate.finishReason !== 'STOP')) throw new UserError('Gemini could not complete this response. Try rephrasing or reducing the request.');
       return { text: (candidate?.content?.parts || []).filter((part: any) => !part.thought).map((part: any) => part.text || '').join(''), done: Boolean(candidate?.finishReason) };
-    });
+    }, this.config.managed === true);
   }
 }

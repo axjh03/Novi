@@ -10,6 +10,29 @@ export function text(value: unknown, label: string, max: number, optional = fals
   }
   return value.trim();
 }
+/**
+ * The only websites Novi opens in the user's browser: the OpenAI, Anthropic and Google AI Studio
+ * API key pages (Settings › API Management) and the BlackHole audio driver page (Settings › Local AI).
+ * Electron's security checklist advises against passing untrusted text to shell.openExternal, which
+ * could otherwise launch any registered program or URL scheme. Add a host here when the app gains a link.
+ */
+const EXTERNAL_HOSTS = new Set(['platform.openai.com', 'console.anthropic.com', 'aistudio.google.com', 'existential.audio']);
+
+/**
+ * Checks an address the renderer asked to open in the browser.
+ *
+ * @param value the address from the renderer (untrusted).
+ * @returns the normalized https address, safe to pass to shell.openExternal.
+ * @throws UserError unless it is https, on one of EXTERNAL_HOSTS, with no user name, password or port.
+ */
+export function externalUrl(value: unknown): string {
+  const refuse = () => new UserError('Novi only opens its own help and key pages in your browser.');
+  if (typeof value !== 'string' || value.length > 2000) throw refuse();
+  let url: URL;
+  try { url = new URL(value); } catch { throw refuse(); }
+  if (url.protocol !== 'https:' || url.username || url.password || url.port || !EXTERNAL_HOSTS.has(url.hostname)) throw refuse();
+  return url.href;
+}
 export function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new UserError('Invalid request.');
   return value as Record<string, unknown>;

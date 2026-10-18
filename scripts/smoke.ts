@@ -82,7 +82,7 @@ async function main() {
     await page.getByRole('heading', { name: 'Welcome back.' }).waitFor();
     assert.equal(await page.getByRole('dialog', { name: 'Phone companion' }).count(), 0);
     for (const close of ['Close', 'Close phone companion', 'Escape', 'backdrop']) {
-      await page.getByRole('button', { name: 'Phone Remote', exact: true }).click();
+      await page.getByRole('button', { name: 'Open phone companion', exact: true }).click();
       const companion = page.getByRole('dialog', { name: 'Phone companion' });
       await companion.waitFor();
       if (close === 'Escape') await page.keyboard.press('Escape');

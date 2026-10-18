@@ -48,7 +48,10 @@ export class AudioTranscriptionService {
     }
 
     if (!selectedConnection || !selectedKey) {
-      throw new UserError('To transcribe audio into text, configure an API key for Google Gemini or OpenAI in Settings.');
+      // Desktop accounts can't add keys in the app (they come from the web portal), so name who can.
+      throw new UserError(user.managed
+        ? 'To transcribe audio into text, Novi needs a Google Gemini or OpenAI connection. Ask your Novi admin to add one in the web portal.'
+        : 'To transcribe audio into text, add a Google Gemini or OpenAI key in Settings › API Management.');
     }
 
     const provider = selectedConnection.provider;

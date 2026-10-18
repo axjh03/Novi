@@ -194,7 +194,11 @@ export class AppUpdater {
     const primaryUrl = getEffectivePortalUrl();
     // Ask for the newest release that has an installer for THIS system and chip, so a release whose
     // Windows (or Mac, or Linux) build is missing is never offered to the machines that can't install it.
-    const latestPath = `/api/releases/latest?platform=${encodeURIComponent(process.platform)}&arch=${encodeURIComponent(process.arch)}`;
+    let latestPath = `/api/releases/latest?platform=${encodeURIComponent(process.platform)}&arch=${encodeURIComponent(process.arch)}`;
+    // Macs also send their macOS version, because Novi 4.0.26 and later need macOS 13 or later.
+    // The portal then never offers this Mac a release it can't open, and says why (data.notice).
+    // Novi 4.0.24 and older don't send it, so the portal gives them 4.0.25 first.
+    if (process.platform === 'darwin' && typeof process.getSystemVersion === 'function') latestPath += `&os=${encodeURIComponent(process.getSystemVersion())}`;
     let res: Response;
     let effectiveBase = primaryUrl;
     try {
@@ -233,6 +237,8 @@ export class AppUpdater {
       latestVersion,
       releaseNotes: data.releaseNotes,
       releaseDate: data.releaseDate,
+      // Set by the portal when a newer release exists that this computer can't run (an older macOS).
+      ...(typeof data.notice === 'string' && data.notice ? { notice: data.notice.slice(0, 500) } : {}),
     };
   }
 

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { baseUrl, connectionInput, conversationTitle, sendInput, settingsInput } from '../src/main/services/validation.ts';
+import { baseUrl, connectionInput, conversationTitle, externalUrl, sendInput, settingsInput } from '../src/main/services/validation.ts';
 import { LocalAuthService } from '../src/main/services/auth.ts';
 import { Storage } from '../src/main/services/storage.ts';
 import { AIProviderFactory, providerError, serverEvents } from '../src/main/services/providers.ts';
@@ -88,7 +88,21 @@ test('provider sends multimodal requests, streams, supports JSON, and maps error
     const controller = new AbortController(); controller.abort();
     globalThis.fetch = async (_url, options) => { options!.signal!.throwIfAborted(); return new Response(); };
     await assert.rejects(() => AIProviderFactory.create(config, '').sendMessage({ ...request, signal: controller.signal }), { name: 'AbortError' });
-    assert.match(providerError(401).message, /key was rejected/);
+    assert.equal(providerError(401).message, 'Your API key was rejected. Check or replace the saved key in Settings › API Management.');
+    // A key from the user's Novi account can only be replaced by their admin in the web portal.
+    assert.equal(providerError(401, '', true).message, 'Your API key was rejected by the provider. This key comes from your Novi account, so ask your Novi admin to replace it in the web portal, then press the refresh button in Settings › API Management.');
+    assert.match(providerError(500, 'invalid_api_key', true).message, /API key was rejected by the provider/, 'errors inside a stream use the same wording');
     assert.match(providerError(429).message, /rate limit/);
   } finally { globalThis.fetch = originalFetch; }
+});
+
+test('the browser only opens Novi\'s own help and key pages', () => {
+  for (const url of ['https://platform.openai.com/api-keys', 'https://console.anthropic.com/settings/keys', 'https://aistudio.google.com/app/apikey', 'https://existential.audio/blackhole/']) {
+    assert.equal(externalUrl(url), url);
+  }
+  for (const url of [
+    'http://platform.openai.com/api-keys', 'https://platform.openai.com.evil.example/', 'https://evil.example/?platform.openai.com',
+    'https://user@platform.openai.com/', 'https://platform.openai.com:8443/', 'javascript:alert(1)', 'file:///etc/passwd',
+    'ms-settings:privacy', 'not a url', '', 42, null,
+  ]) assert.throws(() => externalUrl(url), /only opens its own help and key pages/, String(url));
 });
