@@ -11,7 +11,7 @@ async function pdfText(bytes: Buffer): Promise<string> {
   let pdfjs;
   try { pdfjs = await import(/* @vite-ignore */ moduleName); }
   catch { throw new UserError('PDF support is missing. Run npm install, then restart Novi.'); }
-  const task = pdfjs.getDocument({ data: new Uint8Array(bytes), isEvalSupported: false, useSystemFonts: false, useWorkerFetch: false, disableFontFace: true, useWasm: false });
+  const task = pdfjs.getDocument({ data: new Uint8Array(bytes), useSystemFonts: false, useWorkerFetch: false, disableFontFace: true, useWasm: false });
   try {
     const pdf = await task.promise;
     if (pdf.numPages > 200) throw new UserError('PDFs are limited to 200 pages per file.');
