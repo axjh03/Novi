@@ -8,8 +8,6 @@ import type { ProviderConnection } from '../src/shared/types';
 
 test('managed desktop keeps tokens and keys out of renderer state, preserves selection and fails closed', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'novi-managed-test-'));
-  // Mock only the OS keychain boundary; exercise the real storage/auth/connection services.
-  const keychain = { isEncryptionAvailable: () => true, getSelectedStorageBackend: () => 'test', encryptString: (value: string) => Buffer.from(value), decryptString: (value: Buffer) => value.toString() };
   const { ManagedAuthService } = tsxRequire('../src/main/services/managedAuth.ts', import.meta.url);
   const { CredentialStore } = tsxRequire('../src/main/services/credentials.ts', import.meta.url);
   const { Storage } = tsxRequire('../src/main/services/storage.ts', import.meta.url);
@@ -19,7 +17,7 @@ test('managed desktop keeps tokens and keys out of renderer state, preserves sel
     rmSync(directory, { recursive: true, force: true });
   });
   const storage = new Storage(directory), credentials = new CredentialStore(directory);
-  const auth = new ManagedAuthService(storage, credentials, keychain);
+  const auth = new ManagedAuthService(storage, credentials);
   const connections = new ConnectionService(storage, credentials);
   let revoked = false, loggedOut = false;
   t.mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
@@ -43,7 +41,7 @@ test('managed desktop keeps tokens and keys out of renderer state, preserves sel
   assert.equal(storage.current().settings.onboardingComplete, true);
   assert(!JSON.stringify(storage.data).includes('owner-private-secret'));
   assert(!readFileSync(storage.file, 'utf8').includes('jwt-for-test'));
-  assert(!readFileSync(join(directory, 'access-session.json'), 'utf8').includes('jwt-for-test'));
+  assert.equal(JSON.parse(readFileSync(join(directory, 'access-session.json'), 'utf8')).token, 'jwt-for-test');
   const connection = storage.current().settings.connections[0];
   assert.deepEqual(storage.current().settings.connections.map((c: ProviderConnection) => c.enabled), [true, false, true]);
   assert.equal(credentials.get(user.id, connection), 'owner-private-secret');
@@ -68,7 +66,7 @@ test('managed desktop keeps tokens and keys out of renderer state, preserves sel
   assert.equal(storage.current().settings.connections[0].enabled, false);
   assert.equal(storage.current().settings.connections[0].model, 'other-model');
   assert.throws(() => connections.resolveKey({ id: connection.id, name: connection.name, ai: connection }), /provided/);
-  const restored = new ManagedAuthService(storage, credentials, keychain);
+  const restored = new ManagedAuthService(storage, credentials);
   assert.equal((await restored.getCurrentUser()).id, user.id);
   assert.equal(storage.current().settings.connections[0].model, 'other-model');
   revoked = true;
@@ -81,9 +79,8 @@ test('managed desktop keeps tokens and keys out of renderer state, preserves sel
   assert.equal(auth.signedIn, false);
 });
 
-test('keep me signed in remembers the session and username but never the password', async t => {
+test('keep me signed in remembers the session and username without a keychain', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'novi-creds-test-'));
-  const keychain = { isEncryptionAvailable: () => true, getSelectedStorageBackend: () => 'test', encryptString: (value: string) => Buffer.from(value), decryptString: (value: Buffer) => value.toString() };
   const { ManagedAuthService } = tsxRequire('../src/main/services/managedAuth.ts', import.meta.url);
   const { CredentialStore } = tsxRequire('../src/main/services/credentials.ts', import.meta.url);
   const { Storage } = tsxRequire('../src/main/services/storage.ts', import.meta.url);
@@ -92,10 +89,12 @@ test('keep me signed in remembers the session and username but never the passwor
   const onDisk = () => readFileSync(file, 'utf8');
 
   // An older version saved the password; the next launch removes it and keeps only the username.
-  writeFileSync(file, JSON.stringify({ deviceId: 'device-1', savedCredentials: { username: 'old.user', encryptedPassword: Buffer.from('old-secret').toString('base64') } }));
+  writeFileSync(file, JSON.stringify({ deviceId: 'device-1', encryptedToken: 'old-encrypted-token', savedCredentials: { username: 'old.user', encryptedPassword: Buffer.from('old-secret').toString('base64') } }));
   const storage = new Storage(directory), credentials = new CredentialStore(directory);
-  const auth = new ManagedAuthService(storage, credentials, keychain);
+  const auth = new ManagedAuthService(storage, credentials);
   assert.deepEqual(auth.getSavedCredentials(), { username: 'old.user' });
+  assert.equal(auth.signedIn, false, 'old encrypted sessions require one new sign-in');
+  assert(!onDisk().includes('old-encrypted-token'), 'old encrypted token removed from disk');
   assert(!onDisk().includes('encryptedPassword') && !onDisk().includes(Buffer.from('old-secret').toString('base64')), 'legacy password removed from disk');
 
   t.mock.method(globalThis, 'fetch', async (url: string) => {
@@ -107,10 +106,11 @@ test('keep me signed in remembers the session and username but never the passwor
   // Kept signed in: the session survives a restart, only the username is remembered, and the password never reaches disk.
   await auth.signIn('saved.user', 'secret-pass-123', true);
   assert.deepEqual(auth.getSavedCredentials(), { username: 'saved.user' });
+  assert.equal(JSON.parse(onDisk()).token, 'jwt-token');
   assert(!onDisk().includes('secret-pass-123') && !onDisk().includes(Buffer.from('secret-pass-123').toString('base64')));
-  assert.equal(new ManagedAuthService(storage, credentials, keychain).signedIn, true, 'restart stays signed in');
+  assert.equal(new ManagedAuthService(storage, credentials).signedIn, true, 'restart stays signed in');
   await auth.signOut();
-  const afterSignOut = new ManagedAuthService(storage, credentials, keychain);
+  const afterSignOut = new ManagedAuthService(storage, credentials);
   assert.equal(afterSignOut.signedIn, false);
   assert.deepEqual(afterSignOut.getSavedCredentials(), { username: 'saved.user' }, 'the username is filled in after signing out');
 
@@ -118,20 +118,34 @@ test('keep me signed in remembers the session and username but never the passwor
   await afterSignOut.signIn('saved.user', 'secret-pass-123', false);
   assert.equal(afterSignOut.signedIn, true, 'signed in for this launch');
   assert.equal(afterSignOut.getSavedCredentials(), null);
-  const restarted = new ManagedAuthService(storage, credentials, keychain);
+  const restarted = new ManagedAuthService(storage, credentials);
   assert.equal(restarted.signedIn, false, 'a restart asks to sign in again');
   assert.equal(restarted.getSavedCredentials(), null);
   assert(!onDisk().includes('secret-pass-123') && !onDisk().includes('jwt-token') && !onDisk().includes(Buffer.from('jwt-token').toString('base64')));
 });
 
+test('local API keys save without a keychain while old encrypted entries stay available to replace', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'novi-local-key-test-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const { CredentialStore } = tsxRequire('../src/main/services/credentials.ts', import.meta.url);
+  const connection = { id: 'key-one', provider: 'openai', baseUrl: 'https://api.openai.com/v1' } as ProviderConnection;
+  const file = join(directory, 'credentials.json');
+  writeFileSync(file, JSON.stringify({ 'user:key-one': { destination: 'openai:https://api.openai.com/v1', encrypted: 'old-encrypted-key' } }));
+  const credentials = new CredentialStore(directory);
+  assert.equal(credentials.has('user', connection), false);
+  assert.throws(() => credentials.get('user', connection), /Re-enter this API key/);
+  credentials.set('user', connection, 'new-secret');
+  assert.equal(new CredentialStore(directory).get('user', connection), 'new-secret');
+  assert(!readFileSync(file, 'utf8').includes('old-encrypted-key'));
+});
+
 test('managed auth reports HTML gateway and captive-portal replies without raw JSON parse errors', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'novi-html-test-'));
-  const keychain = { isEncryptionAvailable: () => true, getSelectedStorageBackend: () => 'test', encryptString: (value: string) => Buffer.from(value), decryptString: (value: Buffer) => value.toString() };
   const { ManagedAuthService } = tsxRequire('../src/main/services/managedAuth.ts', import.meta.url);
   const { CredentialStore } = tsxRequire('../src/main/services/credentials.ts', import.meta.url);
   const { Storage } = tsxRequire('../src/main/services/storage.ts', import.meta.url);
   const storage = new Storage(directory), credentials = new CredentialStore(directory);
-  const auth = new ManagedAuthService(storage, credentials, keychain);
+  const auth = new ManagedAuthService(storage, credentials);
   let reply: 'json' | 'gateway' | 'portal' = 'json';
   // Sign-in starts the remote file poller; stop it before removing the directory, even if an assertion fails.
   t.after(async () => {
@@ -160,12 +174,11 @@ test('managed auth reports HTML gateway and captive-portal replies without raw J
 
 test('managed auth keeps the session through outages and ends it only when the server rejects it', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'novi-outage-test-'));
-  const keychain = { isEncryptionAvailable: () => true, getSelectedStorageBackend: () => 'test', encryptString: (value: string) => Buffer.from(value), decryptString: (value: Buffer) => value.toString() };
   const { ManagedAuthService, AccessUnavailableError, SessionChangedError, CONNECTION_LOST_MS } = tsxRequire('../src/main/services/managedAuth.ts', import.meta.url);
   const { CredentialStore } = tsxRequire('../src/main/services/credentials.ts', import.meta.url);
   const { Storage } = tsxRequire('../src/main/services/storage.ts', import.meta.url);
   const storage = new Storage(directory), credentials = new CredentialStore(directory);
-  const auth = new ManagedAuthService(storage, credentials, keychain);
+  const auth = new ManagedAuthService(storage, credentials);
   let now = Date.now();
   t.mock.method(Date, 'now', () => now);
   let mode: 'ok' | 'offline' | 'unavailable' | 'reject' = 'ok', desktopCalls = 0, logins = 0;

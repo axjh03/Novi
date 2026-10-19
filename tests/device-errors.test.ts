@@ -17,6 +17,7 @@ test('capture failures become one plain sentence per device and platform, with t
   assert.match(deviceError('microphone', domError('OverconstrainedError'), 'mac').message, /No microphone was found/);
   assert.match(deviceError('microphone', domError('NotReadableError'), 'windows').message, /Another app may be using it/);
   assert.match(deviceError('system', domError('AbortError'), 'linux').message, /System audio couldn’t start/);
+  assert.match(deviceError('system', domError('AbortError', 'Invalid capture constraints'), 'mac').message, /capture method/);
 });
 
 test('unknown failures keep their own text, and converting twice changes nothing', () => {
@@ -28,6 +29,18 @@ test('unknown failures keep their own text, and converting twice changes nothing
   const once = deviceError('microphone', domError('NotAllowedError', 'denied'), 'mac');
   assert.equal(deviceError('screen', once, 'linux'), once);
   assert.equal(deviceError('microphone', undefined, 'mac').message, 'Capture is unavailable.');
+});
+
+test('system audio requests display capture without device-only audio constraints', async t => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  t.after(() => previous ? Object.defineProperty(globalThis, 'navigator', previous) : Reflect.deleteProperty(globalThis, 'navigator'));
+  let constraints: DisplayMediaStreamOptions | undefined;
+  const stream = { getAudioTracks: () => [{}] } as MediaStream;
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { mediaDevices: {
+    getDisplayMedia: async (requested: DisplayMediaStreamOptions) => { constraints = requested; return stream; },
+  } } });
+  assert.equal(await captureProvider('windows').system(''), stream);
+  assert.deepEqual(constraints, { video: true, audio: true });
 });
 
 test('Windows and Linux refusals give advice that can be followed, since Novi shows no screen picker there', () => {

@@ -48,7 +48,7 @@ export function registerIPC(
     directory: process.platform === 'win32' ? join(app.getPath('appData'), 'Novi', 'bin') : join(app.getPath('home'), '.local', 'bin'),
     executable: process.env.APPIMAGE || process.execPath, home: app.getPath('home'), windows: process.platform === 'win32', packaged: app.isPackaged,
   });
-  // Lazy initialization lets the UI explain disk/keychain failures instead of crashing at startup.
+  // Lazy initialization lets the UI explain disk failures instead of crashing at startup.
   let services: ReturnType<typeof initialize> | undefined;
   function initialize() {
     const storage = new Storage(app.getPath('userData'));
@@ -247,7 +247,7 @@ export function registerIPC(
       }
     }
     const v = object(value);
-    // keepSignedIn: true or missing saves the encrypted session token so Novi opens signed in next
+    // keepSignedIn: true or missing saves the session token so Novi opens signed in next
     // time; false keeps the session in memory only. The password itself is never saved either way.
     await get().auth.signIn(
       v.username as string,
@@ -401,6 +401,7 @@ export function registerIPC(
     user.name = input.displayName;
     user.settings = { ...user.settings, ...input, onboardingComplete: true };
     delete user.settings.autoSendOnAudioStop;
+    delete (user.settings as typeof user.settings & { transparentOnStart?: boolean }).transparentOnStart;
     storage.save(); return snapshot();
   });
   handle('save-connection', async (value) => {

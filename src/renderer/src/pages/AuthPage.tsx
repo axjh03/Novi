@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { ArrowRight, Eye, EyeOff, KeyRound, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 import type { Snapshot } from '../../../shared/types';
-import { Brand } from '../components/Brand';
 import { errorText, unwrap } from '../services/api';
 
 /**
@@ -11,7 +10,7 @@ import { errorText, unwrap } from '../services/api';
  * - a remembered username is filled in and the cursor goes straight to the password;
  * - Show/hide password, and a "Caps Lock is on" hint while typing the password;
  * - after a failed attempt the error appears under the button and the password is selected, ready to retype;
- * - "Keep me signed in" (on by default) saves only an encrypted session token, never the password.
+ * - "Keep me signed in" (on by default) saves the session token, never the password.
  *
  * @param onAuthenticated called with the app snapshot after a successful sign-in.
  */
@@ -50,8 +49,7 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (state: Snapsho
   const watchCapsLock = (event: KeyboardEvent<HTMLInputElement>) => setCapsLock(event.getModifierState('CapsLock'));
 
   return <div className="auth-layout managed-auth">
-    <aside className="auth-story"><Brand /><div className="story-copy"><span className="eyebrow">YOUR WORKSPACE, CONNECTED</span><h1>A little space.<br />A lot of possibility.</h1><p>Your AI connections. Your context.<br />A considered place to do your best work.</p><div className="orbit-art" aria-hidden="true"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit orbit-three" /><span className="orbit-center">n</span></div></div><div className="story-footer"><span><KeyRound size={14} />One license. Your workspace.</span><span><ShieldCheck size={14} />Secure, managed access.</span></div></aside>
-    <main className="auth-main"><div className="auth-form-wrap"><div className="mini-label"><ShieldCheck size={15} />DESKTOP ACCESS</div><h2>Welcome back.</h2><p className="muted">Sign in with your licensed desktop account.</p>
+    <main className="auth-main"><div className="auth-form-wrap"><h2>Welcome back.</h2><p className="muted">Sign in with your licensed desktop account.</p>
       <form onSubmit={submit}><fieldset disabled={busy}>
         <label>Username<input autoFocus autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} placeholder="Your assigned username" required maxLength={64} /></label>
         <div className="auth-password">
@@ -65,11 +63,9 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (state: Snapsho
           </div>
         </div>
         <label className="auth-checkbox-label"><input type="checkbox" checked={keepSignedIn} onChange={(e) => setKeepSignedIn(e.target.checked)} /><span>Keep me signed in</span></label>
-        <small className="auth-keep-note">Novi remembers your username on this computer. Your password is never saved.</small>
-        <button className="primary wide" type="submit">{busy ? 'Signing in…' : 'Sign in'}<ArrowRight size={17} /></button>
-        {/* Below the button, so an error never moves anything you are about to click. */}
+        <button className="primary wide" type="submit" aria-busy={busy}>{busy ? <>Signing in…<Loader2 size={17} className="spin" aria-hidden="true" /></> : <>Sign in<ArrowRight size={17} /></>}</button>
         {error && <div className="error" role="alert">{error}</div>}
       </fieldset></form>
-      <p className="auth-note"><ShieldCheck size={15} />Use the username and password your Novi admin gave you. To get access or reset your password, contact them.</p><p className="muted">One active device per account. Sign out before switching devices.</p></div><span className="auth-bottom">A quieter place to think.</span></main>
+      </div></main>
   </div>;
 }

@@ -135,12 +135,6 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                   </div>
                   <div className="settings-fields settings-fields-interaction">
                     {shortcuts.slice(0, 2).map(shortcutField)}
-                    <label className="settings-toggle">
-                      <input type="checkbox" checked={value.transparentOnStart === true}
-                        onChange={(e) => change({ ...value, transparentOnStart: e.target.checked })} />
-                      Start sessions in Transparent mode
-                      <small>Hides Novi from screen sharing as soon as a session starts, exactly like pressing Transparency.</small>
-                    </label>
                   </div>
                 </section>
 

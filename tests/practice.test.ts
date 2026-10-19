@@ -3,7 +3,6 @@ import { test } from 'node:test';
 import { SESSION_MODES } from '../src/shared/sessionModes';
 import { PRACTICE_IDLE, PRACTICE_QUESTIONS, practiceReducer, practiceStepNumber, type PracticeEvent, type PracticeState } from '../src/renderer/src/services/practice';
 import { READINESS_CHECKS, allReady, continueFromGetReady, getReadyContinued, loadReadiness, markReadinessRun, readReadiness, recordReadiness } from '../src/renderer/src/services/readiness';
-import { settingsInput } from '../src/main/services/validation';
 
 const run = (events: PracticeEvent[], from: PracticeState = PRACTICE_IDLE) => events.reduce(practiceReducer, from);
 
@@ -59,14 +58,6 @@ test('readiness remembers results and a full run', () => {
   recordReadiness('system', { ok: false, detail: 'No sound' });
   assert.equal(allReady(readReadiness()), false);
   assert.equal(typeof readReadiness()!.ranAt, 'number', 'a later retry keeps the run time');
-});
-
-test('settings keep transparentOnStart unless it is sent', () => {
-  const base = { displayName: 'Ada', theme: 'system' };
-  assert.equal('transparentOnStart' in settingsInput(base), false);
-  assert.equal(settingsInput({ ...base, transparentOnStart: true }).transparentOnStart, true);
-  assert.equal(settingsInput({ ...base, transparentOnStart: false }).transparentOnStart, false);
-  assert.equal('transparentOnStart' in settingsInput({ ...base, transparentOnStart: 'yes' }), false);
 });
 
 test('Get ready shows once per app launch for each account, then ending a session returns to session setup', () => {

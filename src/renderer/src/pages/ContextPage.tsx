@@ -260,7 +260,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
   }
 
   if (settings) return <SettingsPage state={state} onSaved={onSaved} onBack={() => setSettings(false)} onSignOut={onSignOut} onCleared={() => {}} />;
-  if (!preflightDone) return <SessionPreflight state={state} onSaved={onSaved} onContinue={() => { continueFromGetReady(state.user!.id); setPreflightDone(true); }} onSettings={() => setSettings(true)} />;
+  if (!preflightDone) return <SessionPreflight state={state} onContinue={() => { continueFromGetReady(state.user!.id); setPreflightDone(true); }} onSettings={() => setSettings(true)} />;
   return <main className="context-page">
     <header className="context-header">
       <div className="context-header-identity"><Brand /></div>
@@ -275,7 +275,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
 
     <div className="context-workspace">
       <aside className="context-rail">
-        <div className="context-rail-title"><h1>Session setup</h1><p>Choose a model, add documents if you have them, then set instructions.</p></div>
+        <div className="context-rail-title"><h1>Session setup</h1></div>
         <nav className="context-section-nav" aria-label="Session setup">
           {([
             ['model', 'Model', Cpu, modelReady],
@@ -285,12 +285,11 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
             <Icon size={16} /><span>{label}</span>{done && <Check className="context-nav-check" size={14} aria-label="Complete" />}
           </button>)}
         </nav>
-        <p className="context-rail-note">Conversations and a copy of their document text are saved on this computer for later questions. Ending a session removes only its temporary context file; your folders stay in place.</p>
       </aside>
 
       <div className="context-main-panel">
         <section id="context-panel-model" aria-labelledby="context-tab-model" className="context-panel-content" hidden={section !== 'model'}>
-          <div className="context-panel-heading"><div className="context-panel-icon"><Cpu size={19} /></div><div><span className="context-overline">STEP 1 OF 3</span><h2>Choose a model</h2><p>Novi uses this connection for the whole session.</p></div></div>
+          <div className="context-panel-heading"><div className="context-panel-icon"><Cpu size={19} /></div><div><span className="context-overline">STEP 1 OF 3</span><h2>Choose a model</h2></div></div>
           {profiles.length ? <div className="profile-list" role="group" aria-label="Saved profiles">
             <h3><Bookmark size={14} />Saved profiles</h3>
             {profiles.map((profile) => <div className="profile-card" key={profile.id}>
@@ -304,34 +303,30 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
                   <button type="button" className="icon-button" disabled={busy} aria-label={`Delete ${profile.name}`} title="Delete profile" onClick={() => setConfirmDelete(profile.id)}><Trash2 size={14} /></button>
                 </div>}
             </div>)}
-          </div> : <p className="profile-tip">Tip: on the last step, save your setup as a profile under More options to start it in one click next time.</p>}
+          </div> : null}
           <div className="context-control-block"><ProviderPicker state={state} disabled={busy} onSaved={onSaved} onError={setError} onReady={setModelReady} />
             {!connection && <p className="managed-note">No enabled connection is available. Enable one in Settings.</p>}
           </div>
           <div className="context-skip">
-            <p>Only need a quick chat? Skip the setup and open an empty chat in Chat mode.</p>
             <button type="button" className="text-button" disabled={busy || !modelReady} onClick={() => void startEmpty()}><FastForward size={15} />Start an empty chat instead</button>
           </div>
         </section>
 
         <section id="context-panel-sources" aria-labelledby="context-tab-sources" className="context-panel-content" hidden={section !== 'sources'}>
-          <div className="context-panel-heading"><div className="context-panel-icon"><FolderOpen size={19} /></div><div><span className="context-overline">STEP 2 OF 3 · OPTIONAL</span><h2>Add documents</h2><p>A resume, job description or notes help Novi use your real facts. You can continue without them.</p></div></div>
+          <div className="context-panel-heading"><div className="context-panel-icon"><FolderOpen size={19} /></div><div><span className="context-overline">STEP 2 OF 3 · OPTIONAL</span><h2>Add documents</h2></div></div>
           <div className="context-sources-toolbar"><button className="secondary" disabled={busy || !connection} onClick={() => void loadFolders()}><FolderOpen size={15} />{busy ? 'Working…' : folders.length ? 'Replace folders' : 'Choose folders'}</button><span>TXT and PDF · up to 30 files / 80k characters</span></div>
           <div className="context-folder-list">
-            {folders.length ? folders.map((folder) => <div className="context-folder" key={folder.id}><div className="context-folder-row"><FolderOpen size={16} /><strong title={folder.name}>{folder.name}</strong><span>{folder.files.length} files · {folder.characters.toLocaleString()} chars</span><button className="icon-button" disabled={busy} aria-label={`Remove ${folder.name}`} onClick={() => setFolders((items) => items.filter((f) => f.id !== folder.id))}><X size={14} /></button></div><details><summary>Included files</summary><ul>{folder.files.map((file) => <li key={file}>{file}</li>)}</ul></details></div>) : <div className="context-empty-sources"><FolderOpen size={25} /><strong>No documents yet</strong><span>Choose a folder to load its documents, or press Next to continue without them.</span></div>}
+            {folders.length ? folders.map((folder) => <div className="context-folder" key={folder.id}><div className="context-folder-row"><FolderOpen size={16} /><strong title={folder.name}>{folder.name}</strong><span>{folder.files.length} files · {folder.characters.toLocaleString()} chars</span><button className="icon-button" disabled={busy} aria-label={`Remove ${folder.name}`} onClick={() => setFolders((items) => items.filter((f) => f.id !== folder.id))}><X size={14} /></button></div><details><summary>Included files</summary><ul>{folder.files.map((file) => <li key={file}>{file}</li>)}</ul></details></div>) : <div className="context-empty-sources"><FolderOpen size={25} /><strong>No documents yet</strong></div>}
           </div>
         </section>
 
         <section id="context-panel-brief" aria-labelledby="context-tab-brief" className="context-panel-content" hidden={section !== 'brief'}>
-          <div className="context-panel-heading"><div className="context-panel-icon"><FileText size={19} /></div><div><span className="context-overline">STEP 3 OF 3</span><h2>Set instructions</h2><p>Tell Novi what this session is for.</p></div></div>
+          <div className="context-panel-heading"><div className="context-panel-icon"><FileText size={19} /></div><div><span className="context-overline">STEP 3 OF 3</span><h2>Set instructions</h2></div></div>
           <div className="context-brief-editor">
             <label htmlFor="context-purpose">Purpose <span>Required</span></label>
-            <textarea id="context-purpose" ref={purposeInput} required aria-describedby="context-purpose-hint" maxLength={2000} value={purposeValue} disabled={busy}
+            <textarea id="context-purpose" ref={purposeInput} required maxLength={2000} value={purposeValue} disabled={busy}
               onChange={(e) => { setPurpose(e.target.value); setPurposeEdited(true); }} placeholder="Choose a session type below and this fills in, or write your own." />
-            <p id="context-purpose-hint" className="context-hint">
-              {purposeEdited ? 'Your own wording is kept.' : 'Filled in from your choices below. Edit it to say exactly what you need.'}
-              {purposeEdited && startMode && <button type="button" className="text-button" disabled={busy} onClick={() => setPurposeEdited(false)}>Use the suggestion instead</button>}
-            </p>
+            {purposeEdited && startMode && <button type="button" className="text-button" disabled={busy} onClick={() => setPurposeEdited(false)}>Use suggested purpose</button>}
 
             <fieldset className="context-presets" disabled={busy}><legend>Session type <span>Required</span></legend>
               <div ref={modeOptions} className="context-preset-options context-mode-options">{SESSION_MODES.map((mode) => <button type="button" key={mode.id} aria-pressed={startMode === mode.id} onClick={() => chooseMode(mode.id)}><strong>{mode.name}</strong><span>{mode.description}</span></button>)}</div>
@@ -346,7 +341,6 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
 
             <fieldset className="context-presets" disabled={busy}>
               <legend>Presets <span>Optional</span></legend>
-              <p>One click fills in answer instructions for your role and sets the session type. You can undo it.</p>
               <label htmlFor="context-preset-role">Role type</label>
               <select id="context-preset-role" value={roleIndex} onChange={(event) => setRoleIndex(Number(event.target.value))}>
                 {SESSION_ROLES.map((item, index) => <option key={item.name} value={index}>{item.name}</option>)}
@@ -359,11 +353,10 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
               <div className="context-preset-notice" role="status">{presetNotice}{undo && <button type="button" className="text-button" onClick={undoPreset}>Undo</button>}</div>
             </fieldset>
 
-            <details ref={moreOptions} className="custom-fields-accordion"><summary>More options <span>Answer instructions and saved profiles</span></summary>
+            <details ref={moreOptions} className="custom-fields-accordion"><summary>More options</summary>
               <div className="context-fields">{fields.map((field, index) => <div className="context-field" key={index}><input aria-label={`Instruction ${index + 1} name`} maxLength={80} value={field.label} disabled={busy} onChange={(e) => editField(index, { label: e.target.value })} /><textarea aria-label={`${field.label || `Instruction ${index + 1}`} details`} maxLength={2000} value={field.value} disabled={busy} onChange={(e) => editField(index, { value: e.target.value })} placeholder="Add a detail…" /></div>)}</div>
               <fieldset className="profile-save" disabled={busy}>
                 <legend>Save as a profile</legend>
-                <p>Next time, start this exact setup in one click: model, folders, session type, framework, and instructions. Folders are read again each time, so updated files are used.</p>
                 <div className="profile-save-row">
                   <input aria-label="Profile name" maxLength={60} value={nameForProfile} placeholder="e.g. Acme SWE round 2" onChange={(e) => { setProfileName(e.target.value); setProfileNameEdited(true); setProfileNotice(''); }} />
                   <button type="button" className="secondary" disabled={!canStart || !nameForProfile.trim()} onClick={() => void saveProfile()}><Bookmark size={14} />{existingProfile ? 'Update profile' : 'Save profile'}</button>
@@ -377,9 +370,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     </div>
 
     <footer className="context-footer">
-      <div className="context-footer-status" role="status">{error ? <span className="error" role="alert">{error}</span> : checking ? 'Checking connection…' : busy ? 'Starting session…'
-        : section === 'model' ? (modelReady ? `${connection?.model || 'Model'} is ready` : '')
-        : `${folders.length ? `${folderCount(folders.length)} loaded` : 'No documents'} · ${connection?.model || 'Model ready'}`}</div>
+      <div className="context-footer-status" role="status">{error ? <span className="error" role="alert">{error}</span> : checking ? 'Checking connection…' : busy ? 'Working…' : ''}</div>
       <div className="context-footer-actions">
         {needs && !busy && <span className="context-needs">{needs}</span>}
         {section !== 'model' && <button type="button" className="text-button" disabled={busy} onClick={() => setSection(section === 'brief' ? 'sources' : 'model')}><ArrowLeft size={15} />Back</button>}

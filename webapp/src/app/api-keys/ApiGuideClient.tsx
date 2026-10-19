@@ -973,7 +973,7 @@ export default function ApiGuideClient() {
             <ul style={{ fontSize: 14, color: '#444', lineHeight: 1.8, paddingLeft: 20 }}>
               <li><b>Zero Logging:</b> Prompts, live transcriptions, and screen snapshots are never recorded or stored on any intermediate server.</li>
               <li><b>Server-Side Encryption:</b> Keys in your Novi account are encrypted at rest using AES-256-GCM authenticated cipher with unique per-credential initialization vectors.</li>
-              <li><b>In the desktop app:</b> Keys are held only in memory while you are signed in and are cleared when you sign out. The app&apos;s sign-in session is protected by your operating system&apos;s keychain.</li>
+              <li><b>In the desktop app:</b> Keys are held only in memory while you are signed in and are cleared when you sign out. A remembered sign-in session is stored in Novi&apos;s local app data.</li>
             </ul>
           </section>
 

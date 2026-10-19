@@ -57,10 +57,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     void unwrap(window.novi.setWorkspaceDocked(true)).catch(console.error);
     return () => { void unwrap(window.novi.setWorkspaceDocked(false)).catch(console.error); };
   }, []);
-  // Chosen in Get ready or Settings: start hidden from screen sharing, exactly as if Transparency were pressed.
-  useEffect(() => {
-    if (state.settings?.transparentOnStart) void unwrap(window.novi.setTransparent(true)).catch(console.error);
-  }, []);
   const [{ transparent }] = useStealthState();
   // The ready check shows until it is dismissed or the first message is sent.
   const [readyDismissed, setReadyDismissed] = useState(false), [sentInSession, setSentInSession] = useState(false);

@@ -314,14 +314,7 @@ export function DeviceTester() {
 
     try {
       // Capture system desktop audio stream via getDisplayMedia
-      const displayStream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false
-        }
-      });
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
 
       const audioTracks = displayStream.getAudioTracks();
       if (audioTracks.length === 0) {
@@ -541,14 +534,7 @@ export function DeviceTester() {
         };
         stream = await navigator.mediaDevices.getUserMedia(constraints);
       } else {
-        const displayStream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-          },
-        });
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
         const audioTracks = displayStream.getAudioTracks();
         if (audioTracks.length === 0) {
           displayStream.getTracks().forEach((t) => t.stop());

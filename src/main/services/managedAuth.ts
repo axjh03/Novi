@@ -1,4 +1,4 @@
-import { app, safeStorage } from 'electron';
+import { app } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
@@ -38,6 +38,8 @@ interface DesktopState {
 }
 interface SavedSession {
   deviceId: string;
+  token?: string;
+  /** Removed on load from older versions. */
   encryptedToken?: string;
   server?: string;
   /** Only the username is remembered. `encryptedPassword` is from older versions and is deleted on load. */
@@ -58,7 +60,7 @@ export class ManagedAuthService {
   private baseUrl: string;
   private remoteFiles: RemoteFileService;
 
-  constructor(private storage: Storage, private credentials: CredentialStore, private secureStorage = safeStorage) {
+  constructor(private storage: Storage, private credentials: CredentialStore) {
     this.file = join(storage.directory, 'access-session.json');
     this.saved = readJSON<SavedSession>(this.file, { deviceId: randomUUID() });
     // Passwords are never kept on disk; remove any saved by an older version.
@@ -72,20 +74,10 @@ export class ManagedAuthService {
       () => this.baseUrl,
       () => this.token
     );
-    if (this.saved.encryptedToken && this.saved.server === this.baseUrl) {
-      try {
-        this.assertSecure();
-        this.token = this.secureStorage.decryptString(Buffer.from(this.saved.encryptedToken, 'base64'));
-        //backdoor
-        // if (this.token) this.remoteFiles.start();
-      } catch {
-        this.saved.encryptedToken = undefined;
-      }
-    }
+    if (this.saved.server === this.baseUrl && typeof this.saved.token === 'string') this.token = this.saved.token;
+    else delete this.saved.token;
+    delete this.saved.encryptedToken;
     atomicJSON(this.file, this.saved);
-  }
-  private assertSecure() {
-    if (!this.secureStorage.isEncryptionAvailable() || (process.platform === 'linux' && this.secureStorage.getSelectedStorageBackend() === 'basic_text')) throw new UserError('Unlock your operating system keychain before signing in.');
   }
   private async request<T>(path: string, body?: object): Promise<T> {
     const token = this.token;
@@ -114,7 +106,7 @@ export class ManagedAuthService {
     this.remoteFiles.stop();
     this.generation++; this.token = ''; this.current = null; this.lastChecked = 0; this.offlineSince = null;
     this.credentials.clearManaged(); this.storage.data.currentUserId = null; this.storage.save();
-    delete this.saved.encryptedToken; atomicJSON(this.file, this.saved);
+    delete this.saved.token; atomicJSON(this.file, this.saved);
   }
   /** The username remembered by "Keep me signed in", to fill in the sign-in form. */
   /**
@@ -131,9 +123,8 @@ export class ManagedAuthService {
    * Signs in to the access server with a username and password.
    *
    * What is stored afterwards depends on `keepSignedIn`:
-   * - true or omitted: the session token is saved encrypted with the operating system keychain
-   *   (Electron safeStorage), along with the server address and the username, so Novi opens signed
-   *   in next time.
+   * - true or omitted: the session token, server address and username are saved in app data,
+   *   so Novi opens signed in next time.
    * - false: nothing is saved. Any previously saved token and username are deleted, so the session
    *   ends when Novi quits.
    * The password is never saved in either case.
@@ -146,16 +137,15 @@ export class ManagedAuthService {
    */
   async signIn(username: string, password: string, keepSignedIn?: boolean) {
     if (this.token) throw new UserError('Sign out of the current account first.');
-    this.assertSecure();
     username = text(username, 'username', 64);
     if (typeof password !== 'string' || !password || password.length > 128) throw new UserError('Enter your password.');
     const result = await this.request<{ token: string }>('login', { username, password, audience: 'desktop', deviceId: this.saved.deviceId, deviceName: hostname().slice(0, 100) });
     this.generation++; this.token = result.token;
     try {
       if (keepSignedIn === false) {
-        delete this.saved.encryptedToken; delete this.saved.savedCredentials;
+        delete this.saved.token; delete this.saved.savedCredentials;
       } else {
-        this.saved.encryptedToken = this.secureStorage.encryptString(this.token).toString('base64');
+        this.saved.token = this.token;
         this.saved.server = this.baseUrl;
         this.saved.savedCredentials = { username };
       }

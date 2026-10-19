@@ -21,7 +21,7 @@ export class AudioCaptureProvider {
   readonly systemHelp: string = 'System audio is unavailable on this computer. Check your sound output, then retry.';
   async system(deviceId: string): Promise<MediaStream> {
     if (deviceId) return navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: deviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false });
-    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
     if (!stream.getAudioTracks().length) { stream.getTracks().forEach(track => track.stop()); throw new Error(this.systemHelp); }
     return stream;
   }

@@ -7,6 +7,8 @@ import { AppMask } from './services/appMask';
 import { appCommand } from './services/appCommand';
 
 app.setName('Novi');
+// macOS 14.2+: use the Screen & System Audio Recording permission users grant in Settings.
+if (process.platform === 'darwin') app.commandLine.appendSwitch('disable-features', 'MacCatapLoopbackAudioForScreenShare');
 if (process.env.NOVI_DATA_DIR) {
   const directory = resolve(process.env.NOVI_DATA_DIR);
   mkdirSync(directory, { recursive: true });
@@ -69,17 +71,17 @@ else void app.whenReady().then(async () => {
 
   // Handle getDisplayMedia for System Audio IN loopback capture
   session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+    // Electron documents null as denial, but its callback type omits it.
+    const deny = () => callback(null as unknown as Parameters<typeof callback>[0]);
     desktopCapturer.getSources({ types: ['screen'] })
       .then((sources) => {
         if (sources.length > 0) {
           callback({ video: sources[0], ...(request.audioRequested ? { audio: 'loopback' as const } : {}) });
         } else {
-          callback({});
+          deny();
         }
       })
-      .catch(() => {
-        callback({});
-      });
+      .catch(deny);
   });
   // The renderer never needs external networking; all provider traffic lives in main.
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => {

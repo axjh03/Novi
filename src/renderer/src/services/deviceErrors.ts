@@ -110,7 +110,9 @@ export function deviceError(device: CaptureDevice, cause: unknown, platform: Pla
   const name = cause instanceof Error ? cause.name : '';
   const raw = cause instanceof Error ? cause.message : String(cause ?? '');
   const details = name && name !== 'Error' ? `${name}: ${raw}` : raw;
-  const message = /^(NotAllowedError|SecurityError|PermissionDeniedError)$/.test(name) ? BLOCKED[device][platform]
+  const message = device === 'system' && name === 'AbortError' && /invalid capture constraints/i.test(raw)
+    ? 'System audio could not start with this capture method. On macOS, use a loopback input such as BlackHole if screen audio still fails.'
+    : /^(NotAllowedError|SecurityError|PermissionDeniedError)$/.test(name) ? BLOCKED[device][platform]
     : /^(NotFoundError|DevicesNotFoundError|OverconstrainedError)$/.test(name) ? MISSING[device]
     : /^(NotReadableError|TrackStartError|AbortError)$/.test(name) ? BUSY[device]
     : raw || 'Capture is unavailable.';

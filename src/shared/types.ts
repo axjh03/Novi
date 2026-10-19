@@ -54,8 +54,6 @@ export interface AppSettings {
   autoStartEmptySession?: boolean;
   localASRModelId?: string;
   modelRoles?: Record<string, { fast?: string; deep?: string }>;
-  /** Turns transparent mode on when a session starts, as if Transparency were pressed. */
-  transparentOnStart?: boolean;
   sessionProfiles?: SessionProfile[];
 }
 /** A saved session setup that can be started again in one click. Folder paths come from folders the user chose. */
@@ -135,7 +133,6 @@ export interface SettingsInput {
   checkUpdatesAtStartup?: boolean;
   autoStartEmptySession?: boolean;
   localASRModelId?: string;
-  transparentOnStart?: boolean;
 }
 export interface SendInput { appMode?: AppMode; behavioralFramework?: BehavioralFramework; conversationId: string | null; content: string; imageIds: string[]; sentAt?: number; compactContext?: boolean; pinnedContext?: string; localCoding?: { baseVersionId: string; reconcile?: { fromVersionId: string; fileIds: string[] } } }
 export type ChatEvent =
