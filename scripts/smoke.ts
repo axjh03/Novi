@@ -65,11 +65,13 @@ async function main() {
   env.NOVI_ACCESS_URL = 'http://127.0.0.1:' + address.port;
   let app: ElectronApplication | undefined;
   const launch = () => electron.launch({ args: [resolve('out/main/main.js'), '--disable-gpu'], env, timeout: 15000 });
-  // During a session the input controls live in the floating tray, a separate about:blank window.
+  // Controls start in the chat and can move into a separate about:blank window.
   const trayPage = async () => {
     for (let attempt = 0; attempt < 100; attempt++) {
       const tray = app?.windows().find((window) => window.url() === 'about:blank' && !window.isClosed());
       if (tray) { await tray.getByLabel('Message Novi').waitFor(); return tray; }
+      const main = await app?.firstWindow();
+      if (main && await main.getByLabel('Message Novi').isVisible()) return main;
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     throw new Error('The session tray did not open.');
@@ -146,7 +148,12 @@ async function main() {
     const viewerEvent = windowAt('#/code-viewer');
     await page.getByRole('button', { name: 'Start session', exact: true }).click();
     await page.getByText('Understood the loaded context. Cedar uses blue buttons.', { exact: true }).waitFor();
-    let tray = await trayPage();
+    await page.getByLabel('Message Novi').waitFor();
+    assert.equal(trayCount(), 0, 'controls start attached to the chat');
+    const detached = windowAt('about:blank');
+    await page.getByRole('button', { name: 'Detach controls', exact: true }).click();
+    let tray = await detached;
+    await tray.getByLabel('Message Novi').waitFor();
     assert.equal(await page.getByRole('dialog', { name: 'Phone companion' }).count(), 0, 'Starting a session must not open the QR dialog');
     assert.equal(await page.getByRole('button', { name: 'Expand sidebar' }).count(), 1);
     await tray.getByLabel('Change conversation mode', { exact: true }).click();
@@ -191,6 +198,14 @@ async function main() {
     await tray.getByRole('button', { name: /Attach image/ }).click();
     await tray.getByRole('button', { name: 'Remove sample.png' }).waitFor();
     await tray.getByLabel('Message Novi').fill('What color should this button be?');
+    await tray.getByRole('button', { name: 'Attach controls', exact: true }).click();
+    await page.getByLabel('Message Novi').waitFor();
+    assert.equal(await page.getByLabel('Message Novi').inputValue(), 'What color should this button be?');
+    await page.getByRole('button', { name: 'Remove sample.png' }).waitFor();
+    const detachedAgain = windowAt('about:blank');
+    await page.getByRole('button', { name: 'Detach controls', exact: true }).click();
+    tray = await detachedAgain;
+    await tray.getByLabel('Message Novi').waitFor();
     await tray.getByRole('button', { name: 'Send message' }).click();
     await page.getByText('Your button should be blue.', { exact: true }).waitFor();
     assert.match(JSON.stringify(requests[1]), /SESSION_SOURCE/);

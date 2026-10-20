@@ -29,7 +29,7 @@ async function main() {
           { id: 'key', name: 'Google key', provider: 'gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini3.8', stream: true, managed: true, ownerName: 'Owner' },
         ] },
       };
-      const fixture = { reject: true, discoveryFails: false, starts: 0, confirmed: 0, started: 0 };
+      const fixture = { reject: true, modelNotFound: false, discoveryFails: false, starts: 0, confirmed: 0, started: 0 };
       Object.assign(window, { fixture });
       window.novi = {
         session: async () => ok(structuredClone(state)),
@@ -43,10 +43,14 @@ async function main() {
         getMonitors: async () => ok([]), getWorkingMonitor: async () => ok({ workingMonitorId: null }),
         getStealthState: async () => ok({ transparent: false, numLock: false, clickThrough: false, clickThroughShortcut: 'Alt+Shift+I' }),
         isWindowMaximized: async () => ok(false),
-        listModels: async () => fixture.discoveryFails ? { ok: false, error: 'Cannot load models. Try again.' } : ok([{ id: 'gemini-chat', name: 'Gemini Chat' }]),
+        listModels: async () => fixture.discoveryFails ? { ok: false, error: 'Cannot load models. Try again.' } : ok([{ id: 'gemini-chat', name: 'Gemini Chat' }, { id: 'gemini-other', name: 'Gemini Other' }]),
         selectConnection: async (id: string, model?: string) => { state.settings!.activeConnectionId = id; if (model) state.settings!.connections[0].model = model; return ok(structuredClone(state)); },
         pickContextFolders: async () => ok([{ id: 'folder', name: 'Reference', files: ['test.txt'], characters: 20 }]),
-        testConnection: async () => { if (fixture.reject) return { ok: false, error: 'Your API key was rejected.' }; fixture.confirmed = Date.now(); return ok(undefined); },
+        testConnection: async () => {
+          if (fixture.reject) return { ok: false, error: 'Your API key was rejected.' };
+          if (fixture.modelNotFound && state.settings!.connections[0].model === 'gemini-chat') return { ok: false, error: 'Google (Gemini) model request failed (HTTP 404): Google could not find or serve the selected Gemini model.' };
+          fixture.confirmed = Date.now(); return ok(undefined);
+        },
         startContext: async () => { fixture.starts++; fixture.started = Date.now(); return { ok: false, error: 'TEST_SESSION_STARTED' }; },
       } as unknown as NoviAPI;
     });
@@ -109,7 +113,25 @@ async function main() {
     await page.waitForFunction(() => !(document.querySelector('select[aria-label="Choose model"]') as HTMLSelectElement | null)?.disabled);
     assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), 'gemini-chat');
     assert.equal(await page.getByLabel('Purpose').inputValue(), 'Review the reference', 'what was typed in setup survives the visit to Get ready');
+    // A listed model can still reject generation. Recovery must open the model step even from Instructions.
+    await page.getByRole('button', { name: /^Instructions( Complete)?$/ }).click();
+    await page.evaluate(() => { (window as any).fixture.modelNotFound = true; });
+    await page.getByRole('button', { name: 'Run Get ready', exact: true }).click();
+    await page.getByRole('button', { name: 'Check ai connection', exact: true }).click();
+    await page.getByText(/Google \(Gemini\) model request failed \(HTTP 404\)/).waitFor();
+    await page.getByRole('button', { name: 'Choose another model', exact: true }).click();
+    await page.locator('#context-panel-model').waitFor({ state: 'visible' });
+    await page.getByLabel('Choose model', { exact: true }).selectOption('gemini-other');
+    await page.getByRole('button', { name: 'Run Get ready', exact: true }).click();
+    await page.getByRole('button', { name: 'Retry ai connection', exact: true }).click();
+    await page.getByText('Google key · gemini-other answered', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Choose another model', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Continue anyway', exact: true }).click();
+    await page.waitForFunction(() => !(document.querySelector('select[aria-label="Choose model"]') as HTMLSelectElement | null)?.disabled);
+    assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), 'gemini-other');
+    assert.equal(await page.getByLabel('Purpose').inputValue(), 'Review the reference');
     console.log('Model UI passed: invalid legacy model, live dropdown, failed ping, immediate startup, discovery failure and retry, Run Get ready.');
+    console.log('Gemini 404 recovery passed: choose another model, preserve setup, and verify its reply.');
     await page.goto('http://novi.test/index.html#/code-viewer');
     await page.reload();
     const scroll = page.getByRole('region', { name: 'Scrollable code' });

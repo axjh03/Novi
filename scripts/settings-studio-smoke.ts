@@ -34,7 +34,7 @@ async function main() {
       checkEngineUpdate: async engine => result({ latestVersion: '0.164.0', updateAvailable: engine === 'codex' }),
       installEngine: async engine => { window.actions.push('install:' + engine); const item = engines.find(item => item.engine === engine); item.installedVersion = '1.4.0'; item.available = !!item.connections.length; return result(engines); },
       uninstallEngine: async engine => { window.actions.push('uninstall:' + engine); const item = engines.find(item => item.engine === engine); item.installedVersion = null; item.available = false; return result(engines); },
-      checkEngineLogin: async () => result('Key accepted'),
+      checkEngineLogin: async () => result('API key accepted for Gem1 · 2 models listed. Model replies have not been tested.'),
       localAISetup: async () => result(window.setup),
       onLocalModelProgress: fn => { window.progress = fn; return () => {}; },
       onInterview: fn => { window.interviewEvent = fn; return () => {}; },
@@ -83,8 +83,8 @@ async function main() {
     await codex.getByRole('button', { name: 'Update', exact: true }).click();
     await codex.getByRole('button', { name: 'Update', exact: true }).waitFor({ state: 'detached' });
     await agy.getByRole('button', { name: 'Install', exact: true }).click();
-    await agy.getByRole('button', { name: 'Test connection' }).click();
-    await agy.getByText('API key verified.').waitFor();
+    await agy.getByRole('button', { name: 'Test API key' }).click();
+    await agy.getByText('API key accepted for Gem1 · 2 models listed. Model replies have not been tested.').waitFor();
     await agy.getByRole('button', { name: 'Uninstall', exact: true }).click();
     await agy.getByRole('button', { name: 'Uninstall agent' }).click();
     await agy.getByRole('button', { name: 'Install', exact: true }).waitFor();

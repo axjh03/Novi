@@ -222,9 +222,9 @@ function EngineStatusRow({ item, connections, managed, onInstalled }: { item: En
       </select>
     </label>}
     {item.installedVersion && <div className="agent-links">
-      {connectionId && <button type="button" disabled={!!busy} onClick={() => void run('Testing connection…', async () => {
-        await unwrap(window.novi.checkEngineLogin({ engine: item.engine, connectionId })); setStatus('API key verified.');
-      })}>Test connection</button>}
+      {connectionId && <button type="button" disabled={!!busy} onClick={() => void run('Testing API key…', async () => {
+        setStatus(await unwrap(window.novi.checkEngineLogin({ engine: item.engine, connectionId })));
+      })}>Test API key</button>}
       <button type="button" disabled={!!busy} onClick={() => void run('Checking…', async () => {
         const result = await unwrap(window.novi.checkEngineUpdate(item.engine)); setUpdate(result);
         setStatus(result.updateAvailable ? `v${result.latestVersion.replace(/-(win32|linux|darwin)-.*$/, '')} available` : 'Up to date');

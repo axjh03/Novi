@@ -41,7 +41,8 @@ export async function providerFetch(url: string, config: AIProviderConfig, key: 
   debug.secret(key);
   debug.identify({ model: config.model });
   const started = Date.now();
-  debug.event('Connecting to provider', { provider: config.provider, host: new URL(url).hostname, method: body === undefined ? 'GET' : 'POST' });
+  const destination = new URL(url);
+  debug.event('Connecting to provider', { provider: config.provider, host: destination.hostname, path: destination.pathname, method: body === undefined ? 'GET' : 'POST' });
   let response: Response;
   try {
     response = await fetch(url, {
@@ -59,9 +60,13 @@ export async function providerFetch(url: string, config: AIProviderConfig, key: 
     const data = await response.json().catch(() => ({}));
     const details = Array.isArray(data.error?.details) ? data.error.details : [];
     const code = [...details.map((detail: any) => detail?.reason), data.error?.status, data.error?.type, data.error?.code].find(value => typeof value === 'string' && value) || '';
+    debug.event('Provider rejected request', { status: response.status, code: code || 'not provided' }, 'error');
     const error = providerError(response.status, code, config.managed === true);
     const operation = body === undefined ? 'model list' : 'model request';
-    throw new UserError(`${PROVIDERS[config.provider].name} ${operation} failed (HTTP ${response.status}): ${error.message}`);
+    const message = config.provider === 'gemini' && body !== undefined && response.status === 404 && (!code || code === 'NOT_FOUND')
+      ? `Google could not find or serve Gemini model "${config.model}" for this API key and API version. In session setup, refresh the model list and choose another model. If every model fails, ${config.managed ? 'ask your Novi admin to check this key’s Gemini project access' : 'check this key’s project access in Google AI Studio'}. A successful model list does not verify model replies.`
+      : error.message;
+    throw new UserError(`${PROVIDERS[config.provider].name} ${operation} failed (HTTP ${response.status}): ${message}`);
   }
   return response;
 }

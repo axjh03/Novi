@@ -54,10 +54,11 @@ function playChime(): () => void {
  * "Continue anyway" is always available unless a check is running or storage is unusable.
  *
  * @param onContinue called when the user moves on to session setup.
+ * @param onChooseModel opens session setup's model step to repair a failed AI check.
  * @param onSettings opens Settings (for fixing a device or connection).
  */
-export function SessionPreflight({ state, onContinue, onSettings }: {
-  state: Snapshot; onContinue: () => void; onSettings: () => void;
+export function SessionPreflight({ state, onContinue, onChooseModel, onSettings }: {
+  state: Snapshot; onContinue: () => void; onChooseModel: () => void; onSettings: () => void;
 }) {
   const settings = state.settings!;
   const [readiness, setReadiness] = useState<Readiness | null>(() => loadReadiness(state.user!.id));
@@ -233,6 +234,7 @@ export function SessionPreflight({ state, onContinue, onSettings }: {
           <p role="status">{running === id ? PROMPTS[id] : result?.detail || 'Not checked yet'}</p>
           {running !== id && result && !result.ok && result.details && <details className="get-ready-details"><summary>Details</summary><code>{result.details}</code></details>}
           <button type="button" className="secondary" disabled={busy} aria-label={`${verb} ${name.toLowerCase()}`} onClick={() => void runCheck(id)}>{verb}</button>
+          {id === 'ai' && result?.ok === false && <button type="button" className="text-button" disabled={busy || !storageReady} onClick={onChooseModel}>Choose another model</button>}
         </article>;
       })}
     </section>

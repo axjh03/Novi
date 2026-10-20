@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type FormEvent } from 'react';
-import { ArrowUp, Brain, Camera, ImagePlus, Loader2, Mic, SlidersHorizontal, Square, X } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
+import { ArrowUp, Brain, Camera, ImagePlus, Loader2, Mic, Network, SlidersHorizontal, Square, X } from 'lucide-react';
 import type { ImageAttachment } from '../../../../shared/types';
 import type { InterviewEvent, ListeningSource, TranscriptSegment } from '../../../../shared/interview';
 import { LiveTranscriptDraft, listeningSources } from '../../../../shared/interview';
@@ -23,9 +23,10 @@ interface Props {
   /** Called once a prefill is in the box, so it is not applied again by a later remount. */
   onPrefillApplied?: () => void;
   placeholder?: string;
+  toolbar?: ReactNode;
 }
 
-export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChange, prefill, onPrefillApplied, placeholder }: Props) {
+export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChange, prefill, onPrefillApplied, placeholder, toolbar }: Props) {
   const [text, setText] = useState('');
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [error, setError] = useState('');
@@ -323,7 +324,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
   return (
     <div className="composer-wrap">
       <form
-        className={`composer ${dragging ? 'dragging' : ''} ${appMode === 'system-design' ? 'with-diagram' : ''}`}
+        className={`composer ${dragging ? 'dragging' : ''}`}
         onSubmit={submit}
         onDragEnter={(e) => {
           drag(e);
@@ -354,50 +355,8 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
           </div>
         )}
 
-        {/* Attachments Tray */}
-        {!!images.length && (
-          <div className="attachment-tray">
-            {images.map((image) => (
-              <div className="attachment" key={image.id}>
-                <ImagePreview image={image} />
-                <button
-                  type="button"
-                  aria-label={`Remove ${image.name}`}
-                  onClick={() => setImages(images.filter((item) => item.id !== image.id))}
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Text Area */}
-        <textarea
-          ref={textarea}
-          aria-label="Message Novi"
-          placeholder={busy ? 'Type your next message… you can send it when Novi is ready' : placeholder || 'Ask Novi anything…'}
-          rows={1}
-          value={text}
-          maxLength={100000}
-          // Typing stays possible while an answer streams; submit() blocks sending until it finishes.
-          disabled={localStarting || localStopping}
-          onChange={(e) => {
-            draft.current.edit(e.target.value);
-            textRef.current = e.target.value;
-            setText(e.target.value);
-            if (e.target.value.trim()) warmConnection();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              void submit();
-            }
-          }}
-        />
-
-        {/* Controls Toolbar */}
-        <div className="composer-controls">
+        {/* All tools stay above the message box. */}
+        <div className="composer-toolbar">
           <div className="attach-control">
             <button className="composer-quick-btn composer-attach" type="button" disabled={attaching}
               onClick={() => void attach()} aria-label="Attach image" title="Attach image">
@@ -408,7 +367,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
               <Camera size={14} />
             </button>
 
-            {appMode === 'system-design' && <button type="button" className="composer-quick-btn composer-diagram" disabled={busy || attaching || localStarting || localStopping} onClick={() => void submit(undefined, true)}>Draw / update diagram</button>}
+            {appMode === 'system-design' && <button type="button" className="composer-quick-btn composer-diagram" disabled={busy || attaching || localStarting || localStopping} onClick={() => void submit(undefined, true)} aria-label="Draw / update diagram" title="Draw / update diagram"><Network size={14} /></button>}
             <div className="composer-audio-source composer-local-control">
               <button type="button" className={`composer-quick-btn composer-mic ${localActive ? 'recording' : ''}`} onClick={() => void toggleListening()}
                 disabled={localStarting || localStopping} aria-pressed={localActive}
@@ -436,6 +395,50 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
               </TrayMenu>
             </div>
           </div>
+          {toolbar}
+        </div>
+
+        {/* Attachments Tray */}
+        {!!images.length && (
+          <div className="attachment-tray">
+            {images.map((image) => (
+              <div className="attachment" key={image.id}>
+                <ImagePreview image={image} />
+                <button
+                  type="button"
+                  aria-label={`Remove ${image.name}`}
+                  onClick={() => setImages(images.filter((item) => item.id !== image.id))}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="composer-input">
+        <textarea
+          ref={textarea}
+          aria-label="Message Novi"
+          placeholder={busy ? 'Type your next message… you can send it when Novi is ready' : placeholder || 'Ask Novi anything…'}
+          rows={1}
+          value={text}
+          maxLength={100000}
+          // Typing stays possible while an answer streams; submit() blocks sending until it finishes.
+          disabled={localStarting || localStopping}
+          onChange={(e) => {
+            draft.current.edit(e.target.value);
+            textRef.current = e.target.value;
+            setText(e.target.value);
+            if (e.target.value.trim()) warmConnection();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              void submit();
+            }
+          }}
+        />
 
           {busy ? (
             <button

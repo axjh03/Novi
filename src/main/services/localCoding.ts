@@ -163,7 +163,7 @@ export class LocalCodingService {
     // Engine model catalogs can be local; validate the key against the provider, not that cache.
     const models = await providerModels(connection, apiKey);
     this.models.clear();
-    return `API key accepted for ${connection.name} · ${models.length} models available. Novi uses this saved key automatically.`;
+    return `API key accepted for ${connection.name} · ${models.length} models listed. Model replies have not been tested.`;
   }
 
   async listModels(engine: unknown, connectionId: unknown): Promise<EngineModel[]> {

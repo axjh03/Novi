@@ -260,7 +260,10 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
   }
 
   if (settings) return <SettingsPage state={state} onSaved={onSaved} onBack={() => setSettings(false)} onSignOut={onSignOut} onCleared={() => {}} />;
-  if (!preflightDone) return <SessionPreflight state={state} onContinue={() => { continueFromGetReady(state.user!.id); setPreflightDone(true); }} onSettings={() => setSettings(true)} />;
+  if (!preflightDone) return <SessionPreflight state={state}
+    onContinue={() => { continueFromGetReady(state.user!.id); setPreflightDone(true); }}
+    onChooseModel={() => { setSection('model'); continueFromGetReady(state.user!.id); setPreflightDone(true); }}
+    onSettings={() => setSettings(true)} />;
   return <main className="context-page">
     <header className="context-header">
       <div className="context-header-identity"><Brand /></div>

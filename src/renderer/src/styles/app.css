@@ -243,7 +243,10 @@ svg { flex-shrink: 0; }
 .composer:focus-within { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
 .composer textarea { background: transparent; border: 0; outline: none; resize: none; color: var(--text); width: 100%; min-height: 30px; max-height: 180px; line-height: 1.7; font-size: 13px; padding: 0 3px; }
 .composer textarea:focus-visible { outline: none; }
-.composer-controls { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: 8px; }
+.composer-input { display: flex; align-items: flex-end; gap: 8px; min-width: 0; }
+.composer-input textarea { flex: 1; min-width: 0; }
+.composer-toolbar { position: relative; z-index: 2; display: flex; align-items: center; flex-wrap: wrap; gap: 3px; padding-bottom: 5px; margin-bottom: 5px; border-bottom: 1px solid var(--border); }
+.composer-toolbar .attach-control, .composer-toolbar .composer-audio-source { display: contents; }
 .attach-control { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; position: relative; min-width: 0; }
 .send-button { flex: 0 0 32px; background: var(--button); color: var(--accent-ink); width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
 .send-button:disabled { opacity: .35; }
@@ -3367,7 +3370,7 @@ html.transparent-mode #root {
 .context-footer-actions { flex-wrap: wrap; justify-content: flex-end; }
 
 /* ==========================================================================
-   Session layout: docked output panel + floating tray (src/renderer/src/components/TrayPortal.tsx)
+   Session controls: attached below the conversation or detached into a floating tray
    ========================================================================== */
 
 /* Natural content height lets the native window shrink again after controls wrap or menus close. */
@@ -3375,6 +3378,10 @@ html.novi-tray, html.novi-tray body { height: auto; min-height: 0; overflow-x: h
 html.novi-tray #tray-root { padding: 0 4px; -webkit-app-region: drag; }
 .tray-shell { box-sizing: border-box; width: 100%; min-height: 0; display: flex; flex-direction: column; gap: 5px; padding: 6px; position: relative; background: var(--panel); box-shadow: var(--shadow); border: 1px solid color-mix(in srgb, var(--border) 65%, transparent); border-radius: 10px; cursor: grab; user-select: none; -webkit-app-region: drag; }
 .tray-shell:active { cursor: grabbing; }
+.tray-attached { flex: none; margin-top: auto; padding: 8px 12px 12px; }
+.tray-attached .tray-shell { cursor: default; -webkit-app-region: no-drag; }
+.tray-attached .tray-menu-content { top: auto; bottom: calc(100% + 6px); max-height: min(420px, calc(100vh - 160px)); overflow-y: auto; }
+.tray-attached .et-camera-dropdown, .tray-attached .et-error-detail { position: static; width: 100%; }
 .tray-shell button, .tray-shell input, .tray-shell select, .tray-shell textarea, .tray-shell label, .tray-shell summary, .tray-shell a, .tray-shell [role='button'], .tray-shell [contenteditable='true'] { -webkit-app-region: no-drag; }
 .tray-shell input, .tray-shell textarea, .tray-shell [contenteditable='true'] { user-select: text; cursor: text; }
 .tray-shell input[type='range'] { cursor: pointer; }
@@ -3385,7 +3392,6 @@ html.novi-tray #tray-root { padding: 0 4px; -webkit-app-region: drag; }
 .tray-resize-grip::after { content: ''; position: absolute; top: 50%; left: 1px; width: 2px; height: 20px; max-height: 70%; transform: translateY(-50%); border-radius: 2px; background: var(--border); }
 .tray-resize-grip:hover::after, .tray-resize-grip:focus-visible::after { background: var(--accent); }
 .tray-resize-grip:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
-.tray-shell .tray-row { position: relative; z-index: 2; display: flex; align-items: center; gap: 4px; padding: 0; min-width: 0; }
 .tray-menu { min-width: 0; flex: none; }
 .tray-menu > summary { display: flex; align-items: center; gap: 2px; min-height: 30px; padding: 0 4px; border-radius: 6px; color: var(--muted); cursor: pointer; list-style: none; transition: background 120ms ease, color 120ms ease; }
 .tray-menu > summary::-webkit-details-marker { display: none; }
@@ -3408,7 +3414,7 @@ html.novi-tray #tray-root { padding: 0 4px; -webkit-app-region: drag; }
 @keyframes tray-menu-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: translateY(0); } }
 .tray-shell .chat-mode-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; padding: 0; border: 0; }
 .tray-shell .chat-mode-tabs .mode-tab-btn { justify-content: flex-start; min-width: 0; min-height: 32px; padding: 4px 6px; }
-html.novi-tray .chat-mode-tabs .mode-tab-btn span { display: inline; white-space: normal; text-align: left; }
+.tray-shell .chat-mode-tabs .mode-tab-btn span { display: inline; white-space: normal; text-align: left; }
 .tray-shell .header-model-select-wrapper { min-width: 0; flex-wrap: wrap; gap: 4px; }
 .tray-shell .header-model-picker { flex: 1 1 180px; min-width: 0; max-width: 100%; width: 100%; }
 .tray-shell .header-model-select-wrapper .text-button { padding: 4px 6px; min-height: 30px; font-size: 11px; }
@@ -3431,9 +3437,7 @@ html.novi-tray .chat-mode-tabs .mode-tab-btn span { display: inline; white-space
 .tray-shell .lc-session-bar > .lc-project { flex-shrink: 4; min-width: 3.5em; color: var(--text); font-weight: 600; }
 .tray-shell .lc-session-bar > .lc-model { min-width: 3em; }
 .tray-shell .lc-session-bar > .lc-engine, .tray-shell .lc-session-bar > .lc-readonly-pill { flex: none; }
-.tray-shell .composer-controls .attach-control, .tray-shell .composer-controls .composer-audio-source { display: contents; }
-.tray-shell .composer-controls { position: relative; display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 3px; margin-top: 3px; min-width: 0; }
-.tray-shell .composer-controls > .send-button { flex: 0 0 30px; width: 30px; height: 30px; margin-left: auto; padding: 0; border-radius: 6px; }
+.tray-shell .composer-input > .send-button { flex: 0 0 30px; width: 30px; height: 30px; padding: 0; border-radius: 6px; }
 .tray-shell .send-button > svg { width: 16px; height: 16px; }
 .tray-shell .send-button.stop > svg { width: 12px; height: 12px; }
 .tray-shell .send-button:hover:not(:disabled) { filter: brightness(1.1); }
@@ -3443,21 +3447,13 @@ html.novi-tray .chat-mode-tabs .mode-tab-btn span { display: inline; white-space
 .tray-audio-menu > summary { width: 30px; height: 30px; justify-content: center; padding: 0; }
 .tray-audio-input, .tray-shell .composer-engine { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 11px; color: var(--muted); }
 .tray-shell .composer-source, .tray-shell .composer-engine select { flex: 1; min-width: 0; margin-left: auto; }
-.tray-shell .composer-diagram { order: 1; }
 .tray-shell .attachment-tray { margin: 4px; gap: 6px; }
 @media (max-width: 479px) {
   .tray-shell .lc-session-bar > .lc-engine, .tray-shell .lc-readonly-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .tray-shell .composer-diagram { flex-basis: 100%; }
 }
 @media (max-width: 540px) {
   .tray-shell .practice-coach { flex-wrap: wrap; }
   .tray-shell .practice-actions { flex-wrap: wrap; margin-left: auto; }
-}
-@media (min-width: 600px) {
-  .tray-shell .composer:not(.with-diagram) { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 6px; }
-  .tray-shell .composer:not(.with-diagram) .composer-controls { margin-top: 0; }
-  .tray-shell .composer:not(.with-diagram) .attachment-tray { grid-column: 1 / -1; }
-  .tray-shell .composer:not(.with-diagram) .tray-audio-menu .tray-menu-content { left: auto; width: 280px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .tray-menu-content { animation: none; }
@@ -3482,7 +3478,6 @@ html.novi-tray .chat-mode-tabs .mode-tab-btn span { display: inline; white-space
 .debug-error strong { color: var(--danger); }
 .debug-warning strong { color: var(--warning); }
 .tray-status { color: var(--muted); font-size: 11px; }
-.tray-reopen { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; font-size: 11px; }
 .chat-header .header-title { max-width: 100%; }
 
 .transparent-mode .tray-shell {

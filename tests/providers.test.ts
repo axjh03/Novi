@@ -11,6 +11,7 @@ import { Storage } from '../src/main/services/storage.ts';
 import { newConnection, PROVIDERS } from '../src/shared/providers.ts';
 import type { ProviderConnection, ProviderKind } from '../src/shared/types';
 import { providerFetch } from '../src/main/services/providerTransport.ts';
+import { debug } from '../src/main/services/debug.ts';
 
 const messages = [{ id: 'm1', role: 'user' as const, content: 'Describe', createdAt: 1, images: [{ id: 'i1', name: 'image.png', mimeType: 'image/png' }] }, { id: 'm2', role: 'assistant' as const, content: 'Earlier reply', createdAt: 2 }, { id: 'm3', role: 'user' as const, content: 'Continue', createdAt: 3 }];
 const request = { messages, signal: new AbortController().signal, imageData: () => 'data:image/png;base64,TEST', onDelta: (_text: string) => {} };
@@ -62,6 +63,53 @@ test('provider errors distinguish invalid keys from permission failures without 
   reason = ''; status = 401;
   await assert.rejects(() => providerFetch(`${config.baseUrl}/models/chat:generateContent`, config, 'private-key', new AbortController().signal, {}), /model request failed \(HTTP 401\).*key was rejected/);
   await assert.rejects(() => providerFetch(`${config.baseUrl}/models`, { ...config, managed: true }, 'private-key', new AbortController().signal), /HTTP 401\): Your API key was rejected by the provider\. This key comes from your Novi account, so ask your Novi admin/);
+});
+
+test('Gemini generation 404 directs users to model selection without exposing provider response details', async t => {
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ error: {
+    status: 'NOT_FOUND', message: 'private-provider-secret private-key',
+  } }, { status: 404 }));
+  for (const stream of [true, false]) {
+    const config = { ...newConnection('gemini').ai, model: 'gemini-unavailable', stream };
+    await assert.rejects(() => AIProviderFactory.create(config, 'private-key').sendMessage(request), error => {
+      assert(error instanceof Error);
+      assert.match(error.message, /Google \(Gemini\) model request failed \(HTTP 404\)/);
+      assert.match(error.message, /Gemini model "gemini-unavailable"/);
+      assert.match(error.message, /In session setup, refresh the model list and choose another model/);
+      assert.match(error.message, /If every model fails, check this key’s project access in Google AI Studio/);
+      assert.doesNotMatch(error.message, /Check Settings|private-provider-secret|private-key/);
+      return true;
+    });
+  }
+  await assert.rejects(() => listModels(newConnection('gemini').ai, 'private-key'), /model list failed \(HTTP 404\).*API endpoint/);
+  await assert.rejects(() => AIProviderFactory.create({ ...newConnection('gemini').ai, managed: true }, 'private-key').sendMessage(request), /If every model fails, ask your Novi admin/);
+});
+
+test('provider diagnostics identify the failing route and Google reason without logging keys or content', async t => {
+  debug.setEnabled(true);
+  t.after(() => debug.reset());
+  let reason = 'NOT_FOUND';
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ error: {
+    status: 'NOT_FOUND', details: [{ reason }], message: 'PRIVATE_RESPONSE private/key+value',
+  } }, { status: 404 }));
+  const config = { ...newConnection('gemini').ai, model: 'gemini-chat' };
+  const url = `${config.baseUrl}/models/gemini-chat:streamGenerateContent?alt=sse&key=private%2Fkey%2Bvalue`;
+  for (const code of ['NOT_FOUND', 'API_KEY_SERVICE_BLOCKED', 'private/key+value']) {
+    reason = code;
+    await assert.rejects(() => debug.run('test-connection', () =>
+      providerFetch(url, config, 'private/key+value', new AbortController().signal, { contents: [{ parts: [{ text: 'PRIVATE_PROMPT' }] }] })),
+    code === 'API_KEY_SERVICE_BLOCKED' ? /API restrictions/ : /HTTP 404/);
+  }
+  const { events } = debug.snapshot();
+  const connection = events.find(event => event.stage === 'Connecting to provider')!;
+  assert.deepEqual(connection.details, {
+    provider: 'gemini', host: 'generativelanguage.googleapis.com',
+    path: '/v1beta/models/gemini-chat:streamGenerateContent', method: 'POST',
+  });
+  assert.deepEqual(events.filter(event => event.stage === 'Provider rejected request').map(event => event.details), [
+    { status: 404, code: 'NOT_FOUND' }, { status: 404, code: 'API_KEY_SERVICE_BLOCKED' }, { status: 404, code: '[REDACTED]' },
+  ]);
+  assert.doesNotMatch(JSON.stringify(events), /PRIVATE_RESPONSE|PRIVATE_PROMPT|private\/key|private%2Fkey|alt=sse|key=/);
 });
 
 test('native providers send correct auth, images and history; streaming and JSON agree', async () => {
@@ -161,9 +209,12 @@ test('connection check requires a listed model and a successful reply without se
   await assert.rejects(() => testConnection(config, 'test-key'), /key was rejected/);
   status = 429;
   await assert.rejects(() => testConnection(config, 'test-key'), /rate limit/);
+  status = 404;
+  await assert.rejects(() => testConnection(config, 'test-key'), /choose another model/);
+  assert.equal(calls, 4, 'a listed model that rejects generation must fail the check without switching models');
   listed = false;
   await assert.rejects(() => testConnection(config, 'test-key'), /no longer available/);
-  assert.equal(calls, 3, 'an unlisted model is never called');
+  assert.equal(calls, 4, 'an unlisted model is never called');
   await assert.rejects(() => testConnection({ ...config, model: '' }, 'test-key'), /Choose a model/);
 });
 

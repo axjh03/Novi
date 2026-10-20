@@ -1,0 +1,6 @@
+codex resume 01a15613-ac06-7fb2-80cb-dd76a3d6dee
+
+
+A smart auto mode, which sees where to place the UI, so use don't have to resize and replace.. A (NON-AI) algorith checks if a lot of pixel change happened >25% then ss gets takesn, then is resized and relocated at desired.. where user can see
+
+

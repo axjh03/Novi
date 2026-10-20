@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Award, Brain, Code2, FolderCode, Lock, Menu, MessageSquare, Network, PanelTop, Phone, Video, X, type LucideIcon } from 'lucide-react';
+import { Award, Brain, Code2, ExternalLink, FolderCode, Lock, Menu, MessageSquare, Network, PanelBottom, Phone, Video, X, type LucideIcon } from 'lucide-react';
 import type { AppMode, ModelOption, Snapshot } from '../../../shared/types';
 import { Sidebar } from '../components/chat/Sidebar';
 import { Composer } from '../components/chat/Composer';
@@ -32,14 +32,14 @@ const MODE_ICONS: Record<AppMode, LucideIcon> = {
   normal: MessageSquare, recruiter: Phone, coding: Code2, technical: Video, 'system-design': Network, behavioral: Award, 'local-coding': FolderCode,
 };
 const WELCOME_MESSAGES = [
-  (name: string) => [`Hello, ${name}. What are we working on today?`, 'Ask a question, share an image, or choose a focused mode from the tray above.'],
-  (name: string) => [`Good to see you, ${name}. What’s on your mind?`, 'Start with a question in the tray and we’ll take it from there.'],
-  (name: string) => [`Ready when you are, ${name}. What should we tackle?`, 'Use the tray above to ask, share, or switch modes.'],
+  (name: string) => [`Hello, ${name}. What are we working on today?`, 'Ask a question, share an image, or choose a focused mode from the controls below.'],
+  (name: string) => [`Good to see you, ${name}. What’s on your mind?`, 'Start with a question in the message box and we’ll take it from there.'],
+  (name: string) => [`Ready when you are, ${name}. What should we tackle?`, 'Use the message box to ask, share, or switch modes.'],
   (name: string) => [`Welcome back, ${name}. What are we figuring out today?`, 'Your next conversation can start with a question, an image, or a focused mode.'],
-  (name: string) => [`Hey ${name}, what’s first on your list?`, 'Drop it into the tray above and let’s get started.'],
-  (name: string) => [`Let’s make progress, ${name}. Where should we start?`, 'Ask in the tray above, share an image, or pick a mode that fits.'],
+  (name: string) => [`Hey ${name}, what’s first on your list?`, 'Drop it into the controls and let’s get started.'],
+  (name: string) => [`Let’s make progress, ${name}. Where should we start?`, 'Ask in the message box, share an image, or pick a mode that fits.'],
   (name: string) => [`What would you like to explore today, ${name}?`, 'A question, an image, or a focused mode is a good place to begin.'],
-  (name: string) => [`Your next idea starts here, ${name}. What are you working on?`, 'Open the tray above to start chatting or choose a focused mode.'],
+  (name: string) => [`Your next idea starts here, ${name}. What are you working on?`, 'Use the message box to start chatting or choose a focused mode.'],
 ];
 
 export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSaved: (state: Snapshot) => void; onSignOut: () => void }) {
@@ -51,8 +51,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const [composerKey, setComposerKey] = useState(0);
   const [welcomeIndex] = useState(() => Math.floor(Math.random() * WELCOME_MESSAGES.length));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  // The input controls live in a floating tray window; this window docks on the right as the output panel.
-  const [trayOpen, setTrayOpen] = useState(true), [trayKey, setTrayKey] = useState(0);
+  const [trayDetached, setTrayDetached] = useState(false);
   useEffect(() => {
     void unwrap(window.novi.setWorkspaceDocked(true)).catch(console.error);
     return () => { void unwrap(window.novi.setWorkspaceDocked(false)).catch(console.error); };
@@ -92,9 +91,8 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const local = useLocalCodingProject(localBinding, chat.busy, chat.selected?.messages, chat.setError);
   useEffect(() => window.novi.onGlobalAction((action) => {
     if (action.type !== 'review-action' || typeof action.payload?.text !== 'string') return;
-    if (!trayOpen) { setTrayKey((key) => key + 1); setTrayOpen(true); }
     setPrefill({ id: ++prefillId.current, text: action.payload.text });
-  }), [trayOpen]);
+  }), []);
   const openLocalFile = useCallback((result: LocalCodingMessage, fileId: string) => {
     if (!result.resultingVersionId) return;
     void unwrap(window.novi.openReview({ projectId: result.projectId, fromVersionId: result.baseVersionId, toVersionId: result.resultingVersionId, fileId })).catch((error) => chat.setError(errorText(error)));
@@ -110,7 +108,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     chat.setError('');
     // A fresh conversation, so the practice answer is easy to find and to remove.
     chat.setSelectedId(null);
-    if (!trayOpen) { setTrayKey((key) => key + 1); setTrayOpen(true); }
     practice.start();
   }
   async function removePractice() {
@@ -246,17 +243,8 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             <div className="header-title-area">
               <span className="header-title">{chat.selected?.title || 'A new conversation'}</span>
             </div>
-            {!trayOpen && <button type="button" className="text-button tray-reopen" onClick={() => { setTrayKey((key) => key + 1); setTrayOpen(true); }}><PanelTop size={14} />Show tray</button>}
             <div className="session-controls"><span title="Temporary session context">{state.contextSession?.isEmpty ? 'Empty session' : state.contextSession?.summaryReady ? 'Ready' : state.contextSession?.status === 'error' ? 'Context error' : 'Loading context…'}</span><button className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button></div>
           </header>
-          {/* Errors normally show in the tray; keep them visible here while it is closed. */}
-          {!trayOpen && chat.error && (
-            <div className="error dismissible" role="alert">
-              {chat.error}
-              <button className="icon-button" onClick={() => chat.setError('')} aria-label="Dismiss error"><X size={14} /></button>
-            </div>
-          )}
-
           <DebugPanel compact conversationId={chat.selectedId} />
           {!readyDismissed && !sentInSession && !practice.active && !localMode && (
             <ReadyCard transparent={transparent} listenKey={listenKey} snapshotKey={config.screenshotShortcut || 'Alt+3'}
@@ -275,7 +263,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
           ) : chat.selected ? (
             <div className="conversation-scroll" ref={scroll} onScroll={() => { const el = scroll.current!; atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }}>
               <div className="messages">
-                {localMode && localBinding && !chat.selected.messages.length && <p className="lc-empty">Ask about {localBinding.name} in the tray. Answers explain the code; changes come back as proposals you can open, compare and copy. Your files are never changed.</p>}
+                {localMode && localBinding && !chat.selected.messages.length && <p className="lc-empty">Ask about {localBinding.name} in the message box. Answers explain the code; changes come back as proposals you can open, compare and copy. Your files are never changed.</p>}
                 {chat.selected.messages.map((message, index) => (
                   <Message key={message.id} message={message} displayName={config.displayName} onOpenFile={openLocalFile}
                     generating={chat.busy && chat.activeId === chat.selectedId && index === chat.selected!.messages.length - 1} />
@@ -288,12 +276,18 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
               <p>{welcome[1]}</p>
             </div>
           )}
-        </main>
-      )}
-
-      {!settings && trayOpen && (
-        <TrayPortal key={trayKey} onClosed={() => { practice.cancel(); setTrayOpen(false); }}>
-          <div className="tray-row">
+        <TrayPortal detached={trayDetached} onClosed={() => setTrayDetached(false)}>
+          {practice.active && <PracticeCoach state={practice.state} voiced={practice.voiced} listenKey={listenKey}
+            onTypeInstead={practice.typeInstead} onRemove={() => void removePractice()} onEnd={practice.cancel} />}
+          {syncingModel && <div className="tray-status" role="status">Saving model selection…</div>}
+          {chat.error && (
+            <div className="error dismissible" role="alert">
+              {chat.error}
+              <button className="icon-button" onClick={() => chat.setError('')} aria-label="Dismiss error"><X size={14} /></button>
+            </div>
+          )}
+          <Composer
+            toolbar={<>
             <TrayMenu className="tray-mode-menu" label="Change conversation mode" title={<ModeIcon size={14} />}>
             <nav className="chat-mode-tabs" aria-label="Conversation mode">
               {SESSION_MODES.map(({ id: mode, name: label }) => {
@@ -380,17 +374,13 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
                 onSendSticky={['coding', 'system-design', 'local-coding'].includes(appMode) ? et.sendStickyToOverlay : undefined}
               />
             </TrayMenu>
-          </div>
-          {practice.active && <PracticeCoach state={practice.state} voiced={practice.voiced} listenKey={listenKey}
-            onTypeInstead={practice.typeInstead} onRemove={() => void removePractice()} onEnd={practice.cancel} />}
-          {syncingModel && <div className="tray-status" role="status">Saving model selection…</div>}
-          {chat.error && (
-            <div className="error dismissible" role="alert">
-              {chat.error}
-              <button className="icon-button" onClick={() => chat.setError('')} aria-label="Dismiss error"><X size={14} /></button>
-            </div>
-          )}
-          <Composer
+            <button type="button" className="composer-quick-btn tray-dock-toggle"
+              aria-label={trayDetached ? 'Attach controls' : 'Detach controls'}
+              title={trayDetached ? 'Attach controls to chat' : 'Detach controls into a floating window'}
+              onClick={() => setTrayDetached(value => !value)}>
+              {trayDetached ? <PanelBottom size={16} /> : <ExternalLink size={16} />}
+            </button>
+            </>}
             key={composerKey}
             speechModelId={config.localASRModelId}
             busy={chat.busy || contextBusy || ending || syncingModel}
@@ -405,6 +395,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             placeholder={localMode ? localBinding && local.project ? `Ask about ${localBinding.name}. Next request uses ${local.project.versions.find((version) => version.id === local.project!.selectedVersionId)?.label ?? 'the selected version'}` : 'Start Local Coding in the panel first' : undefined}
           />
         </TrayPortal>
+        </main>
       )}
 
       {/* Every way to end a session asks first; focus starts on Keep session and Escape keeps it. */}

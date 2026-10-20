@@ -1,21 +1,34 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { attachPrivateCursor, useStealthState } from '../hooks/useStealth';
 
 type TrayWindow = Window & typeof globalThis;
 
 /**
- * Renders its children in the floating session tray: a second native window opened from this one.
- * The tray shares this page's process, so its controls keep using this window's state and IPC.
+ * Moves one portal between the chat and a native window without remounting its controls.
+ * Keeping the portal target preserves drafts, attachments, and active audio capture.
  */
-export function TrayPortal({ children, onClosed }: { children: ReactNode; onClosed: () => void }) {
-  const [tray, setTray] = useState<{ window: TrayWindow; root: HTMLElement } | null>(null);
+export function TrayPortal({ children, detached = false, onClosed }: { children: ReactNode; detached?: boolean; onClosed: () => void }) {
+  const attached = useRef<HTMLDivElement>(null);
+  const [root] = useState(() => {
+    const element = document.createElement('div');
+    element.id = 'tray-root';
+    return element;
+  });
+  const [tray, setTray] = useState<TrayWindow | null>(null);
   const closedRef = useRef(onClosed);
   closedRef.current = onClosed;
   // The title bar owns this window's stealth classes and cursor; the tray only follows the state.
   const [{ transparent, clickThrough }] = useStealthState();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    // Menus register dismissal on their current document; close them before moving.
+    root.querySelectorAll<HTMLDetailsElement>('details[open]').forEach(menu => { menu.open = false; });
+    if (!detached) {
+      attached.current?.append(root);
+      setTray(null);
+      return;
+    }
     // Main allows only this exact name pattern (see src/main/services/workspace.ts).
     const opened = window.open('about:blank', `novi-tray-${crypto.randomUUID()}`) as TrayWindow | null;
     if (!opened) { closedRef.current(); return; }
@@ -23,8 +36,6 @@ export function TrayPortal({ children, onClosed }: { children: ReactNode; onClos
     const doc = trayWindow.document;
     let closing = false, reported = false, lastHeight = 0, timer = 0;
     doc.title = 'Novi';
-    const root = doc.createElement('div');
-    root.id = 'tray-root';
     doc.body.append(root);
 
     // The tray inherits this page's origin, base URL and CSP, so copied styles load as they do here.
@@ -92,10 +103,12 @@ export function TrayPortal({ children, onClosed }: { children: ReactNode; onClos
     };
     trayWindow.addEventListener('keydown', forwardKey);
 
-    // Closed from outside (for example Alt+F4): let the page offer to reopen it.
+    // Closing the floating window returns the live controls to the chat.
     const reportClosed = () => {
       if (closing || reported) return;
       reported = true;
+      attached.current?.append(root);
+      setTray(null);
       closedRef.current();
     };
     trayWindow.addEventListener('pagehide', reportClosed);
@@ -103,7 +116,7 @@ export function TrayPortal({ children, onClosed }: { children: ReactNode; onClos
     const closeTray = () => { closing = true; if (!trayWindow.closed) trayWindow.close(); };
     window.addEventListener('pagehide', closeTray);
 
-    setTray({ window: trayWindow, root });
+    setTray(trayWindow);
     schedule();
     return () => {
       closing = true;
@@ -114,20 +127,23 @@ export function TrayPortal({ children, onClosed }: { children: ReactNode; onClos
       contentObserver.disconnect();
       resizeObserver.disconnect();
       window.removeEventListener('pagehide', closeTray);
+      attached.current?.append(root);
       closeTray();
     };
-  }, []);
+  }, [detached, root]);
 
   useEffect(() => {
     if (!tray || !transparent || clickThrough) return;
-    return attachPrivateCursor(tray.window);
+    return attachPrivateCursor(tray);
   }, [tray, transparent, clickThrough]);
 
-  return tray ? createPortal(<>
-    <section className="tray-shell" aria-label="Novi tray">{children}</section>
-    <TrayResizeGrip side="left" view={tray.window} />
-    <TrayResizeGrip side="right" view={tray.window} />
-  </>, tray.root) : null;
+  return <>
+    <div ref={attached} className="composer-area tray-attached" hidden={detached} />
+    {createPortal(<>
+      <section className="tray-shell" aria-label="Novi controls">{children}</section>
+      {tray && <><TrayResizeGrip side="left" view={tray} /><TrayResizeGrip side="right" view={tray} /></>}
+    </>, root)}
+  </>;
 }
 
 function TrayResizeGrip({ side, view }: { side: 'left' | 'right'; view: TrayWindow }) {
