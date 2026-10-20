@@ -6,6 +6,20 @@ import { unwrap } from '../services/api';
 import { RemoteCompanionModal } from './RemoteCompanionModal';
 import logo from '../assets/logo.svg';
 import { PALETTES, MIN_READING_SIZE, MAX_READING_SIZE } from '../../../shared/appearance';
+import type { CloseRequest } from '../../../shared/types';
+
+/**
+ * What closing, quitting or signing out loses, shown in each of their confirmations.
+ *
+ * @param session true while a session is running: ending it stops a streaming answer and
+ *   listening, and the unsent draft is not kept.
+ * @returns one or two sentences for the confirmation text.
+ */
+export function endingWarning(session: boolean): string {
+  return session
+    ? 'This ends your session. Any answer still being written stops, listening turns off, and text you haven’t sent is lost. Your conversations stay saved.'
+    : 'Anything you haven’t sent or saved is lost. Your conversations stay saved.';
+}
 
 export function TitleBar({ sessionActive = false }: { sessionActive?: boolean }) {
   const { transparent, clickThrough, clickThroughShortcut, transparentShortcut, toggleTransparent } = useStealth();
@@ -14,6 +28,19 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
   const { transparentOpacity, setTransparentOpacity, paletteId, setPalette, smartPaletteEnabled, setSmartPaletteEnabled, smartPaletteStatus, readingSize, changeReadingSize } = useAppMode();
   const [maximized, setMaximized] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
+  // Set when the main process asks before closing (X, Alt+F4, Ctrl+W or Cmd+W, the taskbar); null when no question is open.
+  const [closeRequest, setCloseRequest] = useState<CloseRequest | null>(null);
+  const [closing, setClosing] = useState(false);
+
+  // The title bar is on every screen (including the error screen), so it is where closing is confirmed.
+  useEffect(() => window.novi.onCloseRequested(setCloseRequest), []);
+
+  /** The user chose Close: the main process closes the window, so this page usually never sees a reply. */
+  async function confirmClose() {
+    setClosing(true);
+    try { await unwrap(window.novi.confirmClose()); }
+    catch (error) { console.error(error); setClosing(false); }
+  }
 
   useEffect(() => {
     // Docking for a session unmaximizes the window, so re-check whenever the window changes size.
@@ -94,6 +121,15 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
       </div>
     </header>
     {showQRModal && <RemoteCompanionModal onClose={() => setShowQRModal(false)} />}
+    {closeRequest && <div className="session-confirm" role="alertdialog" aria-modal="true" aria-labelledby="close-confirm-title" aria-describedby="close-confirm-text"
+      onKeyDown={(event) => { if (event.key === 'Escape' && !closing) setCloseRequest(null); }}>
+      <div>
+        <h2 id="close-confirm-title">Close Novi?</h2>
+        <p id="close-confirm-text">{endingWarning(closeRequest.session)}</p>
+        <button type="button" className="text-button" autoFocus disabled={closing} onClick={() => setCloseRequest(null)}>Keep Novi open</button>
+        <button type="button" className="danger-button" disabled={closing} onClick={() => void confirmClose()}>{closing ? 'Closing…' : 'Close Novi'}</button>
+      </div>
+    </div>}
   </>
   );
 }

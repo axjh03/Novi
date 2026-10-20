@@ -32,7 +32,7 @@ $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [En
 
 For Windows Command Prompt, reopen the terminal app, or use `set "PATH=%APPDATA%\Novi\bin;%PATH%"` for that shell. Novi cannot refresh the environment of an existing parent shell. **Check again** checks installation; it does not reload your terminal. Automatic Unix profile setup follows your configured shell; a different shell may need its own PATH setup.
 
-The launcher requires no separate Node.js installation. Use **Update terminal command** if you move Novi or its AppImage. With a built development checkout, use `npx electron . start` and `npx electron . stop`. Commands address the instance using the same user-data directory (`NOVI_DATA_DIR`, if set). Stopping an already stopped app does not open a window. **Quit Novi** is in **Settings › General › Data & account**; quitting stops active work, and unsent text is not saved.
+The launcher requires no separate Node.js installation. Use **Update terminal command** if you move Novi or its AppImage. With a built development checkout, use `npx electron . start` and `npx electron . stop`. Commands address the instance using the same user-data directory (`NOVI_DATA_DIR`, if set). Stopping an already stopped app does not open a window. **Quit Novi** is in **Settings › General › Data & account**; quitting stops active work, and unsent text is not saved. While you are signed in, Novi asks before closing its window (the close button, Alt+F4, Ctrl+W or Cmd+W, or the taskbar), quitting from Settings, or signing out. `novi stop`, the Quit shortcut (Cmd+Q on macOS, Ctrl+Q on Linux), updates and shutting down the computer quit without asking.
 
 ## Run
 

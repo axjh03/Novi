@@ -1695,8 +1695,10 @@ html.overlay-window #root {
 
 
 .session-controls { display: flex; gap: 12px; align-items: center; font-size: 12px; }
-.session-confirm { position: fixed; inset: 0; z-index: 10000; background: #0008; display: grid; place-items: center; }
-.session-confirm > div { max-width: 460px; padding: 28px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
+/* Auto margins center the dialog. In a window shorter than the dialog (the main window can shrink to
+   213 by 150 px) it starts at the top and the overlay scrolls, so its buttons can still be clicked. */
+.session-confirm { position: fixed; inset: 0; z-index: 10000; background: #0008; display: grid; overflow-y: auto; }
+.session-confirm > div { margin: auto; max-width: 460px; padding: 28px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
 
 /* ==========================================================================
    Desktop Application Shell & Frameless TitleBar

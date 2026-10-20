@@ -1,5 +1,14 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import type { AccessStatus, ChatEvent, CodeViewerBlock, NoviAPI } from '../shared/types';
+import type { AccessStatus, ChatEvent, CloseRequest, CodeViewerBlock, NoviAPI } from '../shared/types';
+
+// How many parts of the page currently show the close confirmation (see onCloseRequested below).
+let closeListeners = 0;
+// The main process asks before the main window closes. If nothing on the page can show that
+// question (for example while the page is still starting), close right away instead, so Novi can
+// never get stuck open. This listener is added first, so it runs before any page listener.
+ipcRenderer.on('close-requested', () => {
+  if (!closeListeners) void ipcRenderer.invoke('confirm-close');
+});
 
 const api: NoviAPI = {
   getDebugState: () => ipcRenderer.invoke('debug-state'),
@@ -16,6 +25,20 @@ const api: NoviAPI = {
   uninstallEngine: engine => ipcRenderer.invoke('local-coding-uninstall', { engine }),
   checkEngineLogin: input => ipcRenderer.invoke('local-coding-check-login', input),
   quitApp: () => ipcRenderer.invoke('quit-app'),
+  confirmClose: () => ipcRenderer.invoke('confirm-close'),
+  onCloseRequested: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, request: CloseRequest) => callback(request);
+    ipcRenderer.on('close-requested', listener);
+    closeListeners++;
+    // Count each subscription once, even if its cleanup runs twice.
+    let subscribed = true;
+    return () => {
+      if (!subscribed) return;
+      subscribed = false;
+      closeListeners--;
+      ipcRenderer.removeListener('close-requested', listener);
+    };
+  },
   startInterview: input => ipcRenderer.invoke('interview-start', input),
   stopInterview: () => ipcRenderer.invoke('interview-stop'),
   interviewFrame: frame => ipcRenderer.invoke('interview-frame', frame),

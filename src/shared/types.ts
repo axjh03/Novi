@@ -174,6 +174,13 @@ export interface StealthState {
   transparentShortcut: string | null;
 }
 
+/**
+ * Sent to the main window's page when the window is asked to close while signed in, so the page
+ * asks the user first (see CloseGuard in src/main/services/closeGuard.ts).
+ * `session` is true while a session is running, because closing then ends it.
+ */
+export interface CloseRequest { session: boolean }
+
 export interface AppMaskSettings { enabled: boolean; name: string; icon: string }
 export interface AppCommandStatus {
   directory: string;
@@ -196,6 +203,13 @@ export interface NoviAPI {
   getAppCommandStatus(): Promise<Result<AppCommandStatus>>;
   installAppCommand(): Promise<Result<AppCommandStatus>>;
   quitApp(): Promise<Result<void>>;
+  /** Closes the main window after the user chose Close in Novi's close confirmation. */
+  confirmClose(): Promise<Result<void>>;
+  /**
+   * Calls `callback` when the main window is asked to close and Novi should ask the user first.
+   * Returns a function that stops listening. While nothing listens, the window closes right away.
+   */
+  onCloseRequested(callback: (request: CloseRequest) => void): () => void;
   startInterview(input: InterviewStart): Promise<Result<InterviewSession>>;
   stopInterview(): Promise<Result<InterviewSession | null>>;
   interviewFrame(frame: InterviewFrame): Promise<Result<boolean>>;

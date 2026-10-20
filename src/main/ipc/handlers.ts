@@ -32,6 +32,7 @@ import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import type { AppMask } from '../services/appMask';
 import { AppCommandService } from '../services/appCommand';
+import { CloseGuard } from '../services/closeGuard';
 import { debug } from '../services/debug';
 
 export function registerIPC(
@@ -138,8 +139,8 @@ export function registerIPC(
         const isTrusted = baseSender === baseTarget;
         if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || !isTrusted) throw new UserError('Untrusted application request.');
         if (channel === 'send' && value && typeof value === 'object' && 'conversationId' in value && typeof value.conversationId === 'string' && /^[a-zA-Z0-9-]{1,100}$/.test(value.conversationId)) debug.identify({ conversationId: value.conversationId });
-        // Device controls and quitting must work even if account storage or the network is unavailable.
-        if (['app-mask-get', 'app-mask-save', 'app-mask-import-icon', 'app-command-status', 'app-command-install', 'quit-app', 'debug-state', 'debug-enable', 'debug-clear'].includes(channel)) {
+        // Device controls, quitting and closing must work even if account storage or the network is unavailable.
+        if (['app-mask-get', 'app-mask-save', 'app-mask-import-icon', 'app-command-status', 'app-command-install', 'quit-app', 'confirm-close', 'debug-state', 'debug-enable', 'debug-clear'].includes(channel)) {
           return { ok: true, value: await callback(value, event, timing) };
         }
         // Small, bounded PCM frames belong to a previously authorized interview.
@@ -906,6 +907,20 @@ export function registerIPC(
     services.overlay.closeOverlay();
     services.stealth.cleanup();
   });
+  // Asks before the main window closes while signed in (see CloseGuard). Once Novi is quitting,
+  // windows close without asking: Quit Novi already asked in Settings, and `novi stop`, updates
+  // and system shutdown must never wait for an answer.
+  const closeGuard = new CloseGuard(() => ({
+    signedIn: Boolean(services?.auth.signedIn),
+    quitting,
+    session: Boolean(services?.context.session),
+  }));
+  // The user chose Close in the confirmation (TitleBar). Only the main window asks, so only it may confirm.
+  handle('confirm-close', (_value, event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window || window !== getMainWindow()) throw new UserError('Only the main Novi window asks before closing.');
+    closeGuard.confirm(window);
+  });
   let checkingSession = false;
   // Ticks every 5 s: checks in every 20 s while connected and retries each tick during an outage.
   const heartbeat = setInterval(async () => {
@@ -923,9 +938,13 @@ export function registerIPC(
   app.on('browser-window-created', (_event, window) => {
     if (services?.stealth.getState().transparent) window.setContentProtection(true);
     window.on('blur', () => services?.stealth.keepAbove());
+    closeGuard.watch(window);
     // Only closing the main window ends the session; the tray, code viewer and overlay can close on their own.
-    window.on('close', () => {
-      if (window === getMainWindow()) void endContext().catch(() => { });
+    window.on('close', (event) => {
+      if (window !== getMainWindow()) return;
+      // While signed in, the page asks first; this close is cancelled and runs again once the user confirms.
+      if (!closeGuard.allow(window)) { event.preventDefault(); return; }
+      void endContext().catch(() => { });
     });
   });
   return { attachMainWindow: (window: BrowserWindow) => workspace.attachMain(window) };

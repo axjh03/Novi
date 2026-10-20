@@ -9,6 +9,7 @@ import { SettingsAppPrivacy } from '../components/SettingsAppPrivacy';
 import { DebugPanel } from '../components/DebugPanel';
 import { LocalAISetup } from '../components/LocalAISetup';
 import { EngineReadinessList } from '../components/LocalCodingSetup';
+import { endingWarning } from '../components/TitleBar';
 import { errorText, unwrap } from '../services/api';
 
 // Every hotkey is recorded from the keys pressed; each must be different.
@@ -42,6 +43,8 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
   });
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(false), [confirm, setConfirm] = useState(false);
   const [dirty, setDirty] = useState(false), [leaving, setLeaving] = useState(false), [accountError, setAccountError] = useState('');
+  // Which account action is waiting for confirmation: both end the session and drop unsent work.
+  const [accountConfirm, setAccountConfirm] = useState<'sign-out' | 'quit' | null>(null);
 
   function change(next: SettingsInput) { setValue(next); setSaved(false); setDirty(true); }
   function shortcutField({ key, label, defaultValue, description }: typeof shortcuts[number] & { description?: string }) {
@@ -206,13 +209,25 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                   </div>
                 )}
                 <div className="settings-account-actions">
-                  <button className="secondary" disabled={busy} onClick={onSignOut}>
+                  <button className="secondary" disabled={busy} onClick={() => setAccountConfirm('sign-out')}>
                     <LogOut size={16} />Sign out
                   </button>
-                  <button className="secondary" type="button" disabled={busy} onClick={() => {
-                    void unwrap(window.novi.quitApp()).catch(err => setAccountError(errorText(err)));
-                  }}><Power size={16} />Quit Novi</button>
+                  <button className="secondary" type="button" disabled={busy} onClick={() => setAccountConfirm('quit')}><Power size={16} />Quit Novi</button>
                 </div>
+                {accountConfirm && (
+                  <div className="confirmation" role="alert">
+                    <p>{accountConfirm === 'quit' ? 'Quit Novi?' : 'Sign out?'} {endingWarning(Boolean(state.contextSession))}</p>
+                    <div>
+                      <button className="text-button" autoFocus onClick={() => setAccountConfirm(null)}>Cancel</button>
+                      {accountConfirm === 'quit'
+                        ? <button className="danger-button" disabled={busy} onClick={() => {
+                          setAccountConfirm(null);
+                          void unwrap(window.novi.quitApp()).catch(err => setAccountError(errorText(err)));
+                        }}>Quit Novi</button>
+                        : <button className="danger-button" disabled={busy} onClick={() => { setAccountConfirm(null); onSignOut(); }}>Sign out</button>}
+                    </div>
+                  </div>
+                )}
                 {accountError && <p className="error" role="alert">{accountError}</p>}
               </div>
             </section>
