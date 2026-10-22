@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Circle, Loader2, X } from 'lucide-react';
+import { ArrowRight, AudioLines, Check, Cpu, HardDrive, Loader2, Mic, Monitor, ShieldCheck, Volume2, X } from 'lucide-react';
 import type { Snapshot } from '../../../shared/types';
 import { activeConnection } from '../../../shared/providers';
 import { selectedSpeechModel, type LocalAISetup } from '../../../shared/localAI';
@@ -18,6 +18,7 @@ const PROMPTS: Record<ReadinessCheck, string> = {
   system: 'Play a video or music now. Testing system audio for 4 seconds; Novi also plays a short chime.',
   screen: 'If asked, choose the screen to share.',
 };
+const CHECK_ICONS = { storage: HardDrive, ai: Cpu, speech: AudioLines, microphone: Mic, system: Volume2, screen: Monitor };
 
 /**
  * Plays a soft three-note chime (C, E, G) through the speakers during the system audio test.
@@ -205,12 +206,23 @@ export function SessionPreflight({ state, onContinue, onChooseModel, onSettings 
   const ranAt = readiness?.ranAt && time(readiness.ranAt);
   const failed = READINESS_CHECKS.filter(({ id }) => readiness?.results[id]?.ok === false).length;
   const unchecked = READINESS_CHECKS.filter(({ id }) => !readiness?.results[id]).length;
+  const checked = READINESS_CHECKS.length - unchecked;
+  const activeIndex = READINESS_CHECKS.findIndex(({ id }) => id === running);
   const continueStatus = !storageReady ? readiness?.results.storage ? 'App storage failed: Novi can’t save to your user folder. Fix it before continuing.' : error ? 'Check App storage to continue.' : 'Checking app storage…'
     : ready ? `Everything passed${ranAt ? ` · checked at ${ranAt}` : ''}.`
     : [failed ? `${failed} failed` : '', unchecked ? `${unchecked} not checked` : ''].filter(Boolean).join(' · ');
 
-  return <main className="session-preflight get-ready">
-    <h1>Get ready</h1>
+  return <main className={`session-preflight get-ready ${ready ? 'is-ready' : ''}`}>
+    <header className="get-ready-hero">
+      <div><span className="setup-eyebrow"><ShieldCheck size={14} /> SESSION PREFLIGHT</span>
+        <h1>Get ready</h1><p>Check your connection and devices before starting.</p>
+        <span className={`get-ready-state ${busy ? 'is-active' : ''}`}><span />{busy ? 'Checks in progress' : ready ? 'All systems ready' : 'Ready to check'}</span>
+      </div>
+      <div className="get-ready-orbit" role="progressbar" aria-label="Readiness checks completed" aria-valuemin={0} aria-valuemax={READINESS_CHECKS.length} aria-valuenow={checked}>
+        <svg viewBox="0 0 120 120" aria-hidden="true"><circle className="get-ready-orbit-track" cx="60" cy="60" r="52" /><circle className="get-ready-orbit-fill" cx="60" cy="60" r="52" pathLength="100" strokeDasharray="100" strokeDashoffset={100 - checked / READINESS_CHECKS.length * 100} /></svg>
+        <div>{ready ? <ShieldCheck size={30} /> : <><strong>{checked}<small> / {READINESS_CHECKS.length}</small></strong><span>CHECKED</span></>}</div>
+      </div>
+    </header>
     <div className="get-ready-run">
       <button type="button" className="primary get-ready-button" disabled={busy} onClick={() => void runAll()}>
         {runningAll ? <><Loader2 size={16} className="spin" />Checking…</> : readiness?.ranAt ? 'Run checks again' : 'Get ready'}
@@ -223,13 +235,17 @@ export function SessionPreflight({ state, onContinue, onChooseModel, onSettings 
       {(running === 'microphone' || running === 'system') && <AudioMeter level={level} />}
     </div>
 
-    <section className="get-ready-checks" aria-label="Readiness checks">
-      {READINESS_CHECKS.map(({ id, name }) => {
+    <div className="get-ready-timeline" aria-hidden="true">{READINESS_CHECKS.map(({ id }) => <span key={id} className={running === id ? 'running' : readiness?.results[id] ? readiness.results[id]!.ok ? 'ok' : 'failed' : ''} />)}</div>
+    <div className="get-ready-section-heading"><span className="setup-eyebrow">SYSTEM CHECKS</span><span>{running ? `CHECK ${String(activeIndex + 1).padStart(2, '0')} / 06` : `${checked - failed} passed · ${unchecked} remaining`}</span></div>
+    <section className="get-ready-checks" aria-label="Readiness checks" aria-busy={busy}>
+      {READINESS_CHECKS.map(({ id, name }, index) => {
         const result = readiness?.results[id];
         const verb = !result ? 'Check' : result.ok ? 'Check again' : 'Retry';
+        const Icon = CHECK_ICONS[id];
         return <article key={id} className={`get-ready-check ${running === id ? 'running' : result ? result.ok ? 'ok' : 'failed' : ''}`}>
+          <div className="get-ready-check-label"><span>0{index + 1}</span><span>{running === id ? 'CHECKING' : result ? result.ok ? 'PASSED' : 'NEEDS ATTENTION' : 'STANDBY'}</span></div>
           <div className="get-ready-check-head"><span className="get-ready-icon" aria-hidden="true">
-            {running === id ? <Loader2 size={18} className="spin" /> : result ? result.ok ? <Check size={18} /> : <X size={18} /> : <Circle size={18} />}
+            {running === id ? <Loader2 size={18} className="spin" /> : result ? result.ok ? <Check size={18} /> : <X size={18} /> : <Icon size={18} />}
           </span><strong>{name}</strong></div>
           <p role="status">{running === id ? PROMPTS[id] : result?.detail || 'Not checked yet'}</p>
           {running !== id && result && !result.ok && result.details && <details className="get-ready-details"><summary>Details</summary><code>{result.details}</code></details>}
@@ -243,7 +259,7 @@ export function SessionPreflight({ state, onContinue, onChooseModel, onSettings 
     <div className="preflight-actions">
       <p role="status">{busy ? 'Checking…' : continueStatus}</p>
       <div><button className="secondary" disabled={busy} onClick={onSettings}>Settings and full tests</button>
-        <button className="primary" disabled={busy || !storageReady} onClick={onContinue}>{ready ? 'Continue to session setup' : 'Continue anyway'}</button></div>
+        <button className="primary" disabled={busy || !storageReady} onClick={onContinue}>{ready ? 'Continue to session setup' : 'Continue anyway'}<ArrowRight size={16} /></button></div>
     </div>
   </main>;
 }

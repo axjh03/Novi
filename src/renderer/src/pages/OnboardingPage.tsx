@@ -24,6 +24,7 @@ type Problem = FieldProblem | { field: 'displayName'; message: string };
  */
 export function OnboardingPage({ state, onComplete, onSignOut }: { state: Snapshot; onComplete: (state: Snapshot) => void; onSignOut: () => void }) {
   const [step, setStep] = useState(0), [busy, setBusy] = useState<'' | 'checking' | 'saving'>(''), [error, setError] = useState('');
+  const [direction, setDirection] = useState('forward');
   const [problem, setProblem] = useState<Problem | null>(null);
   // Onboarding has no Settings, so Sign out stays here, but asks first: it throws away what was entered.
   const [confirmSignOut, setConfirmSignOut] = useState(false);
@@ -66,7 +67,7 @@ export function OnboardingPage({ state, onComplete, onSignOut }: { state: Snapsh
         return;
       } finally { setBusy(''); }
     }
-    if (step < 3) { setStep(step + 1); return; }
+    if (step < 3) { setDirection('forward'); setStep(step + 1); return; }
     setBusy('saving');
     try { onComplete(await unwrap(window.novi.saveSettings(value))); }
     catch (error) { setError(errorText(error)); }
@@ -82,10 +83,10 @@ export function OnboardingPage({ state, onComplete, onSignOut }: { state: Snapsh
       <button ref={keepGoing} type="button" className="text-button" onClick={() => setConfirmSignOut(false)}>Keep going</button>
       <button type="button" className="danger-button" onClick={onSignOut}>Sign out</button>
     </div>
-    : <button type="button" className="text-button" onClick={() => setConfirmSignOut(true)} disabled={!!busy}>Sign out</button>}</header><main className="setup-card"><div className="step-track" aria-label={`Step ${step + 1} of 4`}>{['You', 'Provider', 'API key', 'Model'].map((label, index) => <div key={label} className={index <= step ? 'reached' : ''}><span>{index < step ? <Check size={13} /> : index + 1}</span>{label}</div>)}</div><span className="eyebrow">LET’S MAKE THIS YOURS · 0{step + 1}</span><h1>{titles[step]}</h1><p className="muted setup-description">{descriptions[step]}</p><form onSubmit={submit} noValidate><fieldset disabled={!!busy}>
+    : <button type="button" className="text-button" onClick={() => setConfirmSignOut(true)} disabled={!!busy}>Sign out</button>}</header><main className="setup-card" data-direction={direction}><div className="step-track" aria-label={`Step ${step + 1} of 4`}>{['You', 'Provider', 'API key', 'Model'].map((label, index) => <div key={label} className={index <= step ? 'reached' : ''} aria-current={index === step ? 'step' : undefined}><span>{index < step ? <Check size={13} /> : index + 1}</span>{label}</div>)}</div><div className="setup-slide" key={step}><span className="eyebrow">LET’S MAKE THIS YOURS · 0{step + 1}</span><h1>{titles[step]}</h1><p className="muted setup-description">{descriptions[step]}</p><form onSubmit={submit} noValidate><fieldset disabled={!!busy}>
     {step === 0 ? <><label>Display name<input id="onboarding-name" autoFocus value={value.displayName} onChange={(e) => { setValue({ ...value, displayName: e.target.value }); setProblem(null); }} placeholder="Your name" required maxLength={60}
       aria-invalid={problem?.field === 'displayName' || undefined} aria-describedby={problem?.field === 'displayName' ? 'onboarding-name-error' : undefined} /><small>A name that feels like you.</small></label>
       {problem?.field === 'displayName' && <p id="onboarding-name-error" className="field-error" role="alert">{problem.message}</p>}</>
       : <ProviderFields value={connection} onChange={setConnection} section={(['provider', 'key', 'model'] as const)[step - 1]} problem={fieldProblem} />}
-    {error && <div className="error" role="alert">{error}</div>}<div className="setup-actions"><button className="text-button" type="button" disabled={!step} onClick={() => { setStep(step - 1); setError(''); setProblem(null); }}><ArrowLeft size={16} />Back</button><button className="primary" type="submit">{busy === 'checking' ? 'Checking your key…' : busy === 'saving' ? 'Saving securely…' : step === 3 ? 'Start a conversation' : 'Continue'}<ArrowRight size={17} /></button></div></fieldset></form></main><footer><ShieldCheck size={14} />Local by default. Connected on your terms.</footer></div>;
+    {error && <div className="error" role="alert">{error}</div>}<div className="setup-actions"><button className="text-button" type="button" disabled={!step} onClick={() => { setDirection('backward'); setStep(step - 1); setError(''); setProblem(null); }}><ArrowLeft size={16} />Back</button><button className="primary" type="submit">{busy === 'checking' ? 'Checking your key…' : busy === 'saving' ? 'Saving securely…' : step === 3 ? 'Start a conversation' : 'Continue'}<ArrowRight size={17} /></button></div></fieldset></form></div></main><footer><ShieldCheck size={14} />Local by default. Connected on your terms.</footer></div>;
 }

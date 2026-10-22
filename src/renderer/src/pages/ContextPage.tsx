@@ -49,7 +49,13 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
   const [startMode, setStartMode] = useState<AppMode | null>(null);
   const [settings, setSettings] = useState(false);
   const [preflightDone, setPreflightDone] = useState(() => getReadyContinued(state.user!.id));
-  const [section, setSection] = useState<Section>('model');
+  const [section, setActiveSection] = useState<Section>('model');
+  const [direction, setDirection] = useState('forward');
+  const sectionIndex = ['model', 'sources', 'brief'].indexOf(section);
+  function setSection(next: Section) {
+    setDirection(['model', 'sources', 'brief'].indexOf(next) < sectionIndex ? 'backward' : 'forward');
+    setActiveSection(next);
+  }
   const [folders, setFolders] = useState<ContextFolder[]>([]);
   // The purpose follows the session type, preset, company and role until the user writes their own.
   const [purpose, setPurpose] = useState(''), [purposeEdited, setPurposeEdited] = useState(false);
@@ -264,7 +270,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     onContinue={() => { continueFromGetReady(state.user!.id); setPreflightDone(true); }}
     onChooseModel={() => { setSection('model'); continueFromGetReady(state.user!.id); setPreflightDone(true); }}
     onSettings={() => setSettings(true)} />;
-  return <main className="context-page">
+  return <main className="context-page" data-direction={direction}>
     <header className="context-header">
       <div className="context-header-identity"><Brand /></div>
       <div className="context-header-actions">
@@ -278,7 +284,10 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
 
     <div className="context-workspace">
       <aside className="context-rail">
-        <div className="context-rail-title"><h1>Session setup</h1></div>
+        <div className="context-rail-title"><h1>Session setup</h1>
+          <div className="context-setup-progress" role="progressbar" aria-label="Session setup step" aria-valuemin={1} aria-valuemax={3} aria-valuenow={sectionIndex + 1}><span style={{ width: `${(sectionIndex + 1) / 3 * 100}%` }} /></div>
+          <span className="context-step-count">STEP 0{sectionIndex + 1} / 03</span>
+        </div>
         <nav className="context-section-nav" aria-label="Session setup">
           {([
             ['model', 'Model', Cpu, modelReady],

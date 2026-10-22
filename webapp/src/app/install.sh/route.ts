@@ -29,27 +29,53 @@ pacman_run() (
     trap 'exit 143' TERM
     printf '\\033[?1049h\\033[?25l\\033[2J'
     "$@" >"$log" 2>&1 </dev/null & job=$!
-    frame=0
+    frame=0; started=$SECONDS; last_size=''
     while kill -0 "$job" 2>/dev/null; do
         cols=$(tput cols 2>/dev/null || echo 80)
         rows=$(tput lines 2>/dev/null || echo 24)
-        width=$((cols - 8)); [ "$width" -gt 54 ] && width=54
-        if [ "$width" -ge 12 ] && [ "$rows" -ge 10 ]; then
-            left=$(((cols - width) / 2)); top=$(((rows - 7) / 2))
-            track=''; pos=$((frame % (width - 2)))
-            i=0
-            while [ "$i" -lt "$((width - 2))" ]; do
-                if [ "$i" -eq "$pos" ]; then
-                    if [ "$((frame % 2))" -eq 0 ]; then track="\${track}C"; else track="\${track}O"; fi
-                elif [ "$i" -lt "$pos" ]; then track="\${track} "; else track="\${track}."; fi
+        width=$((cols - 6)); [ "$width" -gt 64 ] && width=64
+        elapsed=$((SECONDS - started))
+        case "$((frame / 2 % 4))" in 0) spinner='|' ;; 1) spinner='/' ;; 2) spinner='-' ;; 3) spinner='\\' ;; esac
+        if [ "$last_size" != "$cols:$rows" ]; then printf '\\033[2J'; last_size="$cols:$rows"; fi
+        if [ "$width" -ge 38 ] && [ "$rows" -ge 14 ]; then
+            height=14; lane=4
+            if [ "$width" -ge 54 ] && [ "$rows" -ge 24 ]; then height=20; lane=10; fi
+            left=$(((cols - width) / 2 + 1)); top=$(((rows - height) / 2 + 1))
+            printf '\\033[%s;%sH\\033[2K\\033[0;1;36mNOVI  /  INSTALLING' "$top" "$left"
+            if [ "$height" -eq 20 ]; then
+                printf '\\033[%s;%sH\\033[2K%s' "$((top + 2))" "$left" '  NN   N   OOO   V     V  III'
+                printf '\\033[%s;%sH\\033[2K%s' "$((top + 3))" "$left" '  N N  N  O   O   V   V    I '
+                printf '\\033[%s;%sH\\033[2K%s' "$((top + 4))" "$left" '  N  N N  O   O    V V     I '
+                printf '\\033[%s;%sH\\033[2K%s' "$((top + 5))" "$left" '  N   NN   OOO      V     III'
+                printf '\\033[%s;%sH\\033[2K\\033[0;2mA quiet space to think. Almost yours.' "$((top + 7))" "$left"
+            fi
+            case "$label" in
+                *Downloading*) phases='\\033[1;36m01 DOWNLOAD\\033[0;2m / 02 INSTALL / 03 LAUNCH' ;;
+                *) phases='\\033[32m01 DOWNLOAD\\033[0m / \\033[1;36m02 INSTALL\\033[0;2m / 03 LAUNCH' ;;
+            esac
+            printf '\\033[%s;%sH\\033[2K%b\\033[0m' "$((top + lane - 2))" "$left" "$phases"
+            inside=$((width - 2)); pos=$((frame / 2 % (inside - 5))); remaining=$((inside - pos - 6))
+            prefix=$(printf '%*s' "$pos" ''); suffix=$(printf '%*s' "$remaining" '')
+            pellets=''; i=0
+            while [ "$i" -lt "$remaining" ]; do
+                if [ "$((i % 3))" -eq 0 ]; then pellets="\${pellets}."; else pellets="\${pellets} "; fi
                 i=$((i + 1))
             done
-            border=$(printf '%*s' "$width" '' | tr ' ' '=')
-            printf '\\033[H\\033[J\\033[%s;%sH\\033[1;36mNOVI  /  INSTALLING\\033[%s;%sH%s\\033[%s;%sH\\033[33m|%s|\\033[%s;%sH\\033[36m%s\\033[%s;%sH\\033[0m%s\\033[%s;%sHCtrl+C to cancel' \\
-                "$top" "$left" "$((top + 2))" "$left" "$border" "$((top + 3))" "$left" "$track" \\
-                "$((top + 4))" "$left" "$border" "$((top + 6))" "$left" "$label" "$((top + 8))" "$left"
+            if [ "$((frame % 4))" -lt 2 ]; then mouth='(   < '; else mouth='(    )'; fi
+            border=$(printf '%*s' "$inside" '' | tr ' ' '-')
+            printf '\\033[%s;%sH\\033[2K\\033[0;2;36m+%s+' "$((top + lane))" "$left" "$border"
+            printf '\\033[%s;%sH\\033[2K\\033[0;2;36m|\\033[0;1;33m%s .--. %s\\033[0;2;36m|' "$((top + lane + 1))" "$left" "$prefix" "$suffix"
+            printf '\\033[%s;%sH\\033[2K\\033[0;2;36m|\\033[0;1;33m%s%s\\033[0;2;36m%s|' "$((top + lane + 2))" "$left" "$prefix" "$mouth" "$pellets"
+            printf '\\033[%s;%sH\\033[2K\\033[0;2;36m|\\033[0;1;33m%s %s %s\\033[0;2;36m|' "$((top + lane + 3))" "$left" "$prefix" "'--'" "$suffix"
+            printf '\\033[%s;%sH\\033[2K\\033[0;2;36m+%s+' "$((top + lane + 4))" "$left" "$border"
+            label_width=$((width - 18))
+            printf '\\033[%s;%sH\\033[2K\\033[0;36m%s\\033[0m  %-*s  \\033[2m%02d:%02d elapsed' "$((top + lane + 6))" "$left" "$spinner" "$label_width" "\${label:0:label_width}" "$((elapsed / 60))" "$((elapsed % 60))"
+            printf '\\033[%s;%sH\\033[2K\\033[0;2mWorking on your setup.  Ctrl+C to cancel\\033[0m' "$((top + lane + 8))" "$left"
+        else
+            compact="NOVI $spinner $label (\${elapsed}s)"
+            printf '\\033[H\\033[2K\\033[1;36m%s\\033[0m' "\${compact:0:$((cols > 1 ? cols - 1 : 1))}"
         fi
-        frame=$((frame + 1)); sleep 0.12
+        frame=$((frame + 1)); sleep 0.08
     done
     status=0; wait "$job" || status=$?; job=''
     printf '\\033[0m\\033[?25h\\033[?1049l'

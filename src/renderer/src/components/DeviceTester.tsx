@@ -687,7 +687,7 @@ export function DeviceTester() {
           <p>Record a short clip and play it back to hear how you sound.</p>
         </div>
         <div className="settings-fields">
-          <div className="device-card">
+          <div className="device-card" data-state={micState}>
             {/* Device Selector Row */}
             <div className="device-select-row">
               <label htmlFor="mic-select-dropdown">Microphone</label>
@@ -846,7 +846,7 @@ export function DeviceTester() {
           <p>Check that Novi can hear sound playing on your computer, like the other person on a call.</p>
         </div>
         <div className="settings-fields">
-          <div className="device-card">
+          <div className="device-card" data-state={sysState}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
@@ -982,7 +982,7 @@ export function DeviceTester() {
           <p>Preview your camera before a session.</p>
         </div>
         <div className="settings-fields">
-          <div className="device-card">
+          <div className="device-card" data-state={cameraActive ? 'recording' : 'idle'}>
             {/* Camera Select Row */}
             <div className="device-select-row">
               <label htmlFor="cam-select-dropdown">Camera</label>
@@ -1094,7 +1094,7 @@ export function DeviceTester() {
           <p>Record a few seconds and turn it into text with your API connection. For on-device transcription, use Local AI.</p>
         </div>
         <div className="settings-fields">
-          <div className="device-card">
+          <div className="device-card" data-state={transLoading ? 'processing' : transState}>
             {/* Audio Source Mode Selection */}
             <div className="device-select-row">
               <label>Source</label>

@@ -40,3 +40,37 @@ test('interactive animation restores the screen and cursor on failure', { skip: 
   assert.match(result.stdout, /\x1b\[\?25h\x1b\[\?1049l/);
   assert.match(result.stdout, /failed/);
 });
+
+test('installer stages fit standard, compact and small terminals without clearing every frame', { skip: process.platform !== 'linux' }, () => {
+  const source = readFileSync('webapp/public/install.sh', 'utf8');
+  const start = source.indexOf('pacman_run()'), end = source.indexOf('\n)\n', start) + 3;
+  const helper = source.slice(start, end);
+  for (const [cols, rows] of [[80, 24], [44, 14], [28, 8]]) {
+    const script = `stty cols ${cols} rows ${rows}\n${helper}\npacman_run "Downloading Novi" bash -c 'sleep 0.3'`;
+    const quote = (value: string) => "'" + value.replace(/'/g, "'\\''") + "'";
+    const result = spawnSync('script', ['-q', '-e', '-c', 'bash -c ' + quote(script), '/dev/null'], {
+      stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', env: { ...process.env, TERM: 'xterm', CI: '', NOVI_NO_ANIMATION: '' }, timeout: 5000,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /\x1b\[\?25h\x1b\[\?1049l/);
+    assert.equal((result.stdout.match(/\x1b\[2J/g) || []).length, 2, 'clear on entry and resize, never each frame');
+    for (const match of result.stdout.matchAll(/\x1b\[(\d+);(\d+)H/g)) {
+      assert(Number(match[1]) <= rows && Number(match[2]) <= cols, `drawing outside ${cols}x${rows}`);
+    }
+    if (rows >= 14) {
+      assert.match(result.stdout, /01 DOWNLOAD/);
+      assert.match(result.stdout, /00:00 elapsed/);
+    } else {
+      assert.match(result.stdout, /NOVI/);
+      assert.doesNotMatch(result.stdout, /01 DOWNLOAD/);
+    }
+  }
+});
+
+test('all Unix entry points ship the same terminal animation', unix, async () => {
+  const served = await (await GET(new Request('https://novi.example/install.sh'))).text();
+  const helper = (source: string) => source.slice(source.indexOf('pacman_run()'), source.indexOf('\n)\n', source.indexOf('pacman_run()')) + 3);
+  for (const name of ['webapp/public/install.sh', 'webapp/public/install-linux.sh', 'scripts/install-mac.sh']) {
+    assert.equal(helper(readFileSync(name, 'utf8')), helper(served), name);
+  }
+});

@@ -32,14 +32,7 @@ const MODE_ICONS: Record<AppMode, LucideIcon> = {
   normal: MessageSquare, recruiter: Phone, coding: Code2, technical: Video, 'system-design': Network, behavioral: Award, 'local-coding': FolderCode,
 };
 const WELCOME_MESSAGES = [
-  (name: string) => [`Hello, ${name}. What are we working on today?`, 'Ask a question, share an image, or choose a focused mode from the controls below.'],
-  (name: string) => [`Good to see you, ${name}. What’s on your mind?`, 'Start with a question in the message box and we’ll take it from there.'],
-  (name: string) => [`Ready when you are, ${name}. What should we tackle?`, 'Use the message box to ask, share, or switch modes.'],
-  (name: string) => [`Welcome back, ${name}. What are we figuring out today?`, 'Your next conversation can start with a question, an image, or a focused mode.'],
-  (name: string) => [`Hey ${name}, what’s first on your list?`, 'Drop it into the controls and let’s get started.'],
-  (name: string) => [`Let’s make progress, ${name}. Where should we start?`, 'Ask in the message box, share an image, or pick a mode that fits.'],
-  (name: string) => [`What would you like to explore today, ${name}?`, 'A question, an image, or a focused mode is a good place to begin.'],
-  (name: string) => [`Your next idea starts here, ${name}. What are you working on?`, 'Use the message box to start chatting or choose a focused mode.'],
+  'What’s up?', 'Hey there.', 'Hello.', 'Good to see you.', 'Hey, welcome back.', 'How’s it going?',
 ];
 
 export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSaved: (state: Snapshot) => void; onSignOut: () => void }) {
@@ -70,7 +63,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const deleteDialog = useRef<HTMLDialogElement>(null);
   useEffect(() => { if (deleting) deleteDialog.current?.showModal(); }, [deleting]);
   const config = state.settings!;
-  const welcome = WELCOME_MESSAGES[welcomeIndex](config.displayName.trim() || 'there');
+  const welcome = WELCOME_MESSAGES[welcomeIndex];
   const connection = state.contextSession?.connection ?? activeConnection(config);
   const [pinnedContext, setPinnedContext] = useState('');
   useEffect(() => { setPinnedContext(chat.selected?.pinnedContext || ''); }, [chat.selectedId, chat.selected?.pinnedContext]);
@@ -276,8 +269,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             </div>
           ) : (
             <div className="empty-state">
-              <h1>{welcome[0]}</h1>
-              <p>{welcome[1]}</p>
+              <h1>{welcome}</h1>
             </div>
           )}
         <TrayPortal detached={trayDetached} onClosed={() => setTrayDetached(false)}>

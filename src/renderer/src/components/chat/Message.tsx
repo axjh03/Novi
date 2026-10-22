@@ -1,14 +1,23 @@
-import { memo, useEffect, useState, type ComponentPropsWithoutRef } from 'react';
+import { memo, useEffect, useRef, useState, type ComponentPropsWithoutRef } from 'react';
 import Markdown, { type Components } from 'react-markdown';
-import { Check, Copy, FilePlus2, FileMinus2, FilePen, Loader2, Mic, UserRound } from 'lucide-react';
+import { Check, Copy, FilePlus2, FileMinus2, FilePen, Loader2, Mic, UserRound, X, ZoomIn, ZoomOut } from 'lucide-react';
 import type { ChatMessage, ImageAttachment } from '../../../../shared/types';
 import { ENGINES, type LocalCodingMessage } from '../../../../shared/localCoding';
 import { Brand } from '../Brand';
-import { unwrap } from '../../services/api';
+import { errorText, unwrap } from '../../services/api';
 import { tokenizeCode } from '../CodingModeHUD';
 
 export function ImagePreview({ image }: { image: ImageAttachment }) {
   const [url, setUrl] = useState(image.previewUrl), [failed, setFailed] = useState(false);
+  const viewer = useRef<HTMLDialogElement>(null);
+  const [fullUrl, setFullUrl] = useState(''), [viewError, setViewError] = useState(''), [zoomed, setZoomed] = useState(false);
+  async function openImage() {
+    viewer.current?.showModal();
+    if (fullUrl) return;
+    setViewError('');
+    try { setFullUrl(await unwrap(window.novi.imageData(image.id))); }
+    catch (cause) { setViewError(errorText(cause)); }
+  }
   useEffect(() => {
     if (image.previewUrl || image.mimeType.startsWith('audio/')) return;
     let alive = true;
@@ -25,7 +34,20 @@ export function ImagePreview({ image }: { image: ImageAttachment }) {
     );
   }
 
-  return url ? <img src={url} alt={image.name} title={image.name} /> : <span className="image-placeholder">{failed ? 'Image unavailable' : 'Loading image…'}</span>;
+  return <>
+    <button type="button" className="image-preview" aria-label={`View ${image.name}`} title={`View ${image.name}`} onClick={() => void openImage()}>
+      {url ? <img src={url} alt={image.name} /> : <span className="image-placeholder">{failed ? 'Image unavailable' : 'Loading image…'}</span>}
+    </button>
+    <dialog ref={viewer} className={`image-viewer ${zoomed ? 'is-zoomed' : ''}`} aria-label={image.name} onClose={() => setZoomed(false)} onClick={event => { if (event.target === event.currentTarget) viewer.current?.close(); }}>
+      <header><span>{image.name}</span><div>
+        <button type="button" className="icon-button" disabled={!fullUrl} aria-label={zoomed ? 'Fit image to window' : 'View actual size'} title={zoomed ? 'Fit to window' : 'Actual size'} onClick={() => setZoomed(!zoomed)}>{zoomed ? <ZoomOut size={17} /> : <ZoomIn size={17} />}</button>
+        <button type="button" className="icon-button" autoFocus aria-label="Close image preview" onClick={() => viewer.current?.close()}><X size={18} /></button>
+      </div></header>
+      <div className="image-viewer-canvas">
+        {viewError ? <p className="error" role="alert">{viewError}</p> : fullUrl ? <img className="image-viewer-photo" src={fullUrl} alt={image.name} onError={() => setViewError('This image could not be displayed.')} /> : <p className="image-viewer-loading" role="status"><Loader2 size={18} className="spin" />Opening image…</p>}
+      </div>
+    </dialog>
+  </>;
 }
 function CodeBlock({ children, className, ...props }: ComponentPropsWithoutRef<'code'>) {
   const [copied, setCopied] = useState(false), [failed, setFailed] = useState(false);

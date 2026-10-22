@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { ArrowLeft, Check, LogOut, Power, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, Cpu, KeyRound, LogOut, Mic, Power, SlidersHorizontal, Terminal, Trash2, type LucideIcon } from 'lucide-react';
 import { DEFAULT_AUDIO_RECORD_SHORTCUT, DEFAULT_BEHAVIORAL_SHORTCUT, DEFAULT_CLICK_THROUGH_SHORTCUT, DEFAULT_CODING_SHORTCUT, DEFAULT_SCREENSHOT_SHORTCUT, DEFAULT_TRANSPARENT_SHORTCUT, type SettingsInput, type Snapshot } from '../../../shared/types';
 import { ShortcutField } from '../components/ShortcutField';
 import { ProviderManager } from '../components/ProviderManager';
@@ -24,7 +24,8 @@ const shortcuts = [
 
 interface Props { state: Snapshot; onSaved: (state: Snapshot) => void; onBack: () => void; onSignOut: () => void; onCleared: () => void }
 type Tab = 'general' | 'devices' | 'api' | 'local-ai' | 'debug';
-const tabs: Array<[Tab, string]> = [['general', 'General'], ['api', 'API Management'], ['local-ai', 'Local AI'], ['devices', 'Audio & Camera'], ['debug', 'Debug']];
+const tabs: Array<[Tab, string, LucideIcon]> = [['general', 'General', SlidersHorizontal], ['api', 'API Management', KeyRound], ['local-ai', 'Local AI', Cpu], ['devices', 'Audio & Camera', Mic], ['debug', 'Debug', Terminal]];
+const tabDescriptions = { general: 'Account, appearance and keyboard shortcuts.', api: 'Manage your AI connections and coding tools.', 'local-ai': 'Speech models and transcription on this computer.', devices: 'Check your microphone, system audio and camera.', debug: 'Diagnostics and recent app activity.' };
 const themes = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']] as const;
 
 export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: Props) {
@@ -96,18 +97,19 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
           <span>You have unsaved changes.</span>
           <button type="button" className="text-button" disabled={busy} onClick={onBack}>Discard</button>
           <button type="button" className="primary" disabled={busy} onClick={() => void save().then(ok => { if (ok) onBack(); })}>{busy ? 'Saving…' : 'Save and go back'}</button>
-        </div> : <span className="eyebrow">MAKE IT YOURS</span>}
+        </div> : <span className="settings-window-title">Preferences</span>}
       </header>
 
       {/* One width for every tab, so the page doesn't shift sideways when switching. */}
       <div className="settings-content">
+        <aside className="settings-navigation">
         <h1>Settings</h1>
-        <p className="muted">Your account, shortcuts, AI connections and devices.</p>
-
-        <div className="segmented settings-tabs" aria-label="Settings tabs">
-          {tabs.map(([id, label]) => <button key={id} type="button" aria-pressed={tab === id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>{label}</button>)}
-        </div>
-
+        <nav className="settings-tabs" aria-label="Settings tabs">
+          {tabs.map(([id, label, Icon]) => <button key={id} type="button" aria-pressed={tab === id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}><Icon size={16} />{label}</button>)}
+        </nav>
+        </aside>
+        <div className="settings-detail" key={tab}>
+        <header className="settings-detail-heading"><h2>{tabs.find(([id]) => id === tab)![1]}</h2><p>{tabDescriptions[tab]}</p></header>
         {tab === 'local-ai' && <LocalAISetup onSettingsSaved={(updated, modelId) => {
           onSaved(updated);
           setValue(current => ({ ...current, localASRModelId: modelId }));
@@ -120,7 +122,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                 <section className="settings-section">
                   <div>
                     <h2>Profile</h2>
-                    <p>How Novi greets you.</p>
+                    <p>Your account details.</p>
                   </div>
                   <div className="settings-fields">
                     <dl className="settings-info">
@@ -156,7 +158,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                 <section className="settings-section">
                   <div>
                     <h2>Appearance</h2>
-                    <p>Set the mood.</p>
+                    <p>Choose how Novi looks.</p>
                   </div>
                   <div className="settings-fields">
                     <div className="segmented settings-theme" role="group" aria-label="Theme">
@@ -243,6 +245,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
           <ProviderManager state={state} onSaved={onSaved} />
           <EngineReadinessList connections={state.settings?.connections} managed={Boolean(state.user?.managed)} />
         </div>}
+        </div>
       </div>
     </main>
   );

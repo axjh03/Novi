@@ -119,6 +119,7 @@ const api: NoviAPI = {
   pickImages: () => ipcRenderer.invoke('pick-images'),
   dropImages: (files) => ipcRenderer.invoke('drop-images', files.map((file) => webUtils.getPathForFile(file))),
   previewImage: (id) => ipcRenderer.invoke('preview-image', id),
+  imageData: (id) => ipcRenderer.invoke('image-data', id),
   copyText: (text) => ipcRenderer.invoke('copy-text', text),
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
   openAudioMidiSetup: () => ipcRenderer.invoke('open-audio-midi-setup'),

@@ -412,6 +412,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
                 <ImagePreview image={image} />
                 <button
                   type="button"
+                  className="icon-button"
                   aria-label={`Remove ${image.name}`}
                   onClick={() => setImages(images.filter((item) => item.id !== image.id))}
                 >

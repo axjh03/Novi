@@ -13,23 +13,54 @@ function Start-NoviAnimation([string]$label) {
     $runner = [PowerShell]::Create()
     [void]$runner.AddScript({
         param($label)
-        $esc = [char]27
-        $frame = 0
+        $esc = [char]27; $frame = 0; $lastSize = ''
+        $clock = [Diagnostics.Stopwatch]::StartNew()
         while ($true) {
             $cols = [Console]::WindowWidth; $rows = [Console]::WindowHeight
-            $width = [Math]::Min(54, $cols - 8)
-            if ($width -ge 12 -and $rows -ge 12) {
-                $left = [Math]::Max(1, [int](($cols - $width) / 2)); $top = [Math]::Max(1, [int](($rows - 9) / 2))
-                $pos = $frame % ($width - 2)
-                $mouth = if ($frame % 2 -eq 0) { 'C' } else { 'O' }
-                $track = (' ' * $pos) + $mouth + ('.' * ($width - 3 - $pos))
-                $border = '=' * $width
-                [Console]::Write("$esc[H$esc[J$esc[$top;${left}H$esc[1;36mNOVI  /  INSTALLING" +
-                    "$esc[$($top + 2);${left}H$border$esc[$($top + 3);${left}H$esc[33m|$track|" +
-                    "$esc[$($top + 4);${left}H$esc[36m$border$esc[$($top + 6);${left}H$esc[0m$label" +
-                    "$esc[$($top + 8);${left}HPlease wait...")
+            $width = [Math]::Min(64, $cols - 6)
+            $elapsed = [int][Math]::Floor($clock.Elapsed.TotalSeconds)
+            $spinner = @('|', '/', '-', '\')[[int][Math]::Floor($frame / 2) % 4]
+            $output = ''
+            if ($lastSize -ne "$cols`:$rows") { $output = "$esc[2J"; $lastSize = "$cols`:$rows" }
+            if ($width -ge 38 -and $rows -ge 14) {
+                $height = 14; $lane = 4
+                if ($width -ge 54 -and $rows -ge 24) { $height = 20; $lane = 10 }
+                $left = [int][Math]::Floor(($cols - $width) / 2) + 1
+                $top = [int][Math]::Floor(($rows - $height) / 2) + 1
+                $output += "$esc[$top;${left}H$esc[2K$esc[0;1;36mNOVI  /  INSTALLING"
+                if ($height -eq 20) {
+                    $output += "$esc[$($top + 2);${left}H$esc[2K  NN   N   OOO   V     V  III" +
+                        "$esc[$($top + 3);${left}H$esc[2K  N N  N  O   O   V   V    I " +
+                        "$esc[$($top + 4);${left}H$esc[2K  N  N N  O   O    V V     I " +
+                        "$esc[$($top + 5);${left}H$esc[2K  N   NN   OOO      V     III" +
+                        "$esc[$($top + 7);${left}H$esc[2K$esc[0;2mA quiet space to think. Almost yours."
+                }
+                $phases = if ($label -like '*Downloading*') { "$esc[1;36m01 DOWNLOAD$esc[0;2m / 02 INSTALL / 03 LAUNCH" }
+                    else { "$esc[32m01 DOWNLOAD$esc[0m / $esc[1;36m02 INSTALL$esc[0;2m / 03 LAUNCH" }
+                $inside = $width - 2
+                $pos = [int][Math]::Floor($frame / 2) % ($inside - 5)
+                $remaining = $inside - $pos - 6
+                $prefix = ' ' * $pos; $suffix = ' ' * $remaining
+                $pellets = ('.  ' * [int][Math]::Ceiling($remaining / 3)).Substring(0, $remaining)
+                $mouth = if ($frame % 4 -lt 2) { '(   < ' } else { '(    )' }
+                $border = '-' * $inside
+                $shownLabel = $label.Substring(0, [Math]::Min($label.Length, $width - 18)).PadRight($width - 18)
+                $elapsedLabel = '{0:00}:{1:00} elapsed' -f [int][Math]::Floor($elapsed / 60), ($elapsed % 60)
+                $output += "$esc[$($top + $lane - 2);${left}H$esc[2K$phases$esc[0m" +
+                    "$esc[$($top + $lane);${left}H$esc[2K$esc[0;2;36m+$border+" +
+                    "$esc[$($top + $lane + 1);${left}H$esc[2K$esc[0;2;36m|$esc[0;1;33m$prefix .--. $suffix$esc[0;2;36m|" +
+                    "$esc[$($top + $lane + 2);${left}H$esc[2K$esc[0;2;36m|$esc[0;1;33m$prefix$mouth$esc[0;2;36m$pellets|" +
+                    "$esc[$($top + $lane + 3);${left}H$esc[2K$esc[0;2;36m|$esc[0;1;33m$prefix '--' $suffix$esc[0;2;36m|" +
+                    "$esc[$($top + $lane + 4);${left}H$esc[2K$esc[0;2;36m+$border+" +
+                    "$esc[$($top + $lane + 6);${left}H$esc[2K$esc[0;36m$spinner$esc[0m  $shownLabel  $esc[2m$elapsedLabel" +
+                    "$esc[$($top + $lane + 8);${left}H$esc[2K$esc[0;2mWorking on your setup.  Ctrl+C to cancel$esc[0m"
+            } else {
+                $compact = "NOVI $spinner $label ($($elapsed)s)"
+                $compact = $compact.Substring(0, [Math]::Min($compact.Length, [Math]::Max(1, $cols - 1)))
+                $output += "$esc[H$esc[2K$esc[1;36m$compact$esc[0m"
             }
-            $frame++; Start-Sleep -Milliseconds 120
+            [Console]::Write($output)
+            $frame++; Start-Sleep -Milliseconds 80
         }
     }).AddArgument($label)
     try {

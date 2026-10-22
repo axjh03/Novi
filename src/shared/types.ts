@@ -277,6 +277,7 @@ export interface NoviAPI {
   pickImages(): Promise<Result<ImageAttachment[]>>;
   dropImages(files: File[]): Promise<Result<ImageAttachment[]>>;
   previewImage(id: string): Promise<Result<string>>;
+  imageData(id: string): Promise<Result<string>>;
   copyText(text: string): Promise<Result<void>>;
   openExternal(url: string): Promise<Result<void>>;
   openAudioMidiSetup(): Promise<Result<void>>;

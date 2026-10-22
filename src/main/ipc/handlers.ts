@@ -509,6 +509,7 @@ export function registerIPC(
   });
   handle('drop-images', (value) => get().images.import(value));
   handle('preview-image', (value) => get().images.preview(text(value, 'image ID', 100)));
+  handle('image-data', (value) => get().images.dataUrl(text(value, 'image ID', 100)));
   // Awaited: Electron 44 makes clipboard writes asynchronous (on Electron 41 this awaits nothing).
   handle('copy-text', async (value) => { get().storage.current(); text(value, 'clipboard text', 1_000_000, true); await clipboard.writeText(value as string); });
   // Only Novi's own help and key pages; anything else is refused (see externalUrl).
