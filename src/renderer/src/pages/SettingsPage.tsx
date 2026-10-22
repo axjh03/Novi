@@ -37,6 +37,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
     codingModeShortcut: state.settings!.codingModeShortcut || 'Alt+C',
     behavioralModeShortcut: state.settings!.behavioralModeShortcut || 'Alt+B',
     screenshotShortcut: state.settings!.screenshotShortcut || 'Alt+3',
+    saveScreenshots: state.settings!.saveScreenshots ?? true,
     audioRecordShortcut: state.settings!.audioRecordShortcut || 'Alt+A',
     fastInterviewModel: state.settings!.fastInterviewModel ?? false,
     checkUpdatesAtStartup: state.settings!.checkUpdatesAtStartup ?? true,
@@ -148,6 +149,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
                   </div>
                   <div className="settings-fields settings-fields-interaction">
                     {shortcuts.slice(2).map(shortcutField)}
+                    <label><input type="checkbox" checked={value.saveScreenshots ?? true} onChange={(event) => change({ ...value, saveScreenshots: event.target.checked })} /> Save captured screenshots to Pictures/Novi/Screenshots</label>
                   </div>
                 </section>
 

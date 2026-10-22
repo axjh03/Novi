@@ -76,6 +76,7 @@ export function settingsInput(value: unknown): SettingsInput {
     codingModeShortcut: typeof input.codingModeShortcut === 'string' && input.codingModeShortcut.trim() ? input.codingModeShortcut.trim() : 'Alt+C',
     behavioralModeShortcut: typeof input.behavioralModeShortcut === 'string' && input.behavioralModeShortcut.trim() ? input.behavioralModeShortcut.trim() : 'Alt+B',
     screenshotShortcut: typeof input.screenshotShortcut === 'string' && input.screenshotShortcut.trim() ? input.screenshotShortcut.trim() : 'Alt+3',
+    saveScreenshots: typeof input.saveScreenshots === 'boolean' ? input.saveScreenshots : true,
     audioRecordShortcut: typeof input.audioRecordShortcut === 'string' && input.audioRecordShortcut.trim() ? input.audioRecordShortcut.trim() : 'Alt+A',
     transparentShortcut,
     fastInterviewModel: typeof input.fastInterviewModel === 'boolean' ? input.fastInterviewModel : false,

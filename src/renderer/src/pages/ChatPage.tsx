@@ -90,6 +90,10 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const localBinding = chat.selected?.localCoding;
   const local = useLocalCodingProject(localBinding, chat.busy, chat.selected?.messages, chat.setError);
   useEffect(() => window.novi.onGlobalAction((action) => {
+    if (action.type === 'scroll-conversation' && typeof action.payload === 'number') {
+      scroll.current?.scrollBy({ top: action.payload, behavior: 'smooth' });
+      return;
+    }
     if (action.type !== 'review-action' || typeof action.payload?.text !== 'string') return;
     setPrefill({ id: ++prefillId.current, text: action.payload.text });
   }), []);

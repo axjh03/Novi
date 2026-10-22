@@ -298,7 +298,7 @@ svg { flex-shrink: 0; }
 .code-block { display: block; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--panel); }
 .code-toolbar { display: flex; justify-content: space-between; padding: 7px 13px; border-bottom: 1px solid var(--border); font: 10px 'Segoe UI', sans-serif; color: var(--muted); }
 .code-toolbar button { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; }
-.code-block > code { display: block; overflow-x: auto; padding: 14px; border-radius: 0; color: var(--text); }
+.code-block > code { display: block; overflow-x: hidden; padding: 14px; border-radius: 0; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2; }
 .markdown-link { color: var(--accent); text-decoration: underline; }
 .message-images { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 12px; }
 .message-images img { max-width: 200px; height: 140px; object-fit: cover; border: 1px solid var(--border); border-radius: 7px; }

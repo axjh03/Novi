@@ -41,6 +41,7 @@ export interface AppSettings {
   codingModeShortcut?: string;
   behavioralModeShortcut?: string;
   screenshotShortcut?: string;
+  saveScreenshots?: boolean;
   audioRecordShortcut?: string;
   transparentShortcut?: string;
   /** Legacy persisted preference; removed from the current UI and behavior. */
@@ -123,6 +124,7 @@ export interface SettingsInput {
   codingModeShortcut?: string;
   behavioralModeShortcut?: string;
   screenshotShortcut?: string;
+  saveScreenshots?: boolean;
   audioRecordShortcut?: string;
   transparentShortcut?: string;
   fastInterviewModel?: boolean;

@@ -246,6 +246,9 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
         setSource(action.payload);
       } else if (action.type === 'submit-prompt') {
         void submit();
+      } else if (action.type === 'capture-and-send') {
+        if (!busy && !attaching && !sending.current && images.length < 6) void unwrap(window.novi.captureScreen()).then((image) => submit(undefined, false, image)).catch((cause) => setError(errorText(cause)));
+        else if (images.length >= 6) setError('Attach up to 6 images per message.');
       } else if (action.type === 'delete-last-snapshot') {
         setImages((prev) => prev.slice(0, -1));
       } else if (action.type === 'stop-generation') {
@@ -283,7 +286,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
     if (attaching) return;
     setAttaching(true);
     try {
-      await captureScreenshot();
+      if (!await captureScreenshot()) setError('Screen capture failed. Check screen recording permission and the screenshot folder in Pictures.');
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -291,15 +294,18 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
     }
   }
 
-  async function submit(event?: FormEvent, draw = false) {
+  async function submit(event?: FormEvent, draw = false, addedImage?: ImageAttachment) {
     event?.preventDefault();
-    if (busy || attaching || sending.current || localTransition.current) return;
+    if (busy || attaching || sending.current || localTransition.current) {
+      if (addedImage) setImages((current) => [...current, addedImage]);
+      return;
+    }
     sending.current = true;
     try {
       const rawText = textRef.current;
-      if (!draw && !rawText.trim() && !images.length) return;
-      const sentText = draw ? `${DRAW_DIAGRAM_PROMPT}\n\nLatest transcript / question:\n${rawText.trim()}` : rawText.trim();
-      const sentImages = images;
+      if (!draw && !rawText.trim() && !images.length && !addedImage) return;
+      const sentText = draw ? `${DRAW_DIAGRAM_PROMPT}\n\nLatest transcript / question:\n${rawText.trim()}` : rawText.trim() || (addedImage ? 'Analyze this screenshot.' : '');
+      const sentImages = addedImage ? [...images, addedImage] : images;
       setError('');
       draft.current.take(); textRef.current = ''; setText('');
       setImages([]);

@@ -5,6 +5,7 @@ import type { ChatMessage, ImageAttachment } from '../../../../shared/types';
 import { ENGINES, type LocalCodingMessage } from '../../../../shared/localCoding';
 import { Brand } from '../Brand';
 import { unwrap } from '../../services/api';
+import { tokenizeCode } from '../CodingModeHUD';
 
 export function ImagePreview({ image }: { image: ImageAttachment }) {
   const [url, setUrl] = useState(image.previewUrl), [failed, setFailed] = useState(false);
@@ -37,7 +38,7 @@ function CodeBlock({ children, className, ...props }: ComponentPropsWithoutRef<'
   const language = /language-(\S+)/.exec(className || '')?.[1];
   const block = Boolean(language) || code.includes('\n');
   if (!block) return <code className={className} {...props}>{children}</code>;
-  return <span className="code-block"><span className="code-toolbar"><span>{language || 'code'}</span><button onClick={async () => { try { await unwrap(window.novi.copyText(code.replace(/\n$/, ''))); setCopied(true); setFailed(false); } catch { setFailed(true); } }} aria-label="Copy code">{copied ? <Check size={13} /> : <Copy size={13} />}{failed ? 'Select to copy' : copied ? 'Copied' : 'Copy'}</button></span><code className={className}>{children}</code></span>;
+  return <span className="code-block"><span className="code-toolbar"><span>{language || 'code'}</span><button onClick={async () => { try { await unwrap(window.novi.copyText(code.replace(/\n$/, ''))); setCopied(true); setFailed(false); } catch { setFailed(true); } }} aria-label="Copy code">{copied ? <Check size={13} /> : <Copy size={13} />}{failed ? 'Select to copy' : copied ? 'Copied' : 'Copy'}</button></span><code className="syntax-code">{tokenizeCode(code, language).map((token, index) => token.kind === 'plain' ? token.text : <span className={`syntax-${token.kind}`} key={index}>{token.text}</span>)}</code></span>;
 }
 // Module scope: a new map per render gives each renderer a new component type, remounting every code block.
 const markdownComponents: Components = { code: ({ node: _node, ...props }) => <CodeBlock {...props} />, img: () => null, a: ({ children }) => <span className="markdown-link">{children}</span> };

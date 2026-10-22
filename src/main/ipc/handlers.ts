@@ -28,7 +28,7 @@ import { LocalCodingService } from '../services/localCoding';
 import { activeConnection } from '../../shared/providers';
 import { isAppMode } from '../../shared/sessionModes';
 import { dirname, join } from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import type { AppMask } from '../services/appMask';
 import { AppCommandService } from '../services/appCommand';
@@ -804,7 +804,14 @@ export function registerIPC(
       } catch { }
     }
     const pngBuffer = await captureScreenBuffer(getMainWindow, workingMonitorId);
-    const attachment = get().images.importBuffer(pngBuffer, `Screen-${new Date().toISOString().replace(/[:.]/g, '-')}.png`);
+    const now = new Date();
+    const name = `Screen-${now.toISOString().replace(/[:.]/g, '-')}-${randomUUID()}.png`;
+    if (get().storage.current().settings.saveScreenshots !== false) {
+      const directory = join(app.getPath('pictures'), 'Novi', 'Screenshots', now.toISOString().slice(0, 19).replace(/:/g, '-'));
+      mkdirSync(directory, { recursive: true, mode: 0o700 });
+      writeFileSync(join(directory, name), pngBuffer, { flag: 'wx', mode: 0o600 });
+    }
+    const attachment = get().images.importBuffer(pngBuffer, name);
     return attachment;
   });
   handle('set-working-monitor', (value) => {

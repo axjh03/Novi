@@ -9,6 +9,7 @@ import { generateQRCodeSVG } from './qrCode';
 import { CloudflareTunnelService } from './cloudflareTunnel';
 import type { RemoteCompanionStatus } from '../../shared/types';
 import { createRequire } from 'node:module';
+import { MAIN_WINDOW_MIN } from './workspace';
 
 const req = typeof require === 'function' ? require : createRequire(import.meta.url);
 function getScreen(): { getDisplayMatching: (bounds: any) => { workArea: { x: number; y: number; width: number; height: number } } } | null {
@@ -345,6 +346,10 @@ export class RemoteCompanionService {
         win.webContents.send('global-action', { type: 'capture-screen' });
         break;
 
+      case 'capture-and-send':
+        win.webContents.send('global-action', { type: 'capture-and-send' });
+        break;
+
       case 'delete-last-snapshot':
         win.webContents.send('global-action', { type: 'delete-last-snapshot' });
         break;
@@ -438,6 +443,25 @@ export class RemoteCompanionService {
         break;
       }
 
+      case 'resize-window': {
+        if (!payload || !Number.isFinite(payload.widthRatio) || !Number.isFinite(payload.heightRatio) ||
+          payload.widthRatio < 0 || payload.widthRatio > 1 || payload.heightRatio < 0 || payload.heightRatio > 1) throw new Error('Choose a size within the screen.');
+        const sc = getScreen();
+        if (sc) {
+          const area = sc.getDisplayMatching(win.getBounds()).workArea;
+          const bounds = win.getBounds();
+          const width = Math.max(Math.min(MAIN_WINDOW_MIN.width, area.width), Math.round(area.width * payload.widthRatio));
+          const height = Math.max(Math.min(MAIN_WINDOW_MIN.height, area.height), Math.round(area.height * payload.heightRatio));
+          win.setBounds({ x: Math.max(area.x, Math.min(bounds.x, area.x + area.width - width)), y: Math.max(area.y, Math.min(bounds.y, area.y + area.height - height)), width, height });
+        }
+        break;
+      }
+
+      case 'scroll-conversation':
+        if (!Number.isFinite(payload) || Math.abs(payload) > 600) throw new Error('Choose a smaller scroll distance.');
+        win.webContents.send('global-action', { type: 'scroll-conversation', payload });
+        break;
+
       case 'change-reading-size':
         if (payload !== -1 && payload !== 1) throw new Error('Choose smaller or larger text.');
         win.webContents.send('global-action', { type: 'change-reading-size', payload });
@@ -472,7 +496,7 @@ export class RemoteCompanionService {
     .badge.connected { color: #eee; }
     .badge.error { border-style: dashed; }
     .controls-grid { display: grid; gap: 9px; padding: 12px; }
-    .hero-row { display: grid; grid-template-columns: 1.25fr .95fr; gap: 8px; }
+    .hero-row { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 8px; }
     .hero-btn, .stop-btn, .ctrl-btn, .mode-tab-btn { border: 1px solid #3b3b3b; border-radius: 8px; background: #222; color: #ddd; min-height: 42px; font-size: 12px; padding: 9px 8px; }
     .hero-btn { background: #eee; color: #111; border-color: #eee; font-size: 13px; font-weight: 650; }
     .stop-btn { background: #281919; color: #fca5a5; border-color: #552727; font-weight: 600; }
@@ -487,6 +511,9 @@ export class RemoteCompanionService {
     .mockup-container { position: relative; height: 74px; border: 1px dashed #3a3a3a; border-radius: 8px; background: #0c0c0c; display: flex; align-items: center; justify-content: center; cursor: crosshair; touch-action: none; }
     .mockup-screen { position: absolute; inset: 6px; border: 1px solid #2e2e2e; border-radius: 5px; pointer-events: none; }
     .mockup-puck { position: absolute; width: 34px; height: 26px; border: 2px solid #a3c1ff; border-radius: 5px; background: rgba(163, 193, 255, 0.25); transform: translate(-50%, -50%); transition: left 80ms, top 80ms; pointer-events: none; }
+    .resize-pad, .scroll-pad { height: 86px; border: 1px dashed #555; border-radius: 8px; background: #0c0c0c; touch-action: none; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 11px; user-select: none; }
+    .resize-pad { position: relative; }
+    .resize-preview { width: 50%; height: 55%; border: 2px solid #a3c1ff; border-radius: 4px; background: #25324b; pointer-events: none; }
   </style>
 </head>
 <body>
@@ -508,6 +535,7 @@ export class RemoteCompanionService {
         <button type="button" class="stop-btn" onclick="triggerAction('stop-generation')">
           <span>Stop generate</span>
         </button>
+        <button type="button" class="ctrl-btn" onclick="triggerAction('capture-and-send')">SS &amp; Send</button>
       </div>
 
       <!-- 2. MODE SELECTION (CHAT / CODE / INTERVIEW) -->
@@ -535,6 +563,14 @@ export class RemoteCompanionService {
           <div class="mockup-screen"></div>
           <div class="mockup-puck" id="mockupPuck" style="left: 50%; top: 50%;"></div>
         </div>
+        <div class="section-label"><span>Window size</span><span>Drag to resize</span></div>
+        <div class="resize-pad" id="resizePad" aria-label="Drag to resize the desktop window"><div class="resize-preview" id="resizePreview"></div></div>
+      </div>
+
+      <div class="section-box">
+        <div class="section-label"><span>Conversation scroll</span><span>Swipe or tap</span></div>
+        <div class="button-row"><button type="button" class="ctrl-btn" onclick="triggerAction('scroll-conversation', -400)">↑ Up</button><button type="button" class="ctrl-btn" onclick="triggerAction('scroll-conversation', 400)">↓ Down</button></div>
+        <div class="scroll-pad" id="scrollPad">Swipe here to scroll desktop answers</div>
       </div>
 
       <div class="section-box">
@@ -660,6 +696,29 @@ export class RemoteCompanionService {
     pad.addEventListener('pointerdown', (e) => { padDragging = true; updatePuck(e); });
     window.addEventListener('pointermove', (e) => { if (padDragging) updatePuck(e); });
     window.addEventListener('pointerup', () => { padDragging = false; });
+
+    const resizePad = document.getElementById('resizePad');
+    const resizePreview = document.getElementById('resizePreview');
+    let resizing = false;
+    function resizeAt(e) {
+      const rect = resizePad.getBoundingClientRect();
+      const widthRatio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const heightRatio = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+      resizePreview.style.width = (widthRatio * 100) + '%';
+      resizePreview.style.height = (heightRatio * 100) + '%';
+      return { widthRatio, heightRatio };
+    }
+    resizePad.addEventListener('pointerdown', e => { resizing = true; resizePad.setPointerCapture(e.pointerId); resizeAt(e); });
+    resizePad.addEventListener('pointermove', e => { if (resizing) resizeAt(e); });
+    resizePad.addEventListener('pointerup', e => { if (resizing) triggerAction('resize-window', resizeAt(e)); resizing = false; });
+
+    const scrollPad = document.getElementById('scrollPad');
+    let scrollStart = null;
+    scrollPad.addEventListener('pointerdown', e => { scrollStart = e.clientY; scrollPad.setPointerCapture(e.pointerId); });
+    scrollPad.addEventListener('pointerup', e => {
+      if (scrollStart !== null) triggerAction('scroll-conversation', Math.max(-600, Math.min(600, Math.round((scrollStart - e.clientY) * 3))));
+      scrollStart = null;
+    });
 
     // 7. REALTIME STATUS SYNC
     function updateUI(status) {

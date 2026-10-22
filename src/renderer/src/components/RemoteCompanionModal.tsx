@@ -27,7 +27,7 @@ export function RemoteCompanionModal({ onClose }: { onClose: () => void }) {
 
   async function copy() {
     if (!status?.bestUrl) return;
-    try { await navigator.clipboard.writeText(status.bestUrl); setCopied(true); }
+    try { await unwrap(window.novi.copyText(status.bestUrl)); setError(''); setCopied(true); }
     catch (cause) { setError(errorText(cause)); }
   }
 
