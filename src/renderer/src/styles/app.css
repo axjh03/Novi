@@ -4017,3 +4017,10 @@ textarea { border-radius: 4px; }
 .code-line-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .code-viewer, .repository-review { zoom: var(--ui-scale, 1); height: calc(100vh / var(--ui-scale, 1)); width: calc(100vw / var(--ui-scale, 1)); }
 .overlay-sticky-card { zoom: var(--ui-scale, 1); }
+/* License plans: a feature the plan doesn't include keeps its place, with a lock and the plan that adds it (PlanLock.tsx). */
+.plan-lock { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; padding: 0 5px; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); font-size: 10px; font-weight: 600; line-height: 16px; white-space: nowrap; vertical-align: middle; }
+.mode-tab-btn .plan-lock { margin-left: auto; }
+.plan-locked { opacity: .7; cursor: default; }
+.titlebar-qr-btn { position: relative; }
+.titlebar-lock { position: absolute; right: 1px; bottom: 1px; }
+.companion-locked { display: grid; gap: 8px; justify-items: start; }

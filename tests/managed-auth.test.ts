@@ -269,3 +269,58 @@ test('managed auth keeps the session through outages and ends it only when the s
   assert.equal(auth.signedIn, false);
   assert.equal(auth.offline, false);
 });
+
+test('managed desktop tells the server it enforces plans and locks what the license plan leaves out', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'novi-plans-test-'));
+  const { ManagedAuthService } = tsxRequire('../src/main/services/managedAuth.ts', import.meta.url);
+  const { CredentialStore } = tsxRequire('../src/main/services/credentials.ts', import.meta.url);
+  const { Storage } = tsxRequire('../src/main/services/storage.ts', import.meta.url);
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const auth = new ManagedAuthService(new Storage(directory), new CredentialStore(directory));
+  // What the server's check-in reply carries; a server from before plans sends neither field.
+  let reply: { plan?: string; features?: unknown } = { plan: 'CORE', features: ['technical', 'behavioral', 'a-feature-from-the-future', 7] };
+  const headers: Array<Record<string, string>> = [];
+  t.mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
+    headers.push(init.headers as Record<string, string>);
+    if (url.endsWith('/login')) return Response.json({ data: { token: 'plan-token' } });
+    if (url.endsWith('/logout')) return Response.json({ data: {} });
+    return Response.json({ data: { user: { id: 'u1', username: 'core.user', name: 'Core User' }, license: { key: 'KEY', expiresAt: '2099-01-01', ...(reply.plan ? { plan: reply.plan } : {}) }, ...('features' in reply ? { features: reply.features } : {}), credentials: [] } });
+  });
+
+  assert.equal(auth.allows('technical'), false, 'nothing is unlocked while signed out');
+  assert.throws(() => auth.requireFeature('technical'), /Sign in/);
+  assert.equal(auth.planKey, '');
+  const user = await auth.signIn('core.user', 'password test');
+  assert.equal(headers.length, 2);
+  assert(headers.every(sent => sent['x-novi-plans'] === '1'), 'every request says this app enforces plans');
+  assert.equal(user.plan, 'CORE');
+  assert.deepEqual(user.features, ['technical', 'behavioral'], 'unknown features are dropped');
+  assert.equal(auth.allows('behavioral'), true);
+  assert.equal(auth.allows('normal'), false);
+  assert.throws(() => auth.requireFeature('coding'), { message: 'Code is included with Pro, Ultimate and Lifetime. Ask your Novi administrator to upgrade your license.' });
+  assert.doesNotThrow(() => auth.requireFeature('technical'));
+  const core = auth.planKey;
+
+  // An upgrade arrives with the next check-in.
+  reply = { plan: 'ULTIMATE', features: ['technical', 'behavioral', 'normal', 'recruiter', 'coding', 'system-design', 'eye-tracking', 'local-coding', 'phone-companion'] };
+  await auth.refresh(true);
+  assert.notEqual(auth.planKey, core);
+  assert.equal(auth.allows('local-coding'), true);
+  assert.equal((await auth.getCurrentUser()).plan, 'ULTIMATE');
+
+  // A server deployed before plans sends no list: nothing is locked rather than everything.
+  reply = {};
+  await auth.refresh(true);
+  assert.equal((await auth.getCurrentUser()).features, undefined);
+  assert.equal(auth.allows('phone-companion'), true);
+  // A list in any other shape counts as empty, never as "no restrictions".
+  for (const features of ['everything', null, { technical: true }, []]) {
+    reply = { plan: 'PRO', features };
+    await auth.refresh(true);
+    assert.equal(auth.allows('technical'), false, JSON.stringify(features));
+  }
+
+  await auth.signOut();
+  assert.equal(auth.planKey, '');
+  assert.equal(auth.allows('technical'), false);
+});

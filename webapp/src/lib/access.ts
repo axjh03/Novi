@@ -3,8 +3,9 @@ import bcrypt from 'bcryptjs';
 import { prisma } from './db';
 import { canResetPassword } from './access-permissions';
 import { activityEvents } from './activity-events';
-import { AccessError, durationDate, licenseKey, password, providers, roles, string, validParent } from './access-policy';
+import { AccessError, durationDate, licenseKey, password, plan, providers, roles, string, validParent } from './access-policy';
 import { readToken, seal, tokenFor, unseal } from './access-security';
+import { LIFETIME_EXPIRY, PLAN_FEATURES, PLAN_NAMES, PLANS_HEADER, type LicensePlan } from '../../../src/shared/plans';
 import { listModels } from '../../../src/main/services/models';
 import { UserError } from '../../../src/main/services/validation';
 
@@ -29,6 +30,33 @@ async function eligible(db: DB, account: AccessAccount) {
   const license = await db.accessLicense.findUnique({ where: { accountId: account.id } });
   if (!license || license.ownerId !== account.parentId || license.status !== 'ACTIVE' || license.expiresAt <= new Date()) throw new AccessError('Your license is expired or terminated. Contact your administrator.', 403);
   return license;
+}
+/**
+ * The expiry for a new license, or for a license leaving Lifetime: Lifetime never expires (stored as
+ * the far-future LIFETIME_EXPIRY), every other plan runs for the chosen term from now.
+ *
+ * @throws AccessError when a plan other than Lifetime has no valid term.
+ */
+function planExpiry(licensePlan: LicensePlan, duration: unknown, unit: unknown) {
+  return licensePlan === 'LIFETIME' ? LIFETIME_EXPIRY : durationDate(new Date(), duration, unit);
+}
+/**
+ * Refuses a desktop app that does not enforce plans when its license is on Core, Pro or Lifetime.
+ *
+ * Apps released before plans existed unlock every feature and send no `x-novi-plans` header. Ultimate
+ * includes every feature, so they may keep using Ultimate licenses. On any other plan they would hand
+ * out features the license doesn't include, so they are turned away with a message saying where to
+ * get the update (old apps only show their updater after sign-in).
+ *
+ * Called at desktop sign-in and on every desktop check-in (`desktop()`), so a license moved off
+ * Ultimate stops working in an old app within one check-in (about 20 seconds).
+ *
+ * @throws AccessError 403 with the update instructions.
+ */
+function requirePlanAwareApp(license: { plan: string }, req?: Request) {
+  if (license.plan === 'ULTIMATE' || req?.headers.get(PLANS_HEADER) === '1') return;
+  const download = req ? `${new URL(req.url).origin}/download` : 'the Download page on the Novi website';
+  throw new AccessError(`This license is on the ${PLAN_NAMES[license.plan as LicensePlan] ?? license.plan} plan, which needs the newest version of Novi. Download it from ${download}, install it, then sign in again.`, 403);
 }
 /**
  * Returns the caller's IP address, or `null` when it isn't known.
@@ -103,7 +131,7 @@ export async function login(body: Record<string, unknown>, req?: Request) {
     await chain(db, current);
     if (audience === 'portal' && account.role === 'LICENSE') throw new AccessError('Desktop accounts must sign in through the desktop app.', 403);
     if (audience === 'desktop') {
-      await eligible(db, current);
+      requirePlanAwareApp(await eligible(db, current), req);
       await db.accessSession.updateMany({ where: { accountId: account.id, activeSlot: account.id, OR: [{ lastSeenAt: { lt: new Date(+now - LEASE_MS) } }, { expiresAt: { lte: now } }] }, data: { activeSlot: null, revokedAt: now } });
       if (await db.accessSession.findUnique({ where: { activeSlot: account.id } })) throw new AccessError('This account is active on another device. Log out there first, or ask your administrator to end the session.', 409);
     }
@@ -227,12 +255,21 @@ export async function activity(req: Request) {
 export async function desktop(req: Request) {
   const { account, session } = await authenticate(req);
   if (session.audience !== 'desktop') throw new AccessError('Desktop session required.', 403);
+  const license = await eligible(prisma, account);
+  try { requirePlanAwareApp(license, req); }
+  catch (error) {
+    // End the old app's session now, so the updated app can sign in at once instead of waiting
+    // 90 seconds for the lease to lapse.
+    await prisma.accessSession.update({ where: { id: session.id }, data: { revokedAt: new Date(), activeSlot: null } });
+    throw error;
+  }
   const parents = await chain(prisma, account);
   // Keys saved for providers since removed from the catalog are skipped instead of failing every desktop refresh.
   const credentials = await prisma.managedCredential.findMany({ where: { ownerId: { in: parents.slice(1).map(a => a.id) }, provider: { in: Object.keys(providers) } } });
   const ipAddress = clientIp(req);
   await prisma.accessSession.update({ where: { id: session.id }, data: { lastSeenAt: new Date(), ...(ipAddress ? { ipAddress } : {}) } });
-  return { user: { id: account.id, username: account.username, name: account.name }, license: await eligible(prisma, account), credentials: credentials.map(c => ({ id: c.id, name: c.nickname, ownerName: parents.find(a => a.id === c.ownerId)?.name, provider: providers[c.provider as keyof typeof providers].kind, baseUrl: providers[c.provider as keyof typeof providers].baseUrl, model: c.model, stream: true, apiKey: unseal(c.encryptedSecret) })) };
+  // `features` is what the app unlocks; it is derived here so the plan table can change without a desktop release.
+  return { user: { id: account.id, username: account.username, name: account.name }, license, features: PLAN_FEATURES[license.plan as LicensePlan] ?? [], credentials: credentials.map(c => ({ id: c.id, name: c.nickname, ownerName: parents.find(a => a.id === c.ownerId)?.name, provider: providers[c.provider as keyof typeof providers].kind, baseUrl: providers[c.provider as keyof typeof providers].baseUrl, model: c.model, stream: true, apiKey: unseal(c.encryptedSecret) })) };
 }
 export async function mutate(req: Request, resource: string, id: string | undefined, body: Record<string, unknown>) {
   return prisma.$transaction(async db => {
@@ -300,7 +337,8 @@ export async function mutate(req: Request, resource: string, id: string | undefi
       needAdmin();
       if (req.method === 'POST' && !id) {
         const target = await owner(body.ownerId);
-        const license = await db.accessLicense.create({ data: { key: licenseKey(), ownerId: target.id, expiresAt: durationDate(new Date(), body.duration, body.unit) } });
+        const licensePlan = plan(body.plan);
+        const license = await db.accessLicense.create({ data: { key: licenseKey(), ownerId: target.id, plan: licensePlan, expiresAt: planExpiry(licensePlan, body.duration, body.unit) } });
         await audit(db, actor.id, 'LICENSE_ISSUED', license.id); return license;
       }
       if (req.method === 'PATCH' && id) {
@@ -310,9 +348,19 @@ export async function mutate(req: Request, resource: string, id: string | undefi
           if (license.accountId) await db.accessSession.updateMany({ where: { accountId: license.accountId }, data: { revokedAt: new Date(), activeSlot: null } });
         } else if (body.action === 'renew') {
           if (license.status === 'TERMINATED') throw new AccessError('Terminated licenses cannot be renewed or reused.');
+          if (license.plan === 'LIFETIME') throw new AccessError('Lifetime licenses never expire, so there is nothing to renew.');
           await db.accessLicense.update({ where: { id }, data: { expiresAt: durationDate(new Date(Math.max(Date.now(), +license.expiresAt)), body.duration, body.unit) } });
-        } else throw new AccessError('Choose renew or terminate.');
-        await audit(db, actor.id, body.action === 'renew' ? 'LICENSE_RENEWED' : 'LICENSE_TERMINATED', id); return {};
+        } else if (body.action === 'plan') {
+          // The desktop app picks up the new plan at its next check-in (about 20 seconds); no sign-in needed.
+          if (license.status === 'TERMINATED') throw new AccessError('Terminated licenses cannot change plan.');
+          const next = plan(body.plan);
+          if (next === license.plan) throw new AccessError(`This license is already on ${PLAN_NAMES[next]}.`);
+          // Moving to Lifetime removes the expiry. Leaving Lifetime needs a new term, counted from now.
+          // Between the monthly plans the expiry stays as it is.
+          const expiresAt = next === 'LIFETIME' || license.plan === 'LIFETIME' ? planExpiry(next, body.duration, body.unit) : undefined;
+          await db.accessLicense.update({ where: { id }, data: { plan: next, ...(expiresAt ? { expiresAt } : {}) } });
+        } else throw new AccessError('Choose renew, change plan or terminate.');
+        await audit(db, actor.id, body.action === 'renew' ? 'LICENSE_RENEWED' : body.action === 'plan' ? 'LICENSE_PLAN_CHANGED' : 'LICENSE_TERMINATED', id); return {};
       }
     }
     if (resource === 'credentials' && ['STANDALONE', 'CORP', 'SUBCORP'].includes(actor.role)) {
@@ -335,10 +383,12 @@ export async function mutate(req: Request, resource: string, id: string | undefi
     if (resource === 'requests') {
       if (req.method === 'POST' && !id) {
         const target = await owner(body.ownerId || actor.id);
-        durationDate(new Date(), body.duration, body.unit);
+        const requestPlan = plan(body.plan);
+        planExpiry(requestPlan, body.duration, body.unit); // validates the term; Lifetime has none
         const quantity = Number(body.quantity);
         if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) throw new AccessError('Request between 1 and 100 licenses.');
-        const request = await db.licenseRequest.create({ data: { ownerId: target.id, quantity, duration: Number(body.duration), unit: String(body.unit) } });
+        const term = requestPlan === 'LIFETIME' ? { duration: 0, unit: 'LIFETIME' } : { duration: Number(body.duration), unit: String(body.unit) };
+        const request = await db.licenseRequest.create({ data: { ownerId: target.id, quantity, plan: requestPlan, ...term } });
         await audit(db, actor.id, 'LICENSES_REQUESTED', request.id); return request;
       }
       if (req.method === 'PATCH' && id) {
@@ -348,7 +398,8 @@ export async function mutate(req: Request, resource: string, id: string | undefi
         if (request.status !== 'PENDING') throw new AccessError('This request has already been processed.');
         if (body.status === 'APPROVED') {
           await owner(request.ownerId);
-          for (let i = 0; i < request.quantity; i++) await db.accessLicense.create({ data: { key: licenseKey(), ownerId: request.ownerId, expiresAt: durationDate(new Date(), request.duration, request.unit) } });
+          const requestPlan = plan(request.plan);
+          for (let i = 0; i < request.quantity; i++) await db.accessLicense.create({ data: { key: licenseKey(), ownerId: request.ownerId, plan: requestPlan, expiresAt: planExpiry(requestPlan, request.duration, request.unit) } });
         }
         await db.licenseRequest.update({ where: { id }, data: { status: String(body.status) } });
         await audit(db, actor.id, `REQUEST_${body.status}`, id); return {};

@@ -7,6 +7,7 @@ import { atomicJSON, readJSON, Storage } from './storage';
 import { CredentialStore } from './credentials';
 import { text, UserError } from './validation';
 import { RemoteFileService } from './remoteFiles';
+import { isFeature, lockedMessage, PLANS_HEADER, type Feature } from '../../shared/plans';
 
 /** The access server could not be reached or gave no usable answer. The session itself was not rejected. */
 export class AccessUnavailableError extends UserError {}
@@ -33,7 +34,9 @@ export function getEffectiveAccessUrl(): string {
 
 interface DesktopState {
   user: { id: string; username: string; name: string };
-  license: { key: string; expiresAt: string };
+  license: { key: string; expiresAt: string; plan?: string };
+  /** What the license's plan unlocks. Servers from before plans send none. */
+  features?: unknown;
   credentials: Array<ProviderConnection & { apiKey: string; ownerName: string }>;
 }
 interface SavedSession {
@@ -83,7 +86,8 @@ export class ManagedAuthService {
     const token = this.token;
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}/${path}`, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(path === 'logout' ? 3000 : 12_000), redirect: 'error' });
+      // PLANS_HEADER tells the server this app enforces plans; without it the server allows only Ultimate licenses.
+      response = await fetch(`${this.baseUrl}/${path}`, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', [PLANS_HEADER]: '1', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(path === 'logout' ? 3000 : 12_000), redirect: 'error' });
     } catch { throw new AccessUnavailableError('Cannot reach the access server. Reconnect to continue.'); }
     // Proxies, gateways and captive portals can answer with HTML; never surface a raw JSON parse error.
     const result: unknown = await response.json().catch(() => null);
@@ -171,7 +175,11 @@ export class ManagedAuthService {
         throw error;
       }
       if (generation !== this.generation) throw new SessionChangedError('Your account changed. Sign in again.');
-      const user: User = { id: result.user.id, name: result.user.name, email: result.user.username, username: result.user.username, managed: true, licenseKey: result.license.key, licenseExpiresAt: result.license.expiresAt };
+      // Unknown feature ids are dropped, and a list in any other shape counts as empty. No list at all
+      // only comes from a server older than plans (deployed before this app): nothing is locked then,
+      // rather than locking every customer out.
+      const features = result.features === undefined ? undefined : Array.isArray(result.features) ? result.features.filter(isFeature) : [];
+      const user: User = { id: result.user.id, name: result.user.name, email: result.user.username, username: result.user.username, managed: true, licenseKey: result.license.key, licenseExpiresAt: result.license.expiresAt, plan: typeof result.license.plan === 'string' ? result.license.plan : undefined, features };
       let account = this.storage.data.accounts.find(a => a.id === user.id);
       if (!account) {
         account = { ...user, salt: '', passwordHash: '', conversations: [], settings: { displayName: user.name, theme: 'system', clickThroughShortcut: DEFAULT_CLICK_THROUGH_SHORTCUT, connections: [], activeConnectionId: null, onboardingComplete: true } };
@@ -217,6 +225,27 @@ export class ManagedAuthService {
     catch { /* The server releases an unreachable device's lease after 90 seconds. */ }
     finally { this.clear(); }
   }
+  /**
+   * Whether the signed-in license's plan includes a feature, using the last verified check-in (so an
+   * outage keeps the plan the server last confirmed).
+   *
+   * @returns false when signed out; true when the server sent no feature list (a server from before plans).
+   */
+  allows(feature: Feature) {
+    const features = this.current?.features;
+    return Boolean(this.current) && (!features || features.includes(feature));
+  }
+  /**
+   * Refuses a feature the plan doesn't include. The main process calls this before every action that
+   * uses a paid feature (see handlers.ts), so a hidden or disabled button is never the only check.
+   *
+   * @throws UserError with the plans that include the feature, or a sign-in message when signed out.
+   */
+  requireFeature(feature: Feature) {
+    if (!this.allows(feature)) throw new UserError(this.current ? lockedMessage(feature) : 'Sign in with your licensed desktop account.');
+  }
+  /** Changes whenever the plan or its features change, including on sign-in and sign-out. Compared by handlers.ts. */
+  get planKey() { return this.current ? JSON.stringify([this.current.plan ?? null, this.current.features ?? null]) : ''; }
   get signedIn() { return Boolean(this.token); }
   get offline() { return this.offlineSince !== null; }
   get connectionLost() { return this.offlineSince !== null && Date.now() - this.offlineSince >= CONNECTION_LOST_MS; }

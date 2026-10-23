@@ -37,6 +37,9 @@ model AccessLicense {
   accountId String? @unique
   account   AccessAccount? @relation("LicenseAccount", fields: [accountId], references: [id], onDelete: Restrict)
   status    String @default("ACTIVE") // ACTIVE | TERMINATED
+  // CORE | PRO | ULTIMATE | LIFETIME (src/shared/plans.ts). The default only fills rows that existed
+  // before plans; the API always sets the plan. Lifetime stores a far-future expiresAt.
+  plan      String @default("ULTIMATE")
   expiresAt DateTime
   createdAt DateTime @default(now())
   @@index([ownerId])
@@ -78,8 +81,9 @@ model LicenseRequest {
   ownerId   String
   owner     AccessAccount @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   quantity  Int
-  duration  Int
-  unit      String
+  duration  Int // 0 for Lifetime
+  unit      String // DAYS | MONTHS | YEARS, or LIFETIME
+  plan      String @default("ULTIMATE") // CORE | PRO | ULTIMATE | LIFETIME, the plan the licenses are issued on
   status    String @default("PENDING") // PENDING | APPROVED | REJECTED
   createdAt DateTime @default(now())
 }

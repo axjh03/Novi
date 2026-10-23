@@ -1,6 +1,7 @@
 import type { LocalAISetup, LocalModelStatus } from './localAI';
 import type { DebugState } from './debug';
 import type { InterviewEvent, InterviewFrame, InterviewSession, InterviewStart } from './interview';
+import type { Feature } from './plans';
 import type { BrowseResult, EngineId, EngineModel, EngineReadiness, FileReview, LocalCodingBinding, LocalCodingMessage, LocalCodingRequest, ProjectState, RefreshDecision, RefreshResult, SourcePreview, ChangeOperation } from './localCoding';
 export type SupportedProviderKind = 'openai' | 'anthropic' | 'gemini';
 export type ProviderKind = SupportedProviderKind | 'compatible';
@@ -16,7 +17,13 @@ export const DEFAULT_CODING_SHORTCUT = 'Alt+C';
 export const DEFAULT_BEHAVIORAL_SHORTCUT = 'Alt+B';
 export const DEFAULT_SCREENSHOT_SHORTCUT = 'Alt+3';
 export const DEFAULT_AUDIO_RECORD_SHORTCUT = 'Alt+A';
-export interface User { id: string; name: string; email: string; username?: string; managed?: boolean; licenseKey?: string; licenseExpiresAt?: string }
+/**
+ * The signed-in account. For managed (licensed) accounts it also carries the license:
+ * - `plan`: CORE, PRO, ULTIMATE or LIFETIME (see src/shared/plans.ts), for display;
+ * - `features`: what the plan unlocks, as sent by the access server. Missing only when the server is
+ *   older than plans, in which case nothing is locked.
+ */
+export interface User { id: string; name: string; email: string; username?: string; managed?: boolean; licenseKey?: string; licenseExpiresAt?: string; plan?: string; features?: Feature[] }
 export interface AIProviderConfig {
   provider: ProviderKind;
   baseUrl: string;
@@ -268,6 +275,8 @@ export interface NoviAPI {
   refreshManaged(): Promise<Result<Snapshot>>;
   onSessionEnded(callback: (message: string) => void): () => void;
   onAccessStatus(callback: (status: AccessStatus) => void): () => void;
+  /** Calls `callback` when the license's plan or features change (an upgrade, a downgrade, or signing in or out). */
+  onPlanChanged(callback: () => void): () => void;
   listModels(input: ConnectionInput): Promise<Result<ModelOption[]>>;
   testConnection(): Promise<Result<void>>;
   saveConversation(id: string): Promise<Result<void>>;

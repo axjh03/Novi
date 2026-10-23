@@ -15,7 +15,9 @@ async function main() {
     { id: 'b', name: 'Beacon Team', username: 'beacon', role: 'SUBCORP', status: 'ACTIVE' },
     ...Array.from({ length: 47 }, (_, i) => ({ id: `account-${i}`, name: `Designer ${i}`, username: `designer.${i}`, role: 'LICENSE', status: 'ACTIVE', parentId: i < 25 ? 'a' : 'b' })),
   ];
-  const licenses = Array.from({ length: 47 }, (_, i) => ({ id: `license-${i}`, key: `TEST-${String(i).padStart(4, '0')}-ABCD-EFGH`, ownerId: i < 25 ? 'a' : 'b', accountId: i % 2 ? `account-${i}` : null, status: i % 7 === 0 ? 'TERMINATED' : 'ACTIVE', expiresAt: new Date(Date.now() + (i - 5) * 86400000).toISOString(), createdAt: new Date(Date.UTC(2026, 0, i + 1)).toISOString() }));
+  // Plans rotate Core, Pro, Ultimate, Lifetime; Lifetime licenses carry the far-future expiry the server stores.
+  const plans = ['CORE', 'PRO', 'ULTIMATE', 'LIFETIME'];
+  const licenses = Array.from({ length: 47 }, (_, i) => ({ id: `license-${i}`, key: `TEST-${String(i).padStart(4, '0')}-ABCD-EFGH`, ownerId: i < 25 ? 'a' : 'b', accountId: i % 2 ? `account-${i}` : null, status: i % 7 === 0 ? 'TERMINATED' : 'ACTIVE', plan: plans[i % 4], expiresAt: i % 4 === 3 ? '9999-12-31T00:00:00.000Z' : new Date(Date.now() + (i - 5) * 86400000).toISOString(), createdAt: new Date(Date.UTC(2026, 0, i + 1)).toISOString() }));
   let admin = true;
   let activityQuery = new URLSearchParams();
   let failActivity = false;
@@ -38,6 +40,8 @@ async function main() {
     await page.getByText('41–47 of 47', { exact: true }).waitFor();
     assert.equal(await page.locator('.license-row').count(), 7);
     assert.ok(await page.getByRole('button', { name: 'Next page', exact: true }).isDisabled());
+    // Owner, account, plan, status and sorting live in the collapsed "Filters & sorting" section.
+    await page.locator('.license-filter-details > summary').click();
     await page.getByLabel('Owner', { exact: true }).selectOption('a');
     await page.getByText('1–20 of 25', { exact: true }).waitFor();
     await page.getByLabel('Assigned account', { exact: true }).selectOption('account-1');
@@ -67,6 +71,33 @@ async function main() {
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.getByRole('button', { name: 'Terminate TEST-0001-ABCD-EFGH' }).click();
     assert.ok((await page.getByRole('dialog').innerText()).includes('TEST-0001'));
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    // Plans: filter, Lifetime rows, and the Change plan dialog (cancelled; nothing is submitted).
+    await page.getByLabel('Plan', { exact: true }).selectOption('LIFETIME');
+    await page.getByText('1–11 of 11', { exact: true }).waitFor();
+    assert.ok((await page.locator('.license-row').first().innerText()).includes('Never'));
+    assert.equal(await page.getByRole('button', { name: 'Renew TEST-0003-ABCD-EFGH' }).count(), 0, 'Lifetime licenses are not renewed');
+    await page.getByRole('button', { name: 'Change plan of TEST-0003-ABCD-EFGH' }).click();
+    const dialog = page.getByRole('dialog');
+    // The current plan can't be chosen again. (Playwright's isDisabled() doesn't read <option>, so ask the element.)
+    assert.ok(await dialog.locator('option[value="LIFETIME"]').evaluate(option => (option as HTMLOptionElement).disabled && option.textContent === 'Lifetime (current plan)'));
+    assert.equal(await dialog.getByLabel('Duration').count(), 0);
+    await dialog.getByLabel(/^Plan/).selectOption('PRO');
+    await dialog.getByLabel('Duration').waitFor();
+    assert.ok((await dialog.innerText()).includes('Leaving Lifetime starts a new term from today.'));
+    await page.screenshot({ path: '.test-data/licenses-change-plan.png' });
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.getByRole('button', { name: 'Clear filters', exact: true }).click();
+    await page.getByRole('button', { name: 'Change plan of TEST-0001-ABCD-EFGH' }).click();
+    await page.getByRole('dialog').getByLabel(/^Plan/).selectOption('ULTIMATE');
+    assert.equal(await page.getByRole('dialog').getByLabel('Duration').count(), 0, 'between monthly plans the expiry stays');
+    assert.ok((await page.getByRole('dialog').innerText()).includes('The expiry date stays the same.'));
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.getByRole('button', { name: 'Issue license', exact: true }).click();
+    await page.getByRole('dialog').getByLabel(/^Plan/).selectOption('LIFETIME');
+    assert.equal(await page.getByRole('dialog').getByLabel('Duration').count(), 0, 'Lifetime takes no term');
+    await page.getByRole('dialog').getByLabel(/^Plan/).selectOption('CORE');
+    await page.getByRole('dialog').getByLabel('Duration').waitFor();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.getByLabel('Sort by').selectOption('owner');
     await page.getByLabel('Rows per page').selectOption('20');

@@ -6,6 +6,8 @@ import {
 import type { EyeTrackingState } from '../eye-tracking/EyeTrackingService';
 import type { CameraDevice } from '../eye-tracking/CameraService';
 import type { MonitorDisplay } from '../../../shared/types';
+import { lockedMessage } from '../../../shared/plans';
+import { PlanLock } from './PlanLock';
 
 interface Props {
   state: EyeTrackingState;
@@ -28,6 +30,8 @@ interface Props {
   onCloseOverlay: () => Promise<void>;
   onSetMonitor: (displayId: number) => Promise<void> | void;
   onSendSticky?: (text: string, title?: string) => void;
+  /** The license's plan doesn't include eye tracking: the switch shows a lock, and `onToggle` explains it. */
+  locked?: boolean;
 }
 
 export function EyeTrackingPanel({
@@ -37,7 +41,7 @@ export function EyeTrackingPanel({
   monitors, selectedDisplayId, overlayActive,
   onToggle, onToggleDebug,
   onListCameras, onSwitchCamera,
-  onListMonitors, onOpenOverlay, onCloseOverlay, onSetMonitor, onSendSticky,
+  onListMonitors, onOpenOverlay, onCloseOverlay, onSetMonitor, onSendSticky, locked = false,
 }: Props) {
   const isOn = state !== 'idle' && state !== 'error';
   const isLoading = state === 'initializing';
@@ -175,11 +179,12 @@ export function EyeTrackingPanel({
     <div className="eye-tracking-panel" ref={panelRef}>
       {/* 1. Main Eye Tracking Toggle */}
       <button
-        className={`eye-tracking-toggle ${isOn ? 'eye-tracking-toggle--on' : ''}`}
+        className={`eye-tracking-toggle ${isOn ? 'eye-tracking-toggle--on' : ''} ${locked ? 'plan-locked' : ''}`}
         onClick={onToggle}
-        aria-label="Eye tracking"
+        aria-label={locked ? 'Eye tracking (locked)' : 'Eye tracking'}
         aria-pressed={isOn}
-        title={isLoading ? 'Starting eye tracking…' : isOn ? 'Eye tracking and the on-screen answer HUD are on. Click to turn them off.' : 'Turn on eye tracking and the on-screen answer HUD'}
+        aria-disabled={locked || undefined}
+        title={locked ? lockedMessage('eye-tracking') : isLoading ? 'Starting eye tracking…' : isOn ? 'Eye tracking and the on-screen answer HUD are on. Click to turn them off.' : 'Turn on eye tracking and the on-screen answer HUD'}
         disabled={isLoading}
       >
         {isLoading ? (
@@ -192,6 +197,7 @@ export function EyeTrackingPanel({
         {state === 'running' && (
           <span className="eye-tracking-status-dot" aria-hidden="true" />
         )}
+        {locked && <PlanLock feature="eye-tracking" />}
       </button>
 
       {/* Keep sensitivity beside the control it tunes. */}

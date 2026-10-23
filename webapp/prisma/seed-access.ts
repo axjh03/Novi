@@ -18,8 +18,8 @@ async function main() {
     const subcorp = await create('subcorp', 'Acme Studio', 'SUBCORP', corp.id);
     for (const [owner, name] of [[standalone, 'standalone.desktop'], [subcorp, 'studio.desktop']] as const) {
       const account = await create(name, `${owner.name} desktop`, 'LICENSE', owner.id);
-      if (!(await db.accessLicense.findUnique({ where: { accountId: account.id } }))) await db.accessLicense.create({ data: { ownerId: owner.id, accountId: account.id, key: licenseKey(), expiresAt: durationDate(new Date(), 1, 'YEARS') } });
-      if (!(await db.accessLicense.count({ where: { ownerId: owner.id, accountId: null } }))) await db.accessLicense.create({ data: { ownerId: owner.id, key: licenseKey(), expiresAt: durationDate(new Date(), 1, 'YEARS') } });
+      if (!(await db.accessLicense.findUnique({ where: { accountId: account.id } }))) await db.accessLicense.create({ data: { ownerId: owner.id, accountId: account.id, key: licenseKey(), plan: 'ULTIMATE', expiresAt: durationDate(new Date(), 1, 'YEARS') } });
+      if (!(await db.accessLicense.count({ where: { ownerId: owner.id, accountId: null } }))) await db.accessLicense.create({ data: { ownerId: owner.id, key: licenseKey(), plan: 'ULTIMATE', expiresAt: durationDate(new Date(), 1, 'YEARS') } });
     }
     console.log('Sample owners: standalone, corporation, subcorp. Desktop: standalone.desktop, studio.desktop. Passwords come from DEMO_PASSWORD.');
   }

@@ -96,7 +96,7 @@ PDF support requires `npm install` to install `pdfjs-dist` and its platform depe
 
 1. Open the web portal at `http://localhost:3000`. Local setup writes generated passwords to the ignored `webapp/.env.access` file.
 2. Sign in as `admin` with `ADMIN_PASSWORD`. Create a standalone account or corporation; corporations can create sub-corporations.
-3. Issue a license to a standalone or sub-corporation owner. That owner creates a desktop account and permanently binds the license.
+3. Issue a license to a standalone or sub-corporation owner, on the Core, Pro, Ultimate or Lifetime plan. That owner creates a desktop account and permanently binds the license.
 4. As the owner, add provider keys and model IDs in **API management**.
 5. In Electron, sign in with the licensed desktop username and password. Open **Settings › API Management** to enable and select inherited connections.
 
@@ -190,6 +190,8 @@ Remembered sessions and local API keys do not require an OS keychain. They are s
 The backend encrypts managed API keys with AES-256-GCM. Desktop credentials are bound to the provider endpoint and cannot be redirected through renderer IPC.
 
 The backend checks account hierarchy, account status, license expiry, and the current device session on authenticated requests. Admin password resets revoke sessions. Local file edits cannot grant a server session. Local history still depends on OS account security and disk encryption.
+
+Each license has a plan, and the app unlocks only what that plan includes (the table is in `src/shared/plans.ts`, shared with the server). Core has the Technical Screen and Behavioral Interview modes. Pro and Lifetime add Chat, Recruiter Call, Code, System Design and eye tracking. Ultimate adds Local Coding and the phone companion. Everything else is on every plan. Every check-in returns the plan's features. Locked features stay visible with a lock, and the main process refuses them (sending in a locked mode, Local Coding, the eye-tracking overlay, diagram repair, the phone companion), so hiding a button is never the only check. A plan change reaches the app at its next check-in, about 20 seconds; a downgrade stops the phone companion and closes the eye-tracking overlay. The app sends `x-novi-plans: 1` on every request. Versions from before plans don't, unlock everything, and are therefore refused on any license except Ultimate. Enforcement runs in the app, which holds the provider keys, so a modified app could bypass it; fully tamper-proof gating would need AI requests to go through the server.
 
 ## Add another AI provider
 

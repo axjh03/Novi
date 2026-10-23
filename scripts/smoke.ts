@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, readdirSync, existsSync, rmSync, 
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { _electron as electron, type ElectronApplication } from 'playwright';
+import { PLAN_FEATURES } from '../src/shared/plans';
 
 // Exercise the real desktop with temporary source files and a local provider fixture.
 async function main() {
@@ -22,7 +23,8 @@ async function main() {
       assert(address && typeof address !== 'string');
       const data = request.url.endsWith('/login') ? { token: 'test-session-token' } : request.url.endsWith('/logout') ? {} : {
         user: { id: 'managed-smoke-account', username: 'desktop.test', name: 'Aalok' },
-        license: { key: 'TEST-TEST-TEST-TEST', expiresAt: '2099-01-01T00:00:00.000Z' },
+        license: { key: 'TEST-TEST-TEST-TEST', expiresAt: '2099-01-01T00:00:00.000Z', plan: 'ULTIMATE' },
+        features: PLAN_FEATURES.ULTIMATE,
         credentials: [{ id: 'managed-key', name: 'Local test', ownerName: 'Test owner', provider: 'compatible', baseUrl: `http://127.0.0.1:${address.port}/v1`, model: '', stream: true, apiKey: 'fixture-key' }],
       };
       response.end(JSON.stringify({ data })); return;

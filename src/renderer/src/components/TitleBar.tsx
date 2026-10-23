@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Copy, Eye, EyeOff, Minus, QrCode, Square, X } from 'lucide-react';
+import { Copy, Eye, EyeOff, Lock, Minus, QrCode, Square, X } from 'lucide-react';
 import { SmartPlacementControls } from './SmartPlacementControls';
 import { useStealth } from '../hooks/useStealth';
 import { useAppMode } from '../context/AppModeContext';
@@ -8,6 +8,7 @@ import { RemoteCompanionModal } from './RemoteCompanionModal';
 import logo from '../assets/logo.svg';
 import { PALETTES, MIN_READING_SIZE, MAX_READING_SIZE } from '../../../shared/appearance';
 import type { CloseRequest } from '../../../shared/types';
+import { lockedMessage } from '../../../shared/plans';
 
 /**
  * What closing, quitting or signing out loses, shown in each of their confirmations.
@@ -26,7 +27,9 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
   const { transparent, clickThrough, clickThroughShortcut, transparentShortcut, toggleTransparent } = useStealth();
   // While its hotkey works, transparent mode is left only with that hotkey; the button shows which one.
   const transparencyLocked = transparent && Boolean(transparentShortcut);
-  const { transparentOpacity, setTransparentOpacity, paletteId, setPalette, smartPaletteEnabled, setSmartPaletteEnabled, smartPaletteStatus, readingSize, changeReadingSize } = useAppMode();
+  const { transparentOpacity, setTransparentOpacity, paletteId, setPalette, smartPaletteEnabled, setSmartPaletteEnabled, smartPaletteStatus, readingSize, changeReadingSize, allows } = useAppMode();
+  // The phone button stays visible on every plan; without the companion it shows a lock and the window explains it.
+  const companionLocked = !allows('phone-companion');
   const [maximized, setMaximized] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   // Set when the main process asks before closing (X, Alt+F4, Ctrl+W or Cmd+W, the taskbar); null when no question is open.
@@ -103,9 +106,9 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
         </div>
       )}
 
-      <button type="button" className="stealth-toggle-btn titlebar-qr-btn"
-        onClick={() => setShowQRModal(true)} title="Open phone companion" aria-label="Open phone companion">
-        <QrCode size={14} />
+      <button type="button" className={`stealth-toggle-btn titlebar-qr-btn ${companionLocked ? 'plan-locked' : ''}`}
+        onClick={() => setShowQRModal(true)} title={companionLocked ? lockedMessage('phone-companion') : 'Open phone companion'} aria-label={companionLocked ? 'Phone companion (locked)' : 'Open phone companion'}>
+        <QrCode size={14} />{companionLocked && <Lock size={9} className="titlebar-lock" aria-hidden="true" />}
       </button>
 
       <div className="titlebar-controls">
@@ -120,7 +123,7 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
           onClick={() => void unwrap(window.novi.closeWindow()).catch(console.error)}><X size={14} /></button>
       </div>
     </header>
-    {showQRModal && <RemoteCompanionModal onClose={() => setShowQRModal(false)} />}
+    {showQRModal && <RemoteCompanionModal locked={companionLocked} onClose={() => setShowQRModal(false)} />}
     {closeRequest && <div className="session-confirm" role="alertdialog" aria-modal="true" aria-labelledby="close-confirm-title" aria-describedby="close-confirm-text"
       onKeyDown={(event) => { if (event.key === 'Escape' && !closing) setCloseRequest(null); }}>
       <div>

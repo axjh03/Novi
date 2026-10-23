@@ -4,6 +4,8 @@ import { ENGINES, type EngineId, type EngineModel, type EngineReadiness, type En
 import type { ProviderConnection, Snapshot } from '../../../shared/types';
 import { errorText, unwrap } from '../services/api';
 import { LocalFileExplorer } from './LocalFileExplorer';
+import { lockedMessage } from '../../../shared/plans';
+import { PlanLock } from './PlanLock';
 
 const size = (bytes: number) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
@@ -166,16 +168,26 @@ export function LocalCodingSetup({ state, onStarted }: { state: Snapshot; onStar
 }
 
 /** Settings: whether each agent can run here, and why not. */
-export function EngineReadinessList({ connections, managed }: { connections?: ProviderConnection[]; managed: boolean }) {
+/**
+ * Settings › API: the Local Coding agents (engines), with install, update, sign-in check and removal.
+ *
+ * @param locked the license's plan doesn't include Local Coding: only the heading and the lock
+ *   message are shown, and the main process is never asked about engines (it would refuse).
+ */
+export function EngineReadinessList({ connections, managed, locked = false }: { connections?: ProviderConnection[]; managed: boolean; locked?: boolean }) {
   const [items, setItems] = useState<EngineReadiness[] | null>(null), [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   async function refresh() {
+    if (locked) return;
     setRefreshing(true); setError('');
     try { setItems(await unwrap(window.novi.getLocalCodingReadiness())); }
     catch (cause) { setError(errorText(cause)); }
     finally { setRefreshing(false); }
   }
-  useEffect(() => { void refresh(); }, [connections]);
+  useEffect(() => { void refresh(); }, [connections, locked]);
+  if (locked) return <section className="provider-manager" aria-label="Local Coding agents">
+    <div className="section-title"><div><div className="studio-heading"><Terminal size={18} /><h2>Local Coding agents</h2><PlanLock feature="local-coding" /></div><p className="muted">{lockedMessage('local-coding')}</p></div></div>
+  </section>;
   return <section className="provider-manager" aria-label="Local Coding agents">
     <div className="section-title"><div><div className="studio-heading"><Terminal size={18} /><h2>Local Coding agents</h2>{items && <span className="studio-count">{items.filter(item => item.available).length} ready</span>}</div><p className="muted">Connect your projects to an agent. Uses your saved provider key.</p></div>
       <button type="button" className="studio-refresh" aria-label="Refresh coding agents" title="Refresh agents" disabled={refreshing} onClick={() => void refresh()}><RefreshCw size={15} className={refreshing ? 'spin' : ''} /></button></div>

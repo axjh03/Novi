@@ -47,7 +47,7 @@ test('access lifecycle: hierarchy, isolation, permanent licenses and exclusive d
     await assert.rejects(create(a, 'secondadmin', 'ADMIN'), /one administrator/);
     await assert.rejects(sign('admin', 'desktop'), /Ineligible/);
     await assert.rejects(sign('standalone', 'desktop'), /Ineligible/);
-    await mutate(req(a), 'licenses', undefined, { ownerId: standalone.id, duration: 1, unit: 'MONTHS' });
+    await mutate(req(a), 'licenses', undefined, { ownerId: standalone.id, plan: 'ULTIMATE', duration: 1, unit: 'MONTHS' });
     const license = await db.accessLicense.findFirstOrThrow({ where: { ownerId: standalone.id } });
     assert.match(license.key, /^[A-Z0-9]{4}(?:-[A-Z0-9]{4}){3}$/);
     const account = await create(s, 'desktop', 'LICENSE', standalone.id, license.id);
@@ -100,6 +100,7 @@ test('access lifecycle: hierarchy, isolation, permanent licenses and exclusive d
     await mutate(req(a, 'PATCH'), 'licenses', license.id, { action: 'terminate' });
     await assert.rejects(sign('desktop', 'desktop'), /expired or terminated/);
     await assert.rejects(mutate(req(a, 'PATCH'), 'licenses', license.id, { action: 'renew', duration: 1, unit: 'YEARS' }), /cannot be renewed/);
+    await assert.rejects(mutate(req(a, 'PATCH'), 'licenses', license.id, { action: 'plan', plan: 'PRO' }), /cannot change plan/);
     // The database's own protection rules (the access_protection_rules migration), tried directly:
     // the app never attempts these changes, so only the rules stop a bug, a script or a manual edit.
     const permanentLicense = /License identity and assigned account are permanent/;
@@ -110,11 +111,79 @@ test('access lifecycle: hierarchy, isolation, permanent licenses and exclusive d
     await assert.rejects(db.accessLicense.delete({ where: { id: license.id } }), /Licenses must be terminated, never deleted/);
     await assert.rejects(db.accessAccount.update({ where: { id: account.id }, data: { role: 'STANDALONE' } }), /Account role and hierarchy are permanent/);
     await assert.rejects(db.accessAccount.update({ where: { id: subcorp.id }, data: { parentId: null } }), /Account role and hierarchy are permanent/);
-    await mutate(req(sub), 'requests', undefined, { quantity: 2, duration: 1, unit: 'YEARS' });
+    await mutate(req(sub), 'requests', undefined, { quantity: 2, plan: 'ULTIMATE', duration: 1, unit: 'YEARS' });
     const order = await db.licenseRequest.findFirstOrThrow({ where: { ownerId: subcorp.id } });
     await mutate(req(a, 'PATCH'), 'requests', order.id, { status: 'APPROVED' });
     await assert.rejects(mutate(req(a, 'PATCH'), 'requests', order.id, { status: 'APPROVED' }), /already been processed/);
     assert.equal(await db.accessLicense.count({ where: { ownerId: subcorp.id } }), 2);
+    assert.equal(await db.accessLicense.count({ where: { ownerId: subcorp.id, plan: 'ULTIMATE' } }), 2, 'approved licenses use the requested plan');
+
+    // Plans: issuing, changing, Lifetime, purchase requests, and what each kind of desktop app is allowed.
+    const o = (await sign(other.username)).token;
+    const lifetimeExpiry = '9999-12-31T00:00:00.000Z';
+    const issue = async (licensePlan: string, term: object = { duration: 1, unit: 'MONTHS' }) => {
+      await mutate(req(a), 'licenses', undefined, { ownerId: other.id, plan: licensePlan, ...term });
+      return db.accessLicense.findFirstOrThrow({ where: { ownerId: other.id, plan: licensePlan }, orderBy: { createdAt: 'desc' } });
+    };
+    const changePlan = (id: string, body: object, token = a) => mutate(req(token, 'PATCH'), 'licenses', id, { action: 'plan', ...body });
+    await assert.rejects(mutate(req(a), 'licenses', undefined, { ownerId: other.id, duration: 1, unit: 'MONTHS' }), /Choose Core, Pro, Ultimate or Lifetime/, 'the plan is required, never the database default');
+    await assert.rejects(issue('GOLD'), /Choose Core, Pro, Ultimate or Lifetime/);
+    await assert.rejects(issue('pro'), /Choose Core, Pro, Ultimate or Lifetime/);
+    await assert.rejects(issue('PRO', {}), /Choose a duration/);
+    const core = await issue('CORE');
+    assert.equal(core.plan, 'CORE');
+    await assert.rejects(db.accessLicense.update({ where: { id: core.id }, data: { plan: 'GOLD' } }), /AccessLicense_plan_check/, 'the database refuses unknown plans');
+    // Monthly plans: only the plan changes, the expiry stays.
+    const monthly = await issue('PRO');
+    await changePlan(monthly.id, { plan: 'ULTIMATE' });
+    const upgraded = await db.accessLicense.findUniqueOrThrow({ where: { id: monthly.id } });
+    assert.deepEqual([upgraded.plan, +upgraded.expiresAt], ['ULTIMATE', +monthly.expiresAt]);
+    await assert.rejects(changePlan(monthly.id, { plan: 'ULTIMATE' }), /already on Ultimate/);
+    await assert.rejects(changePlan(monthly.id, { plan: 'FREE' }), /Choose Core, Pro, Ultimate or Lifetime/);
+    await assert.rejects(changePlan(monthly.id, { plan: 'CORE' }, o), /Administrator/, 'owners cannot change plans');
+    // Lifetime never expires, cannot be renewed, and leaving it needs a new term counted from now.
+    const lifetime = await issue('LIFETIME', {});
+    assert.equal(lifetime.expiresAt.toISOString(), lifetimeExpiry);
+    await assert.rejects(mutate(req(a, 'PATCH'), 'licenses', lifetime.id, { action: 'renew', duration: 1, unit: 'YEARS' }), /never expire/);
+    await assert.rejects(changePlan(lifetime.id, { plan: 'PRO' }), /Choose a duration/);
+    const beforeChange = Date.now();
+    await changePlan(lifetime.id, { plan: 'PRO', duration: 2, unit: 'DAYS' });
+    const leftLifetime = await db.accessLicense.findUniqueOrThrow({ where: { id: lifetime.id } });
+    assert.equal(leftLifetime.plan, 'PRO');
+    assert.ok(Math.abs(+leftLifetime.expiresAt - (beforeChange + 2 * 86400000)) < 60_000, 'a new term from now');
+    await changePlan(lifetime.id, { plan: 'LIFETIME' });
+    assert.equal((await db.accessLicense.findUniqueOrThrow({ where: { id: lifetime.id } })).expiresAt.toISOString(), lifetimeExpiry);
+    assert.equal(await db.accessAudit.count({ where: { action: 'LICENSE_PLAN_CHANGED' } }), 3);
+    // Purchase requests carry a plan; Lifetime requests have no term; approval issues on the requested plan.
+    await assert.rejects(mutate(req(o), 'requests', undefined, { quantity: 1, duration: 1, unit: 'YEARS' }), /Choose Core, Pro, Ultimate or Lifetime/);
+    await assert.rejects(mutate(req(o), 'requests', undefined, { quantity: 1, plan: 'PRO' }), /Choose a duration/);
+    await mutate(req(o), 'requests', undefined, { quantity: 2, plan: 'LIFETIME' });
+    const lifetimeRequest = await db.licenseRequest.findFirstOrThrow({ where: { ownerId: other.id, plan: 'LIFETIME' } });
+    assert.deepEqual([lifetimeRequest.duration, lifetimeRequest.unit], [0, 'LIFETIME']);
+    const lifetimeBefore = await db.accessLicense.count({ where: { ownerId: other.id, plan: 'LIFETIME' } });
+    await mutate(req(a, 'PATCH'), 'requests', lifetimeRequest.id, { status: 'APPROVED' });
+    assert.equal(await db.accessLicense.count({ where: { ownerId: other.id, plan: 'LIFETIME', expiresAt: new Date(lifetimeExpiry) } }), lifetimeBefore + 2);
+    // Desktop apps: the new app sends x-novi-plans and gets the plan's features; an old app (no header)
+    // is refused on any plan but Ultimate, at sign-in and at check-in.
+    const coreDesktop = await create(o, 'coredesktop', 'LICENSE', other.id, core.id);
+    const newApp = (deviceId: string) => login({ username: 'coredesktop', password: secret, audience: 'desktop', deviceId, deviceName: deviceId }, new Request('http://localhost:3000/api/control/login', { headers: { 'x-novi-plans': '1' } }));
+    const checkIn = (token: string, planAware: boolean) => desktop(new Request('http://localhost:3000/api/control/desktop', { headers: { authorization: `Bearer ${token}`, ...(planAware ? { 'x-novi-plans': '1' } : {}) } }));
+    await assert.rejects(sign('coredesktop', 'desktop'), /on the Core plan, which needs the newest version of Novi\. Download it from http:\/\/localhost:3000\/download/);
+    assert.equal(await db.accessSession.count({ where: { accountId: coreDesktop.id } }), 0, 'a refused old app gets no session');
+    const coreToken = (await newApp('core-device')).token;
+    const coreState = await checkIn(coreToken, true);
+    assert.equal(coreState.license.plan, 'CORE');
+    assert.deepEqual(coreState.features, ['technical', 'behavioral']);
+    await assert.rejects(checkIn(coreToken, false), /on the Core plan, which needs the newest version/);
+    assert.equal(await db.accessSession.count({ where: { activeSlot: coreDesktop.id } }), 0, 'refusing an old app releases the device slot');
+    await assert.rejects(checkIn(coreToken, true), /session has ended/);
+    const updatedToken = (await newApp('core-device-updated')).token;
+    await changePlan(core.id, { plan: 'ULTIMATE' });
+    const ultimateState = await checkIn(updatedToken, false);
+    assert.deepEqual([...ultimateState.features].sort(), ['behavioral', 'coding', 'eye-tracking', 'local-coding', 'normal', 'phone-companion', 'recruiter', 'system-design', 'technical'], 'old apps may use Ultimate, which includes everything');
+    await changePlan(core.id, { plan: 'LIFETIME' });
+    assert.deepEqual((await checkIn(updatedToken, true)).features, ['technical', 'behavioral', 'normal', 'recruiter', 'coding', 'system-design', 'eye-tracking']);
+    await assert.rejects(checkIn(updatedToken, false), /on the Lifetime plan/);
     const subLicense = await db.accessLicense.findFirstOrThrow({ where: { ownerId: subcorp.id } });
     const subdesktop = await create(sub, 'subdesktop', 'LICENSE', subcorp.id, subLicense.id);
     await mutate(req(c), 'credentials', undefined, { provider: 'ANTHROPIC', nickname: 'Corp key', model: 'test-model', secret: 'corp-secret' });
@@ -174,6 +243,9 @@ test('access lifecycle: hierarchy, isolation, permanent licenses and exclusive d
     assert.ok(licenseEvents.total > 0);
     assert.ok(licenseEvents.items.every(item => item.action === 'LICENSE_RENEWED'));
     assert.equal(licenseEvents.items[0].targetName, license.key);
+    const planEvents = await activity(activityRequest('event=LICENSE_PLAN_CHANGED'));
+    assert.equal(planEvents.total, 5);
+    assert.ok(planEvents.items.every(item => item.action === 'LICENSE_PLAN_CHANGED' && /^[A-Z0-9]{4}(?:-[A-Z0-9]{4}){3}$/.test(item.targetName)));
     const empty = await activity(activityRequest(`${range}&event=LICENSE_RENEWED`));
     assert.equal(empty.total, 0);
     assert.equal(empty.page, 1);

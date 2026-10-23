@@ -12,6 +12,7 @@ import { LocalAISetup } from '../components/LocalAISetup';
 import { EngineReadinessList } from '../components/LocalCodingSetup';
 import { endingWarning } from '../components/TitleBar';
 import { errorText, unwrap } from '../services/api';
+import { isLicensePlan, PLAN_NAMES } from '../../../shared/plans';
 
 // Every hotkey is recorded from the keys pressed; each must be different.
 const shortcuts = [
@@ -129,8 +130,9 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared, onD
                     <dl className="settings-info">
                       <div><dt>Display name</dt><dd>{value.displayName}</dd></div>
                       <div><dt>Username</dt><dd>{state.user!.username || state.user!.email}</dd></div>
+                      {state.user?.plan && <div><dt>Plan</dt><dd>{isLicensePlan(state.user.plan) ? PLAN_NAMES[state.user.plan] : state.user.plan}</dd></div>}
                       {state.user?.licenseKey && <div><dt>License</dt><dd><code>{state.user.licenseKey}</code>
-                        <small>Expires {new Date(state.user.licenseExpiresAt!).toLocaleDateString()} · {Math.max(0, Math.ceil((+new Date(state.user.licenseExpiresAt!) - Date.now()) / 86400000))} days left</small></dd></div>}
+                        <small>{state.user.plan === 'LIFETIME' ? 'Never expires' : `Expires ${new Date(state.user.licenseExpiresAt!).toLocaleDateString()} · ${Math.max(0, Math.ceil((+new Date(state.user.licenseExpiresAt!) - Date.now()) / 86400000))} days left`}</small></dd></div>}
                     </dl>
                   </div>
                 </section>
@@ -245,7 +247,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared, onD
 
         {tab === 'api' && <div className="settings-studio api-studio">
           <ProviderManager state={state} onSaved={onSaved} />
-          <EngineReadinessList connections={state.settings?.connections} managed={Boolean(state.user?.managed)} />
+          <EngineReadinessList connections={state.settings?.connections} managed={Boolean(state.user?.managed)} locked={Boolean(state.user?.features && !state.user.features.includes('local-coding'))} />
         </div>}
         </div>
       </div>

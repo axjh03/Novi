@@ -28,6 +28,11 @@ function Application() {
   useEffect(() => { void load(); }, []);
   useEffect(() => window.novi.onSessionEnded((message) => { setState({ user: null, settings: null, credentialIds: [], conversations: [] }); setError(message); }), []);
   useEffect(() => window.novi.onAccessStatus(setAccess), []);
+  // A plan change (for example a downgrade picked up at check-in) updates the locks and leaves a
+  // locked mode. Only a signed-in snapshot is applied, so a "session ended" message is never cleared.
+  useEffect(() => window.novi.onPlanChanged(() => {
+    void unwrap(window.novi.session()).then((snapshot) => { if (snapshot.user) setState(snapshot); }).catch(() => {});
+  }), []);
   // If startup failed while offline, load again as soon as the access server answers.
   useEffect(() => { if (!state && error && !access.offline) void load(); }, [access.offline]);
   useEffect(() => {

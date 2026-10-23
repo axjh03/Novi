@@ -52,19 +52,38 @@ The admin can edit usernames/names, suspend/reactivate accounts, reset anyone's 
 
 Keys are generated with cryptographic randomness in `XXXX-XXXX-XXXX-XXXX` format. A license is issued to a standalone or sub-corporation owner and permanently bound when that owner creates a desktop account. Each licensed account has one license. Database constraints and triggers prevent reassignment, owner changes, key changes, deletion, and revival of terminated licenses. **Use migrations, not `prisma db push`, because the triggers and partial unique admin index are part of the migration.**
 
-Admin renewal accepts days, calendar months, or calendar years; it extends from the later of now and the current expiry. Month/year extensions clamp to the last valid calendar day. Termination is irreversible. The portal shows expiry, remaining days, assignment, and current status.
+Admin renewal accepts days, calendar months, or calendar years; it extends from the later of now and the current expiry. Month/year extensions clamp to the last valid calendar day. Termination is irreversible. The portal shows plan, expiry, remaining days, assignment, and current status.
+
+### Plans
+
+Every license has a plan: Core, Pro, Ultimate or Lifetime. The plan decides what the desktop app unlocks; the table lives in `src/shared/plans.ts` and is shared by the server and the app:
+
+| Plan | Unlocks |
+| --- | --- |
+| Core | Technical Screen and Behavioral Interview modes, plus everything that is on every plan (documents, screenshots, listening, transparency, shortcuts, smart placement, Practice run, Get ready) |
+| Pro | Core, plus Chat, Recruiter Call, Code and System Design modes, diagram repair and eye tracking |
+| Ultimate | Pro, plus Local Coding and the phone companion |
+| Lifetime | The Pro features, and it never expires |
+
+- **Issuing** requires a plan. Lifetime takes no term: it is stored with a far-future expiry (9999-12-31) and shows as "Never".
+- **Change plan** (admin, `PATCH licenses/:id` with `action: "plan"`) keeps the expiry between Core, Pro and Ultimate. Moving to Lifetime removes the expiry. Leaving Lifetime needs a new term counted from today. Terminated licenses can't change plan, and Lifetime licenses can't be renewed. Changes are recorded in Activity as "License plan changed".
+- **The desktop app picks up a plan change at its next check-in** (about 20 seconds), with no sign-in. Locked features stay visible with a lock and the plans that include them, and the main process refuses them. A downgrade stops the phone companion and closes the eye-tracking overlay.
+- **Purchase requests** carry a plan. Lifetime requests store no term (`duration 0`, `unit LIFETIME`), and approval issues every license on the requested plan.
+- **Desktop apps from before plans** unlock everything and don't send the `x-novi-plans: 1` header. The server lets them use Ultimate licenses only, which include everything anyway. On any other plan they are refused at sign-in and at the next check-in, which also frees the device so the updated app can sign in at once. The message points to `/download`, because old apps show their updater only after sign-in.
+- **Database rules:** the `plan` column only accepts the four plan ids (a CHECK constraint in the `license_plans` migration). Rows that existed before plans became Ultimate, and the column keeps that default only so the previous site version can still issue licenses while a deploy is in progress. The API always sets the plan itself.
+- **Limit:** enforcement runs in the desktop app, which holds the provider keys, so a modified app could bypass it. Fully tamper-proof gating would need AI requests to go through the server.
 
 The license inventory groups by owner by default, with assigned/unassigned views, owner/account/status filters, and search across keys, names, and usernames. Sort by owner, assigned account, expiry, or issue date. Pagination shows 20 rows by default (50/100 optional); filtering and sorting apply to the full authorized inventory before pagination. License data still comes from the existing workspace state endpoint.
 
 Activity shows only account and license changes, including password resets and licenses issued through approved requests. Sign-ins, sessions, API keys, and unfulfilled requests are excluded from the view; audit records are retained. Its admin-only endpoint filters the complete history before returning 20 events per page, with event type, inclusive date/time range, and newest/oldest ordering. Date inputs use the browser's local time zone and include the entire ending minute.
 
-Purchases use admin-approved requests with quantity and term. Approval atomically issues the requested licenses; a request cannot be fulfilled twice. This implementation does not charge cards or imply a successful payment. Automated checkout requires a payment provider, pricing, and verified payment webhooks.
+Purchases use admin-approved requests with quantity, plan and term. Approval atomically issues the requested licenses on that plan; a request cannot be fulfilled twice. This implementation does not charge cards or imply a successful payment. Automated checkout requires a payment provider, pricing, and verified payment webhooks.
 
 ## Sessions and JWTs
 
 Passwords use bcrypt with cost 12, a 12-character minimum, and a 72-byte maximum. Usernames are case-insensitive. Failed sign-in attempts are throttled in the database (10 attempts per username per 15 minutes).
 
-JWTs use HS256, an explicit issuer, an 8-hour expiry, and separate `portal` / `desktop` audiences. JWT subjects and session IDs are checked against the database on every authenticated backend request; roles and access are taken from live records. The web token is in an HttpOnly, SameSite=Strict cookie (Secure in production). Mutations require JSON and validate browser Origin. Tokens are never kept in browser localStorage. Desktop JWTs stay in Electron main and use OS encrypted storage for restart recovery.
+JWTs use HS256, an explicit issuer, an 8-hour expiry, and separate `portal` / `desktop` audiences. JWT subjects and session IDs are checked against the database on every authenticated backend request; roles and access are taken from live records. The web token is in an HttpOnly, SameSite=Strict cookie (Secure in production). Mutations require JSON and validate browser Origin. Tokens are never kept in browser localStorage. Desktop JWTs stay in Electron main. "Keep me signed in" saves the token in app data, protected by the OS account's file permissions (there is no keychain).
 
 A unique nullable `activeSlot` in `AccessSession` atomically reserves each desktop account. Password-only login cannot replace a live session, even with the same device identifier. Electron sends a heartbeat every 20 seconds. A session with no heartbeat for 90 seconds loses its lease, so another device may sign in; until one does, the same session can resume after a network outage. Sign-out and normal app exit release it. Admin resets, suspension, deletion, termination, and session revocation invalidate access. Active desktop work stops at the next validation/heartbeat (up to roughly 20 seconds plus network timeout); new sends validate before contacting the provider. An unreachable server never ends a desktop session. Sessions require sign-in again after 8 hours; there is no unlimited refresh-token lifetime or offline license mode.
 
@@ -84,15 +103,15 @@ All paths use `/api/control/`. Success responses are `{ data: ... }`, failures `
 | `logout` | POST | Revoke current session |
 | `state` | GET | Authorized portal account tree, licenses, devices, requests, masked keys |
 | `activity` | GET | Admin account/license audit history; `page`, `event`, `sort=asc\|desc`, `from`/`to` as ISO timestamps with time zone; 20 per page |
-| `desktop` | GET | Validate license, renew heartbeat, return inherited credentials to main |
+| `desktop` | GET | Validate license, renew heartbeat, return the license plan, its features and inherited credentials to main |
 | `accounts` | POST | Create authorized account; desktop creation binds license atomically |
 | `accounts/:id` | PATCH, DELETE | Admin edit, password reset, status, permanent branch deletion |
-| `licenses` | POST | Admin issuance |
-| `licenses/:id` | PATCH | Admin renewal or termination |
+| `licenses` | POST | Admin issuance with a plan |
+| `licenses/:id` | PATCH | Admin renewal, plan change, or termination |
 | `sessions/:id` | DELETE | Admin force logout |
 | `credentials` | POST | Owner key creation |
 | `credentials/:id` | PATCH, DELETE | Owner key update/removal |
-| `requests` | POST | License purchase request |
+| `requests` | POST | License purchase request with a plan |
 | `requests/:id` | PATCH | Admin approve/fulfill or reject |
 
 Legacy `/api/v1/*` prototype endpoints return 410 through `src/proxy.ts`. Their source and database tables remain for deliberate data migration, and that code refuses to run unless `JWT_SECRET`, `ENCRYPTION_MASTER_KEY` and `LICENSE_SERVER_SECRET` are set to real values; old local/legacy accounts are not silently granted new permissions. The new schema uses `AccessAccount`, `AccessLicense`, `AccessSession`, `ManagedCredential`, `LicenseRequest`, `AccessAudit`, and `LoginThrottle`.
@@ -117,4 +136,4 @@ TEST_DATABASE_URL=postgresql://user@localhost:5432/scratch npm run test:throttle
 
 Production runs on Supabase PostgreSQL, and Vercel builds never change the database. Apply schema changes with migrations (`npm run db:deploy`), never `prisma db push`, and take a backup first: the free plan has no automatic backups, so use `pg_dump`. The desktop launch environment must set `NOVI_ACCESS_URL` to the server's HTTPS origin. No live payment processing or paid-provider smoke call is included.
 
-The access integration test uses an isolated temporary database and covers role/tenant isolation, single admin, immutable bindings, concurrent desktop login, crash lease recovery, session revocation, API inheritance, purchase fulfillment, deletion, and calendar renewal.
+The access integration test uses an isolated temporary database and covers role/tenant isolation, single admin, immutable bindings, concurrent desktop login, crash lease recovery, session revocation, API inheritance, purchase fulfillment, deletion, calendar renewal, plans (issuing, changing, Lifetime, plan requests), and refusing desktop apps from before plans.

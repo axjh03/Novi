@@ -26,6 +26,8 @@ import { LocalCodingSetup } from '../components/LocalCodingSetup';
 import { LocalCodingHistory, type ReconcileRequest } from '../components/LocalCodingHistory';
 import { useLocalCodingProject } from '../hooks/useLocalCodingProject';
 import { ENGINES, type LocalCodingMessage } from '../../../shared/localCoding';
+import { lockedMessage } from '../../../shared/plans';
+import { PlanLock } from '../components/PlanLock';
 
 // Each mode has its own icon so the tray can show only the active mode's name.
 const MODE_ICONS: Record<AppMode, LucideIcon> = {
@@ -56,6 +58,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const {
     appMode,
     setAppMode,
+    allows,
     behavioralFramework,
     setBehavioralFramework,
     setWorkingMonitor,
@@ -167,13 +170,15 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
 
   const handleEyeToggle = useCallback(async () => {
     if (et.state === 'idle' || et.state === 'error') {
+      // The lock only blocks turning it on; turning it off always works.
+      if (!allows('eye-tracking')) { chat.setError(lockedMessage('eye-tracking')); return; }
       // Reset error state first
       if (et.state === 'error') et.stop();
       await et.start(et.selectedCameraId);
     } else {
       et.stop();
     }
-  }, [et]);
+  }, [et, allows, chat.setError]);
 
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -308,10 +313,13 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             <nav className="chat-mode-tabs" aria-label="Conversation mode">
               {SESSION_MODES.map(({ id: mode, name: label }) => {
                 const Icon = MODE_ICONS[mode];
+                // Modes the plan doesn't include stay listed with a lock; choosing one explains why instead of switching.
+                const locked = !allows(mode);
                 return (
-                <button key={mode} type="button" className={`mode-tab-btn ${appMode === mode ? 'active' : ''}`}
-                  aria-label={label} title={label} aria-pressed={appMode === mode} onClick={(event) => { setAppMode(mode); const menu = event.currentTarget.closest('details'); if (menu) { menu.open = false; menu.querySelector('summary')?.focus(); } }}>
-                  <Icon size={14} /><span>{label}</span>
+                <button key={mode} type="button" className={`mode-tab-btn ${appMode === mode ? 'active' : ''} ${locked ? 'plan-locked' : ''}`}
+                  aria-label={locked ? `${label} (locked)` : label} title={locked ? lockedMessage(mode) : label} aria-pressed={appMode === mode} aria-disabled={locked || undefined}
+                  onClick={(event) => { if (locked) chat.setError(lockedMessage(mode)); else setAppMode(mode); const menu = event.currentTarget.closest('details'); if (menu) { menu.open = false; menu.querySelector('summary')?.focus(); } }}>
+                  <Icon size={14} /><span>{label}</span>{locked && <PlanLock feature={mode} />}
                 </button>
               ); })}
             </nav>
@@ -388,6 +396,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
                 onCloseOverlay={et.closeOverlay}
                 onSetMonitor={setWorkingMonitor}
                 onSendSticky={['coding', 'system-design', 'local-coding'].includes(appMode) ? et.sendStickyToOverlay : undefined}
+                locked={!allows('eye-tracking')}
               />
             </TrayMenu>
             <button type="button" className="composer-quick-btn tray-dock-toggle"

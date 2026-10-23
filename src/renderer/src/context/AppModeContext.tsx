@@ -13,10 +13,15 @@ import { readAppearance, subscribeAppearance, updateAppearance } from '../servic
 import { useStealthState } from '../hooks/useStealth';
 
 import { isAppMode } from '../../../shared/sessionModes';
+import { fallbackMode, type Feature } from '../../../shared/plans';
 
 interface AppModeContextType {
+  /** The current mode; always one the license's plan includes. */
   appMode: AppMode;
+  /** Switches mode. Modes the plan doesn't include are ignored (their buttons explain the lock instead). */
   setAppMode: (mode: AppMode) => void;
+  /** Whether the license's plan includes a feature. True when there is no plan information (signed out). */
+  allows: (feature: Feature) => boolean;
   behavioralFramework: BehavioralFramework;
   /** Resolves once the choice is saved, so callers can order it before other snapshot updates. */
   setBehavioralFramework: (framework: BehavioralFramework) => Promise<void>;
@@ -51,16 +56,25 @@ interface ProviderProps {
 }
 
 export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: ProviderProps) {
+  // 0. License plan: what the signed-in license unlocks (src/shared/plans.ts).
+  const features = snapshot?.user?.features;
+  const allows = useCallback((feature: Feature) => !features || features.includes(feature), [features]);
+
   // 1. App Mode
-  const [appMode, setAppModeState] = useState<AppMode>(() => {
+  const [savedMode, setAppModeState] = useState<AppMode>(() => {
     const saved = localStorage.getItem('novi_app_mode');
     return isAppMode(saved) ? saved : 'normal';
   });
+  // A saved mode the plan doesn't include (after a downgrade, or Chat on Core) is replaced here,
+  // during render, so nothing ever runs in a locked mode. The saved choice is kept and comes back
+  // if the plan includes it again.
+  const appMode = allows(savedMode) ? savedMode : fallbackMode(features);
 
   const setAppMode = useCallback((mode: AppMode) => {
+    if (!allows(mode)) return;
     setAppModeState(mode);
     localStorage.setItem('novi_app_mode', mode);
-  }, []);
+  }, [allows]);
 
   // 1b. Behavioral Framework Selection ('smart' | 'star' | 'car' | 'par' | 'soar')
   const [behavioralFramework, setBehavioralFrameworkState] = useState<BehavioralFramework>(() => {
@@ -226,9 +240,9 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
       if (action.type === 'change-reading-size') { changeReadingSize(action.payload); return; }
       if (!sessionActive) return;
       if (action.type === 'toggle-coding-mode') {
-        setAppMode(appMode === 'coding' ? 'normal' : 'coding');
+        setAppMode(appMode === 'coding' ? fallbackMode(features) : 'coding');
       } else if (action.type === 'toggle-behavioral-mode') {
-        setAppMode(appMode === 'behavioral' ? 'normal' : 'behavioral');
+        setAppMode(appMode === 'behavioral' ? fallbackMode(features) : 'behavioral');
       } else if (action.type === 'capture-screen') {
         void captureScreenshot();
 
@@ -238,7 +252,7 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
       }
     });
     return cleanup;
-  }, [sessionActive, appMode, setAppMode, captureScreenshot, changeReadingSize]);
+  }, [sessionActive, appMode, setAppMode, features, captureScreenshot, changeReadingSize]);
 
   // Window-level keydown handler for in-app shortcut execution
   useEffect(() => {
@@ -251,10 +265,10 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
       const key = e.key.toLowerCase();
       if (key === 'c') {
         e.preventDefault();
-        setAppMode(appMode === 'coding' ? 'normal' : 'coding');
+        setAppMode(appMode === 'coding' ? fallbackMode(features) : 'coding');
       } else if (key === 'b') {
         e.preventDefault();
-        setAppMode(appMode === 'behavioral' ? 'normal' : 'behavioral');
+        setAppMode(appMode === 'behavioral' ? fallbackMode(features) : 'behavioral');
       } else if (key === '3') {
         e.preventDefault();
         void captureScreenshot();
@@ -264,13 +278,14 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [sessionActive, appMode, setAppMode, captureScreenshot]);
+  }, [sessionActive, appMode, setAppMode, features, captureScreenshot]);
 
   return (
     <AppModeContext.Provider
       value={{
         appMode,
         setAppMode,
+        allows,
         behavioralFramework,
         setBehavioralFramework,
         latestScreenshot,

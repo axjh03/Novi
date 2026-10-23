@@ -8,7 +8,7 @@ import { AccessUnavailableError, ManagedAuthService, SessionChangedError } from 
 import { CredentialStore } from '../services/credentials';
 import { ImageService } from '../services/images';
 import { ChatService } from '../services/chat';
-import { connectionInput, externalUrl, object, settingsInput, text, UserError } from '../services/validation';
+import { connectionInput, externalUrl, object, sendInput, settingsInput, text, UserError } from '../services/validation';
 import { ConnectionService } from '../services/connections';
 import { listModels, testConnection } from '../services/models';
 import { OverlayService } from '../services/overlay';
@@ -37,6 +37,7 @@ import { debug } from '../services/debug';
 import { SmartPlacementService } from '../services/smartPlacement';
 import { AUTO_DETECT_SHORTCUT } from '../../shared/windowLayout';
 import { AIProviderFactory } from '../services/providers';
+import type { Feature } from '../../shared/plans';
 
 export function registerIPC(
   rendererUrl: string,
@@ -170,6 +171,44 @@ export function registerIPC(
     sentAccess = access;
     for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('access-status', access);
   }
+  // Actions that use a paid feature, and the feature each needs (see src/shared/plans.ts).
+  const featureChannels: Record<string, Feature> = {
+    'open-overlay': 'eye-tracking', 'repair-diagram': 'system-design',
+    'get-remote-companion-status': 'phone-companion', 'toggle-remote-tunnel': 'phone-companion',
+  };
+  /**
+   * The plan feature a call needs, or undefined when every plan may make it.
+   * - `send` needs the mode it is sent in; no mode means Chat, as in ChatService.send.
+   * - Every Local Coding call needs Local Coding, except reading the open review, which the code
+   *   viewer asks for each time it opens (in Code and System Design too) and is empty without Local Coding.
+   * Only calls from the page are checked: the main process's own requests, such as the session
+   * set-up message in `initialize-context`, are not paid features.
+   */
+  function channelFeature(channel: string, value: unknown): Feature | undefined {
+    if (channel === 'send') return sendInput(value).appMode ?? 'normal';
+    if (channel.startsWith('local-coding-') && channel !== 'local-coding-review-target') return 'local-coding';
+    return featureChannels[channel];
+  }
+  let sentPlan = '';
+  /**
+   * Applies a plan change found by the last check-in, for example after the administrator downgrades
+   * the license: stops the phone companion and closes the eye-tracking overlay when the plan no longer
+   * includes them, then tells the windows so the page updates its locks and leaves a locked mode.
+   * Runs after every call and every heartbeat tick, like syncAccessStatus; does nothing when the plan
+   * is unchanged.
+   */
+  function syncPlan() {
+    const auth = services?.auth;
+    const plan = auth?.planKey ?? '';
+    if (plan === sentPlan) return;
+    sentPlan = plan;
+    // Runs in every call's `finally`, so it must never throw; the main-process checks still refuse these features.
+    if (plan) try {
+      if (!auth!.allows('phone-companion')) services!.remoteCompanion.stop();
+      if (!auth!.allows('eye-tracking')) services!.overlay.closeOverlay();
+    } catch (error) { console.warn('[Novi] Could not stop a feature the plan no longer includes:', error); }
+    for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('plan-changed');
+  }
   // Only for a session the server rejected; outages never end a session.
   async function endManagedSession(error: unknown, fallback: string) {
     get().smartPlacement.dispose();
@@ -252,6 +291,9 @@ export function registerIPC(
           }
           finally { timing.accessMs = performance.now() - accessStart; }
         }
+        // Paid features are refused here, after the license check, whatever the page shows or hides.
+        const feature = channelFeature(channel, value);
+        if (feature) get().auth.requireFeature(feature);
         if (channel === 'send' && value && typeof value === 'object' && 'sentAt' in value && typeof value.sentAt === 'number' && Number.isFinite(value.sentAt)) {
           const elapsed = receivedAt - value.sentAt;
           if (elapsed >= 0 && elapsed < 180_000) timing.uiToMainMs = elapsed;
@@ -265,7 +307,7 @@ export function registerIPC(
           ? error.message
           : (error?.message || 'Novi could not complete that action. Check file access and available disk space, then try again.');
         return { ok: false, error: userMsg };
-      } finally { syncAccessStatus(); }
+      } finally { syncAccessStatus(); syncPlan(); }
     };
     ipcMain.handle(channel, (event, value: unknown) => debugChannels.has(channel) ? debug.run(channel, () => execute(event, value)) : execute(event, value));
   };
@@ -1027,7 +1069,7 @@ export function registerIPC(
     catch (error) {
       // Outages keep the session open until the user closes the window; only the server's rejection ends it.
       if (!(error instanceof AccessUnavailableError) && !(error instanceof SessionChangedError)) await endManagedSession(error, 'Your session has ended. Sign in again.');
-    } finally { checkingSession = false; syncAccessStatus(); }
+    } finally { checkingSession = false; syncAccessStatus(); syncPlan(); }
   }, 5_000);
   heartbeat.unref();
   app.on('browser-window-created', (_event, window) => {

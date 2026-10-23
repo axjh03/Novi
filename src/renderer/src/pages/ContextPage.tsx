@@ -13,6 +13,8 @@ import { SESSION_ROLES, defaultPurpose, presetFields } from '../context/sessionP
 
 import { useAppMode } from '../context/AppModeContext';
 import { SESSION_MODES, modeInstructions } from '../../../shared/sessionModes';
+import { fallbackMode, lockedMessage } from '../../../shared/plans';
+import { PlanLock } from '../components/PlanLock';
 
 type Section = 'model' | 'sources' | 'brief';
 type Field = { label: string; value: string };
@@ -45,7 +47,7 @@ const folderCount = (count: number) => `${count} ${count === 1 ? 'folder' : 'fol
  * @param onSignOut passed through to Settings, which is where Sign out lives.
  */
 export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; onSaved: (state: Snapshot) => void; onSignOut: () => void }) {
-  const { setAppMode, behavioralFramework, setBehavioralFramework } = useAppMode();
+  const { setAppMode, allows, behavioralFramework, setBehavioralFramework } = useAppMode();
   const [startMode, setStartMode] = useState<AppMode | null>(null);
   const [settings, setSettings] = useState(false);
   const [preflightDone, setPreflightDone] = useState(() => getReadyContinued(state.user!.id));
@@ -104,7 +106,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
 
   /**
    * "Start an empty chat instead": checks the AI connection, then starts a session with no documents
-   * and no instructions, in normal chat mode.
+   * and no instructions, in Chat mode (Technical on Core, which doesn't include Chat).
    * `attempt` guards against a slow reply landing after the user has already done something else.
    */
   async function startEmpty() {
@@ -116,7 +118,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
       if (current !== attempt.current) return;
       setChecking(false);
       const next = await unwrap(window.novi.startEmptySession());
-      setAppMode('normal');
+      setAppMode(fallbackMode(state.user?.features));
       onSaved(next);
     } catch (err) { if (current === attempt.current) setError(errorText(err)); }
     finally { if (current === attempt.current) { setBusy(false); setChecking(false); } }
@@ -129,6 +131,8 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
    */
   async function start() {
     if (!canStart || !startMode) return;
+    // Only if the plan changed while this screen was open; the buttons never select a locked mode.
+    if (!allows(startMode)) { setError(lockedMessage(startMode)); return; }
     const current = ++attempt.current;
     setBusy(true); setChecking(true); setError('');
     try {
@@ -154,8 +158,14 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     target?.focus({ preventScroll: true });
   }
 
-  /** Picks a session type by hand. That replaces what a preset chose, so preset Undo is no longer offered. */
-  function chooseMode(mode: AppMode) { setStartMode(mode); setUndo(null); }
+  /**
+   * Picks a session type by hand. That replaces what a preset chose, so preset Undo is no longer offered.
+   * A type the plan doesn't include is not selected; the footer says which plans include it.
+   */
+  function chooseMode(mode: AppMode) {
+    if (!allows(mode)) { setError(lockedMessage(mode)); return; }
+    setError(''); setStartMode(mode); setUndo(null);
+  }
 
   /** Changes one of the four answer-instruction fields. Editing by hand also clears the preset notice and its Undo. */
   function editField(index: number, patch: Partial<Field>) {
@@ -173,6 +183,8 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
    */
   function applyPreset(index: number) {
     const preset = role.presets[index];
+    if (!allows(preset.mode)) { setError(lockedMessage(preset.mode)); return; }
+    setError('');
     setUndo({ fields, startMode, applied });
     // Experience and additional instructions are the user's own; keep them when they exist.
     setFields(presetFields(role, preset).map((field, i) => i === 1 || i === 3 ? { ...field, value: fields[i].value || field.value } : field));
@@ -227,6 +239,8 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
    */
   async function applyProfile(profile: SessionProfile, startNow: boolean) {
     if (busy) return;
+    // A profile saved on a plan that included its session type, before a downgrade.
+    if (!allows(profile.mode)) { setError(lockedMessage(profile.mode)); return; }
     const current = ++attempt.current;
     const stale = () => current !== attempt.current;
     let reached: Section = 'model';
@@ -306,7 +320,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
             <h3><Bookmark size={14} />Saved profiles</h3>
             {profiles.map((profile) => <div className="profile-card" key={profile.id}>
               <div className="profile-card-text"><strong title={profile.name}>{profile.name}</strong>
-                <span>{modeName(profile.mode)} · {profile.model} · {profile.folders.length ? folderCount(profile.folders.length) : 'No documents'}</span></div>
+                <span>{modeName(profile.mode)}{!allows(profile.mode) && <PlanLock feature={profile.mode} />} · {profile.model} · {profile.folders.length ? folderCount(profile.folders.length) : 'No documents'}</span></div>
               {confirmDelete === profile.id
                 ? <div className="profile-card-actions"><span>Delete?</span><button type="button" className="danger-button" disabled={busy} onClick={() => void deleteProfile(profile.id)}>Delete</button><button type="button" className="text-button" disabled={busy} onClick={() => setConfirmDelete(null)}>Keep</button></div>
                 : <div className="profile-card-actions">
@@ -341,7 +355,10 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
             {purposeEdited && startMode && <button type="button" className="text-button" disabled={busy} onClick={() => setPurposeEdited(false)}>Use suggested purpose</button>}
 
             <fieldset className="context-presets" disabled={busy}><legend>Session type <span>Required</span></legend>
-              <div ref={modeOptions} className="context-preset-options context-mode-options">{SESSION_MODES.map((mode) => <button type="button" key={mode.id} aria-pressed={startMode === mode.id} onClick={() => chooseMode(mode.id)}><strong>{mode.name}</strong><span>{mode.description}</span></button>)}</div>
+              <div ref={modeOptions} className="context-preset-options context-mode-options">{SESSION_MODES.map((mode) => {
+                const locked = !allows(mode.id);
+                return <button type="button" key={mode.id} className={locked ? 'plan-locked' : undefined} aria-pressed={startMode === mode.id} aria-disabled={locked || undefined} title={locked ? lockedMessage(mode.id) : undefined} onClick={() => chooseMode(mode.id)}><strong>{mode.name}{locked && <PlanLock feature={mode.id} />}</strong><span>{mode.description}</span></button>;
+              })}</div>
               {startMode && startMode !== 'normal' && <details className="context-preset-preview"><summary>How AI will answer</summary><p>{modeInstructions(startMode)}</p></details>}
               {startMode === 'behavioral' && <div className="context-framework"><span>Answer framework</span><BehavioralModeHUD framework={behavioralFramework} onSelectFramework={(framework) => void setBehavioralFramework(framework)} /></div>}
             </fieldset>
@@ -358,9 +375,12 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
                 {SESSION_ROLES.map((item, index) => <option key={item.name} value={index}>{item.name}</option>)}
               </select>
               <div className="context-preset-options" role="group" aria-label={`${role.name} presets`}>
-                {role.presets.map((item, index) => <button type="button" key={item.name} aria-pressed={applied?.role === roleIndex && applied.preset === index} onClick={() => applyPreset(index)}>
-                  <strong>{item.name}</strong><span>{item.description}</span>
-                </button>)}
+                {role.presets.map((item, index) => {
+                  const locked = !allows(item.mode);
+                  return <button type="button" key={item.name} className={locked ? 'plan-locked' : undefined} aria-pressed={applied?.role === roleIndex && applied.preset === index} aria-disabled={locked || undefined} title={locked ? lockedMessage(item.mode) : undefined} onClick={() => applyPreset(index)}>
+                    <strong>{item.name}{locked && <PlanLock feature={item.mode} />}</strong><span>{item.description}</span>
+                  </button>;
+                })}
               </div>
               <div className="context-preset-notice" role="status">{presetNotice}{undo && <button type="button" className="text-button" onClick={undoPreset}>Undo</button>}</div>
             </fieldset>

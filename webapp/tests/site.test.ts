@@ -40,3 +40,26 @@ test('referral codes preserve attribution and cannot inject email lines', () => 
   assert.equal(referralCode('friend\r\nPlan: free'), 'friendPlan: free');
   assert.equal(referralCode('x'.repeat(100)).length, 80);
 });
+
+test('the plans the desktop app enforces match the plan labels on the website', async () => {
+  const { FEATURES } = await import('../src/lib/features');
+  const { LICENSE_PLANS, PLAN_FEATURES } = await import('../../src/shared/plans');
+  const plansWith = (feature: string) => LICENSE_PLANS.filter(plan => (PLAN_FEATURES[plan] as readonly string[]).includes(feature));
+  const label = (title: string) => FEATURES.find(feature => feature.title === title)?.label;
+  // Website label for each enforced feature, and the plans the app unlocks it on.
+  const expected: Array<[string, string, string, string[]]> = [
+    ['A dedicated coding assistant', 'Pro and above', 'coding', ['PRO', 'ULTIMATE', 'LIFETIME']],
+    ['System design, explained', 'Pro and above', 'system-design', ['PRO', 'ULTIMATE', 'LIFETIME']],
+    ['Your local code, in context', 'Ultimate only', 'local-coding', ['ULTIMATE']],
+    ['Gaze-aware answers', 'Pro, Ultimate & Lifetime', 'eye-tracking', ['PRO', 'ULTIMATE', 'LIFETIME']],
+    ['A connected phone companion', 'Ultimate only', 'phone-companion', ['ULTIMATE']],
+  ];
+  for (const [title, siteLabel, feature, plans] of expected) {
+    assert.equal(label(title), siteLabel, title);
+    assert.deepEqual(plansWith(feature), plans, feature);
+  }
+  assert.match(FEATURES.find(feature => feature.title.startsWith('Seven modes'))!.text, /Core includes Technical Screen and Behavioral Interview\. Pro adds Chat, Recruiter Call, Code, and System Design\. Ultimate adds Local Coding\./);
+  assert.deepEqual(['technical', 'behavioral'].map(plansWith), [[...LICENSE_PLANS], [...LICENSE_PLANS]]);
+  assert.deepEqual(['normal', 'recruiter'].map(plansWith), [['PRO', 'ULTIMATE', 'LIFETIME'], ['PRO', 'ULTIMATE', 'LIFETIME']]);
+  assert.deepEqual(PLAN_FEATURES.LIFETIME, PLAN_FEATURES.PRO, 'Lifetime is the Pro toolkit');
+});

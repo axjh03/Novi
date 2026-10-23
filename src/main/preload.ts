@@ -104,6 +104,11 @@ const api: NoviAPI = {
     ipcRenderer.on('access-status', listener);
     return () => { ipcRenderer.removeListener('access-status', listener); };
   },
+  onPlanChanged: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on('plan-changed', listener);
+    return () => { ipcRenderer.removeListener('plan-changed', listener); };
+  },
   signOut: () => ipcRenderer.invoke('sign-out'),
   saveSettings: (input) => ipcRenderer.invoke('settings', input),
   saveConnection: (input) => ipcRenderer.invoke('save-connection', input),

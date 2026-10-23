@@ -1,4 +1,5 @@
 import { randomInt } from 'node:crypto';
+import { isLicensePlan, type LicensePlan } from '../../../src/shared/plans';
 
 export const roles = ['ADMIN', 'STANDALONE', 'CORP', 'SUBCORP', 'LICENSE'] as const;
 export const providers = {
@@ -16,6 +17,17 @@ export function string(value: unknown, label: string, max = 100): string {
 }
 export function password(value: unknown): string {
   if (typeof value !== 'string' || value.length < 12 || Buffer.byteLength(value) > 72) throw new AccessError('Passwords need at least 12 characters and at most 72 bytes.');
+  return value;
+}
+/**
+ * Validates a license plan sent by the portal (issuing, changing a plan, or a purchase request).
+ *
+ * @returns the plan id: CORE, PRO, ULTIMATE or LIFETIME.
+ * @throws AccessError for anything else, including a missing plan, so the API never falls back to the
+ *   database default.
+ */
+export function plan(value: unknown): LicensePlan {
+  if (!isLicensePlan(value)) throw new AccessError('Choose Core, Pro, Ultimate or Lifetime.');
   return value;
 }
 export function durationDate(from: Date, amount: unknown, unit: unknown) {

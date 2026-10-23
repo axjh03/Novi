@@ -6,6 +6,7 @@ export const activityEvents: Record<string, string> = {
   PASSWORD_RESET: 'Account password reset',
   LICENSE_ISSUED: 'License issued',
   LICENSE_RENEWED: 'License renewed',
+  LICENSE_PLAN_CHANGED: 'License plan changed',
   LICENSE_TERMINATED: 'License terminated',
   REQUEST_APPROVED: 'Licenses issued from request',
 };
