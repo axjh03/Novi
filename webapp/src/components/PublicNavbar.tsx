@@ -44,7 +44,7 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
               aria-current={active === link.id ? 'page' : undefined}
               style={{
                 textDecoration: 'none',
-                color: active === link.id ? '#111' : 'inherit',
+                color: active === link.id ? 'var(--ink)' : 'inherit',
                 fontWeight: active === link.id ? 600 : 400,
               }}
             >
@@ -86,9 +86,9 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
                 padding: '10px 12px',
                 borderRadius: 8,
                 textDecoration: 'none',
-                color: active === link.id ? '#111' : '#444',
+                color: active === link.id ? 'var(--accent)' : 'var(--ink)',
                 fontWeight: active === link.id ? 600 : 500,
-                background: active === link.id ? '#f4f4f4' : 'transparent',
+                background: active === link.id ? 'var(--accent-soft)' : 'transparent',
                 fontSize: 15,
               }}
             >
@@ -97,7 +97,7 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
           ))}
           {signIn(true)}
 
-          <div style={{ paddingTop: 8, borderTop: '1px solid #f0f0f0' }}>
+          <div style={{ paddingTop: 8, borderTop: '1px solid var(--line)' }}>
             <Link
               href="/get-access"
               onClick={closeMenu}

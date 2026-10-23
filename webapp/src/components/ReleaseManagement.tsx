@@ -217,7 +217,7 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
 
   if (loading && !data) {
     return (
-      <div style={{ padding: '60px 20px', textAlign: 'center', color: '#666' }}>
+      <div style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--muted)' }}>
         <RefreshCw size={24} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
         <p style={{ marginTop: 12, fontSize: 14 }}>Connecting to GitHub Actions & inspecting build status…</p>
       </div>
@@ -235,8 +235,8 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
           {/* STATE 1: BUILDING IN PROGRESS */}
           {data.state === 'BUILDING' && (
             <div style={{
-              background: '#eff6ff',
-              border: '1px solid #bfdbfe',
+              background: 'var(--card)',
+              border: '1px solid var(--accent-line)',
               borderRadius: 12,
               padding: '20px 24px',
               display: 'flex',
@@ -250,8 +250,8 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                   width: 44,
                   height: 44,
                   borderRadius: 10,
-                  background: '#dbeafe',
-                  color: '#2563eb',
+                  background: 'var(--accent-soft)',
+                  color: 'var(--accent)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -260,16 +260,16 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                   <Loader2 size={24} className="spin" style={{ animation: 'spin 1.2s linear infinite' }} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: '#1e40af', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span>Desktop Build in Progress on GitHub Actions</span>
-                    <span style={{ fontSize: 11, background: '#dbeafe', color: '#1d4ed8', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>
+                    <span style={{ fontSize: 11, background: 'var(--accent-soft)', color: 'var(--accent)', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>
                       Live Polling
                     </span>
-                    <span style={{ fontSize: 11, color: '#1d4ed8', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 11, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>
                       Elapsed {elapsedTime(data.latestRun?.createdAt, clockNow)}
                     </span>
                   </div>
-                  <p style={{ fontSize: 13, color: '#2563eb', margin: '4px 0 0' }}>
+                  <p style={{ fontSize: 13, color: 'var(--accent)', margin: '4px 0 0' }}>
                     {data.stateReason} macOS, Windows, and Linux installers are compiling sequentially.
                   </p>
                 </div>
@@ -299,9 +299,9 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                   type="button"
                   onClick={() => fetchStatus(false)}
                   style={{
-                    background: '#fff',
-                    border: '1px solid #bfdbfe',
-                    color: '#1d4ed8',
+                    background: 'var(--card)',
+                    border: '1px solid var(--accent-line)',
+                    color: 'var(--accent)',
                     padding: '8px 12px',
                     borderRadius: 8,
                     cursor: 'pointer',
@@ -320,8 +320,8 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
           {/* STATE 2: LAST BUILD FAILED */}
           {data.state === 'FAILED' && (
             <div style={{
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
+              background: 'var(--card)',
+              border: '1px solid var(--accent-line)',
               borderRadius: 12,
               padding: '20px 24px',
               display: 'flex',
@@ -335,8 +335,8 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                   width: 44,
                   height: 44,
                   borderRadius: 10,
-                  background: '#fee2e2',
-                  color: '#dc2626',
+                  background: 'var(--accent-soft)',
+                  color: 'var(--danger)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -345,13 +345,13 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                   <AlertOctagon size={24} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: '#991b1b', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span>Last Release Build Failed</span>
-                    <span style={{ fontSize: 11, background: '#fee2e2', color: '#b91c1c', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>
+                    <span style={{ fontSize: 11, background: 'var(--accent-soft)', color: 'var(--danger)', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>
                       Action Required
                     </span>
                   </div>
-                  <p style={{ fontSize: 13, color: '#b91c1c', margin: '4px 0 0' }}>
+                  <p style={{ fontSize: 13, color: 'var(--danger)', margin: '4px 0 0' }}>
                     {data.stateReason} Desktop installers were <strong>not</strong> published to users.
                   </p>
                 </div>
@@ -364,9 +364,9 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
-                      background: '#fff',
-                      border: '1px solid #fecaca',
-                      color: '#b91c1c',
+                      background: 'var(--card)',
+                      border: '1px solid var(--accent-line)',
+                      color: 'var(--danger)',
                       padding: '9px 14px',
                       borderRadius: 8,
                       fontSize: 13,
@@ -405,8 +405,8 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
           {/* STATE 3: OUTDATED (COMMITS AHEAD) */}
           {data.state === 'OUTDATED' && (
             <div style={{
-              background: '#fffbeb',
-              border: '1px solid #fde68a',
+              background: 'var(--card)',
+              border: '1px solid var(--accent-line)',
               borderRadius: 12,
               padding: '20px 24px',
               display: 'flex',
@@ -420,8 +420,8 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                   width: 44,
                   height: 44,
                   borderRadius: 10,
-                  background: '#fef3c7',
-                  color: '#d97706',
+                  background: 'var(--accent-soft)',
+                  color: 'var(--danger)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -430,10 +430,10 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                   <AlertTriangle size={24} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: '#92400e' }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--danger)' }}>
                     Release is Outdated ({data.commitsAhead} new {data.commitsAhead === 1 ? 'commit' : 'commits'} on main)
                   </div>
-                  <p style={{ fontSize: 13, color: '#b45309', margin: '4px 0 0' }}>
+                  <p style={{ fontSize: 13, color: 'var(--danger)', margin: '4px 0 0' }}>
                     Current desktop installers are on <strong>{data.currentTag}</strong>. Pending code updates are ready to be compiled into <strong>v{customVersion || data.nextSuggestedVersion}</strong>.
                   </p>
                 </div>
@@ -463,8 +463,8 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
           {/* STATE 4: UP TO DATE & VERIFIED */}
           {data.state === 'UP_TO_DATE' && (
             <div style={{
-              background: '#f0fdf4',
-              border: '1px solid #bbf7d0',
+              background: 'var(--card)',
+              border: '1px solid var(--accent-line)',
               borderRadius: 12,
               padding: '18px 24px',
               display: 'flex',
@@ -478,8 +478,8 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                   width: 40,
                   height: 40,
                   borderRadius: 10,
-                  background: '#dcfce7',
-                  color: '#16a34a',
+                  background: 'var(--accent-soft)',
+                  color: 'var(--accent)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -488,10 +488,10 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                   <CheckCircle2 size={22} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#166534' }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)' }}>
                     Desktop Releases are Up to Date & Verified
                   </div>
-                  <p style={{ fontSize: 13, color: '#15803d', margin: '2px 0 0' }}>
+                  <p style={{ fontSize: 13, color: 'var(--accent)', margin: '2px 0 0' }}>
                     The latest code on main is compiled in <strong>{data.currentTag}</strong> ({data.releaseAssets?.length || 0} installer assets live). Zero pending commits.
                   </p>
                 </div>
@@ -502,9 +502,9 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                   type="button"
                   onClick={() => fetchStatus(false)}
                   style={{
-                    background: '#fff',
-                    border: '1px solid #bbf7d0',
-                    color: '#166534',
+                    background: 'var(--card)',
+                    border: '1px solid var(--accent-line)',
+                    color: 'var(--accent)',
                     padding: '7px 14px',
                     borderRadius: 6,
                     fontSize: 12,
@@ -521,9 +521,9 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                   type="button"
                   onClick={() => setShowConfirm(true)}
                   style={{
-                    background: '#166534',
+                    background: 'var(--action)',
                     border: 'none',
-                    color: '#fff',
+                    color: 'var(--ink)',
                     padding: '7px 14px',
                     borderRadius: 6,
                     fontSize: 12,
@@ -547,7 +547,7 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
         <section className="panel" style={{ padding: '18px 22px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Cpu size={16} color="#111" />
+              <Cpu size={16} color="var(--ink)" />
               <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>
                 CI/CD Multi-Platform Runner Status ({data.latestRun?.headBranch || data.currentTag})
               </h3>
@@ -557,7 +557,7 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                 href={data.latestRun.htmlUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ fontSize: 12, color: '#666', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+                style={{ fontSize: 12, color: 'var(--muted)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
               >
                 Run #{data.latestRun.runNumber} <ExternalLink size={11} />
               </a>
@@ -575,21 +575,21 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
               const isRunning = job.status === 'in_progress';
               const isQueued = job.status === 'queued';
 
-              let statusColor = '#71717a';
-              let statusBg = '#f4f4f5';
+              let statusColor = 'var(--muted)';
+              let statusBg = 'var(--soft)';
               let statusText = 'Queued';
 
               if (isRunning) {
-                statusColor = '#2563eb';
-                statusBg = '#dbeafe';
+                statusColor = 'var(--accent)';
+                statusBg = 'var(--accent-soft)';
                 statusText = 'Building...';
               } else if (isSuccess) {
-                statusColor = '#16a34a';
-                statusBg = '#dcfce7';
+                statusColor = 'var(--success)';
+                statusBg = 'var(--success-soft)';
                 statusText = 'Success ✓';
               } else if (isJobFailed) {
-                statusColor = '#dc2626';
-                statusBg = '#fee2e2';
+                statusColor = 'var(--danger)';
+                statusBg = 'var(--danger-soft)';
                 statusText = 'Failed ✕';
               }
 
@@ -597,8 +597,8 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                 <div
                   key={job.name}
                   style={{
-                    background: '#fafafa',
-                    border: '1px solid #eaeaea',
+                    background: 'var(--card)',
+                    border: '1px solid var(--line)',
                     borderRadius: 8,
                     padding: '12px 14px',
                     display: 'flex',
@@ -607,16 +607,16 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 30, height: 30, borderRadius: 6, background: '#ffffff', border: '1px solid #e4e4e7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 6, background: 'var(--card)', border: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}>
                       {isMac && <img src="/apple-logo.png" alt="macOS" style={{ width: 18, height: 18, objectFit: 'contain' }} />}
                       {isWin && <img src="/microsoft.png" alt="Windows" style={{ width: 18, height: 18, objectFit: 'contain' }} />}
                       {isLinux && <img src="/ubuntu.png" alt="Linux" style={{ width: 18, height: 18, objectFit: 'contain' }} />}
                     </div>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
                         {isMac ? 'macOS (arm64 + x64)' : isWin ? 'Windows (x64 .exe)' : 'Linux (Debian + AppImage)'}
                       </div>
-                      <div style={{ fontSize: 11, color: '#777', fontFamily: 'monospace' }}>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'monospace' }}>
                         {job.name}
                       </div>
                     </div>
@@ -645,7 +645,7 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
 
       {/* Error Notification */}
       {error && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '14px 18px', borderRadius: 8, fontSize: 13 }}>
+        <div style={{ background: 'var(--card)', border: '1px solid var(--accent-line)', color: 'var(--danger)', padding: '14px 18px', borderRadius: 8, fontSize: 13 }}>
           {error}
         </div>
       )}
@@ -656,17 +656,17 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
         {/* Left Card: 1-Click Automated Release */}
         <section className="panel" style={{ padding: '24px 22px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <Rocket size={18} color="#111" />
+            <Rocket size={18} color="var(--ink)" />
             <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Trigger New Desktop Release</h2>
           </div>
-          <p style={{ fontSize: 13, color: '#666', lineHeight: 1.5, margin: '0 0 20px' }}>
+          <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5, margin: '0 0 20px' }}>
             Version numbers and changelog are computed automatically from git. Click build to publish.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Version Increment Selector (Smart Pills) */}
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#333', marginBottom: 8 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--ink)', marginBottom: 8 }}>
                 Select Next Release Version:
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
@@ -678,9 +678,9 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                       style={{
                         padding: '10px 8px',
                         borderRadius: 8,
-                        border: selectedType === 'patch' ? '2px solid #111' : '1px solid #ddd',
-                        background: selectedType === 'patch' ? '#111' : '#fff',
-                        color: selectedType === 'patch' ? '#fff' : '#111',
+                        border: selectedType === 'patch' ? '2px solid var(--line)' : '1px solid var(--line)',
+                        background: selectedType === 'patch' ? 'var(--action)' : 'var(--card)',
+                        color: selectedType === 'patch' ? 'var(--ink)' : 'var(--ink)',
                         cursor: 'pointer',
                         textAlign: 'center',
                         transition: 'all 0.15s ease',
@@ -696,9 +696,9 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                       style={{
                         padding: '10px 8px',
                         borderRadius: 8,
-                        border: selectedType === 'minor' ? '2px solid #111' : '1px solid #ddd',
-                        background: selectedType === 'minor' ? '#111' : '#fff',
-                        color: selectedType === 'minor' ? '#fff' : '#111',
+                        border: selectedType === 'minor' ? '2px solid var(--line)' : '1px solid var(--line)',
+                        background: selectedType === 'minor' ? 'var(--action)' : 'var(--card)',
+                        color: selectedType === 'minor' ? 'var(--ink)' : 'var(--ink)',
                         cursor: 'pointer',
                         textAlign: 'center',
                         transition: 'all 0.15s ease',
@@ -714,9 +714,9 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                       style={{
                         padding: '10px 8px',
                         borderRadius: 8,
-                        border: selectedType === 'major' ? '2px solid #111' : '1px solid #ddd',
-                        background: selectedType === 'major' ? '#111' : '#fff',
-                        color: selectedType === 'major' ? '#fff' : '#111',
+                        border: selectedType === 'major' ? '2px solid var(--line)' : '1px solid var(--line)',
+                        background: selectedType === 'major' ? 'var(--action)' : 'var(--card)',
+                        color: selectedType === 'major' ? 'var(--ink)' : 'var(--ink)',
                         cursor: 'pointer',
                         textAlign: 'center',
                         transition: 'all 0.15s ease',
@@ -731,7 +731,7 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
 
               {/* Exact Version Edit */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-                <span style={{ fontFamily: 'monospace', fontSize: 14, color: '#777', fontWeight: 600 }}>v</span>
+                <span style={{ fontFamily: 'monospace', fontSize: 14, color: 'var(--muted)', fontWeight: 600 }}>v</span>
                 <input
                   type="text"
                   value={customVersion}
@@ -744,7 +744,7 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                     flex: 1,
                     padding: '8px 12px',
                     borderRadius: 8,
-                    border: '1px solid #ccc',
+                    border: '1px solid var(--line)',
                     fontSize: 13,
                     fontFamily: 'monospace',
                   }}
@@ -755,10 +755,10 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
             {/* Release Notes */}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <label htmlFor="release-notes" style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>
+                <label htmlFor="release-notes" style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>
                   Release notes
                 </label>
-                <span style={{ fontSize: 11, color: '#888' }}>Shown to users in Settings › Updates</span>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>Shown to users in Settings › Updates</span>
               </div>
               <textarea
                 id="release-notes"
@@ -771,20 +771,20 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                   width: '100%',
                   padding: '10px 12px',
                   borderRadius: 8,
-                  border: '1px solid #ccc',
+                  border: '1px solid var(--line)',
                   fontSize: 13,
                   fontFamily: 'sans-serif',
                   boxSizing: 'border-box',
                   resize: 'vertical',
                 }}
               />
-              <p id="release-notes-hint" style={{ margin: '6px 0 0', fontSize: 11, color: '#777' }}>
+              <p id="release-notes-hint" style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--muted)' }}>
                 Plain text, shown exactly as typed. Leave empty to use <code>release-notes/v{customVersion || 'x.y.z'}.md</code> from the repository.
               </p>
             </div>
 
-            <div style={{ background: '#f8f8f8', border: '1px solid #eaeaea', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: '#555' }}>
-              <div style={{ fontWeight: 600, color: '#111', marginBottom: 4 }}>What happens next:</div>
+            <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: 'var(--muted)' }}>
+              <div style={{ fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>What happens next:</div>
               <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
                 <li>Step 1: <strong>macOS 15</strong> builds the Apple Silicon and Intel .dmg files.</li>
                 <li>Step 2: <strong>Windows</strong> builds the Setup .exe and tests a real in-app update to it.</li>
@@ -824,7 +824,7 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
         <section className="panel" style={{ padding: '24px 22px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <GitCommit size={18} color="#111" />
+              <GitCommit size={18} color="var(--ink)" />
               <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Commits Since {data?.currentTag || 'v0.1.2'}</h2>
             </div>
             <span className="badge">
@@ -838,8 +838,8 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                 <div
                   key={c.sha}
                   style={{
-                    background: '#fafafa',
-                    border: '1px solid #eaeaea',
+                    background: 'var(--card)',
+                    border: '1px solid var(--line)',
                     borderRadius: 8,
                     padding: '10px 14px',
                     display: 'flex',
@@ -848,7 +848,7 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{c.message}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{c.message}</span>
                     <a
                       href={c.url}
                       target="_blank"
@@ -856,8 +856,8 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                       style={{
                         fontFamily: 'monospace',
                         fontSize: 11,
-                        background: '#e4e4e7',
-                        color: '#18181b',
+                        background: 'var(--soft)',
+                        color: 'var(--ink)',
                         padding: '2px 6px',
                         borderRadius: 4,
                         textDecoration: 'none',
@@ -867,24 +867,24 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                       {c.sha} <ExternalLink size={10} style={{ display: 'inline' }} />
                     </a>
                   </div>
-                  <div style={{ fontSize: 11, color: '#71717a' }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>
                     by {c.author} · {new Date(c.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div style={{ textAlign: 'center', padding: '30px 20px', color: '#777' }}>
+            <div style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--muted)' }}>
               <CheckCircle2 size={28} color="#16a34a" style={{ marginBottom: 8 }} />
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#222' }}>All commits are packaged</p>
-              <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>No new commits have been pushed since {data?.currentTag}.</p>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>All commits are packaged</p>
+              <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>No new commits have been pushed since {data?.currentTag}.</p>
             </div>
           )}
 
           {/* Active Release Assets */}
           {data?.releaseAssets && data.releaseAssets.length > 0 && (
-            <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #eee' }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--line)' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Package size={13} /> Active Installers in {data.currentTag} ({data.releaseAssets.length} files)
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
@@ -895,16 +895,16 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      background: '#f8f8f8',
+                      background: 'var(--card)',
                       padding: '7px 12px',
                       borderRadius: 6,
                       fontSize: 12,
                     }}
                   >
-                    <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#222' }}>
+                    <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--ink)' }}>
                       {asset.name}
                     </span>
-                    <span style={{ color: '#777', fontSize: 11 }}>
+                    <span style={{ color: 'var(--muted)', fontSize: 11 }}>
                       {(asset.size / (1024 * 1024)).toFixed(1)} MB
                     </span>
                   </div>
@@ -934,11 +934,11 @@ export default function ReleaseManagement({ admin }: { admin: boolean }) {
             height: '100%',
           }}
         >
-          <div className="modal-card" style={{ maxWidth: 440, width: '100%', background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+          <div className="modal-card" style={{ maxWidth: 440, width: '100%', background: 'var(--card)', borderRadius: 12, padding: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
             <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 8px' }}>
               Confirm Desktop Release v{customVersion}
             </h2>
-            <p style={{ fontSize: 13, color: '#666', lineHeight: 1.5, margin: '0 0 20px' }}>
+            <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5, margin: '0 0 20px' }}>
               Are you sure you want to trigger a build for <strong>v{customVersion}</strong>? This will create tag <code>v{customVersion}</code> on GitHub and run sequential builders for macOS, Windows, and Linux.
             </p>
 

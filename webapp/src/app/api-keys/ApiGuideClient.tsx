@@ -81,8 +81,8 @@ export default function ApiGuideClient() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#ffffff',
-      color: '#1a1a1a',
+      background: 'var(--paper)',
+      color: 'var(--ink)',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
       display: 'flex',
       flexDirection: 'column',
@@ -106,7 +106,7 @@ export default function ApiGuideClient() {
           height: calc(100vh - 85px);
           overflow-y: auto;
           padding: 30px 24px 40px 28px;
-          border-right: 1px solid #f0f0f0;
+          border-right: 1px solid var(--line);
           font-size: 13px;
           flex-shrink: 0;
         }
@@ -116,12 +116,17 @@ export default function ApiGuideClient() {
           max-width: 960px;
           min-width: 0;
         }
+        .api-guide-main :not(pre) > code {
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        .api-guide-main pre code { white-space: pre; }
         .api-guide-title {
           font-size: 40px;
           font-weight: 700;
           letter-spacing: -1.5px;
           line-height: 1.15;
-          color: #111;
+          color: var(--ink);
           margin: 0 0 16px;
         }
         @media (max-width: 860px) {
@@ -133,7 +138,7 @@ export default function ApiGuideClient() {
             height: auto !important;
             position: static !important;
             border-right: none !important;
-            border-bottom: 1px solid #f0f0f0 !important;
+            border-bottom: 1px solid var(--line) !important;
             padding: 18px 16px !important;
             box-sizing: border-box !important;
           }
@@ -153,13 +158,13 @@ export default function ApiGuideClient() {
       <div className="api-guide-shell">
         {/* Left Sticky Documentation Sidebar */}
         <aside className="api-guide-aside">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14, color: '#111', marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14, color: 'var(--ink)', marginBottom: 20 }}>
             <BookOpen size={16} />
             <span>Developer Documentation</span>
           </div>
 
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>
               Getting Started
             </div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -168,9 +173,9 @@ export default function ApiGuideClient() {
                   display: 'block',
                   padding: '6px 10px',
                   borderRadius: 6,
-                  color: activeHeading === 'overview' ? '#111' : '#666',
+                  color: activeHeading === 'overview' ? 'var(--ink)' : 'var(--muted)',
                   fontWeight: activeHeading === 'overview' ? 600 : 400,
-                  background: activeHeading === 'overview' ? '#f5f5f5' : 'transparent',
+                  background: activeHeading === 'overview' ? 'var(--card)' : 'transparent',
                   textDecoration: 'none'
                 }}>Overview & Setup</a>
               </li>
@@ -179,9 +184,9 @@ export default function ApiGuideClient() {
                   display: 'block',
                   padding: '6px 10px',
                   borderRadius: 6,
-                  color: activeHeading === 'model-matrix' ? '#111' : '#666',
+                  color: activeHeading === 'model-matrix' ? 'var(--ink)' : 'var(--muted)',
                   fontWeight: activeHeading === 'model-matrix' ? 600 : 400,
-                  background: activeHeading === 'model-matrix' ? '#f5f5f5' : 'transparent',
+                  background: activeHeading === 'model-matrix' ? 'var(--card)' : 'transparent',
                   textDecoration: 'none'
                 }}>Model Comparison Matrix</a>
               </li>
@@ -189,7 +194,7 @@ export default function ApiGuideClient() {
           </div>
 
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>
               Provider Guides & URLs
             </div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -200,9 +205,9 @@ export default function ApiGuideClient() {
                   gap: 8,
                   padding: '6px 10px',
                   borderRadius: 6,
-                  color: activeHeading === 'claude' ? '#111' : '#666',
+                  color: activeHeading === 'claude' ? 'var(--ink)' : 'var(--muted)',
                   fontWeight: activeHeading === 'claude' ? 600 : 400,
-                  background: activeHeading === 'claude' ? '#f5f5f5' : 'transparent',
+                  background: activeHeading === 'claude' ? 'var(--card)' : 'transparent',
                   textDecoration: 'none'
                 }}>
                   <AnthropicLogo size={15} />
@@ -216,9 +221,9 @@ export default function ApiGuideClient() {
                   gap: 8,
                   padding: '6px 10px',
                   borderRadius: 6,
-                  color: activeHeading === 'openai' ? '#111' : '#666',
+                  color: activeHeading === 'openai' ? 'var(--ink)' : 'var(--muted)',
                   fontWeight: activeHeading === 'openai' ? 600 : 400,
-                  background: activeHeading === 'openai' ? '#f5f5f5' : 'transparent',
+                  background: activeHeading === 'openai' ? 'var(--card)' : 'transparent',
                   textDecoration: 'none'
                 }}>
                   <OpenAILogo size={15} />
@@ -232,9 +237,9 @@ export default function ApiGuideClient() {
                   gap: 8,
                   padding: '6px 10px',
                   borderRadius: 6,
-                  color: activeHeading === 'gemini' ? '#111' : '#666',
+                  color: activeHeading === 'gemini' ? 'var(--ink)' : 'var(--muted)',
                   fontWeight: activeHeading === 'gemini' ? 600 : 400,
-                  background: activeHeading === 'gemini' ? '#f5f5f5' : 'transparent',
+                  background: activeHeading === 'gemini' ? 'var(--card)' : 'transparent',
                   textDecoration: 'none'
                 }}>
                   <GeminiLogo size={15} />
@@ -248,9 +253,9 @@ export default function ApiGuideClient() {
                   gap: 8,
                   padding: '6px 10px',
                   borderRadius: 6,
-                  color: activeHeading === 'kimi' ? '#111' : '#666',
+                  color: activeHeading === 'kimi' ? 'var(--ink)' : 'var(--muted)',
                   fontWeight: activeHeading === 'kimi' ? 600 : 400,
-                  background: activeHeading === 'kimi' ? '#f5f5f5' : 'transparent',
+                  background: activeHeading === 'kimi' ? 'var(--card)' : 'transparent',
                   textDecoration: 'none'
                 }}>
                   <KimiLogo size={15} />
@@ -261,7 +266,7 @@ export default function ApiGuideClient() {
           </div>
 
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>
               Connect to Novi
             </div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -270,9 +275,9 @@ export default function ApiGuideClient() {
                   display: 'block',
                   padding: '6px 10px',
                   borderRadius: 6,
-                  color: activeHeading === 'add-key' ? '#111' : '#666',
+                  color: activeHeading === 'add-key' ? 'var(--ink)' : 'var(--muted)',
                   fontWeight: activeHeading === 'add-key' ? 600 : 400,
-                  background: activeHeading === 'add-key' ? '#f5f5f5' : 'transparent',
+                  background: activeHeading === 'add-key' ? 'var(--card)' : 'transparent',
                   textDecoration: 'none'
                 }}>Add your key to Novi</a>
               </li>
@@ -281,9 +286,9 @@ export default function ApiGuideClient() {
                   display: 'block',
                   padding: '6px 10px',
                   borderRadius: 6,
-                  color: activeHeading === 'use-key' ? '#111' : '#666',
+                  color: activeHeading === 'use-key' ? 'var(--ink)' : 'var(--muted)',
                   fontWeight: activeHeading === 'use-key' ? 600 : 400,
-                  background: activeHeading === 'use-key' ? '#f5f5f5' : 'transparent',
+                  background: activeHeading === 'use-key' ? 'var(--card)' : 'transparent',
                   textDecoration: 'none'
                 }}>Use it in the desktop app</a>
               </li>
@@ -291,7 +296,7 @@ export default function ApiGuideClient() {
           </div>
 
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>
               Security
             </div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -300,9 +305,9 @@ export default function ApiGuideClient() {
                   display: 'block',
                   padding: '6px 10px',
                   borderRadius: 6,
-                  color: activeHeading === 'security' ? '#111' : '#666',
+                  color: activeHeading === 'security' ? 'var(--ink)' : 'var(--muted)',
                   fontWeight: activeHeading === 'security' ? 600 : 400,
-                  background: activeHeading === 'security' ? '#f5f5f5' : 'transparent',
+                  background: activeHeading === 'security' ? 'var(--card)' : 'transparent',
                   textDecoration: 'none'
                 }}>Security & Local Encryption</a>
               </li>
@@ -313,58 +318,58 @@ export default function ApiGuideClient() {
         {/* Main Continuous Document Reading Area */}
         <main className="api-guide-main">
           {/* Breadcrumb */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#888', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>
             <span>Setup guide</span>
             <ChevronRight size={13} />
             <span>Integrations</span>
             <ChevronRight size={13} />
-            <span style={{ color: '#222', fontWeight: 600 }}>API Keys & Provider Setup</span>
+            <span style={{ color: 'var(--ink)', fontWeight: 600 }}>API Keys & Provider Setup</span>
           </div>
 
           {/* Document Title Header */}
           <h1 className="api-guide-title">
             How to Get &amp; Connect Your API Keys
           </h1>
-          <p style={{ fontSize: 17, color: '#555', lineHeight: 1.65, margin: '0 0 36px' }}>
+          <p style={{ fontSize: 17, color: 'var(--muted)', lineHeight: 1.65, margin: '0 0 36px' }}>
             Direct URLs and step-by-step instructions for generating API keys from <b>Anthropic Claude</b>, <b>OpenAI</b>, <b>Google Gemini</b>, and <b>Kimi (Moonshot AI)</b>, and connecting them to Novi.
           </p>
 
-          <hr style={{ border: 'none', borderTop: '1px solid #ebebeb', margin: '30px 0 40px' }} />
+          <hr style={{ border: 'none', borderTop: '1px solid var(--line)', margin: '30px 0 40px' }} />
 
           {/* SECTION 1: OVERVIEW */}
           <section id="overview" style={{ marginBottom: 60, scrollMarginTop: 100 }}>
-            <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.8px', color: '#111', marginBottom: 16 }}>
+            <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.8px', color: 'var(--ink)', marginBottom: 16 }}>
               Overview &amp; Direct Connection
             </h2>
-            <p style={{ fontSize: 15, color: '#444', lineHeight: 1.7, marginBottom: 16 }}>
+            <p style={{ fontSize: 15, color: 'var(--ink)', lineHeight: 1.7, marginBottom: 16 }}>
               Novi connects directly to your AI providers from your local desktop workspace. You provide your own API key, and all chat queries, coding questions, and live voice transcripts route directly to your chosen provider with zero intermediary logging.
             </p>
 
             <div style={{
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
+              background: 'var(--card)',
+              border: '1px solid var(--line)',
               borderRadius: 8,
               padding: '18px 22px',
               marginBottom: 24,
               fontSize: 14,
               lineHeight: 1.6,
-              color: '#334155'
+              color: 'var(--accent)'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: '#0f172a', marginBottom: 6 }}>
-                <Info size={16} style={{ color: '#2563eb' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: 'var(--accent)', marginBottom: 6 }}>
+                <Info size={16} style={{ color: 'var(--accent)' }} />
                 Quick Links to API Key Portals
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginTop: 12 }}>
-                <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#92400e', textDecoration: 'none', fontWeight: 500, fontSize: 13, background: '#fff', border: '1px solid #fed7aa', padding: '8px 12px', borderRadius: 6 }}>
+                <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--danger)', textDecoration: 'none', fontWeight: 500, fontSize: 13, background: 'var(--card)', border: '1px solid var(--accent-line)', padding: '8px 12px', borderRadius: 6 }}>
                   <AnthropicLogo size={16} /> Anthropic API Keys <ExternalLink size={13} />
                 </a>
-                <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#065f46', textDecoration: 'none', fontWeight: 500, fontSize: 13, background: '#fff', border: '1px solid #a7f3d0', padding: '8px 12px', borderRadius: 6 }}>
+                <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--accent)', textDecoration: 'none', fontWeight: 500, fontSize: 13, background: 'var(--card)', border: '1px solid var(--accent-line)', padding: '8px 12px', borderRadius: 6 }}>
                   <OpenAILogo size={16} /> OpenAI API Keys <ExternalLink size={13} />
                 </a>
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#1e40af', textDecoration: 'none', fontWeight: 500, fontSize: 13, background: '#fff', border: '1px solid #bfdbfe', padding: '8px 12px', borderRadius: 6 }}>
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--accent)', textDecoration: 'none', fontWeight: 500, fontSize: 13, background: 'var(--card)', border: '1px solid var(--accent-line)', padding: '8px 12px', borderRadius: 6 }}>
                   <GeminiLogo size={16} /> Google Gemini API Keys <ExternalLink size={13} />
                 </a>
-                <a href="https://platform.moonshot.cn/console/api-keys" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#6b21a8', textDecoration: 'none', fontWeight: 500, fontSize: 13, background: '#fff', border: '1px solid #e9d5ff', padding: '8px 12px', borderRadius: 6 }}>
+                <a href="https://platform.moonshot.cn/console/api-keys" target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--accent)', textDecoration: 'none', fontWeight: 500, fontSize: 13, background: 'var(--card)', border: '1px solid var(--accent-line)', padding: '8px 12px', borderRadius: 6 }}>
                   <KimiLogo size={16} /> Kimi (Moonshot) Keys <ExternalLink size={13} />
                 </a>
               </div>
@@ -373,86 +378,86 @@ export default function ApiGuideClient() {
 
           {/* SECTION 2: MODEL COMPARISON MATRIX */}
           <section id="model-matrix" style={{ marginBottom: 60, scrollMarginTop: 100 }}>
-            <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.8px', color: '#111', marginBottom: 16 }}>
+            <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.8px', color: 'var(--ink)', marginBottom: 16 }}>
               Supported Models &amp; Recommendations
             </h2>
-            <p style={{ fontSize: 15, color: '#444', lineHeight: 1.7, marginBottom: 20 }}>
+            <p style={{ fontSize: 15, color: 'var(--ink)', lineHeight: 1.7, marginBottom: 20 }}>
               After you add a key, Novi lists the models your provider account can use. Here is how some common models compare for interview practice:
             </p>
 
-            <div style={{ border: '1px solid #e5e5e5', borderRadius: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: 24 }}>
+            <div style={{ border: '1px solid var(--line)', borderRadius: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: 24 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
                 <thead>
-                  <tr style={{ background: '#fafafa', borderBottom: '1px solid #e5e5e5' }}>
-                    <th style={{ padding: '12px 16px', fontWeight: 600, color: '#555' }}>Model ID</th>
-                    <th style={{ padding: '12px 16px', fontWeight: 600, color: '#555' }}>Context Window</th>
-                    <th style={{ padding: '12px 16px', fontWeight: 600, color: '#555' }}>Speed / Profile</th>
-                    <th style={{ padding: '12px 16px', fontWeight: 600, color: '#555' }}>Best Used For</th>
+                  <tr style={{ background: 'var(--card)', borderBottom: '1px solid var(--line)' }}>
+                    <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--muted)' }}>Model ID</th>
+                    <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--muted)' }}>Context Window</th>
+                    <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--muted)' }}>Speed / Profile</th>
+                    <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--muted)' }}>Best Used For</th>
                     <th style={{ padding: '12px 16px', textAlign: 'right' }}>Copy</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <tr style={{ borderBottom: '1px solid var(--line)' }}>
                     <td style={{ padding: '12px 16px', fontWeight: 600, fontFamily: 'monospace' }}>
                       claude-3-7-sonnet-20250219
                     </td>
-                    <td style={{ padding: '12px 16px', color: '#666' }}>200K</td>
-                    <td style={{ padding: '12px 16px' }}><span style={{ color: '#be185d', fontWeight: 600 }}>Deep Reasoning</span></td>
-                    <td style={{ padding: '12px 16px', color: '#444' }}>Complex algorithm proofs, architectural diagrams, in-depth refactoring.</td>
+                    <td style={{ padding: '12px 16px', color: 'var(--muted)' }}>200K</td>
+                    <td style={{ padding: '12px 16px' }}><span style={{ color: 'var(--danger)', fontWeight: 600 }}>Deep Reasoning</span></td>
+                    <td style={{ padding: '12px 16px', color: 'var(--ink)' }}>Complex algorithm proofs, architectural diagrams, in-depth refactoring.</td>
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                      <button type="button" onClick={() => copyToClipboard('claude-3-7-sonnet-20250219', 'm1')} style={{ background: 'none', border: '1px solid #ddd', borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>
+                      <button type="button" onClick={() => copyToClipboard('claude-3-7-sonnet-20250219', 'm1')} style={{ background: 'none', border: '1px solid var(--line)', borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>
                         {copiedText === 'm1' ? 'Copied' : 'Copy'}
                       </button>
                     </td>
                   </tr>
-                  <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <tr style={{ borderBottom: '1px solid var(--line)' }}>
                     <td style={{ padding: '12px 16px', fontWeight: 600, fontFamily: 'monospace' }}>
                       claude-3-5-sonnet-20241022
                     </td>
-                    <td style={{ padding: '12px 16px', color: '#666' }}>200K</td>
-                    <td style={{ padding: '12px 16px' }}><span style={{ color: '#1d4ed8', fontWeight: 600 }}>Fast</span></td>
-                    <td style={{ padding: '12px 16px', color: '#444' }}>General LeetCode live problem-solving and structured technical interview answers.</td>
+                    <td style={{ padding: '12px 16px', color: 'var(--muted)' }}>200K</td>
+                    <td style={{ padding: '12px 16px' }}><span style={{ color: 'var(--accent)', fontWeight: 600 }}>Fast</span></td>
+                    <td style={{ padding: '12px 16px', color: 'var(--ink)' }}>General LeetCode live problem-solving and structured technical interview answers.</td>
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                      <button type="button" onClick={() => copyToClipboard('claude-3-5-sonnet-20241022', 'm2')} style={{ background: 'none', border: '1px solid #ddd', borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>
+                      <button type="button" onClick={() => copyToClipboard('claude-3-5-sonnet-20241022', 'm2')} style={{ background: 'none', border: '1px solid var(--line)', borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>
                         {copiedText === 'm2' ? 'Copied' : 'Copy'}
                       </button>
                     </td>
                   </tr>
-                  <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <tr style={{ borderBottom: '1px solid var(--line)' }}>
                     <td style={{ padding: '12px 16px', fontWeight: 600, fontFamily: 'monospace' }}>
                       gemini-2.0-flash
                     </td>
-                    <td style={{ padding: '12px 16px', color: '#666' }}>1M</td>
-                    <td style={{ padding: '12px 16px' }}><span style={{ color: '#047857', fontWeight: 600 }}>Ultra-Fast (~350ms)</span></td>
-                    <td style={{ padding: '12px 16px', color: '#444' }}>Real-time voice speech transcription and instantaneous coding hints.</td>
+                    <td style={{ padding: '12px 16px', color: 'var(--muted)' }}>1M</td>
+                    <td style={{ padding: '12px 16px' }}><span style={{ color: 'var(--accent)', fontWeight: 600 }}>Ultra-Fast (~350ms)</span></td>
+                    <td style={{ padding: '12px 16px', color: 'var(--ink)' }}>Real-time voice speech transcription and instantaneous coding hints.</td>
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                      <button type="button" onClick={() => copyToClipboard('gemini-2.0-flash', 'm3')} style={{ background: 'none', border: '1px solid #ddd', borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>
+                      <button type="button" onClick={() => copyToClipboard('gemini-2.0-flash', 'm3')} style={{ background: 'none', border: '1px solid var(--line)', borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>
                         {copiedText === 'm3' ? 'Copied' : 'Copy'}
                       </button>
                     </td>
                   </tr>
-                  <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <tr style={{ borderBottom: '1px solid var(--line)' }}>
                     <td style={{ padding: '12px 16px', fontWeight: 600, fontFamily: 'monospace' }}>
                       gpt-4o
                     </td>
-                    <td style={{ padding: '12px 16px', color: '#666' }}>128K</td>
-                    <td style={{ padding: '12px 16px' }}><span style={{ color: '#1d4ed8', fontWeight: 600 }}>Fast</span></td>
-                    <td style={{ padding: '12px 16px', color: '#444' }}>Multimodal screenshot analysis and balanced code explanation.</td>
+                    <td style={{ padding: '12px 16px', color: 'var(--muted)' }}>128K</td>
+                    <td style={{ padding: '12px 16px' }}><span style={{ color: 'var(--accent)', fontWeight: 600 }}>Fast</span></td>
+                    <td style={{ padding: '12px 16px', color: 'var(--ink)' }}>Multimodal screenshot analysis and balanced code explanation.</td>
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                      <button type="button" onClick={() => copyToClipboard('gpt-4o', 'm4')} style={{ background: 'none', border: '1px solid #ddd', borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>
+                      <button type="button" onClick={() => copyToClipboard('gpt-4o', 'm4')} style={{ background: 'none', border: '1px solid var(--line)', borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>
                         {copiedText === 'm4' ? 'Copied' : 'Copy'}
                       </button>
                     </td>
                   </tr>
-                  <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <tr style={{ borderBottom: '1px solid var(--line)' }}>
                     <td style={{ padding: '12px 16px', fontWeight: 600, fontFamily: 'monospace' }}>
                       o3-mini
                     </td>
-                    <td style={{ padding: '12px 16px', color: '#666' }}>200K</td>
-                    <td style={{ padding: '12px 16px' }}><span style={{ color: '#be185d', fontWeight: 600 }}>Deep Reasoning</span></td>
-                    <td style={{ padding: '12px 16px', color: '#444' }}>Rigorous dynamic programming, math puzzles, and hard edge cases.</td>
+                    <td style={{ padding: '12px 16px', color: 'var(--muted)' }}>200K</td>
+                    <td style={{ padding: '12px 16px' }}><span style={{ color: 'var(--danger)', fontWeight: 600 }}>Deep Reasoning</span></td>
+                    <td style={{ padding: '12px 16px', color: 'var(--ink)' }}>Rigorous dynamic programming, math puzzles, and hard edge cases.</td>
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                      <button type="button" onClick={() => copyToClipboard('o3-mini', 'm5')} style={{ background: 'none', border: '1px solid #ddd', borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>
+                      <button type="button" onClick={() => copyToClipboard('o3-mini', 'm5')} style={{ background: 'none', border: '1px solid var(--line)', borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>
                         {copiedText === 'm5' ? 'Copied' : 'Copy'}
                       </button>
                     </td>
@@ -461,11 +466,11 @@ export default function ApiGuideClient() {
                     <td style={{ padding: '12px 16px', fontWeight: 600, fontFamily: 'monospace' }}>
                       kimi-latest
                     </td>
-                    <td style={{ padding: '12px 16px', color: '#666' }}>128K - 200K</td>
-                    <td style={{ padding: '12px 16px' }}><span style={{ color: '#1d4ed8', fontWeight: 600 }}>Fast</span></td>
-                    <td style={{ padding: '12px 16px', color: '#444' }}>Large resume files, project documentation, and bilingual Chinese/English questions.</td>
+                    <td style={{ padding: '12px 16px', color: 'var(--muted)' }}>128K - 200K</td>
+                    <td style={{ padding: '12px 16px' }}><span style={{ color: 'var(--accent)', fontWeight: 600 }}>Fast</span></td>
+                    <td style={{ padding: '12px 16px', color: 'var(--ink)' }}>Large resume files, project documentation, and bilingual Chinese/English questions.</td>
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                      <button type="button" onClick={() => copyToClipboard('kimi-latest', 'm6')} style={{ background: 'none', border: '1px solid #ddd', borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>
+                      <button type="button" onClick={() => copyToClipboard('kimi-latest', 'm6')} style={{ background: 'none', border: '1px solid var(--line)', borderRadius: 4, padding: '3px 7px', fontSize: 11, cursor: 'pointer' }}>
                         {copiedText === 'm6' ? 'Copied' : 'Copy'}
                       </button>
                     </td>
@@ -475,14 +480,14 @@ export default function ApiGuideClient() {
             </div>
           </section>
 
-          <hr style={{ border: 'none', borderTop: '1px solid #ebebeb', margin: '40px 0' }} />
+          <hr style={{ border: 'none', borderTop: '1px solid var(--line)', margin: '40px 0' }} />
 
           {/* SECTION 3: ANTHROPIC CLAUDE */}
           <section id="claude" style={{ marginBottom: 70, scrollMarginTop: 100 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <AnthropicLogo size={32} />
-                <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.8px', color: '#111', margin: 0 }}>
+                <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.8px', color: 'var(--ink)', margin: 0 }}>
                   Anthropic Claude
                 </h2>
               </div>
@@ -494,8 +499,8 @@ export default function ApiGuideClient() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
-                  background: '#d97706',
-                  color: '#fff',
+                  background: 'var(--action)',
+                  color: 'var(--ink)',
                   padding: '9px 16px',
                   borderRadius: 6,
                   fontSize: 13,
@@ -507,28 +512,28 @@ export default function ApiGuideClient() {
               </a>
             </div>
 
-            <p style={{ fontSize: 15, color: '#555', lineHeight: 1.7, marginBottom: 16 }}>
+            <p style={{ fontSize: 15, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 16 }}>
               Follow these steps to generate your Anthropic API key:
             </p>
 
             {/* Direct URL Reference Box */}
-            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '14px 18px', marginBottom: 20, fontSize: 13 }}>
+            <div style={{ background: 'var(--card)', border: '1px solid var(--accent-line)', borderRadius: 8, padding: '14px 18px', marginBottom: 20, fontSize: 13 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <LinkIcon size={14} style={{ color: '#d97706' }} />
-                <b style={{ color: '#92400e' }}>Direct Console Links:</b>
+                <LinkIcon size={14} style={{ color: 'var(--danger)' }} />
+                <b style={{ color: 'var(--danger)' }}>Direct Console Links:</b>
               </div>
-              <ul style={{ margin: 0, paddingLeft: 20, color: '#78350f' }}>
+              <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--danger)' }}>
                 <li>Console Home: <a href="https://console.anthropic.com/" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline', color: 'inherit' }}>https://console.anthropic.com/</a></li>
                 <li>Direct Keys Page: <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline', color: 'inherit', fontWeight: 600 }}>https://console.anthropic.com/settings/keys</a></li>
-                <li>Base URL: <code style={{ background: '#fef3c7', padding: '1px 5px', borderRadius: 4 }}>https://api.anthropic.com/v1</code></li>
-                <li>Key Format: <code style={{ background: '#fef3c7', padding: '1px 5px', borderRadius: 4 }}>sk-ant-api03-...</code></li>
+                <li>Base URL: <code style={{ background: 'var(--accent-soft)', padding: '1px 5px', borderRadius: 4 }}>https://api.anthropic.com/v1</code></li>
+                <li>Key Format: <code style={{ background: 'var(--accent-soft)', padding: '1px 5px', borderRadius: 4 }}>sk-ant-api03-...</code></li>
               </ul>
             </div>
 
-            <h3 style={{ fontSize: 17, fontWeight: 600, color: '#111', margin: '20px 0 10px' }}>
+            <h3 style={{ fontSize: 17, fontWeight: 600, color: 'var(--ink)', margin: '20px 0 10px' }}>
               Step-by-Step Instructions
             </h3>
-            <ol style={{ paddingLeft: 22, fontSize: 14, color: '#333', lineHeight: 1.8 }}>
+            <ol style={{ paddingLeft: 22, fontSize: 14, color: 'var(--ink)', lineHeight: 1.8 }}>
               <li>
                 Visit <a href="https://console.anthropic.com/" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline' }}>console.anthropic.com</a> and sign up or sign in.
               </li>
@@ -549,7 +554,7 @@ export default function ApiGuideClient() {
               </li>
             </ol>
 
-            <h3 style={{ fontSize: 15, fontWeight: 600, color: '#111', margin: '20px 0 8px' }}>
+            <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)', margin: '20px 0 8px' }}>
               Test Key in Terminal
             </h3>
             <div style={{ position: 'relative' }}>
@@ -564,8 +569,8 @@ export default function ApiGuideClient() {
                   position: 'absolute',
                   top: 10,
                   right: 10,
-                  background: '#2d3748',
-                  color: '#fff',
+                  background: 'var(--paper)',
+                  color: 'var(--ink)',
                   border: 'none',
                   borderRadius: 4,
                   padding: '4px 8px',
@@ -576,10 +581,10 @@ export default function ApiGuideClient() {
                   gap: 4
                 }}
               >
-                {copiedText === 'curl-claude' ? <Check size={12} style={{ color: '#34d399' }} /> : <Copy size={12} />}
+                {copiedText === 'curl-claude' ? <Check size={12} style={{ color: 'var(--accent)' }} /> : <Copy size={12} />}
                 {copiedText === 'curl-claude' ? 'Copied' : 'Copy'}
               </button>
-              <pre style={{ background: '#1a202c', color: '#edf2f7', padding: '16px 20px', borderRadius: 8, fontSize: 12, overflowX: 'auto', margin: 0, lineHeight: 1.6 }}>
+              <pre style={{ background: 'var(--action)', color: 'var(--ink)', padding: '16px 20px', borderRadius: 8, fontSize: 12, overflowX: 'auto', margin: 0, lineHeight: 1.6 }}>
                 <code>{`curl https://api.anthropic.com/v1/messages \\
   -H "x-api-key: YOUR_KEY_HERE" \\
   -H "anthropic-version: 2023-06-01" \\
@@ -589,14 +594,14 @@ export default function ApiGuideClient() {
             </div>
           </section>
 
-          <hr style={{ border: 'none', borderTop: '1px solid #ebebeb', margin: '40px 0' }} />
+          <hr style={{ border: 'none', borderTop: '1px solid var(--line)', margin: '40px 0' }} />
 
           {/* SECTION 4: OPENAI */}
           <section id="openai" style={{ marginBottom: 70, scrollMarginTop: 100 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <OpenAILogo size={32} />
-                <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.8px', color: '#111', margin: 0 }}>
+                <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.8px', color: 'var(--ink)', margin: 0 }}>
                   OpenAI
                 </h2>
               </div>
@@ -608,8 +613,8 @@ export default function ApiGuideClient() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
-                  background: '#10a37f',
-                  color: '#fff',
+                  background: 'var(--action)',
+                  color: 'var(--ink)',
                   padding: '9px 16px',
                   borderRadius: 6,
                   fontSize: 13,
@@ -621,28 +626,28 @@ export default function ApiGuideClient() {
               </a>
             </div>
 
-            <p style={{ fontSize: 15, color: '#555', lineHeight: 1.7, marginBottom: 16 }}>
+            <p style={{ fontSize: 15, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 16 }}>
               Follow these steps to generate your OpenAI secret API key:
             </p>
 
             {/* Direct URL Reference Box */}
-            <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 8, padding: '14px 18px', marginBottom: 20, fontSize: 13 }}>
+            <div style={{ background: 'var(--soft)', border: '1px solid var(--accent-line)', borderRadius: 8, padding: '14px 18px', marginBottom: 20, fontSize: 13 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <LinkIcon size={14} style={{ color: '#10a37f' }} />
-                <b style={{ color: '#065f46' }}>Direct Platform Links:</b>
+                <LinkIcon size={14} style={{ color: 'var(--accent)' }} />
+                <b style={{ color: 'var(--accent)' }}>Direct Platform Links:</b>
               </div>
-              <ul style={{ margin: 0, paddingLeft: 20, color: '#064e3b' }}>
+              <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--accent)' }}>
                 <li>Platform Home: <a href="https://platform.openai.com/" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline', color: 'inherit' }}>https://platform.openai.com/</a></li>
                 <li>Direct Keys Page: <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline', color: 'inherit', fontWeight: 600 }}>https://platform.openai.com/api-keys</a></li>
-                <li>Base URL: <code style={{ background: '#d1fae5', padding: '1px 5px', borderRadius: 4 }}>https://api.openai.com/v1</code></li>
-                <li>Key Format: <code style={{ background: '#d1fae5', padding: '1px 5px', borderRadius: 4 }}>sk-proj-...</code></li>
+                <li>Base URL: <code style={{ background: 'var(--accent-soft)', padding: '1px 5px', borderRadius: 4 }}>https://api.openai.com/v1</code></li>
+                <li>Key Format: <code style={{ background: 'var(--accent-soft)', padding: '1px 5px', borderRadius: 4 }}>sk-proj-...</code></li>
               </ul>
             </div>
 
-            <h3 style={{ fontSize: 17, fontWeight: 600, color: '#111', margin: '20px 0 10px' }}>
+            <h3 style={{ fontSize: 17, fontWeight: 600, color: 'var(--ink)', margin: '20px 0 10px' }}>
               Step-by-Step Instructions
             </h3>
-            <ol style={{ paddingLeft: 22, fontSize: 14, color: '#333', lineHeight: 1.8 }}>
+            <ol style={{ paddingLeft: 22, fontSize: 14, color: 'var(--ink)', lineHeight: 1.8 }}>
               <li>
                 Go to the OpenAI Developer Platform at <a href="https://platform.openai.com/" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline' }}>platform.openai.com</a>.
               </li>
@@ -660,7 +665,7 @@ export default function ApiGuideClient() {
               </li>
             </ol>
 
-            <h3 style={{ fontSize: 15, fontWeight: 600, color: '#111', margin: '20px 0 8px' }}>
+            <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)', margin: '20px 0 8px' }}>
               Test Key in Terminal
             </h3>
             <div style={{ position: 'relative' }}>
@@ -674,8 +679,8 @@ export default function ApiGuideClient() {
                   position: 'absolute',
                   top: 10,
                   right: 10,
-                  background: '#2d3748',
-                  color: '#fff',
+                  background: 'var(--paper)',
+                  color: 'var(--ink)',
                   border: 'none',
                   borderRadius: 4,
                   padding: '4px 8px',
@@ -686,10 +691,10 @@ export default function ApiGuideClient() {
                   gap: 4
                 }}
               >
-                {copiedText === 'curl-openai' ? <Check size={12} style={{ color: '#34d399' }} /> : <Copy size={12} />}
+                {copiedText === 'curl-openai' ? <Check size={12} style={{ color: 'var(--accent)' }} /> : <Copy size={12} />}
                 {copiedText === 'curl-openai' ? 'Copied' : 'Copy'}
               </button>
-              <pre style={{ background: '#1a202c', color: '#edf2f7', padding: '16px 20px', borderRadius: 8, fontSize: 12, overflowX: 'auto', margin: 0, lineHeight: 1.6 }}>
+              <pre style={{ background: 'var(--action)', color: 'var(--ink)', padding: '16px 20px', borderRadius: 8, fontSize: 12, overflowX: 'auto', margin: 0, lineHeight: 1.6 }}>
                 <code>{`curl https://api.openai.com/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer YOUR_KEY_HERE" \\
@@ -698,14 +703,14 @@ export default function ApiGuideClient() {
             </div>
           </section>
 
-          <hr style={{ border: 'none', borderTop: '1px solid #ebebeb', margin: '40px 0' }} />
+          <hr style={{ border: 'none', borderTop: '1px solid var(--line)', margin: '40px 0' }} />
 
           {/* SECTION 5: GOOGLE GEMINI */}
           <section id="gemini" style={{ marginBottom: 70, scrollMarginTop: 100 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <GeminiLogo size={32} />
-                <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.8px', color: '#111', margin: 0 }}>
+                <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.8px', color: 'var(--ink)', margin: 0 }}>
                   Google Gemini
                 </h2>
               </div>
@@ -717,8 +722,8 @@ export default function ApiGuideClient() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
-                  background: '#2563eb',
-                  color: '#fff',
+                  background: 'var(--action)',
+                  color: 'var(--ink)',
                   padding: '9px 16px',
                   borderRadius: 6,
                   fontSize: 13,
@@ -730,28 +735,28 @@ export default function ApiGuideClient() {
               </a>
             </div>
 
-            <p style={{ fontSize: 15, color: '#555', lineHeight: 1.7, marginBottom: 16 }}>
+            <p style={{ fontSize: 15, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 16 }}>
               Follow these steps to generate your Google Gemini API key:
             </p>
 
             {/* Direct URL Reference Box */}
-            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '14px 18px', marginBottom: 20, fontSize: 13 }}>
+            <div style={{ background: 'var(--card)', border: '1px solid var(--accent-line)', borderRadius: 8, padding: '14px 18px', marginBottom: 20, fontSize: 13 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <LinkIcon size={14} style={{ color: '#2563eb' }} />
-                <b style={{ color: '#1e40af' }}>Direct AI Studio Links:</b>
+                <LinkIcon size={14} style={{ color: 'var(--accent)' }} />
+                <b style={{ color: 'var(--accent)' }}>Direct AI Studio Links:</b>
               </div>
-              <ul style={{ margin: 0, paddingLeft: 20, color: '#1e3a8a' }}>
+              <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--accent)' }}>
                 <li>AI Studio Home: <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline', color: 'inherit' }}>https://aistudio.google.com/</a></li>
                 <li>Direct Keys Page: <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline', color: 'inherit', fontWeight: 600 }}>https://aistudio.google.com/app/apikey</a></li>
-                <li>Base URL: <code style={{ background: '#dbeafe', padding: '1px 5px', borderRadius: 4 }}>https://generativelanguage.googleapis.com/v1beta</code></li>
-                <li>Key Format: <code style={{ background: '#dbeafe', padding: '1px 5px', borderRadius: 4 }}>AIzaSy...</code> (39 characters)</li>
+                <li>Base URL: <code style={{ background: 'var(--accent-soft)', padding: '1px 5px', borderRadius: 4 }}>https://generativelanguage.googleapis.com/v1beta</code></li>
+                <li>Key Format: <code style={{ background: 'var(--accent-soft)', padding: '1px 5px', borderRadius: 4 }}>AIzaSy...</code> (39 characters)</li>
               </ul>
             </div>
 
-            <h3 style={{ fontSize: 17, fontWeight: 600, color: '#111', margin: '20px 0 10px' }}>
+            <h3 style={{ fontSize: 17, fontWeight: 600, color: 'var(--ink)', margin: '20px 0 10px' }}>
               Step-by-Step Instructions
             </h3>
-            <ol style={{ paddingLeft: 22, fontSize: 14, color: '#333', lineHeight: 1.8 }}>
+            <ol style={{ paddingLeft: 22, fontSize: 14, color: 'var(--ink)', lineHeight: 1.8 }}>
               <li>
                 Open <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline' }}>aistudio.google.com</a> and sign in with your Google account.
               </li>
@@ -766,7 +771,7 @@ export default function ApiGuideClient() {
               </li>
             </ol>
 
-            <h3 style={{ fontSize: 15, fontWeight: 600, color: '#111', margin: '20px 0 8px' }}>
+            <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)', margin: '20px 0 8px' }}>
               Test Key in Terminal
             </h3>
             <div style={{ position: 'relative' }}>
@@ -779,8 +784,8 @@ export default function ApiGuideClient() {
                   position: 'absolute',
                   top: 10,
                   right: 10,
-                  background: '#2d3748',
-                  color: '#fff',
+                  background: 'var(--paper)',
+                  color: 'var(--ink)',
                   border: 'none',
                   borderRadius: 4,
                   padding: '4px 8px',
@@ -791,10 +796,10 @@ export default function ApiGuideClient() {
                   gap: 4
                 }}
               >
-                {copiedText === 'curl-gemini' ? <Check size={12} style={{ color: '#34d399' }} /> : <Copy size={12} />}
+                {copiedText === 'curl-gemini' ? <Check size={12} style={{ color: 'var(--accent)' }} /> : <Copy size={12} />}
                 {copiedText === 'curl-gemini' ? 'Copied' : 'Copy'}
               </button>
-              <pre style={{ background: '#1a202c', color: '#edf2f7', padding: '16px 20px', borderRadius: 8, fontSize: 12, overflowX: 'auto', margin: 0, lineHeight: 1.6 }}>
+              <pre style={{ background: 'var(--action)', color: 'var(--ink)', padding: '16px 20px', borderRadius: 8, fontSize: 12, overflowX: 'auto', margin: 0, lineHeight: 1.6 }}>
                 <code>{`curl "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=YOUR_KEY_HERE" \\
   -H 'Content-Type: application/json' \\
   -d '{"contents":[{"parts":[{"text":"Ping"}]}]}'`}</code>
@@ -802,14 +807,14 @@ export default function ApiGuideClient() {
             </div>
           </section>
 
-          <hr style={{ border: 'none', borderTop: '1px solid #ebebeb', margin: '40px 0' }} />
+          <hr style={{ border: 'none', borderTop: '1px solid var(--line)', margin: '40px 0' }} />
 
           {/* SECTION 6: KIMI MOONSHOT */}
           <section id="kimi" style={{ marginBottom: 70, scrollMarginTop: 100 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <KimiLogo size={32} />
-                <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.8px', color: '#111', margin: 0 }}>
+                <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.8px', color: 'var(--ink)', margin: 0 }}>
                   Kimi (Moonshot AI)
                 </h2>
               </div>
@@ -821,8 +826,8 @@ export default function ApiGuideClient() {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
-                  background: '#9333ea',
-                  color: '#fff',
+                  background: 'var(--action)',
+                  color: 'var(--ink)',
                   padding: '9px 16px',
                   borderRadius: 6,
                   fontSize: 13,
@@ -834,28 +839,28 @@ export default function ApiGuideClient() {
               </a>
             </div>
 
-            <p style={{ fontSize: 15, color: '#555', lineHeight: 1.7, marginBottom: 16 }}>
+            <p style={{ fontSize: 15, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 16 }}>
               Follow these steps to generate your Kimi (Moonshot AI) API key:
             </p>
 
             {/* Direct URL Reference Box */}
-            <div style={{ background: '#faf5ff', border: '1px solid #e9d5ff', borderRadius: 8, padding: '14px 18px', marginBottom: 20, fontSize: 13 }}>
+            <div style={{ background: 'var(--card)', border: '1px solid var(--accent-line)', borderRadius: 8, padding: '14px 18px', marginBottom: 20, fontSize: 13 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <LinkIcon size={14} style={{ color: '#9333ea' }} />
-                <b style={{ color: '#6b21a8' }}>Direct Moonshot Platform Links:</b>
+                <LinkIcon size={14} style={{ color: 'var(--accent)' }} />
+                <b style={{ color: 'var(--accent)' }}>Direct Moonshot Platform Links:</b>
               </div>
-              <ul style={{ margin: 0, paddingLeft: 20, color: '#581c87' }}>
+              <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--accent)' }}>
                 <li>Platform Home: <a href="https://platform.moonshot.cn/" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline', color: 'inherit' }}>https://platform.moonshot.cn/</a></li>
                 <li>Direct Keys Page: <a href="https://platform.moonshot.cn/console/api-keys" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline', color: 'inherit', fontWeight: 600 }}>https://platform.moonshot.cn/console/api-keys</a></li>
-                <li>Base URL: <code style={{ background: '#f3e8ff', padding: '1px 5px', borderRadius: 4 }}>https://api.moonshot.cn/v1</code></li>
-                <li>Key Format: <code style={{ background: '#f3e8ff', padding: '1px 5px', borderRadius: 4 }}>sk-...</code></li>
+                <li>Base URL: <code style={{ background: 'var(--accent-soft)', padding: '1px 5px', borderRadius: 4 }}>https://api.moonshot.cn/v1</code></li>
+                <li>Key Format: <code style={{ background: 'var(--accent-soft)', padding: '1px 5px', borderRadius: 4 }}>sk-...</code></li>
               </ul>
             </div>
 
-            <h3 style={{ fontSize: 17, fontWeight: 600, color: '#111', margin: '20px 0 10px' }}>
+            <h3 style={{ fontSize: 17, fontWeight: 600, color: 'var(--ink)', margin: '20px 0 10px' }}>
               Step-by-Step Instructions
             </h3>
-            <ol style={{ paddingLeft: 22, fontSize: 14, color: '#333', lineHeight: 1.8 }}>
+            <ol style={{ paddingLeft: 22, fontSize: 14, color: 'var(--ink)', lineHeight: 1.8 }}>
               <li>
                 Register or log in at <a href="https://platform.moonshot.cn/" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline' }}>platform.moonshot.cn</a>.
               </li>
@@ -873,7 +878,7 @@ export default function ApiGuideClient() {
               </li>
             </ol>
 
-            <h3 style={{ fontSize: 15, fontWeight: 600, color: '#111', margin: '20px 0 8px' }}>
+            <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)', margin: '20px 0 8px' }}>
               Test Key in Terminal
             </h3>
             <div style={{ position: 'relative' }}>
@@ -887,8 +892,8 @@ export default function ApiGuideClient() {
                   position: 'absolute',
                   top: 10,
                   right: 10,
-                  background: '#2d3748',
-                  color: '#fff',
+                  background: 'var(--paper)',
+                  color: 'var(--ink)',
                   border: 'none',
                   borderRadius: 4,
                   padding: '4px 8px',
@@ -899,10 +904,10 @@ export default function ApiGuideClient() {
                   gap: 4
                 }}
               >
-                {copiedText === 'curl-kimi' ? <Check size={12} style={{ color: '#34d399' }} /> : <Copy size={12} />}
+                {copiedText === 'curl-kimi' ? <Check size={12} style={{ color: 'var(--accent)' }} /> : <Copy size={12} />}
                 {copiedText === 'curl-kimi' ? 'Copied' : 'Copy'}
               </button>
-              <pre style={{ background: '#1a202c', color: '#edf2f7', padding: '16px 20px', borderRadius: 8, fontSize: 12, overflowX: 'auto', margin: 0, lineHeight: 1.6 }}>
+              <pre style={{ background: 'var(--action)', color: 'var(--ink)', padding: '16px 20px', borderRadius: 8, fontSize: 12, overflowX: 'auto', margin: 0, lineHeight: 1.6 }}>
                 <code>{`curl https://api.moonshot.cn/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer YOUR_KEY_HERE" \\
@@ -911,22 +916,22 @@ export default function ApiGuideClient() {
             </div>
           </section>
 
-          <hr style={{ border: 'none', borderTop: '1px solid #ebebeb', margin: '40px 0' }} />
+          <hr style={{ border: 'none', borderTop: '1px solid var(--line)', margin: '40px 0' }} />
 
           {/* SECTION 7: CONNECTING A KEY TO NOVI */}
           <section id="add-key" style={{ marginBottom: 60, scrollMarginTop: 100 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <Building2 size={24} style={{ color: '#059669' }} />
-              <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.8px', color: '#111', margin: 0 }}>
+              <Building2 size={24} style={{ color: 'var(--accent)' }} />
+              <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.8px', color: 'var(--ink)', margin: 0 }}>
                 Add your key to your Novi account
               </h2>
             </div>
-            <p style={{ fontSize: 15, color: '#444', lineHeight: 1.7, marginBottom: 16 }}>
+            <p style={{ fontSize: 15, color: 'var(--ink)', lineHeight: 1.7, marginBottom: 16 }}>
               Keys are added once on this website, in your Novi account. Every desktop login under your account can then use them without ever seeing the key itself.
             </p>
-            <div style={{ border: '1px solid #e5e5e5', borderRadius: 8, padding: '24px', background: '#fafafa', marginBottom: 20 }}>
+            <div style={{ border: '1px solid var(--line)', borderRadius: 8, padding: '24px', background: 'var(--card)', marginBottom: 20 }}>
               <h4 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600 }}>On this website:</h4>
-              <ol style={{ paddingLeft: 20, margin: 0, fontSize: 14, color: '#444', lineHeight: 1.8 }}>
+              <ol style={{ paddingLeft: 20, margin: 0, fontSize: 14, color: 'var(--ink)', lineHeight: 1.8 }}>
                 <li>Sign in to your Novi account using <Link href="/#signin" style={{ textDecoration: 'underline', color: 'inherit', fontWeight: 600 }}>Sign in</Link> at the top of any page.</li>
                 <li>Open <b>API management</b> in the sidebar and click <b>Add API key</b>.</li>
                 <li>Choose the provider: <b>OpenAI</b>, <b>Anthropic / Claude</b>, <b>Google Gemini</b>, or <b>Kimi (Moonshot AI)</b>.</li>
@@ -938,17 +943,17 @@ export default function ApiGuideClient() {
 
           <section id="use-key" style={{ marginBottom: 60, scrollMarginTop: 100 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <Laptop size={24} style={{ color: '#2563eb' }} />
-              <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.8px', color: '#111', margin: 0 }}>
+              <Laptop size={24} style={{ color: 'var(--accent)' }} />
+              <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.8px', color: 'var(--ink)', margin: 0 }}>
                 Use it in the desktop app
               </h2>
             </div>
-            <p style={{ fontSize: 15, color: '#444', lineHeight: 1.7, marginBottom: 16 }}>
+            <p style={{ fontSize: 15, color: 'var(--ink)', lineHeight: 1.7, marginBottom: 16 }}>
               In the app, you choose which of your account&apos;s keys to use. Keys cannot be typed into the desktop app itself.
             </p>
-            <div style={{ border: '1px solid #e5e5e5', borderRadius: 8, padding: '24px', background: '#fafafa', marginBottom: 20 }}>
+            <div style={{ border: '1px solid var(--line)', borderRadius: 8, padding: '24px', background: 'var(--card)', marginBottom: 20 }}>
               <h4 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600 }}>In the desktop app:</h4>
-              <ol style={{ paddingLeft: 20, margin: 0, fontSize: 14, color: '#444', lineHeight: 1.8 }}>
+              <ol style={{ paddingLeft: 20, margin: 0, fontSize: 14, color: 'var(--ink)', lineHeight: 1.8 }}>
                 <li>Sign in with your desktop login. Create one under <b>User management</b> in your Novi account if you have not yet.</li>
                 <li>Open <b>Settings</b>, then <b>API management</b>. Your account&apos;s keys are listed there.</li>
                 <li>Select the key you want to use, one per provider. Click <b>Refresh</b> if a key you just added is not shown yet.</li>
@@ -957,20 +962,20 @@ export default function ApiGuideClient() {
             </div>
           </section>
 
-          <hr style={{ border: 'none', borderTop: '1px solid #ebebeb', margin: '40px 0' }} />
+          <hr style={{ border: 'none', borderTop: '1px solid var(--line)', margin: '40px 0' }} />
 
           {/* SECTION 8: SECURITY */}
           <section id="security" style={{ marginBottom: 60, scrollMarginTop: 100 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <ShieldCheck size={24} style={{ color: '#059669' }} />
-              <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.8px', color: '#111', margin: 0 }}>
+              <ShieldCheck size={24} style={{ color: 'var(--accent)' }} />
+              <h2 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.8px', color: 'var(--ink)', margin: 0 }}>
                 Security &amp; Local Encryption
               </h2>
             </div>
-            <p style={{ fontSize: 14, color: '#555', lineHeight: 1.7 }}>
+            <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.7 }}>
               Key handling in Novi adheres to strict enterprise encryption standards:
             </p>
-            <ul style={{ fontSize: 14, color: '#444', lineHeight: 1.8, paddingLeft: 20 }}>
+            <ul style={{ fontSize: 14, color: 'var(--ink)', lineHeight: 1.8, paddingLeft: 20 }}>
               <li><b>Zero Logging:</b> Prompts, live transcriptions, and screen snapshots are never recorded or stored on any intermediate server.</li>
               <li><b>Server-Side Encryption:</b> Keys in your Novi account are encrypted at rest using AES-256-GCM authenticated cipher with unique per-credential initialization vectors.</li>
               <li><b>In the desktop app:</b> Keys are held only in memory while you are signed in and are cleared when you sign out. A remembered sign-in session is stored in Novi&apos;s local app data.</li>
@@ -979,7 +984,7 @@ export default function ApiGuideClient() {
 
           {/* Document Footer Call to Action */}
           <div style={{
-            borderTop: '1px solid #eaeaea',
+            borderTop: '1px solid var(--line)',
             paddingTop: 36,
             display: 'flex',
             alignItems: 'center',
@@ -989,7 +994,7 @@ export default function ApiGuideClient() {
           }}>
             <div>
               <div style={{ fontWeight: 600, fontSize: 16 }}>Ready to start?</div>
-              <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>Add your key in your Novi account, then download the app. No account yet? Request access first.</div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>Add your key in your Novi account, then download the app. No account yet? Request access first.</div>
             </div>
             <div style={{ display: 'flex', gap: 12 }}>
               <Link href="/download" className="btn dark" style={{ textDecoration: 'none' }}>

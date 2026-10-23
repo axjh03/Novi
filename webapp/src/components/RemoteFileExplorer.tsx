@@ -158,7 +158,7 @@ export default function RemoteFileExplorer({
       zIndex: 1000,
     }}>
       <div style={{
-        background: '#ffffff',
+        background: 'var(--card)',
         borderRadius: 16,
         width: '950px',
         maxWidth: '100%',
@@ -168,24 +168,24 @@ export default function RemoteFileExplorer({
         flexDirection: 'column',
         boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)',
         overflow: 'hidden',
-        border: '1px solid #e4e4e7',
+        border: '1px solid var(--line)',
       }}>
         {/* Header */}
         <div style={{
           padding: '18px 24px',
-          borderBottom: '1px solid #e4e4e7',
+          borderBottom: '1px solid var(--line)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          background: '#fafafa',
+          background: 'var(--card)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{
               width: 38,
               height: 38,
               borderRadius: 10,
-              background: '#eff6ff',
-              color: '#2563eb',
+              background: 'var(--card)',
+              color: 'var(--accent)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -193,13 +193,13 @@ export default function RemoteFileExplorer({
               <Folder size={20} />
             </div>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: '#111', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span>Remote File Explorer</span>
-                <span style={{ fontSize: 11, background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>
+                <span style={{ fontSize: 11, background: 'var(--accent-soft)', color: 'var(--accent)', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>
                   Live On-Demand
                 </span>
               </div>
-              <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
                 Device: <strong>{deviceName}</strong> · User: <strong>@{username}</strong>
               </div>
             </div>
@@ -216,8 +216,8 @@ export default function RemoteFileExplorer({
                 gap: 6,
                 fontSize: 12,
                 fontWeight: 600,
-                background: '#09090b',
-                color: '#ffffff',
+                background: 'var(--action)',
+                color: 'var(--ink)',
                 border: 'none',
                 padding: '8px 14px',
                 borderRadius: 8,
@@ -234,8 +234,8 @@ export default function RemoteFileExplorer({
               disabled={loading}
               title="Refresh"
               style={{
-                background: '#ffffff',
-                border: '1px solid #d4d4d8',
+                background: 'var(--card)',
+                border: '1px solid var(--line)',
                 borderRadius: 8,
                 padding: '8px',
                 cursor: 'pointer',
@@ -252,8 +252,8 @@ export default function RemoteFileExplorer({
               onClick={onClose}
               title="Close"
               style={{
-                background: '#ffffff',
-                border: '1px solid #d4d4d8',
+                background: 'var(--card)',
+                border: '1px solid var(--line)',
                 borderRadius: 8,
                 padding: '8px',
                 cursor: 'pointer',
@@ -270,8 +270,8 @@ export default function RemoteFileExplorer({
         {/* Quick Location Shortcuts & Breadcrumbs */}
         <div style={{
           padding: '10px 24px',
-          borderBottom: '1px solid #f0f0f0',
-          background: '#ffffff',
+          borderBottom: '1px solid var(--line)',
+          background: 'var(--card)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -299,8 +299,8 @@ export default function RemoteFileExplorer({
                   gap: 4,
                   fontSize: 11,
                   fontWeight: 600,
-                  background: activeShortcut === shortcut.path ? '#18181b' : '#f4f4f5',
-                  color: activeShortcut === shortcut.path ? '#ffffff' : '#3f3f46',
+                  background: activeShortcut === shortcut.path ? 'var(--action)' : 'var(--soft)',
+                  color: activeShortcut === shortcut.path ? 'var(--ink)' : 'var(--ink)',
                   border: 'none',
                   padding: '5px 10px',
                   borderRadius: 6,
@@ -324,8 +324,8 @@ export default function RemoteFileExplorer({
               gap: 4,
               fontSize: 11,
               fontWeight: 600,
-              background: '#f4f4f5',
-              border: '1px solid #e4e4e7',
+              background: 'var(--soft)',
+              border: '1px solid var(--line)',
               padding: '5px 10px',
               borderRadius: 6,
               cursor: 'pointer',
@@ -338,11 +338,11 @@ export default function RemoteFileExplorer({
         {/* Path Bar */}
         <div style={{
           padding: '8px 24px',
-          background: '#fafafa',
-          borderBottom: '1px solid #eaeaea',
+          background: 'var(--card)',
+          borderBottom: '1px solid var(--line)',
           fontSize: 11,
           fontFamily: 'monospace',
-          color: '#555',
+          color: 'var(--muted)',
           display: 'flex',
           alignItems: 'center',
           gap: 6,
@@ -350,7 +350,7 @@ export default function RemoteFileExplorer({
           whiteSpace: 'nowrap',
         }}>
           <span>{currentPath === ':root' ? 'This PC' : 'Path:'}</span>
-          <span style={{ color: '#111', fontWeight: 600 }}>{currentPath}</span>
+          <span style={{ color: 'var(--ink)', fontWeight: 600 }}>{currentPath}</span>
         </div>
 
         {/* Content Explorer Area */}
@@ -359,10 +359,10 @@ export default function RemoteFileExplorer({
             <div style={{
               margin: '20px 0',
               padding: '12px 16px',
-              background: '#fef2f2',
-              border: '1px solid #fecaca',
+              background: 'var(--card)',
+              border: '1px solid var(--accent-line)',
               borderRadius: 8,
-              color: '#b91c1c',
+              color: 'var(--danger)',
               fontSize: 12,
               display: 'flex',
               alignItems: 'center',
@@ -374,19 +374,19 @@ export default function RemoteFileExplorer({
           )}
 
           {loading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '240px', color: '#71717a' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '240px', color: 'var(--muted)' }}>
               <Loader2 size={24} className="spin" style={{ animation: 'spin 1s linear infinite' }} />
               <p style={{ marginTop: 10, fontSize: 13 }}>Connecting on-demand and loading files…</p>
             </div>
           ) : items.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 20px', color: '#a1a1aa' }}>
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--muted)' }}>
               <Folder size={36} color="#d4d4d8" />
               <p style={{ marginTop: 10, fontSize: 13 }}>Directory is empty.</p>
             </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12 }}>
               <thead>
-                <tr style={{ color: '#71717a', fontSize: 11, borderBottom: '1px solid #e4e4e7', textTransform: 'uppercase' }}>
+                <tr style={{ color: 'var(--muted)', fontSize: 11, borderBottom: '1px solid var(--line)', textTransform: 'uppercase' }}>
                   <th style={{ padding: '12px 8px' }}>Name</th>
                   <th style={{ padding: '12px 8px', width: '100px' }}>Size</th>
                   <th style={{ padding: '12px 8px', width: '150px' }}>Modified</th>
@@ -398,7 +398,7 @@ export default function RemoteFileExplorer({
                   <tr
                     key={item.path}
                     style={{
-                      borderBottom: '1px solid #f4f4f5',
+                      borderBottom: '1px solid var(--line)',
                       cursor: item.isDir ? 'pointer' : 'default',
                     }}
                     onDoubleClick={() => {
@@ -408,7 +408,7 @@ export default function RemoteFileExplorer({
                   >
                     <td style={{ padding: '10px 8px', fontWeight: item.isDir ? 600 : 400 }}>
                       <div
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, color: item.isDir ? '#111' : '#333' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, color: item.isDir ? 'var(--ink)' : 'var(--ink)' }}
                         onClick={() => { if (item.isDir) loadDirectory(item.path); }}
                       >
                         {getFileIcon(item.name, item.isDir)}
@@ -416,11 +416,11 @@ export default function RemoteFileExplorer({
                       </div>
                     </td>
 
-                    <td style={{ padding: '10px 8px', color: '#71717a', fontFamily: 'monospace' }}>
+                    <td style={{ padding: '10px 8px', color: 'var(--muted)', fontFamily: 'monospace' }}>
                       {item.isDir ? '—' : formatBytes(item.size)}
                     </td>
 
-                    <td style={{ padding: '10px 8px', color: '#71717a' }}>
+                    <td style={{ padding: '10px 8px', color: 'var(--muted)' }}>
                       {item.modifiedAt ? new Date(item.modifiedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                     </td>
 
@@ -431,8 +431,8 @@ export default function RemoteFileExplorer({
                             type="button"
                             onClick={() => loadDirectory(item.path)}
                             style={{
-                              background: '#f4f4f5',
-                              border: '1px solid #e4e4e7',
+                              background: 'var(--soft)',
+                              border: '1px solid var(--line)',
                               padding: '4px 8px',
                               borderRadius: 5,
                               fontSize: 11,
@@ -448,8 +448,8 @@ export default function RemoteFileExplorer({
                             disabled={downloading}
                             title="Download folder as .ZIP"
                             style={{
-                              background: '#ffffff',
-                              border: '1px solid #d4d4d8',
+                              background: 'var(--card)',
+                              border: '1px solid var(--line)',
                               padding: '4px 8px',
                               borderRadius: 5,
                               fontSize: 11,
@@ -469,8 +469,8 @@ export default function RemoteFileExplorer({
                           onClick={() => handleDownloadFile(item.path, item.name)}
                           disabled={downloading}
                           style={{
-                            background: '#09090b',
-                            color: '#ffffff',
+                            background: 'var(--action)',
+                            color: 'var(--ink)',
                             border: 'none',
                             padding: '4px 10px',
                             borderRadius: 5,
@@ -496,13 +496,13 @@ export default function RemoteFileExplorer({
         {/* Footer */}
         <div style={{
           padding: '12px 24px',
-          borderTop: '1px solid #e4e4e7',
-          background: '#fafafa',
+          borderTop: '1px solid var(--line)',
+          background: 'var(--card)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           fontSize: 11,
-          color: '#71717a',
+          color: 'var(--muted)',
         }}>
           <span>{items.length} items in current directory</span>
           <span>Double-click folder to open · Double-click file to download</span>
