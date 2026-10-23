@@ -6,7 +6,7 @@ import { errorText, unwrap } from '../services/api';
 
 const seconds = (since: number) => `${Math.max(0, Math.floor((Date.now() - since) / 1000))}s`;
 
-export function DebugPanel({ compact = false, conversationId }: { compact?: boolean; conversationId?: string | null }) {
+export function DebugPanel({ compact = false, conversationId, onEnabledChange }: { compact?: boolean; conversationId?: string | null; onEnabledChange?: (enabled: boolean) => void }) {
   const [state, setState] = useState<DebugState>({ enabled: false, active: [], events: [] });
   const [error, setError] = useState(''), [filter, setFilter] = useState(''), [busy, setBusy] = useState(false), [copied, setCopied] = useState(false);
   const revision = useRef(0);
@@ -17,35 +17,36 @@ export function DebugPanel({ compact = false, conversationId }: { compact?: bool
       let delay = 1000;
       try {
         const next = await unwrap(window.novi.getDebugState());
-        if (!disposed && current === revision.current) { setState(next); setError(''); }
+        if (!disposed && current === revision.current) { setState(next); onEnabledChange?.(next.enabled); setError(''); }
         if (!next.enabled) delay = 3000;
       } catch (err) { if (!disposed) setError(errorText(err)); }
       if (!disposed) timer = setTimeout(refresh, delay);
     };
     void refresh();
     return () => { disposed = true; clearTimeout(timer); };
-  }, []);
+  }, [onEnabledChange]);
 
   async function change(action: () => Promise<Result<DebugState>>) {
     revision.current++;
     setBusy(true); setError(''); setCopied(false);
-    try { setState(await unwrap(action())); }
+    try { const next = await unwrap(action()); setState(next); onEnabledChange?.(next.enabled); }
     catch (err) { setError(errorText(err)); }
     finally { revision.current++; setBusy(false); }
   }
 
-  if (compact && !state.enabled) return null;
+  if (!compact) return <section className="debug-panel">
+    <h2>Debug mode</h2>
+    <label className="settings-toggle"><input type="checkbox" checked={state.enabled} disabled={busy}
+      onChange={event => void change(() => window.novi.setDebugEnabled(event.target.checked))} />Show debug information in chat</label>
+    <p className="muted">Shows live request activity, failures and response timing in the chat window. Keeps the latest 400 events in memory for this launch; turning it off clears the log. Prompts, file contents, raw engine output and credentials are excluded.</p>
+    {error && <p className="error" role="alert">{error}</p>}
+  </section>;
+  if (!state.enabled) return null;
   const requestIds = new Set([...state.active, ...state.events].filter(item => item.conversationId === conversationId).map(item => item.id));
-  const visible = (item: { id: string }) => !compact || !conversationId || requestIds.has(item.id);
+  const visible = (item: { id: string; conversationId?: string }) => !conversationId || !item.conversationId || requestIds.has(item.id);
   const active = state.active.filter(visible);
   const events = state.events.filter(item => visible(item) && (!filter || JSON.stringify(item).toLowerCase().includes(filter.toLowerCase())));
   const content = <>
-    {!compact && <>
-      <h2>Debug mode</h2>
-      <label className="settings-toggle"><input type="checkbox" checked={state.enabled} disabled={busy}
-        onChange={event => void change(() => window.novi.setDebugEnabled(event.target.checked))} />Show live request activity</label>
-      <p className="muted">See connection checks, engine startup, file tools, response progress and failures. Keeps the latest 400 events in memory for this launch. Turning it off clears the log. Prompts, file contents, raw engine output and credentials are excluded.</p>
-    </>}
     {error && <p className="error" role="alert">{error}</p>}
     {state.enabled && <>
       <div className="debug-toolbar">
@@ -53,7 +54,7 @@ export function DebugPanel({ compact = false, conversationId }: { compact?: bool
         <button className="text-button" type="button" onClick={() => {
           void navigator.clipboard.writeText(JSON.stringify({ active, events }, null, 2)).then(() => setCopied(true)).catch(err => setError(errorText(err)));
         }}><Copy size={14} />{copied ? 'Copied' : 'Copy'}</button>
-        {!compact && <button type="button" className="text-button" disabled={busy} onClick={() => void change(() => window.novi.clearDebug())}><Trash2 size={14} />Clear</button>}
+        <button type="button" className="text-button" disabled={busy} onClick={() => void change(() => window.novi.clearDebug())}><Trash2 size={14} />Clear</button>
       </div>
       {active.map(item => <article className="debug-active" key={item.id}>
         <strong>{item.stage}</strong>
@@ -77,6 +78,5 @@ export function DebugPanel({ compact = false, conversationId }: { compact?: bool
       {!events.length && <p className="muted">No events recorded yet. Activity before debug mode was enabled is not replayed.</p>}
     </>}
   </>;
-  return compact ? <details className="debug-panel debug-chat"><summary><Bug size={14} />Debug activity {active.length ? `· ${active.length} running` : ''}</summary>{content}</details>
-    : <section className="debug-panel">{content}</section>;
+  return <details className="debug-panel debug-chat" open><summary><Bug size={14} />Debug activity {active.length ? `· ${active.length} running` : ''}</summary>{content}</details>;
 }

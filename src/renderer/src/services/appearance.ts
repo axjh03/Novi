@@ -39,5 +39,6 @@ export function syncAppearance() {
   style.setProperty('--transparent-bg', palette.background);
   style.setProperty('--transparent-text', palette.text);
   style.setProperty('--transparent-opacity', `${settings.smart && 'opacity' in palette ? palette.opacity : settings.opacity}%`);
-  style.setProperty('--reading-scale', String(settings.readingSize / 100));
+  style.setProperty('--ui-scale', String(settings.readingSize / 100));
+  style.setProperty('--reading-scale', '1');
 }

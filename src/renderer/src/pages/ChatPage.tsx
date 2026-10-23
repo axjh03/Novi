@@ -43,6 +43,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   useEffect(() => { if (renaming) renameDialog.current?.showModal(); }, [renaming]);
   const [composerKey, setComposerKey] = useState(0);
   const [welcomeIndex] = useState(() => Math.floor(Math.random() * WELCOME_MESSAGES.length));
+  const [debugEnabled, setDebugEnabled] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [trayDetached, setTrayDetached] = useState(false);
   useEffect(() => {
@@ -83,6 +84,11 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const localBinding = chat.selected?.localCoding;
   const local = useLocalCodingProject(localBinding, chat.busy, chat.selected?.messages, chat.setError);
   useEffect(() => window.novi.onGlobalAction((action) => {
+    if (action.type === 'scroll-conversation-to' && typeof action.payload === 'number') {
+      const element = scroll.current;
+      if (element) element.scrollTo({ top: action.payload * (element.scrollHeight - element.clientHeight), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+      return;
+    }
     if (action.type === 'scroll-conversation' && typeof action.payload === 'number') {
       scroll.current?.scrollBy({ top: action.payload, behavior: 'smooth' });
       return;
@@ -129,6 +135,20 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   }
   useEffect(() => { if (atBottom.current && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight; }, [chat.selected?.messages]);
   useEffect(() => { atBottom.current = true; if (scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight; }, [chat.selectedId]);
+  useEffect(() => {
+    const element = scroll.current;
+    let timer = 0;
+    const report = () => {
+      timer = 0;
+      const extent = element ? element.scrollHeight - element.clientHeight : 0;
+      void window.novi.reportConversationScroll(extent > 0 ? Math.max(0, Math.min(1, element!.scrollTop / extent)) : 1, extent > 0).catch(() => {});
+    };
+    const schedule = () => { if (!timer) timer = window.setTimeout(report, 100); };
+    const observer = new ResizeObserver(schedule);
+    if (element) { observer.observe(element); if (element.firstElementChild) observer.observe(element.firstElementChild); element.addEventListener('scroll', schedule, { passive: true }); }
+    report();
+    return () => { window.clearTimeout(timer); observer.disconnect(); element?.removeEventListener('scroll', schedule); void window.novi.reportConversationScroll(1, false).catch(() => {}); };
+  }, [chat.selectedId, settings]);
   useEffect(() => {
     if (appMode !== 'coding' && appMode !== 'system-design') return;
     void unwrap(window.novi.updateCodeViewer(appMode === 'system-design' ? diagramBlocks(chat.selected?.messages || [], streamingMessageId) : codeFromMessages(chat.selected?.messages || []))).catch(console.error);
@@ -233,7 +253,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
       />
 
       {settings ? (
-        <SettingsPage state={state} onSaved={onSaved} onBack={() => setSettings(false)} onSignOut={onSignOut} onCleared={chat.clear} />
+        <SettingsPage state={state} onSaved={onSaved} onBack={() => setSettings(false)} onSignOut={onSignOut} onCleared={chat.clear} onDebugEnabledChange={setDebugEnabled} />
       ) : (
         <main className={`chat-main ${!chat.selected ? 'empty' : ''}`}>
           <header className="chat-header">
@@ -242,7 +262,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             </div>
             <div className="session-controls"><span title="Temporary session context">{state.contextSession?.isEmpty ? 'Empty session' : state.contextSession?.summaryReady ? 'Ready' : state.contextSession?.status === 'error' ? 'Context error' : 'Loading context…'}</span><button className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button></div>
           </header>
-          <DebugPanel compact conversationId={chat.selectedId} />
+          <DebugPanel compact conversationId={chat.selectedId} onEnabledChange={setDebugEnabled} />
           {!readyDismissed && !sentInSession && !practice.active && !localMode && (
             <ReadyCard transparent={transparent} listenKey={listenKey} snapshotKey={config.screenshotShortcut || 'Alt+3'}
               practiceDisabled={contextBusy || chat.busy || ending} onPractice={startPractice} onDismiss={() => setReadyDismissed(true)} />
@@ -262,7 +282,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
               <div className="messages">
                 {localMode && localBinding && !chat.selected.messages.length && <p className="lc-empty">Ask about {localBinding.name} in the message box. Answers explain the code; changes come back as proposals you can open, compare and copy. Your files are never changed.</p>}
                 {chat.selected.messages.map((message, index) => (
-                  <Message key={message.id} message={message} displayName={config.displayName} onOpenFile={openLocalFile}
+                  <Message key={message.id} message={message} displayName={config.displayName} onOpenFile={openLocalFile} debugEnabled={debugEnabled}
                     generating={chat.busy && chat.activeId === chat.selectedId && index === chat.selected!.messages.length - 1} />
                 ))}
               </div>

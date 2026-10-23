@@ -10,6 +10,8 @@ import { CloudflareTunnelService } from './cloudflareTunnel';
 import type { RemoteCompanionStatus } from '../../shared/types';
 import { createRequire } from 'node:module';
 import { MAIN_WINDOW_MIN } from './workspace';
+import { windowLayoutBounds } from '../../shared/windowLayout';
+import type { SmartPlacementService } from './smartPlacement';
 
 const req = typeof require === 'function' ? require : createRequire(import.meta.url);
 function getScreen(): { getDisplayMatching: (bounds: any) => { workArea: { x: number; y: number; width: number; height: number } } } | null {
@@ -67,9 +69,21 @@ export class RemoteCompanionService {
   private tunnel = new CloudflareTunnelService();
   private tunnelLoading = false;
 
-  constructor(stealth: StealthService, getWindow: () => BrowserWindow | null) {
+  private conversationScroll = { position: 1, scrollable: false };
+  constructor(stealth: StealthService, getWindow: () => BrowserWindow | null, private smartPlacement?: SmartPlacementService) {
     this.stealth = stealth;
     this.getWindow = getWindow;
+  }
+  setConversationScroll(position: unknown, scrollable: unknown) {
+    if (typeof position !== 'number' || !Number.isFinite(position) || position < 0 || position > 1 || typeof scrollable !== 'boolean') throw new Error('Invalid conversation scroll position.');
+    this.conversationScroll = { position, scrollable };
+  }
+  private windowLayout() {
+    const win = this.getWindow(), sc = getScreen();
+    if (!win || win.isDestroyed() || !sc || typeof win.getBounds !== 'function') return null;
+    const bounds = win.getBounds(), area = sc.getDisplayMatching(bounds).workArea;
+    const widthRatio = Math.min(1, bounds.width / area.width), heightRatio = Math.min(1, bounds.height / area.height);
+    return { xRatio: Math.max(0, Math.min(1 - widthRatio, (bounds.x - area.x) / area.width)), yRatio: Math.max(0, Math.min(1 - heightRatio, (bounds.y - area.y) / area.height)), widthRatio, heightRatio, minWidthRatio: Math.min(MAIN_WINDOW_MIN.width / area.width, 1), minHeightRatio: Math.min(MAIN_WINDOW_MIN.height / area.height, 1), aspectRatio: area.width / area.height };
   }
 
   getLocalIPs(): string[] {
@@ -294,6 +308,7 @@ export class RemoteCompanionService {
         currentAudioSource: this.currentAudioSource,
         hostname: os.hostname(),
         platform: process.platform,
+        windowLayout: this.windowLayout(), conversationScroll: this.conversationScroll, smartPlacement: this.smartPlacement?.snapshot(),
       }));
       return;
     }
@@ -305,11 +320,11 @@ export class RemoteCompanionService {
         body += chunk;
         if (body.length > 65536) req.destroy();
       });
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
           const data = JSON.parse(body || '{}');
           this.recordClient(req);
-          this.executeAction(data.action, data.payload);
+          await this.executeAction(data.action, data.payload);
           const stealthState = this.stealth.getState();
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
@@ -319,6 +334,7 @@ export class RemoteCompanionService {
             clickThrough: stealthState.clickThrough,
             currentMode: this.currentMode,
             currentAudioSource: this.currentAudioSource,
+            windowLayout: this.windowLayout(), conversationScroll: this.conversationScroll, smartPlacement: this.smartPlacement?.snapshot(),
           }));
         } catch (e: any) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -333,11 +349,31 @@ export class RemoteCompanionService {
     res.end('Not Found');
   }
 
-  private executeAction(action: string, payload?: any) {
+  private async executeAction(action: string, payload?: any) {
     const win = this.getWindow();
     if (!win || win.isDestroyed()) return;
 
     switch (action) {
+      case 'set-window-bounds': {
+        const sc = getScreen();
+        const area = sc ? sc.getDisplayMatching(win.getBounds()).workArea : { x: 0, y: 0, width: 1920, height: 1080 };
+        const bounds = windowLayoutBounds(area, payload);
+        this.smartPlacement?.pause();
+        if (sc) { if (win.isMaximized()) win.unmaximize(); win.setBounds(bounds); }
+        break;
+      }
+      case 'auto-detect':
+        if (!this.smartPlacement) throw new Error('AutoDetect is unavailable.');
+        await this.smartPlacement.detect();
+        break;
+      case 'auto-smart':
+        if (!this.smartPlacement || typeof payload !== 'boolean') throw new Error('Choose whether Auto Smart is enabled.');
+        this.smartPlacement.setEnabled(payload);
+        break;
+      case 'scroll-conversation-to':
+        if (!Number.isFinite(payload) || payload < 0 || payload > 1) throw new Error('Choose a scroll position within the conversation.');
+        win.webContents.send('global-action', { type: 'scroll-conversation-to', payload });
+        break;
       case 'send-prompt':
         win.webContents.send('global-action', { type: 'submit-prompt' });
         break;
@@ -483,37 +519,72 @@ export class RemoteCompanionService {
   <title>Novi Phone Companion</title>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #111; color: #eee; }
-    body { margin: 0; padding: max(12px, env(safe-area-inset-top)) 10px max(14px, env(safe-area-inset-bottom)); overscroll-behavior-y: contain; }
-    button { font: inherit; cursor: pointer; touch-action: manipulation; }
-    button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
-    button:active { opacity: .7; }
-    .app-container { max-width: 420px; margin: 0 auto; border: 1px solid #363636; border-radius: 16px; background: #191919; overflow: hidden; }
-    .header-compact { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #282828; }
-    .brand-compact { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #888; }
-    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; display: inline-block; }
-    .badge { font-size: 10px; color: #aaa; border: 1px solid #444; padding: 3px 7px; border-radius: 20px; }
-    .badge.connected { color: #eee; }
-    .badge.error { border-style: dashed; }
-    .controls-grid { display: grid; gap: 9px; padding: 12px; }
-    .hero-row { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 8px; }
-    .hero-btn, .stop-btn, .ctrl-btn, .mode-tab-btn { border: 1px solid #3b3b3b; border-radius: 8px; background: #222; color: #ddd; min-height: 42px; font-size: 12px; padding: 9px 8px; }
-    .hero-btn { background: #eee; color: #111; border-color: #eee; font-size: 13px; font-weight: 650; }
-    .stop-btn { background: #281919; color: #fca5a5; border-color: #552727; font-weight: 600; }
-    .mode-segment { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; background: #111; border: 1px solid #333; border-radius: 10px; }
-    .mode-tab-btn { border-color: transparent; background: transparent; min-height: 38px; font-weight: 550; }
-    .mode-tab-btn.active, .ctrl-btn.active-state { background: #eee; border-color: #eee; color: #111; }
-    .button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .section-box { border: 1px solid #2d2d2d; border-radius: 10px; padding: 9px 10px; background: #141414; display: grid; gap: 8px; }
-    .section-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #777; font-weight: 600; display: flex; justify-content: space-between; }
-    .rewindow-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-    .rewindow-row button { min-height: 34px; font-size: 11px; padding: 6px 4px; border-radius: 6px; }
-    .mockup-container { position: relative; height: 74px; border: 1px dashed #3a3a3a; border-radius: 8px; background: #0c0c0c; display: flex; align-items: center; justify-content: center; cursor: crosshair; touch-action: none; }
-    .mockup-screen { position: absolute; inset: 6px; border: 1px solid #2e2e2e; border-radius: 5px; pointer-events: none; }
-    .mockup-puck { position: absolute; width: 34px; height: 26px; border: 2px solid #a3c1ff; border-radius: 5px; background: rgba(163, 193, 255, 0.25); transform: translate(-50%, -50%); transition: left 80ms, top 80ms; pointer-events: none; }
-    .resize-pad, .scroll-pad { height: 86px; border: 1px dashed #555; border-radius: 8px; background: #0c0c0c; touch-action: none; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 11px; user-select: none; }
-    .resize-pad { position: relative; }
-    .resize-preview { width: 50%; height: 55%; border: 2px solid #a3c1ff; border-radius: 4px; background: #25324b; pointer-events: none; }
+    :root { color-scheme: dark; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #171717; color: #eee; }
+    body { margin: 0; padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); overscroll-behavior-y: contain; }
+    button, select, input { font: inherit; }
+    button { cursor: pointer; touch-action: manipulation; transition: background 160ms, transform 160ms, opacity 160ms; }
+    button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid #99caff; outline-offset: 3px; }
+    button:active { transform: scale(.97); }
+    button:disabled { opacity: .45; }
+    .app-container { max-width: 460px; margin: 0 auto; }
+    .header-compact { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 4px 12px; }
+    .brand-compact { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #83d6a1; }
+    .badge { font-size: 10px; color: #999; }
+    .badge.error { color: #ffb4ab; }
+    .controls-grid { display: grid; grid-template-areas: 'hero' 'mode' 'layout' 'reading' 'snapshot' 'audio' 'visibility'; gap: 10px; }
+    .hero-row { grid-area: hero; display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 6px; }
+    .hero-btn, .stop-btn, .ctrl-btn, .mode-tab-btn { min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid #404040; border-radius: 6px; background: #272727; color: #eee; font-size: 12px; }
+    .hero-btn { background: #dceaff; border-color: #dceaff; color: #182434; font-weight: 600; }
+    .stop-btn { color: #ffb4ab; }
+    .mode-segment { grid-area: mode; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px; background: #202020; border-radius: 6px; }
+    .mode-tab-btn { border-color: transparent; background: transparent; min-height: 34px; padding: 6px 10px; color: #aaa; }
+    .mode-tab-btn.active, .ctrl-btn.active-state { background: #353535; color: #fff; }
+    .button-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+    .layout-controls { grid-area: layout; display: grid; grid-template-columns: minmax(0, 1fr) 56px; gap: 10px; align-items: stretch; }
+    .section-box { min-width: 0; padding: 12px; background: #202020; border-radius: 8px; display: grid; align-content: start; gap: 10px; }
+    .section-label { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 11px; color: #bbb; font-weight: 500; }
+    .section-label > span:last-child:not(:first-child) { font-size: 10px; color: #888; }
+    .window-pad { --screen-aspect: 1.7778; position: relative; width: min(100%, calc(180px * var(--screen-aspect))); aspect-ratio: var(--screen-aspect); margin: auto; background: #121212; border: 1px solid #383838; border-radius: 4px; touch-action: none; }
+    .window-preview { position: absolute; left: 65%; top: 0; width: 35%; height: 100%; display: grid; place-items: center; min-width: 0; border: 1px solid #91bfff; border-radius: 3px; background: #99caff20; color: #b8d7ff; cursor: grab; touch-action: none; user-select: none; }
+    .window-preview > span { font-size: 10px; pointer-events: none; }
+    .window-preview.is-dragging { cursor: grabbing; background: #99caff30; }
+    .window-handle { position: absolute; width: 20px; height: 20px; padding: 0; border: 0; background: transparent; touch-action: none; }
+    .window-handle::after { content: ''; position: absolute; inset: 7px; border-radius: 2px; background: #bedbff; }
+    .window-handle[data-edge='n'], .window-handle[data-edge='s'] { left: calc(50% - 10px); cursor: ns-resize; }
+    .window-handle[data-edge='w'], .window-handle[data-edge='e'] { top: calc(50% - 10px); cursor: ew-resize; }
+    .window-handle[data-edge*='n'] { top: -10px; } .window-handle[data-edge*='s'] { bottom: -10px; }
+    .window-handle[data-edge*='w'] { left: -10px; } .window-handle[data-edge*='e'] { right: -10px; }
+    .window-handle[data-edge='nw'], .window-handle[data-edge='se'] { cursor: nwse-resize; }
+    .window-handle[data-edge='ne'], .window-handle[data-edge='sw'] { cursor: nesw-resize; }
+    .placement-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .placement-tools .ctrl-btn { min-height: 34px; padding: 6px 10px; font-size: 11px; }
+    .auto-smart { display: flex; align-items: center; gap: 5px; color: #bbb; font-size: 11px; white-space: nowrap; }
+    .placement-note { margin: 0; color: #999; font-size: 10px; line-height: 1.45; }
+    .placement-note.error { color: #ffb4ab; }
+    .scroll-section { padding: 10px 4px; justify-items: center; }
+    .scroll-section .section-label { font-size: 10px; }
+    .scroll-slider { writing-mode: vertical-lr; direction: ltr; appearance: none; width: 30px; height: 148px; min-height: 110px; margin: 0; background: transparent; touch-action: none; cursor: ns-resize; }
+    .scroll-slider::-webkit-slider-runnable-track { width: 4px; border-radius: 10px; background: #414141; }
+    .scroll-slider::-webkit-slider-thumb { appearance: none; width: 22px; height: 34px; margin-left: -9px; border: 1px solid #9bc6ff; border-radius: 12px; background: #b8d7ff; box-shadow: 0 1px 5px #0004; transition: box-shadow 160ms, background 160ms; }
+    .scroll-slider:active::-webkit-slider-thumb { background: #fff; box-shadow: 0 0 0 5px #99caff20; }
+    .scroll-slider::-moz-range-track { width: 4px; border-radius: 10px; background: #414141; }
+    .scroll-slider::-moz-range-thumb { width: 22px; height: 34px; border: 1px solid #9bc6ff; border-radius: 12px; background: #b8d7ff; }
+    .scroll-slider:disabled { opacity: .35; }
+    .scroll-label { color: #888; font-size: 9px; }
+    .reading-controls { grid-area: reading; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid #333; }
+    .reading-controls .ctrl-btn { min-height: 34px; padding: 5px 13px; }
+    .snapshot-controls { grid-area: snapshot; } .audio-controls { grid-area: audio; } .visibility-controls { grid-area: visibility; }
+    @media (orientation: landscape) and (min-width: 600px) {
+      .app-container { max-width: 920px; }
+      .header-compact { padding-bottom: 8px; }
+      .controls-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-areas: 'hero mode' 'layout reading' 'layout snapshot' 'layout audio' 'layout visibility'; align-items: start; gap: 8px 14px; }
+      .window-pad { width: min(100%, calc(130px * var(--screen-aspect))); }
+      .layout-controls { height: 100%; }
+      .reading-controls { padding-top: 0; }
+      .scroll-slider { height: 120px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::after { animation: none !important; transition: none !important; } }
   </style>
 </head>
 <body>
@@ -551,38 +622,34 @@ export class RemoteCompanionService {
         </button>
       </div>
 
-      <!-- 3. REWINDOW & POSITION CONTROL WITH SCREEN MOCKUP -->
-      <div class="section-box">
-        <div class="section-label"><span>Window Position</span><span>Reposition</span></div>
-        <div class="rewindow-row">
-          <button type="button" class="ctrl-btn" onclick="triggerAction('rewindow', 'left')">◧ Left</button>
-          <button type="button" class="ctrl-btn" onclick="triggerAction('rewindow', 'center')">▣ Center</button>
-          <button type="button" class="ctrl-btn" onclick="triggerAction('rewindow', 'right')">◨ Right</button>
-        </div>
-        <div class="mockup-container" id="mockupPad" title="Tap or drag to reposition window">
-          <div class="mockup-screen"></div>
-          <div class="mockup-puck" id="mockupPuck" style="left: 50%; top: 50%;"></div>
-        </div>
-        <div class="section-label"><span>Window size</span><span>Drag to resize</span></div>
-        <div class="resize-pad" id="resizePad" aria-label="Drag to resize the desktop window"><div class="resize-preview" id="resizePreview"></div></div>
+      <div class="layout-controls">
+        <section class="section-box window-section" aria-label="Desktop window layout">
+          <div class="section-label"><span>Window layout</span><span>Move center · resize edges</span></div>
+          <div class="window-pad" id="windowPad">
+            <div class="window-preview" id="windowPreview" tabindex="0" role="group" aria-label="Desktop window position and size">
+              <span>Novi</span>
+              <button class="window-handle" type="button" data-edge="n" aria-label="Resize top edge"></button><button class="window-handle" type="button" data-edge="s" aria-label="Resize bottom edge"></button>
+              <button class="window-handle" type="button" data-edge="w" aria-label="Resize left edge"></button><button class="window-handle" type="button" data-edge="e" aria-label="Resize right edge"></button>
+              <button class="window-handle" type="button" data-edge="nw" aria-label="Resize top left corner"></button><button class="window-handle" type="button" data-edge="ne" aria-label="Resize top right corner"></button>
+              <button class="window-handle" type="button" data-edge="sw" aria-label="Resize bottom left corner"></button><button class="window-handle" type="button" data-edge="se" aria-label="Resize bottom right corner"></button>
+            </div>
+          </div>
+          <div class="placement-tools"><button type="button" class="ctrl-btn" id="autoDetect" onclick="triggerAction('auto-detect')">✦ AutoDetect</button><label class="auto-smart"><input id="autoSmart" type="checkbox" onchange="triggerAction('auto-smart', this.checked)" />Auto Smart</label></div>
+          <p class="placement-note" id="placementStatus">Screenshots go to your selected AI model. Auto Smart is off.</p>
+        </section>
+        <section class="section-box scroll-section" aria-label="Conversation scroll">
+          <span class="section-label">Scroll</span><span class="scroll-label">Top</span>
+          <input class="scroll-slider" id="conversationScroll" type="range" min="0" max="1000" value="1000" step="1" aria-label="Conversation scroll position" aria-orientation="vertical" disabled />
+          <span class="scroll-label">Latest</span>
+        </section>
       </div>
-
-      <div class="section-box">
-        <div class="section-label"><span>Conversation scroll</span><span>Swipe or tap</span></div>
-        <div class="button-row"><button type="button" class="ctrl-btn" onclick="triggerAction('scroll-conversation', -400)">↑ Up</button><button type="button" class="ctrl-btn" onclick="triggerAction('scroll-conversation', 400)">↓ Down</button></div>
-        <div class="scroll-pad" id="scrollPad">Swipe here to scroll desktop answers</div>
-      </div>
-
-      <div class="section-box">
-        <div class="section-label"><span>Message &amp; code size</span></div>
-        <div class="button-row">
-          <button type="button" class="ctrl-btn" aria-label="Decrease desktop message and code font size" onclick="triggerAction('change-reading-size', -1)">A− Smaller</button>
-          <button type="button" class="ctrl-btn" aria-label="Increase desktop message and code font size" onclick="triggerAction('change-reading-size', 1)">A+ Larger</button>
-        </div>
-      </div>
+      <div class="reading-controls"><span class="section-label">Size</span><div class="button-row">
+        <button type="button" class="ctrl-btn" aria-label="Decrease desktop interface size" onclick="triggerAction('change-reading-size', -1)">A− Smaller</button>
+        <button type="button" class="ctrl-btn" aria-label="Increase desktop interface size" onclick="triggerAction('change-reading-size', 1)">A+ Larger</button>
+      </div></div>
 
       <!-- 5. SNAPSHOT CONTROLS -->
-      <div class="button-row">
+      <div class="button-row snapshot-controls">
         <button type="button" class="ctrl-btn" onclick="triggerAction('capture-screen')">
           <span>Take Snapshot</span>
         </button>
@@ -592,7 +659,7 @@ export class RemoteCompanionService {
       </div>
 
       <!-- 6. LIVE LISTENING -->
-      <div class="button-row">
+      <div class="button-row audio-controls">
         <button type="button" class="ctrl-btn" onclick="triggerAction('toggle-listening', document.getElementById('listeningMode').value)">
           <span>Start / stop listening</span>
         </button>
@@ -604,7 +671,7 @@ export class RemoteCompanionService {
       </div>
 
       <!-- 7. TRANSPARENT & INTERACTIVE TOGGLES (WITH CONFIRM ON NON-TRANSPARENT) -->
-      <div class="button-row">
+      <div class="button-row visibility-controls">
         <button type="button" id="btnGhost" class="ctrl-btn" onclick="toggleTransparentSafe()">
           <span id="txtGhost">Transparent</span>
         </button>
@@ -647,8 +714,8 @@ export class RemoteCompanionService {
     let isTransparent = false;
 
     // 4. ACTION DISPATCH WITH LOW LATENCY
-    async function triggerAction(action, payload) {
-      haptic();
+    async function triggerAction(action, payload, quiet = false) {
+      if (!quiet) haptic();
       try {
         const res = await fetch('/api/action', {
           method: 'POST',
@@ -679,49 +746,95 @@ export class RemoteCompanionService {
       triggerAction('toggle-transparent');
     }
 
-    // 5. INTERACTIVE SCREEN MOCKUP DRAG / TAP
-    const pad = document.getElementById('mockupPad');
-    const puck = document.getElementById('mockupPuck');
-    function updatePuck(e) {
-      const rect = pad.getBoundingClientRect();
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      const xRatio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-      const yRatio = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
-      puck.style.left = (xRatio * 100) + '%';
-      puck.style.top = (yRatio * 100) + '%';
-      triggerAction('reposition-window', { xRatio, yRatio });
+    const pad = document.getElementById('windowPad');
+    const preview = document.getElementById('windowPreview');
+    let windowRect = { xRatio: .65, yRatio: 0, widthRatio: .35, heightRatio: 1 };
+    let minimum = { width: .12, height: .15 }, windowDrag = null, pendingWindow = null, windowSending = false, windowTimer = 0;
+    const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
+    function drawWindow() {
+      preview.style.left = windowRect.xRatio * 100 + '%'; preview.style.top = windowRect.yRatio * 100 + '%';
+      preview.style.width = windowRect.widthRatio * 100 + '%'; preview.style.height = windowRect.heightRatio * 100 + '%';
     }
-    let padDragging = false;
-    pad.addEventListener('pointerdown', (e) => { padDragging = true; updatePuck(e); });
-    window.addEventListener('pointermove', (e) => { if (padDragging) updatePuck(e); });
-    window.addEventListener('pointerup', () => { padDragging = false; });
-
-    const resizePad = document.getElementById('resizePad');
-    const resizePreview = document.getElementById('resizePreview');
-    let resizing = false;
-    function resizeAt(e) {
-      const rect = resizePad.getBoundingClientRect();
-      const widthRatio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const heightRatio = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-      resizePreview.style.width = (widthRatio * 100) + '%';
-      resizePreview.style.height = (heightRatio * 100) + '%';
-      return { widthRatio, heightRatio };
+    async function sendWindow() {
+      windowTimer = 0;
+      if (windowSending || !pendingWindow) return;
+      const next = pendingWindow; pendingWindow = null; windowSending = true;
+      try { await triggerAction('set-window-bounds', next, true); }
+      finally { windowSending = false; if (pendingWindow) windowTimer = setTimeout(sendWindow, 80); }
     }
-    resizePad.addEventListener('pointerdown', e => { resizing = true; resizePad.setPointerCapture(e.pointerId); resizeAt(e); });
-    resizePad.addEventListener('pointermove', e => { if (resizing) resizeAt(e); });
-    resizePad.addEventListener('pointerup', e => { if (resizing) triggerAction('resize-window', resizeAt(e)); resizing = false; });
-
-    const scrollPad = document.getElementById('scrollPad');
-    let scrollStart = null;
-    scrollPad.addEventListener('pointerdown', e => { scrollStart = e.clientY; scrollPad.setPointerCapture(e.pointerId); });
-    scrollPad.addEventListener('pointerup', e => {
-      if (scrollStart !== null) triggerAction('scroll-conversation', Math.max(-600, Math.min(600, Math.round((scrollStart - e.clientY) * 3))));
-      scrollStart = null;
+    function queueWindow() { pendingWindow = { ...windowRect }; if (!windowSending && !windowTimer) windowTimer = setTimeout(sendWindow, 80); }
+    preview.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      const edge = e.target.closest('[data-edge]');
+      windowDrag = { x: e.clientX, y: e.clientY, rect: { ...windowRect }, pad: pad.getBoundingClientRect(), edge: edge ? edge.dataset.edge : 'move' };
+      preview.setPointerCapture(e.pointerId); preview.classList.add('is-dragging'); e.preventDefault();
     });
+    preview.addEventListener('pointermove', e => {
+      if (!windowDrag) return;
+      const d = windowDrag, dx = (e.clientX - d.x) / d.pad.width, dy = (e.clientY - d.y) / d.pad.height;
+      let left = d.rect.xRatio, top = d.rect.yRatio, right = left + d.rect.widthRatio, bottom = top + d.rect.heightRatio;
+      if (d.edge === 'move') {
+        left = clamp(left + dx, 0, 1 - d.rect.widthRatio); top = clamp(top + dy, 0, 1 - d.rect.heightRatio);
+        right = left + d.rect.widthRatio; bottom = top + d.rect.heightRatio;
+      } else {
+        if (d.edge.includes('w')) left = clamp(left + dx, 0, right - minimum.width);
+        if (d.edge.includes('e')) right = clamp(right + dx, left + minimum.width, 1);
+        if (d.edge.includes('n')) top = clamp(top + dy, 0, bottom - minimum.height);
+        if (d.edge.includes('s')) bottom = clamp(bottom + dy, top + minimum.height, 1);
+      }
+      windowRect = { xRatio: left, yRatio: top, widthRatio: right - left, heightRatio: bottom - top }; drawWindow(); queueWindow();
+    });
+    function finishWindow(e) { if (!windowDrag) return; windowDrag = null; preview.classList.remove('is-dragging'); if (preview.hasPointerCapture(e.pointerId)) preview.releasePointerCapture(e.pointerId); queueWindow(); }
+    preview.addEventListener('pointerup', finishWindow); preview.addEventListener('pointercancel', finishWindow); preview.addEventListener('lostpointercapture', finishWindow);
+    preview.addEventListener('keydown', e => {
+      const delta = e.shiftKey ? .05 : .01, edge = e.target.dataset.edge;
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+      e.preventDefault();
+      if (edge) {
+        let left = windowRect.xRatio, top = windowRect.yRatio, right = left + windowRect.widthRatio, bottom = top + windowRect.heightRatio;
+        const dx = e.key === 'ArrowRight' ? delta : e.key === 'ArrowLeft' ? -delta : 0, dy = e.key === 'ArrowDown' ? delta : e.key === 'ArrowUp' ? -delta : 0;
+        if (edge.includes('w')) left = clamp(left + dx, 0, right - minimum.width); if (edge.includes('e')) right = clamp(right + dx, left + minimum.width, 1);
+        if (edge.includes('n')) top = clamp(top + dy, 0, bottom - minimum.height); if (edge.includes('s')) bottom = clamp(bottom + dy, top + minimum.height, 1);
+        windowRect = { xRatio: left, yRatio: top, widthRatio: right - left, heightRatio: bottom - top };
+      } else {
+        windowRect.xRatio = clamp(windowRect.xRatio + (e.key === 'ArrowRight' ? delta : e.key === 'ArrowLeft' ? -delta : 0), 0, 1 - windowRect.widthRatio);
+        windowRect.yRatio = clamp(windowRect.yRatio + (e.key === 'ArrowDown' ? delta : e.key === 'ArrowUp' ? -delta : 0), 0, 1 - windowRect.heightRatio);
+      }
+      drawWindow(); queueWindow();
+    });
+    const scrollSlider = document.getElementById('conversationScroll');
+    let scrollDragging = false, scrollTimer = 0, pendingScroll = null, scrollSending = false;
+    async function sendScroll() {
+      scrollTimer = 0; if (scrollSending || pendingScroll === null) return;
+      const position = pendingScroll; pendingScroll = null; scrollSending = true;
+      try { await triggerAction('scroll-conversation-to', position, true); }
+      finally { scrollSending = false; if (pendingScroll !== null) scrollTimer = setTimeout(sendScroll, 80); }
+    }
+    scrollSlider.addEventListener('pointerdown', () => { scrollDragging = true; });
+    window.addEventListener('pointerup', () => { scrollDragging = false; });
+    window.addEventListener('pointercancel', () => { scrollDragging = false; });
+    scrollSlider.addEventListener('input', () => { pendingScroll = Number(scrollSlider.value) / 1000; if (!scrollSending && !scrollTimer) scrollTimer = setTimeout(sendScroll, 80); });
 
     // 7. REALTIME STATUS SYNC
     function updateUI(status) {
+      if (status.windowLayout && !windowDrag && !pendingWindow && !windowSending) {
+        const layout = status.windowLayout;
+        windowRect = { xRatio: layout.xRatio, yRatio: layout.yRatio, widthRatio: layout.widthRatio, heightRatio: layout.heightRatio };
+        minimum = { width: layout.minWidthRatio, height: layout.minHeightRatio };
+        pad.style.setProperty('--screen-aspect', layout.aspectRatio); drawWindow();
+      }
+      if (status.conversationScroll && !scrollDragging && pendingScroll === null && !scrollSending) {
+        scrollSlider.value = Math.round(status.conversationScroll.position * 1000);
+        scrollSlider.disabled = !status.conversationScroll.scrollable;
+      }
+      if (status.smartPlacement) {
+        const smart = status.smartPlacement, button = document.getElementById('autoDetect'), note = document.getElementById('placementStatus');
+        document.getElementById('autoSmart').checked = smart.enabled;
+        button.disabled = smart.busy; button.textContent = smart.busy ? 'Finding space…' : '✦ AutoDetect';
+        note.className = 'placement-note' + (smart.error ? ' error' : '');
+        note.textContent = smart.error || smart.reason || (smart.enabled ? 'Auto Smart on. Stable screen changes are analyzed by your AI model.' : 'Screenshots go to your selected AI model. Auto Smart is off.');
+        button.title = smart.shortcutRegistered ? 'Shortcut: ' + smart.shortcut : 'AutoDetect shortcut is unavailable; use this button.';
+      }
       isTransparent = Boolean(status.transparent);
       const btnGhost = document.getElementById('btnGhost');
       const txtGhost = document.getElementById('txtGhost');

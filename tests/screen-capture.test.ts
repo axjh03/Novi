@@ -10,7 +10,7 @@ test('background sampling crops the display, serializes captures, and restores w
   const original = require.cache[electronPath]!.exports;
   const area = { x: 1920, y: 0, width: 1920, height: 1080 };
   const display = { id: 2, bounds: area, scaleFactor: 1 };
-  let opacity = 0.8, visible = true, protection = true, focused = true, fail = false, inFlight = 0, peak = 0;
+  let opacity = 0.8, visible = true, protection = true, focused = true, fail = false, inFlight = 0, peak = 0, inactiveShows = 0;
   const cropped: unknown[] = [];
   const win = {
     isDestroyed: () => false, isVisible: () => visible, isFocused: () => focused,
@@ -18,6 +18,7 @@ test('background sampling crops the display, serializes captures, and restores w
     setContentProtection(value: boolean) { protection = value; },
     setOpacity(value: number) { opacity = value; },
     hide() { visible = false; focused = false; }, show() { visible = true; }, focus() { focused = true; },
+    showInactive() { visible = true; inactiveShows++; },
     getBounds: () => area,
   };
   const thumbnail: any = {
@@ -48,5 +49,12 @@ test('background sampling crops the display, serializes captures, and restores w
     assert.deepEqual([opacity, visible, focused, protection], [0.8, true, true, true]);
     fail = false;
     assert.equal((await sample()).toString(), 'sample', 'a failed sample does not block later screenshots');
+    focused = false;
+    await captureScreenBuffer(() => win as any, 2, undefined, false);
+    assert.equal(inactiveShows, 1, 'automatic placement restores the window without activating it');
+    assert.equal(focused, false, 'automatic screenshots leave focus with the user’s work');
+    focused = true;
+    await captureScreenBuffer(() => win as any, 2, undefined, false);
+    assert.equal(focused, true, 'typing in Novi keeps its original focus after the screenshot');
   } finally { require.cache[electronPath]!.exports = original; }
 });

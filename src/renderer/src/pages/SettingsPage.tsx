@@ -7,6 +7,7 @@ import { DeviceTester } from '../components/DeviceTester';
 import { SettingsAppUpdater } from '../components/SettingsAppUpdater';
 import { SettingsAppPrivacy } from '../components/SettingsAppPrivacy';
 import { DebugPanel } from '../components/DebugPanel';
+import { SmartPlacementControls } from '../components/SmartPlacementControls';
 import { LocalAISetup } from '../components/LocalAISetup';
 import { EngineReadinessList } from '../components/LocalCodingSetup';
 import { endingWarning } from '../components/TitleBar';
@@ -22,13 +23,13 @@ const shortcuts = [
   { key: 'audioRecordShortcut', label: 'System audio capture hotkey', defaultValue: DEFAULT_AUDIO_RECORD_SHORTCUT },
 ] as const;
 
-interface Props { state: Snapshot; onSaved: (state: Snapshot) => void; onBack: () => void; onSignOut: () => void; onCleared: () => void }
+interface Props { state: Snapshot; onSaved: (state: Snapshot) => void; onBack: () => void; onSignOut: () => void; onCleared: () => void; onDebugEnabledChange?: (enabled: boolean) => void }
 type Tab = 'general' | 'devices' | 'api' | 'local-ai' | 'debug';
 const tabs: Array<[Tab, string, LucideIcon]> = [['general', 'General', SlidersHorizontal], ['api', 'API Management', KeyRound], ['local-ai', 'Local AI', Cpu], ['devices', 'Audio & Camera', Mic], ['debug', 'Debug', Terminal]];
-const tabDescriptions = { general: 'Account, appearance and keyboard shortcuts.', api: 'Manage your AI connections and coding tools.', 'local-ai': 'Speech models and transcription on this computer.', devices: 'Check your microphone, system audio and camera.', debug: 'Diagnostics and recent app activity.' };
+const tabDescriptions = { general: 'Account, appearance and keyboard shortcuts.', api: 'Manage your AI connections and coding tools.', 'local-ai': 'Speech models and transcription on this computer.', devices: 'Check your microphone, system audio and camera.', debug: 'Choose whether diagnostics appear in chat.' };
 const themes = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']] as const;
 
-export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: Props) {
+export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared, onDebugEnabledChange }: Props) {
   const [tab, setTab] = useState<Tab>('general');
   const [value, setValue] = useState<SettingsInput>({
     ...state.settings!,
@@ -188,6 +189,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
               </fieldset>
             </form>
 
+            <section className="settings-section"><div><h2>Window placement</h2><p>Keep Novi out of your way.</p></div><SmartPlacementControls /></section>
             <SettingsAppPrivacy />
 
             <section className="settings-section">
@@ -239,7 +241,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared }: P
         )}
 
         {tab === 'devices' && <DeviceTester />}
-        {tab === 'debug' && <DebugPanel />}
+        {tab === 'debug' && <DebugPanel onEnabledChange={onDebugEnabledChange} />}
 
         {tab === 'api' && <div className="settings-studio api-studio">
           <ProviderManager state={state} onSaved={onSaved} />

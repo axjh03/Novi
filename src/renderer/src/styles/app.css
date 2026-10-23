@@ -265,15 +265,10 @@ svg { flex-shrink: 0; }
 .messages { max-width: 1100px; margin: 0 auto; padding: 10px 20px 6px; }
 .message { display: flex; gap: 12px; margin: 14px 0 20px; }
 .message.assistant {
-  --panel: #171c24; --surface: #242d3a; --hover: #303b4c;
-  --text: #edf1f7; --muted: #b0bac9; --subtle: #a0adbf; --border: #435066;
-  --accent: #a3c1ff; --selected: #304566; --danger: #ffb4ab; --error-bg: #382628;
-  --lc-add: #7ee2a8; --lc-remove: #ffb4ab; --lc-edit: #f2cc8f;
-  background: #1d2633;
+  background: color-mix(in srgb, var(--accent) 4%, var(--bg));
   color: var(--text);
-  color-scheme: dark;
-  padding: 20px;
-  border-radius: 16px;
+  padding: 18px;
+  border-radius: 12px;
 }
 .message-avatar { width: 30px; height: 30px; flex-shrink: 0; border-radius: 8px; background: var(--selected); color: var(--muted); display: flex; align-items: center; justify-content: center; }
 .message-avatar .brand svg { width: 21px; height: 21px; }
@@ -1721,8 +1716,9 @@ html.overlay-window #root {
 .app-shell {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  width: 100vw;
+  height: calc(100vh / var(--ui-scale, 1));
+  width: calc(100vw / var(--ui-scale, 1));
+  zoom: var(--ui-scale, 1);
   overflow: hidden;
   background: var(--bg);
   transition: background 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
@@ -2059,9 +2055,20 @@ html.transparent-mode #root {
   background: transparent !important;
 }
 
-.transparent-mode .message-item {
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+.transparent-mode .message.assistant {
+  --panel: color-mix(in srgb, var(--transparent-text, #fff) 4%, transparent);
+  --surface: color-mix(in srgb, var(--transparent-text, #fff) 6%, transparent);
+  --hover: color-mix(in srgb, var(--transparent-text, #fff) 12%, transparent);
+  --text: var(--transparent-text, #fff);
+  --muted: inherit; --subtle: inherit; --accent: inherit; --danger: inherit;
+  --border: color-mix(in srgb, var(--transparent-text, #fff) 18%, transparent);
+  --selected: var(--hover);
+  --error-bg: color-mix(in srgb, var(--danger) 10%, transparent);
+  --lc-add: inherit; --lc-remove: inherit; --lc-edit: inherit;
+  background: color-mix(in srgb, var(--transparent-text, #fff) 7%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color-scheme: var(--transparent-color-scheme, dark);
 }
 
 .chat-header {
@@ -3391,7 +3398,7 @@ html.transparent-mode #root {
 
 /* Natural content height lets the native window shrink again after controls wrap or menus close. */
 html.novi-tray, html.novi-tray body { height: auto; min-height: 0; overflow-x: hidden; background: transparent !important; }
-html.novi-tray #tray-root { padding: 0 4px; -webkit-app-region: drag; }
+html.novi-tray #tray-root { padding: 0 4px; -webkit-app-region: drag; zoom: var(--ui-scale, 1); width: calc(100vw / var(--ui-scale, 1)); }
 .tray-shell { box-sizing: border-box; width: 100%; min-height: 0; display: flex; flex-direction: column; gap: 5px; padding: 6px; position: relative; background: var(--panel); box-shadow: var(--shadow); border: 1px solid color-mix(in srgb, var(--border) 65%, transparent); border-radius: 10px; cursor: grab; user-select: none; -webkit-app-region: drag; }
 .tray-shell:active { cursor: grabbing; }
 .tray-attached { flex: none; margin-top: auto; padding: 8px 12px 12px; }
@@ -3486,6 +3493,8 @@ html.novi-tray #tray-root { padding: 0 4px; -webkit-app-region: drag; }
 .debug-waiting { margin: 0; color: var(--warning); font-size: 12px; }
 .debug-events { list-style: none; margin: 0; padding: 0; max-height: 420px; overflow-y: auto; }
 .debug-chat .debug-events { max-height: 200px; }
+.debug-chat { max-height: min(40vh, 320px); overflow-y: auto; }
+.transparent-mode .debug-chat { --panel: color-mix(in srgb, var(--transparent-text, #fff) 4%, transparent); --surface: color-mix(in srgb, var(--transparent-text, #fff) 6%, transparent); }
 .debug-event { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
 .debug-event time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .debug-event strong, .debug-event small { display: block; overflow-wrap: anywhere; }
@@ -3983,3 +3992,28 @@ textarea { border-radius: 4px; }
   .settings-tabs button { width: auto; flex: 0 0 auto; }
   .settings-tabs button.active::before { top: auto; bottom: 0; left: 10px; right: 10px; width: auto; height: 2px; }
 }
+
+/* A single floating control surface and quiet conversation rows. */
+.messages { max-width: 960px; padding: 12px 22px 8px; }
+.message { animation: message-enter 220ms ease-out both; }
+@keyframes message-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.message-heading { gap: 10px; }
+.message-heading time { opacity: .7; }
+.conversation-scroll { scrollbar-gutter: stable; }
+.conversation-scroll::-webkit-scrollbar { width: 9px; }
+.conversation-scroll::-webkit-scrollbar-thumb { border: 2px solid transparent; background-clip: padding-box; }
+.conversation-scroll::-webkit-scrollbar-thumb:hover { background-color: var(--muted); }
+.tray-shell { padding: 8px; border-radius: 12px; box-shadow: 0 4px 18px #0002; }
+.tray-shell .composer { padding: 0; background: transparent; border: 0; box-shadow: none; }
+.tray-shell .composer-toolbar { padding-bottom: 5px; margin-bottom: 3px; border-bottom: 0; }
+.tray-shell .composer-input { padding: 5px 6px; border: 1px solid color-mix(in srgb, var(--border) 65%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--surface) 40%, transparent); }
+.smart-placement-controls { display: grid; justify-items: start; gap: 10px; min-width: 0; }
+.smart-placement-controls .settings-toggle { display: flex; flex-direction: row; align-items: center; }
+.smart-placement-controls > small { max-width: 65ch; }
+.smart-placement-controls > p { margin: 0; }
+.stealth-toggle-btn.has-error { color: var(--danger); }
+.code-line { display: grid; grid-template-columns: 3.5ch minmax(0, 1fr); gap: 12px; min-height: 1.7em; }
+.code-line-number { user-select: none; color: var(--subtle); opacity: .65; text-align: right; font-variant-numeric: tabular-nums; }
+.code-line-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.code-viewer, .repository-review { zoom: var(--ui-scale, 1); height: calc(100vh / var(--ui-scale, 1)); width: calc(100vw / var(--ui-scale, 1)); }
+.overlay-sticky-card { zoom: var(--ui-scale, 1); }

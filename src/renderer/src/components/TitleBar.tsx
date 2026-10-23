@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Copy, Eye, EyeOff, Minus, Move, QrCode, Square, X } from 'lucide-react';
+import { Copy, Eye, EyeOff, Minus, QrCode, Square, X } from 'lucide-react';
+import { SmartPlacementControls } from './SmartPlacementControls';
 import { useStealth } from '../hooks/useStealth';
 import { useAppMode } from '../context/AppModeContext';
 import { unwrap } from '../services/api';
@@ -63,12 +64,11 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
         {(sessionActive || transparent) && (
           <div className="titlebar-center">
             {transparent && <span className={`stealth-numlock-pill ${clickThrough ? 'clickthrough' : 'interactive'}`}>{clickThrough ? 'Click-through' : 'Interactive'}</span>}
-            <div className="reading-size-controls" role="group" aria-label={`Message and code size: ${readingSize}%`}>
-              <button type="button" className="titlebar-quick-btn" title={`Smaller message and code text (${readingSize}%)`} aria-label="Decrease message and code font size" disabled={readingSize <= MIN_READING_SIZE} onClick={() => changeReadingSize(-1)}>A−</button>
-              <button type="button" className="titlebar-quick-btn" title={`Larger message and code text (${readingSize}%)`} aria-label="Increase message and code font size" disabled={readingSize >= MAX_READING_SIZE} onClick={() => changeReadingSize(1)}>A+</button>
+            <div className="reading-size-controls" role="group" aria-label={`Interface size: ${readingSize}%`}>
+              <button type="button" className="titlebar-quick-btn" title={`Smaller interface (${readingSize}%)`} aria-label="Decrease interface size" disabled={readingSize <= MIN_READING_SIZE} onClick={() => changeReadingSize(-1)}>A−</button>
+              <button type="button" className="titlebar-quick-btn" title={`Larger interface (${readingSize}%)`} aria-label="Increase interface size" disabled={readingSize >= MAX_READING_SIZE} onClick={() => changeReadingSize(1)}>A+</button>
             </div>
-            <button type="button" className="stealth-toggle-btn" aria-label="Reset all window sizes" title="Reset all window sizes"
-              onClick={() => void unwrap(window.novi.resetWorkspaceSizes()).catch(console.error)}><Move size={14} /></button>
+            <SmartPlacementControls compact />
             <button type="button" className={`stealth-toggle-btn ${transparent ? 'active' : ''} ${transparencyLocked ? 'locked' : ''}`}
               onClick={() => { if (!transparencyLocked) void toggleTransparent(); }} aria-pressed={transparent} aria-disabled={transparencyLocked || undefined}
               aria-label={transparencyLocked ? `Transparency locked; press ${transparentShortcut} to turn off` : transparent ? 'Turn off transparency' : 'Turn on transparency'}

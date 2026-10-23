@@ -306,6 +306,11 @@ export interface NoviAPI {
   setTrayHeight(height: number): Promise<Result<void>>;
   setTrayWidth(width: number, edge: 'left' | 'right'): Promise<Result<void>>;
   resetWorkspaceSizes(): Promise<Result<void>>;
+  getSmartPlacement(): Promise<Result<import('./windowLayout').SmartPlacementState>>;
+  autoDetectPlacement(): Promise<Result<import('./windowLayout').SmartPlacementState>>;
+  setAutoSmart(enabled: boolean): Promise<Result<import('./windowLayout').SmartPlacementState>>;
+  onSmartPlacement(callback: (state: import('./windowLayout').SmartPlacementState) => void): () => void;
+  reportConversationScroll(position: number, scrollable: boolean): Promise<Result<void>>;
   sampleBackgroundPalette(opacity: number): Promise<Result<import('./appearance').SmartPalette>>;
   captureScreen(): Promise<Result<ImageAttachment>>;
   saveAudioRecording(input: { base64: string; mimeType?: string; filename?: string }): Promise<Result<{ id: string; path: string; name: string }>>;

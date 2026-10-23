@@ -57,6 +57,23 @@ export function tokenizeCode(code: string, language = 'code'): CodeToken[] {
   return tokens;
 }
 
+export function tokenizedCodeLines(code: string, language?: string): CodeToken[][] {
+  const lines: CodeToken[][] = [[]];
+  for (const token of tokenizeCode(code, language)) {
+    token.text.split('\n').forEach((text, index) => {
+      if (index) lines.push([]);
+      if (text) lines[lines.length - 1].push({ kind: token.kind, text });
+    });
+  }
+  return lines;
+}
+
+export function NumberedCode({ code, language }: { code: string; language?: string }) {
+  return <>{tokenizedCodeLines(code, language).map((line, number) => <span className="code-line" key={number}>
+    <span className="code-line-number" aria-hidden="true">{number + 1}</span><span className="code-line-text">{line.map((token, index) => token.kind === 'plain' ? token.text : <span className={`syntax-${token.kind}`} key={index}>{token.text}</span>)}</span>
+  </span>)}</>;
+}
+
 export function codeFromMessages(messages: ChatMessage[]) {
   let solution = 0;
   return messages.flatMap((message) => {
@@ -120,7 +137,7 @@ function CodingModeHUD({ blocks }: { blocks: CodeViewerBlock[] }) {
           </button>
           {block.language === 'mermaid' && <button type="button" className="icon-button" aria-label={`Close ${block.label}`} onClick={() => setHidden((ids) => [...ids, block.id])}><X size={13} /></button>}
         </div>
-        {block.language === 'mermaid' ? <MermaidDiagram code={block.code} /> : <pre><code className="syntax-code">{tokenizeCode(block.code, language === 'auto' ? block.language : language).map((token, index) => token.kind === 'plain' ? token.text : <span className={`syntax-${token.kind}`} key={index}>{token.text}</span>)}</code></pre>}
+        {block.language === 'mermaid' ? <MermaidDiagram code={block.code} /> : <pre><code className="syntax-code numbered-code"><NumberedCode code={block.code} language={language === 'auto' ? block.language : language} /></code></pre>}
       </article>)}
     </div>
   </section>;

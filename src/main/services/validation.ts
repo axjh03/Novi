@@ -2,6 +2,7 @@ import { isAppMode } from '../../shared/sessionModes';
 import { isShortcut, sameShortcut } from '../../shared/shortcuts';
 import { DEFAULT_CLICK_THROUGH_SHORTCUT, DEFAULT_TRANSPARENT_SHORTCUT, type ConnectionInput, type ProviderKind, type SettingsInput, type SendInput } from '../../shared/types';
 import { PROVIDERS } from '../../shared/providers.ts';
+import { AUTO_DETECT_SHORTCUT } from '../../shared/windowLayout';
 
 export class UserError extends Error {}
 export function text(value: unknown, label: string, max: number, optional = false): string {
@@ -61,6 +62,9 @@ export function baseUrl(value: unknown): string {
 export function settingsInput(value: unknown): SettingsInput {
   const input = object(value);
   if (!['system', 'light', 'dark'].includes(String(input.theme))) throw new UserError('Choose a valid theme.');
+  for (const key of ['clickThroughShortcut', 'transparentShortcut', 'codingModeShortcut', 'behavioralModeShortcut', 'screenshotShortcut', 'audioRecordShortcut']) {
+    if (typeof input[key] === 'string' && sameShortcut(input[key], AUTO_DETECT_SHORTCUT)) throw new UserError(`${AUTO_DETECT_SHORTCUT} is reserved for AutoDetect window placement.`);
+  }
   const shortcut = input.clickThroughShortcut === undefined ? DEFAULT_CLICK_THROUGH_SHORTCUT : text(input.clickThroughShortcut, 'click-through shortcut', 60);
   if (!isShortcut(shortcut)) throw new UserError('Use a supported key combination with at least one modifier.');
   const transparentShortcut = typeof input.transparentShortcut === 'string' && input.transparentShortcut.trim() ? input.transparentShortcut.trim() : DEFAULT_TRANSPARENT_SHORTCUT;

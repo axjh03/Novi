@@ -5,7 +5,7 @@ import type { ChatMessage, ImageAttachment } from '../../../../shared/types';
 import { ENGINES, type LocalCodingMessage } from '../../../../shared/localCoding';
 import { Brand } from '../Brand';
 import { errorText, unwrap } from '../../services/api';
-import { tokenizeCode } from '../CodingModeHUD';
+import { NumberedCode } from '../CodingModeHUD';
 
 export function ImagePreview({ image }: { image: ImageAttachment }) {
   const [url, setUrl] = useState(image.previewUrl), [failed, setFailed] = useState(false);
@@ -60,7 +60,7 @@ function CodeBlock({ children, className, ...props }: ComponentPropsWithoutRef<'
   const language = /language-(\S+)/.exec(className || '')?.[1];
   const block = Boolean(language) || code.includes('\n');
   if (!block) return <code className={className} {...props}>{children}</code>;
-  return <span className="code-block"><span className="code-toolbar"><span>{language || 'code'}</span><button onClick={async () => { try { await unwrap(window.novi.copyText(code.replace(/\n$/, ''))); setCopied(true); setFailed(false); } catch { setFailed(true); } }} aria-label="Copy code">{copied ? <Check size={13} /> : <Copy size={13} />}{failed ? 'Select to copy' : copied ? 'Copied' : 'Copy'}</button></span><code className="syntax-code">{tokenizeCode(code, language).map((token, index) => token.kind === 'plain' ? token.text : <span className={`syntax-${token.kind}`} key={index}>{token.text}</span>)}</code></span>;
+  return <span className="code-block"><span className="code-toolbar"><span>{language || 'code'}</span><button onClick={async () => { try { await unwrap(window.novi.copyText(code.replace(/\n$/, ''))); setCopied(true); setFailed(false); } catch { setFailed(true); } }} aria-label="Copy code">{copied ? <Check size={13} /> : <Copy size={13} />}{failed ? 'Select to copy' : copied ? 'Copied' : 'Copy'}</button></span><code className="syntax-code numbered-code"><NumberedCode code={code.replace(/\n$/, '')} language={language} /></code></span>;
 }
 // Module scope: a new map per render gives each renderer a new component type, remounting every code block.
 const markdownComponents: Components = { code: ({ node: _node, ...props }) => <CodeBlock {...props} />, img: () => null, a: ({ children }) => <span className="markdown-link">{children}</span> };
@@ -95,7 +95,7 @@ function LocalCodingResult({ result, onOpenFile }: { result: LocalCodingMessage;
 }
 
 // Streaming replaces only the active message object, so memo skips re-parsing finished messages.
-export const Message = memo(function Message({ message, generating, displayName, onOpenFile }: { message: ChatMessage; generating: boolean; displayName: string; onOpenFile?: (result: LocalCodingMessage, fileId: string) => void }) {
+export const Message = memo(function Message({ message, generating, displayName, onOpenFile, debugEnabled = false }: { message: ChatMessage; generating: boolean; displayName: string; onOpenFile?: (result: LocalCodingMessage, fileId: string) => void; debugEnabled?: boolean }) {
   return <article className={`message ${message.role}`}><div className="message-avatar">{message.role === 'assistant' ? <Brand compact /> : <UserRound size={17} />}</div><div className="message-body"><div className="message-heading"><strong>{message.role === 'assistant' ? 'Novi' : displayName}</strong>{message.model && <span className="message-model" title={message.providerName}>{message.model}</span>}<time dateTime={new Date(message.createdAt).toISOString()}>{new Date(message.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div>
     {!!message.images?.length && <div className="message-images">{message.images.map((image) => <ImagePreview key={image.id} image={image} />)}</div>}
     {message.localCodingRequest && <span className="lc-request-base">Asked about {message.localCodingRequest.baseLabel}</span>}
@@ -104,7 +104,7 @@ export const Message = memo(function Message({ message, generating, displayName,
     {generating && !message.content && !message.localCoding && <div className="activity" role="status" aria-label="Novi is thinking"><span /><span /><span /></div>}
     {message.error && <div className="error message-error" role="alert">{message.error}</div>}
     {message.status === 'stopped' && <small className="muted">Response stopped</small>}
-    {message.latency && !generating && <details className="response-latency"><summary>Response timing</summary>
+    {debugEnabled && message.latency && !generating && <details className="response-latency"><summary>Response timing</summary>
       <dl>{([
         ['UI → main', message.latency.uiToMainMs], ['Access check', message.latency.accessMs],
         ['Provider → first text', message.latency.providerFirstTextMs], ['Provider → first word/number', message.latency.providerFirstUsefulTextMs],

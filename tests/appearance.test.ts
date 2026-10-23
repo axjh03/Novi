@@ -59,7 +59,8 @@ test('appearance updates persist, reach other windows, and restore the manual pa
     updateAppearance({ paletteId: 'paper', readingSize: 150 });
     assert.equal(styles.get('--transparent-bg'), '#ffffff');
     assert.equal(styles.get('--transparent-text'), '#141414');
-    assert.equal(styles.get('--reading-scale'), '1.5');
+    assert.equal(styles.get('--ui-scale'), '1.5');
+    assert.equal(styles.get('--reading-scale'), '1', 'text is not scaled twice inside the scaled interface');
     updateAppearance({ smart: true, smartPalette: { background: '#102030', text: '#ffffff', opacity: 80 } });
     assert.equal(styles.get('--transparent-bg'), '#102030');
     assert.equal(styles.get('--transparent-opacity'), '80%');
@@ -69,10 +70,10 @@ test('appearance updates persist, reach other windows, and restore the manual pa
     saved.set('novi_appearance', JSON.stringify({ paletteId: 'forest', readingSize: 120, readingLaunch: 'launch-1' }));
     window.dispatchEvent(Object.assign(new Event('storage'), { key: 'novi_appearance' }));
     assert.equal(styles.get('--transparent-bg'), '#0b261b');
-    assert.equal(styles.get('--reading-scale'), '1.2');
+    assert.equal(styles.get('--ui-scale'), '1.2');
     stop();
     updateAppearance({ readingSize: 100 });
-    assert.equal(styles.get('--reading-scale'), '1.2', 'unsubscribed windows stop receiving updates');
+    assert.equal(styles.get('--ui-scale'), '1.2', 'unsubscribed windows stop receiving updates');
     // Text size lasts for one app launch; colors and opacity are remembered.
     updateAppearance({ readingSize: 160 });
     assert.equal(readAppearance().readingSize, 160);
