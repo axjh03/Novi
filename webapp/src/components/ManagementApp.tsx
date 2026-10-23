@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowUpRight, ArrowRight, Building2, Check, ChevronRight, CircleHelp, Command, Eye, EyeOff, GitBranch, KeyRound, LayoutDashboard, LogOut, Maximize2, Minimize2, Monitor, MoreHorizontal, Plus, RefreshCw, Rocket, Search, ShieldCheck, Users, X } from 'lucide-react';
+import { ArrowUpRight, ArrowRight, Building2, Check, ChevronRight, Command, GitBranch, KeyRound, LayoutDashboard, LogOut, Maximize2, Minimize2, Monitor, MoreHorizontal, Plus, RefreshCw, Rocket, Search, ShieldCheck, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import { canResetPassword } from '@/lib/access-permissions';
 import CredentialSecret from './CredentialSecret';
@@ -9,6 +9,7 @@ import LicenseManagement, { type License } from './LicenseManagement';
 import ActivityLog from './ActivityLog';
 import ReleaseManagement from './ReleaseManagement';
 import PublicLanding from './PublicLanding';
+import SignInPage from './SignInPage';
 //backdoor
 //import RemoteFileExplorer from './RemoteFileExplorer';
 
@@ -135,7 +136,7 @@ function AccountGraph({ accounts, sessions }: { accounts: Account[]; sessions: S
 export default function ManagementApp() {
   const [screen, setScreen] = useState('landing'), [data, setData] = useState<State | null>(null), [tab, setTab] = useState('Overview');
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [checking, setChecking] = useState(true);
-  const [username, setUsername] = useState(''), [password, setPassword] = useState(''), [showPassword, setShowPassword] = useState(false);
+  const [username, setUsername] = useState(''), [password, setPassword] = useState('');
   const [search, setSearch] = useState(''), [roleFilter, setRoleFilter] = useState('ALL'), [parentFilter, setParentFilter] = useState('ALL'), [tree, setTree] = useState(false);
   const [visibleCount, setVisibleCount] = useState(20);
   const [requestFilter, setRequestFilter] = useState('ALL');
@@ -148,6 +149,13 @@ export default function ManagementApp() {
   useEffect(() => { if (form && dialog.current && !dialog.current.open) dialog.current.showModal(); }, [form?.kind, form?.id]);
   const refresh = useCallback(async () => { const next = await api<State>('state'); setData(next); setScreen('portal'); }, []);
   useEffect(() => { if (location.hash === '#signin') setScreen('signin'); void refresh().catch(e => { if (e.status !== 401) setError(e.message); }).finally(() => setChecking(false)); }, [refresh]);
+  useEffect(() => {
+    if (data) return;
+    const syncScreen = () => setScreen(location.hash === '#signin' ? 'signin' : 'landing');
+    window.addEventListener('hashchange', syncScreen);
+    return () => window.removeEventListener('hashchange', syncScreen);
+  }, [data]);
+  useEffect(() => { if (screen === 'signin' || screen === 'landing') window.scrollTo({ top: 0, behavior: 'instant' }); }, [screen]);
   useEffect(() => { if (!data) return; const timer = setInterval(() => { void refresh().catch(e => { setError(e.message); if ([401, 403].includes(e.status)) { setData(null); setScreen('signin'); } }); }, 30_000); return () => clearInterval(timer); }, [data?.user.id, refresh]);
   async function run(path: string, method: string, body?: object) {
     setBusy(true); setError(''); setNotice('');
@@ -172,7 +180,7 @@ export default function ManagementApp() {
   const confirm = (title: string, message: string, path: string, method: string, payload?: object) => setForm({ kind: 'confirm', title, message, path, method, payload, values: {} });
   if (checking) return <div className="loading" role="status" aria-label="Loading workspace"><Mark /><p>Opening your workspace…</p><div className="workspace-skeleton" aria-hidden="true"><i /><i /><i /><i /></div></div>;
   if (screen === 'landing' && !data) return <PublicLanding onSignIn={enter} />;
-  if (!data) return <div className="signin"><aside><button className="text-btn" onClick={() => { setScreen('landing'); location.hash = ''; }}><Mark asLink={false} /></button><div><span className="eyebrow">YOUR NOVI ACCOUNT</span><h1>Everything in<br />its right place.</h1><p>Your licenses, desktop logins, and AI keys.<br />One considered space to manage them all.</p></div><small><ShieldCheck size={16} /><span>New to Novi? <Link href="/get-access">Request access</Link>.</span></small></aside><main><div className="signin-card"><span className="eyebrow">GOOD TO SEE YOU AGAIN</span><h2>Sign in.</h2><p className="muted">Sign in to your Novi account to manage licenses, desktop logins, and AI keys.</p><form onSubmit={signin}><fieldset disabled={busy}><label>Username<input autoFocus autoComplete="username" required value={username} onChange={e => setUsername(e.target.value)} maxLength={64} placeholder="Your username" /></label><label>Password<div className="password-field"><input type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} maxLength={128} placeholder="Enter your password" /><button type="button" className="password-toggle" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(v => !v)}>{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></div></label>{error && <div className="alert" role="alert">{error}</div>}<button className="btn dark full">{busy ? 'Signing in…' : 'Sign in'}<ArrowRight size={17} /></button></fieldset></form><p className="signin-help"><Monitor size={16} /><span>Using the desktop app? Sign in inside the app with your desktop login, not here.</span></p><p className="signin-help"><CircleHelp size={16} /><span>No account yet? <Link href="/get-access">Get access</Link>. Forgot your password? Ask your account owner or write to getnoviapp@outlook.com.</span></p></div></main></div>;
+  if (!data) return <SignInPage username={username} password={password} onUsernameChange={setUsername} onPasswordChange={setPassword} onSubmit={signin} busy={busy} error={error} onBack={() => { setScreen('landing'); location.hash = ''; }} />;
 
   const admin = data.user.role === 'ADMIN';
   const managesPasswords = ['ADMIN', 'CORP', 'SUBCORP'].includes(data.user.role);
