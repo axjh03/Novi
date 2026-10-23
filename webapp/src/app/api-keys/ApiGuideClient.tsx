@@ -81,7 +81,7 @@ export default function ApiGuideClient() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'var(--paper)',
+      background: 'transparent',
       color: 'var(--ink)',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
       display: 'flex',

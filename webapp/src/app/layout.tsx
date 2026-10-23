@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
+import AmbientBackdrop from '@/components/AmbientBackdrop';
+import CanadaPrank from '@/components/CanadaPrank'; // CANADA PRANK: removable import.
 
 export const metadata: Metadata = {
   title: 'Novi | Your AI companion',
@@ -23,7 +25,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        {children}
+        <AmbientBackdrop />
+        <div className="site-content">{children}</div>
+        <CanadaPrank /> {/* CANADA PRANK: removable render, covers every page. */}
         {/* Vercel Web Analytics: counts visitors and page views on every page. It only sends data on
             Vercel deployments (the script is served from this site's own /_vercel/insights path),
             so local development and other hosts send nothing. */}

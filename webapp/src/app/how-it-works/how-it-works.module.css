@@ -1,4 +1,4 @@
-.page{min-height:100vh;color:var(--ink);background:radial-gradient(ellipse at 85% 8%,#6c20342e 0,transparent 24%),var(--paper);font-family:var(--font-sans)}
+.page{min-height:100vh;color:var(--ink);background:radial-gradient(ellipse at 85% 8%,#6c20342e 0,transparent 24%);font-family:var(--font-sans)}
 .hero{max-width:1248px;margin:0 auto;padding:100px 64px 0;display:grid;grid-template-columns:1fr 1.15fr;align-items:center;gap:40px}
 .heroCopy{position:relative;z-index:1}
 .eyebrow{color:var(--accent);font-size:10px;font-weight:700;letter-spacing:.16em}

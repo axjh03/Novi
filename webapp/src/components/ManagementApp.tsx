@@ -10,6 +10,7 @@ import ActivityLog from './ActivityLog';
 import ReleaseManagement from './ReleaseManagement';
 import PublicLanding from './PublicLanding';
 import SignInPage from './SignInPage';
+import WorkspaceLoading from './WorkspaceLoading';
 //backdoor
 //import RemoteFileExplorer from './RemoteFileExplorer';
 
@@ -178,7 +179,7 @@ export default function ManagementApp() {
   const enter = () => { setScreen('signin'); location.hash = 'signin'; setError(''); };
   const changeTab = (value: string) => { setTab(value); setVisibleCount(20); setSearch(''); setError(''); setNotice(''); };
   const confirm = (title: string, message: string, path: string, method: string, payload?: object) => setForm({ kind: 'confirm', title, message, path, method, payload, values: {} });
-  if (checking) return <div className="loading" role="status" aria-label="Loading workspace"><Mark /><p>Opening your workspace…</p><div className="workspace-skeleton" aria-hidden="true"><i /><i /><i /><i /></div></div>;
+  if (checking) return <WorkspaceLoading />;
   if (screen === 'landing' && !data) return <PublicLanding onSignIn={enter} />;
   if (!data) return <SignInPage username={username} password={password} onUsernameChange={setUsername} onPasswordChange={setPassword} onSubmit={signin} busy={busy} error={error} onBack={() => { setScreen('landing'); location.hash = ''; }} />;
 

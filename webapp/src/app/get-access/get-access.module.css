@@ -1,4 +1,4 @@
-.page {      min-height:100vh; background:var(--paper); color:var(--ink); font-family:var(--font-sans); }
+.page {      min-height:100vh; background:transparent; color:var(--ink); font-family:var(--font-sans); }
 .page :is(a,button,input,summary):focus-visible { outline:3px solid var(--accent); outline-offset:4px; }
 .hero { max-width:800px; margin:auto; padding:76px 24px 44px; text-align:center; }
 .eyebrow { color:var(--accent); font-size:11px; font-weight:700; letter-spacing:.14em; }

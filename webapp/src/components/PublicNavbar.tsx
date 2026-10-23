@@ -2,8 +2,10 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { ArrowUpRight, Menu, X } from 'lucide-react';
+import { ArrowUpRight, BookOpen, Download, Gift, KeyRound, Layers, Menu, UserRound, X } from 'lucide-react';
 import { SITE_LINKS, type SiteLinkId } from '@/lib/site';
+
+const navigationIcons = { features: Layers, 'how-it-works': BookOpen, download: Download, referral: Gift, 'setup-guide': KeyRound };
 
 export interface PublicNavbarProps {
   active?: SiteLinkId;
@@ -16,9 +18,9 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
   const closeMenu = () => setMenuOpen(false);
   // Sign-in is for Novi account owners; the main action for everyone else is requesting access.
   const signIn = (mobile: boolean) => onSignIn ? (
-    <button type="button" className="public-nav-signin" onClick={() => { closeMenu(); onSignIn(); }} style={mobile ? { padding: '10px 12px', fontSize: 15, textAlign: 'left' } : undefined}>Sign in</button>
+    <button type="button" className="public-nav-signin public-nav-item" aria-label="Sign in" onClick={() => { closeMenu(); onSignIn(); }} style={mobile ? { padding: '10px 12px', fontSize: 15, textAlign: 'left' } : undefined}><UserRound size={17} aria-hidden="true" /><span className="public-nav-text">Sign in</span></button>
   ) : (
-    <Link href="/#signin" className="public-nav-signin" onClick={closeMenu} style={mobile ? { padding: '10px 12px', fontSize: 15 } : undefined}>Sign in</Link>
+    <Link href="/#signin" className="public-nav-signin public-nav-item" aria-label="Sign in" onClick={closeMenu} style={mobile ? { padding: '10px 12px', fontSize: 15 } : undefined}><UserRound size={17} aria-hidden="true" /><span className="public-nav-text">Sign in</span></Link>
   );
 
   return (
@@ -37,10 +39,12 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
 
         {/* Desktop Links */}
         <div className="public-nav-links">
-          {SITE_LINKS.map(link => (
+          {SITE_LINKS.map(link => { const Icon = navigationIcons[link.id]; return (
             <Link
               key={link.id}
               href={link.href}
+              className="public-nav-item"
+              aria-label={link.label}
               aria-current={active === link.id ? 'page' : undefined}
               style={{
                 textDecoration: 'none',
@@ -48,9 +52,9 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
                 fontWeight: active === link.id ? 600 : 400,
               }}
             >
-              {link.label}
+              <Icon size={17} strokeWidth={1.7} aria-hidden="true" /><span className="public-nav-text">{link.label}</span>
             </Link>
-          ))}
+          ); })}
           {signIn(false)}
           <Link href="/get-access" className="btn dark" aria-current={active === 'get-access' ? 'page' : undefined} style={{ textDecoration: 'none' }}>
             Pricing & plans <ArrowUpRight size={15} />
@@ -76,11 +80,13 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
           id="public-mobile-menu"
           className="mobile-nav-drawer"
         >
-          {SITE_LINKS.map(link => (
+          {SITE_LINKS.map(link => { const Icon = navigationIcons[link.id]; return (
             <Link
               key={link.id}
               href={link.href}
               onClick={closeMenu}
+              className="public-nav-item"
+              aria-label={link.label}
               aria-current={active === link.id ? 'page' : undefined}
               style={{
                 padding: '10px 12px',
@@ -92,9 +98,9 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
                 fontSize: 15,
               }}
             >
-              {link.label}
+              <Icon size={17} strokeWidth={1.7} aria-hidden="true" /><span className="public-nav-text">{link.label}</span>
             </Link>
-          ))}
+          ); })}
           {signIn(true)}
 
           <div style={{ paddingTop: 8, borderTop: '1px solid var(--line)' }}>

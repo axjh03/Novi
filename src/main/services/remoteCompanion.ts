@@ -70,7 +70,7 @@ export class RemoteCompanionService {
   private tunnelLoading = false;
 
   private conversationScroll = { position: 1, scrollable: false };
-  constructor(stealth: StealthService, getWindow: () => BrowserWindow | null, private smartPlacement?: SmartPlacementService) {
+  constructor(stealth: StealthService, getWindow: () => BrowserWindow | null, private smartPlacement?: SmartPlacementService, private getUsername: () => string = () => '') {
     this.stealth = stealth;
     this.getWindow = getWindow;
   }
@@ -302,6 +302,7 @@ export class RemoteCompanionService {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         ok: true,
+        username: this.getUsername(),
         transparent: stealthState.transparent,
         clickThrough: stealthState.clickThrough,
         currentMode: this.currentMode,
@@ -329,6 +330,7 @@ export class RemoteCompanionService {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
             ok: true,
+            username: this.getUsername(),
             action: data.action,
             transparent: stealthState.transparent,
             clickThrough: stealthState.clickThrough,
@@ -516,7 +518,7 @@ export class RemoteCompanionService {
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#111111" />
-  <title>Novi Phone Companion</title>
+  <title>Novi</title>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { color-scheme: dark; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #171717; color: #eee; }
@@ -527,11 +529,9 @@ export class RemoteCompanionService {
     button:active { transform: scale(.97); }
     button:disabled { opacity: .45; }
     .app-container { max-width: 460px; margin: 0 auto; }
-    .header-compact { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 4px 12px; }
-    .brand-compact { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
-    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #83d6a1; }
-    .badge { font-size: 10px; color: #999; }
-    .badge.error { color: #ffb4ab; }
+    .header-compact { display: flex; align-items: center; min-height: 28px; padding: 2px 4px 8px; }
+    .account-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; color: #ccc; }
+    .connection-error { margin: 0 0 10px; padding: 9px 11px; border: 1px solid #70433e; border-radius: 6px; background: #32201e; color: #ffb4ab; font-size: 11px; line-height: 1.5; }
     .controls-grid { display: grid; grid-template-areas: 'hero' 'mode' 'layout' 'reading' 'snapshot' 'audio' 'visibility'; gap: 10px; }
     .hero-row { grid-area: hero; display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 6px; }
     .hero-btn, .stop-btn, .ctrl-btn, .mode-tab-btn { min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid #404040; border-radius: 6px; background: #272727; color: #eee; font-size: 12px; }
@@ -564,13 +564,13 @@ export class RemoteCompanionService {
     .placement-note.error { color: #ffb4ab; }
     .scroll-section { padding: 10px 4px; justify-items: center; }
     .scroll-section .section-label { font-size: 10px; }
-    .scroll-slider { writing-mode: vertical-lr; direction: ltr; appearance: none; width: 30px; height: 148px; min-height: 110px; margin: 0; background: transparent; touch-action: none; cursor: ns-resize; }
-    .scroll-slider::-webkit-slider-runnable-track { width: 4px; border-radius: 10px; background: #414141; }
-    .scroll-slider::-webkit-slider-thumb { appearance: none; width: 22px; height: 34px; margin-left: -9px; border: 1px solid #9bc6ff; border-radius: 12px; background: #b8d7ff; box-shadow: 0 1px 5px #0004; transition: box-shadow 160ms, background 160ms; }
-    .scroll-slider:active::-webkit-slider-thumb { background: #fff; box-shadow: 0 0 0 5px #99caff20; }
-    .scroll-slider::-moz-range-track { width: 4px; border-radius: 10px; background: #414141; }
-    .scroll-slider::-moz-range-thumb { width: 22px; height: 34px; border: 1px solid #9bc6ff; border-radius: 12px; background: #b8d7ff; }
-    .scroll-slider:disabled { opacity: .35; }
+    .scroll-slider { --scroll-position: 1; position: relative; width: 44px; height: 172px; min-height: 120px; border-radius: 22px; touch-action: none; user-select: none; -webkit-user-select: none; cursor: ns-resize; }
+    .scroll-track { position: absolute; inset: 18px 20px; overflow: hidden; border-radius: 4px; background: #3b3b3b; pointer-events: none; }
+    .scroll-fill { display: block; width: 100%; height: calc(var(--scroll-position) * 100%); background: #8eb8e6; }
+    .scroll-thumb { position: absolute; top: calc((100% - 36px) * var(--scroll-position)); left: 10px; display: grid; place-items: center; width: 24px; height: 36px; border: 1px solid #accff7; border-radius: 10px; background: #c1d9f5; box-shadow: 0 2px 6px #0005; pointer-events: none; transition: top 120ms ease, background 160ms, box-shadow 160ms; }
+    .scroll-thumb::after { content: ''; width: 10px; height: 8px; border-block: 1px solid #58799c; background: linear-gradient(#58799c,#58799c) center / 10px 1px no-repeat; }
+    .scroll-slider.is-dragging .scroll-thumb { background: #fff; box-shadow: 0 0 0 5px #99caff20; transition: background 160ms, box-shadow 160ms; }
+    .scroll-slider[aria-disabled=true] { opacity: .3; cursor: default; }
     .scroll-label { color: #888; font-size: 9px; }
     .reading-controls { grid-area: reading; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid #333; }
     .reading-controls .ctrl-btn { min-height: 34px; padding: 5px 13px; }
@@ -589,13 +589,8 @@ export class RemoteCompanionService {
 </head>
 <body>
   <div class="app-container">
-    <div class="header-compact">
-      <div class="brand-compact" title="Novi Companion">
-        <span class="status-dot"></span>
-        <span>Companion</span>
-      </div>
-      <div id="connBadge" class="badge">Ready</div>
-    </div>
+    <header class="header-compact"><span id="accountName" class="account-name"></span></header>
+    <p id="connectionError" class="connection-error" role="alert" hidden></p>
 
     <div class="controls-grid">
       <!-- 1. HERO: SEND PROMPT & STOP GENERATION IN SAME LINE -->
@@ -639,7 +634,7 @@ export class RemoteCompanionService {
         </section>
         <section class="section-box scroll-section" aria-label="Conversation scroll">
           <span class="section-label">Scroll</span><span class="scroll-label">Top</span>
-          <input class="scroll-slider" id="conversationScroll" type="range" min="0" max="1000" value="1000" step="1" aria-label="Conversation scroll position" aria-orientation="vertical" disabled />
+          <div class="scroll-slider" id="conversationScroll" role="slider" tabindex="-1" aria-label="Conversation scroll position" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="1000" aria-valuetext="Latest message" aria-disabled="true"><span class="scroll-track" aria-hidden="true"><span class="scroll-fill"></span></span><span class="scroll-thumb" aria-hidden="true"></span></div>
           <span class="scroll-label">Latest</span>
         </section>
       </div>
@@ -730,10 +725,10 @@ export class RemoteCompanionService {
         if (data.ok) {
           updateUI(data);
         } else {
-          document.getElementById('connBadge').innerText = data.error || 'Action unavailable';
+          reportConnectionError(data.error || 'Action unavailable');
         }
       } catch (err) {
-        document.getElementById('connBadge').innerText = 'Desktop unavailable';
+        reportConnectionError('Desktop unavailable. Reconnect using the link in Novi.');
       }
     }
 
@@ -803,29 +798,68 @@ export class RemoteCompanionService {
       drawWindow(); queueWindow();
     });
     const scrollSlider = document.getElementById('conversationScroll');
-    let scrollDragging = false, scrollTimer = 0, pendingScroll = null, scrollSending = false;
+    let scrollDragging = null, scrollTimer = 0, pendingScroll = null, scrollSending = false, scrollPosition = 1, scrollDisabled = true, scrollSyncAfter = 0;
+    function drawScroll(position) {
+      scrollPosition = clamp(position, 0, 1);
+      scrollSlider.style.setProperty('--scroll-position', scrollPosition);
+      scrollSlider.setAttribute('aria-valuenow', String(Math.round(scrollPosition * 1000)));
+      scrollSlider.setAttribute('aria-valuetext', scrollPosition === 0 ? 'Top of conversation' : scrollPosition === 1 ? 'Latest message' : Math.round(scrollPosition * 100) + '% through conversation');
+    }
     async function sendScroll() {
       scrollTimer = 0; if (scrollSending || pendingScroll === null) return;
       const position = pendingScroll; pendingScroll = null; scrollSending = true;
       try { await triggerAction('scroll-conversation-to', position, true); }
       finally { scrollSending = false; if (pendingScroll !== null) scrollTimer = setTimeout(sendScroll, 80); }
     }
-    scrollSlider.addEventListener('pointerdown', () => { scrollDragging = true; });
-    window.addEventListener('pointerup', () => { scrollDragging = false; });
-    window.addEventListener('pointercancel', () => { scrollDragging = false; });
-    scrollSlider.addEventListener('input', () => { pendingScroll = Number(scrollSlider.value) / 1000; if (!scrollSending && !scrollTimer) scrollTimer = setTimeout(sendScroll, 80); });
+    function queueScroll(position) {
+      drawScroll(position); pendingScroll = scrollPosition; scrollSyncAfter = Date.now() + 400;
+      if (!scrollSending && !scrollTimer) scrollTimer = setTimeout(sendScroll, 60);
+    }
+    function scrollAt(clientY) {
+      const rect = scrollSlider.getBoundingClientRect();
+      queueScroll((clientY - rect.top - 18) / Math.max(1, rect.height - 36));
+    }
+    scrollSlider.addEventListener('pointerdown', event => {
+      if (scrollDisabled || event.button !== 0 || !event.isPrimary) return;
+      event.preventDefault(); scrollDragging = event.pointerId;
+      scrollSlider.setPointerCapture(event.pointerId); scrollSlider.classList.add('is-dragging'); scrollAt(event.clientY);
+    });
+    scrollSlider.addEventListener('pointermove', event => {
+      if (scrollDragging !== event.pointerId) return;
+      event.preventDefault(); scrollAt(event.clientY);
+    });
+    function endScroll(event) {
+      if (scrollDragging !== event.pointerId) return;
+      scrollDragging = null; scrollSlider.classList.remove('is-dragging'); scrollSyncAfter = Date.now() + 400;
+      if (scrollTimer) { clearTimeout(scrollTimer); scrollTimer = 0; } void sendScroll();
+    }
+    scrollSlider.addEventListener('pointerup', endScroll);
+    scrollSlider.addEventListener('pointercancel', endScroll);
+    scrollSlider.addEventListener('lostpointercapture', endScroll);
+    scrollSlider.addEventListener('keydown', event => {
+      if (scrollDisabled) return;
+      const positions = { ArrowUp: scrollPosition - .05, ArrowDown: scrollPosition + .05, PageUp: scrollPosition - .2, PageDown: scrollPosition + .2, Home: 0, End: 1 };
+      if (!(event.key in positions)) return;
+      event.preventDefault(); queueScroll(positions[event.key]);
+    });
+    function reportConnectionError(message) {
+      const note = document.getElementById('connectionError');
+      note.textContent = message; note.hidden = !message;
+    }
 
     // 7. REALTIME STATUS SYNC
     function updateUI(status) {
+      if (typeof status.username === 'string') document.getElementById('accountName').textContent = status.username;
       if (status.windowLayout && !windowDrag && !pendingWindow && !windowSending) {
         const layout = status.windowLayout;
         windowRect = { xRatio: layout.xRatio, yRatio: layout.yRatio, widthRatio: layout.widthRatio, heightRatio: layout.heightRatio };
         minimum = { width: layout.minWidthRatio, height: layout.minHeightRatio };
         pad.style.setProperty('--screen-aspect', layout.aspectRatio); drawWindow();
       }
-      if (status.conversationScroll && !scrollDragging && pendingScroll === null && !scrollSending) {
-        scrollSlider.value = Math.round(status.conversationScroll.position * 1000);
-        scrollSlider.disabled = !status.conversationScroll.scrollable;
+      if (status.conversationScroll) {
+        scrollDisabled = !status.conversationScroll.scrollable;
+        scrollSlider.setAttribute('aria-disabled', String(scrollDisabled)); scrollSlider.tabIndex = scrollDisabled ? -1 : 0;
+        if (scrollDragging === null && pendingScroll === null && !scrollSending && Date.now() >= scrollSyncAfter) drawScroll(status.conversationScroll.position);
       }
       if (status.smartPlacement) {
         const smart = status.smartPlacement, button = document.getElementById('autoDetect'), note = document.getElementById('placementStatus');
@@ -864,24 +898,19 @@ export class RemoteCompanionService {
     }
 
     async function pollStatus() {
-      const badge = document.getElementById('connBadge');
       try {
         const res = await fetch('/api/status', {
           headers: { 'X-Client-Id': clientId, 'Authorization': 'Bearer ' + token }
         });
         if (res.ok) {
           const data = await res.json();
-          badge.className = 'badge connected';
-          badge.innerText = '● Connected';
-          badge.title = 'Connected to Novi.';
+          reportConnectionError('');
           updateUI(data);
         } else {
-          badge.className = 'badge error';
-          badge.innerText = 'Scan QR';
+          reportConnectionError('Open the phone link in Novi to reconnect.');
         }
       } catch (e) {
-        badge.className = 'badge error';
-        badge.innerText = 'Unavailable';
+        reportConnectionError('Desktop unavailable. Reconnect using the link in Novi.');
       }
     }
 

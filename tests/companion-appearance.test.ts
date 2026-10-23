@@ -6,7 +6,7 @@ import { RemoteCompanionService } from '../src/main/services/remoteCompanion';
 test('phone controls dispatch bounded commands through the authenticated handler', async () => {
   const actions: unknown[] = [];
   const service = new RemoteCompanionService({ getState: () => ({ transparent: true, clickThrough: false }) } as any,
-    () => ({ isDestroyed: () => false, webContents: { send: (...args: unknown[]) => actions.push(args) } }) as any);
+    () => ({ isDestroyed: () => false, webContents: { send: (...args: unknown[]) => actions.push(args) } }) as any, undefined, () => 'fixture-user');
   service.getLocalIPs = () => ['127.0.0.1'];
   // The token exists only while the server listens.
   const token = new URLSearchParams(new URL((await service.start(0)).bestUrl).hash.slice(1)).get('token');
@@ -22,6 +22,11 @@ test('phone controls dispatch bounded commands through the authenticated handler
     const page = await request('/');
     assert(page.body.includes('A− Smaller') && page.body.includes('A+ Larger'));
     assert.match(page.body, /conversationScroll/);
+    assert.match(page.body, /role="slider"/);
+    assert.doesNotMatch(page.body, /connBadge|brand-compact|<span>Companion<\/span>/);
+    assert(!page.body.includes('fixture-user'), 'Public HTML must not disclose the account');
+    assert.equal(JSON.parse((await request('/api/status')).body).username, 'fixture-user');
+    assert.equal((await request('/api/status', undefined, false)).status, 401);
     assert.match(page.body, /windowPreview/);
     assert.match(page.body, /autoDetect/);
     assert.doesNotMatch(page.body, /rewindow-row|mockupPad|resizePad|↑ Up|↓ Down/);

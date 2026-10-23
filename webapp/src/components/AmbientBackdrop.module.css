@@ -1,0 +1,11 @@
+.scene { position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none; contain:strict; }
+.scene svg { display:block; width:100%; height:100%; }
+.glow { transform-origin:1340px 210px; animation:ambient-breathe 22s ease-in-out infinite alternate; }
+.contours { opacity:.6; }
+.signals { opacity:.19; stroke-dasharray:90 1350; stroke-dashoffset:500; animation:ambient-signal 36s linear infinite; }
+.signals path:nth-child(2) { stroke-dasharray:55 1100; }
+.nodes { opacity:.22; animation:ambient-breathe 11s ease-in-out infinite alternate; }
+@keyframes ambient-signal { to { stroke-dashoffset:-940; } }
+@keyframes ambient-breathe { from { opacity:.35; } to { opacity:.85; } }
+@media(max-width:700px) { .scene { opacity:.55; }.signals { animation-duration:48s; } }
+@media(prefers-reduced-motion:reduce) { .scene * { animation:none!important; } }

@@ -1,4 +1,4 @@
-.page { background:var(--paper); color:var(--ink); font-family:var(--font-sans); overflow:clip; }
+.page { background:transparent; color:var(--ink); font-family:var(--font-sans); overflow:clip; }
 .page :is(a,button,summary):focus-visible { outline:2px solid var(--accent); outline-offset:5px; }
 .page>header { max-width:1248px; }
 .eyebrow { display:inline-block; font-size:10px; font-weight:600; letter-spacing:.15em; color:var(--accent); }

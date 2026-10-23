@@ -14,7 +14,7 @@ export function SmartPlacementControls({ compact = false }: { compact?: boolean 
   const problem = error || state?.error;
   const detect = () => { setError(''); void unwrap(window.novi.autoDetectPlacement()).then(setState).catch(cause => setError(errorText(cause))); };
   const button = <button type="button" className={compact ? `stealth-toggle-btn ${problem ? 'has-error' : ''}` : 'secondary'} disabled={state?.busy} onClick={detect}
-    aria-label="AutoDetect window layout" title={problem || (state?.shortcutRegistered ? `AutoDetect layout · ${state.shortcut}` : 'AutoDetect layout · Sends a screenshot to your selected AI model')}>
+    aria-label="AutoDetect window layout" title={problem || state?.reason || (state?.shortcutRegistered ? `AutoDetect layout · ${state.shortcut}` : 'AutoDetect layout · Sends a screenshot to your selected AI model')}>
     {state?.busy ? <Loader2 size={14} className="spin" /> : problem ? <TriangleAlert size={14} /> : <ScanLine size={14} />}{!compact && 'AutoDetect'}
   </button>;
   if (compact) return button;

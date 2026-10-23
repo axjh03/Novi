@@ -86,7 +86,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   useEffect(() => window.novi.onGlobalAction((action) => {
     if (action.type === 'scroll-conversation-to' && typeof action.payload === 'number') {
       const element = scroll.current;
-      if (element) element.scrollTo({ top: action.payload * (element.scrollHeight - element.clientHeight), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+      if (element) element.scrollTo({ top: action.payload * (element.scrollHeight - element.clientHeight), behavior: 'instant' });
       return;
     }
     if (action.type === 'scroll-conversation' && typeof action.payload === 'number') {

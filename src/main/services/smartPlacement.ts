@@ -1,3 +1,4 @@
+import { debug } from './debug';
 import { AUTO_DETECT_SHORTCUT, changedScreenFraction, windowLayoutBounds, type SmartPlacementState, type WindowArea } from '../../shared/windowLayout';
 
 interface Capture { image: string; area: WindowArea; bounds: WindowArea; owner: string }
@@ -52,35 +53,68 @@ export class SmartPlacementService {
   }
   async detect() {
     if (this.state.busy) return this.snapshot();
-    this.lastAttempt = Date.now();
-    const controller = new AbortController(); this.controller = controller;
-    this.update({ busy: true, error: '', reason: '' });
-    try {
-      const capture = await this.deps.capture();
-      controller.signal.throwIfAborted();
-      const before = await this.deps.sample();
-      const raw = await this.deps.analyze(capture, AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]));
-      controller.signal.throwIfAborted();
-      const after = await this.deps.sample();
-      controller.signal.throwIfAborted();
-      if (before.key !== after.key || changedScreenFraction(before.pixels, after.pixels) > 0.25) {
-        this.update({ reason: 'Your screen changed during analysis. Kept the current placement; try AutoDetect again.' });
-      } else {
-        const result = JSON.parse(raw.trim().replace(/^```(?:json)?\s*|\s*```$/g, ''));
-        const bounds = windowLayoutBounds(capture.area, result);
-        if (!Number.isFinite(result.confidence) || result.confidence < 0 || result.confidence > 1 || typeof result.reason !== 'string') throw new Error('The model did not return a valid placement. Choose a model with image support and try again.');
-        if (result.confidence < 0.65) this.update({ reason: 'No clearly better space found. Kept the current placement.' });
-        else {
-          if (bounds.width < Math.min(320, capture.area.width) || bounds.height < Math.min(240, capture.area.height)) throw new Error('The suggested space is too small for a readable window. Kept the current placement.');
-          if (bounds.width * bounds.height > capture.area.width * capture.area.height * 0.4) throw new Error('The suggested window would cover too much of your screen. Kept the current placement.');
-          this.deps.apply(bounds, capture);
-          this.update({ reason: result.reason.slice(0, 240) });
+    return debug.run('smart-placement', async () => {
+      this.lastAttempt = Date.now();
+      const controller = new AbortController(); this.controller = controller;
+      let timeout: AbortSignal | undefined;
+      this.update({ busy: true, error: '', reason: '' });
+      try {
+        debug.event('Capturing desktop for placement');
+        const capture = await this.deps.capture();
+        controller.signal.throwIfAborted();
+        const before = await this.deps.sample();
+        timeout = AbortSignal.timeout(30_000);
+        debug.event('Analyzing available space', { width: capture.area.width, height: capture.area.height });
+        const analysisSignal = AbortSignal.any([controller.signal, timeout]);
+        analysisSignal.throwIfAborted();
+        const raw = await this.deps.analyze(capture, analysisSignal);
+        analysisSignal.throwIfAborted();
+        const after = await this.deps.sample();
+        controller.signal.throwIfAborted();
+        if (before.key !== after.key || changedScreenFraction(before.pixels, after.pixels) > 0.25) {
+          debug.event('Kept current placement', { reason: 'screen-changed' });
+          this.update({ reason: 'Your screen changed during analysis. Kept the current placement; try AutoDetect again once the screen settles.' });
+        } else {
+          let result: { confidence: number; reason: string };
+          try {
+            result = JSON.parse(raw.trim().replace(/^```(?:json)?\s*|\s*```$/g, ''));
+            if (!result || Array.isArray(result) || !Number.isFinite(result.confidence) || result.confidence < 0 || result.confidence > 1 || typeof result.reason !== 'string') throw new Error();
+          } catch {
+            debug.event('Invalid layout response', {}, 'error');
+            throw new Error('The selected AI model did not return a usable layout. Try again with a model that supports images.');
+          }
+          const reason = result.reason.replace(/\s+/g, ' ').trim().slice(0, 240);
+          if (result.confidence < 0.65) {
+            debug.event('Kept current placement', { reason: 'no-clear-space', confidence: result.confidence });
+            this.update({ reason: `No clearly better space found. ${reason || 'The model could not identify an unused area.'} Kept the current placement.` });
+          } else {
+            let bounds: WindowArea;
+            try { bounds = windowLayoutBounds(capture.area, result); }
+            catch {
+              debug.event('Invalid layout coordinates', {}, 'error');
+              throw new Error('The AI returned invalid window coordinates. Kept the current placement; try again with a model that supports images.');
+            }
+            if (bounds.width < Math.min(320, capture.area.width) || bounds.height < Math.min(240, capture.area.height)) {
+              debug.event('Kept current placement', { reason: 'too-small', width: bounds.width, height: bounds.height });
+              this.update({ reason: 'The suggested space is too small for a readable window (at least 320 × 240). Kept the current placement.' });
+            } else if (bounds.width * bounds.height > capture.area.width * capture.area.height * 0.4) {
+              debug.event('Kept current placement', { reason: 'too-large' });
+              this.update({ reason: 'The suggested window would cover more than 40% of your screen. Kept the current placement to avoid covering your work.' });
+            } else {
+              this.deps.apply(bounds, capture);
+              debug.event('Window placement applied', { confidence: result.confidence, width: bounds.width, height: bounds.height });
+              this.update({ reason: reason || 'Moved Novi into an unused area.' });
+            }
+          }
         }
-      }
-    } catch (error) {
-      if (!controller.signal.aborted) this.update({ error: error instanceof Error ? error.message : 'AutoDetect could not find a placement.' });
-    } finally { if (this.controller === controller) this.controller = null; this.update({ busy: false }); }
-    return this.snapshot();
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          debug.event('AutoDetect failed', { error: timeout?.aborted ? 'analysis-timeout' : error instanceof Error ? error.name : 'unknown' }, 'error');
+          this.update({ error: timeout?.aborted ? 'Layout analysis timed out after 30 seconds. Try again with a faster model that supports images.' : error instanceof Error ? error.message : 'AutoDetect could not analyze this screen. Check your selected AI model and screen recording access.' });
+        }
+      } finally { if (this.controller === controller) this.controller = null; this.update({ busy: false }); }
+      return this.snapshot();
+    });
   }
   dispose() { this.setEnabled(false); }
 }

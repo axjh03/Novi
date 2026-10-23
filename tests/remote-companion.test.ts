@@ -19,7 +19,7 @@ test('QR link connects without a PIN and stays valid across modes and repeated s
     assert.ok(generateQRCodeSVG(url.href).endsWith('</svg>'));
     const base = `http://127.0.0.1:${status.port}`;
     const html = await (await fetch(base)).text();
-    assert.ok(html.includes('Novi Companion'));
+    assert.ok(html.includes('<title>Novi</title>'));
     assert.ok(html.includes('Send prompt'));
     assert.ok(!html.includes('pinModal'));
     assert.ok(!html.includes(token!), 'Public page must not reveal authorization');

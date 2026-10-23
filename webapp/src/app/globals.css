@@ -129,3 +129,15 @@ input::placeholder, textarea::placeholder { color: #8f838c; opacity: 1; }
 .public-nav-links>a:not(.btn)[aria-current=page]{color:var(--ink)}
 button:disabled:hover{box-shadow:none}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}button,a{transition:none}}
+
+.site-content{position:relative;z-index:1;min-height:100svh}
+
+.public-nav-links .public-nav-item{gap:0;min-width:44px;padding-inline:13px}
+.public-nav-links .public-nav-item>svg{flex-shrink:0;color:var(--muted);transition:color .2s}
+.public-nav-links .public-nav-text{display:block;min-width:0;max-width:0;margin-left:0;overflow:hidden;white-space:nowrap;opacity:0;transition:max-width .26s ease,margin-left .26s ease,opacity .18s ease}
+.public-nav-links .public-nav-item:hover .public-nav-text,.public-nav-links .public-nav-item:focus .public-nav-text{max-width:140px;margin-left:9px;opacity:1}
+.public-nav-links .public-nav-item:hover>svg,.public-nav-links .public-nav-item:focus>svg,.public-nav-links .public-nav-item[aria-current=page]>svg{color:var(--accent)}
+.mobile-nav-drawer .public-nav-item{display:flex;align-items:center;gap:12px}
+.mobile-nav-drawer .public-nav-item>svg{flex-shrink:0;color:var(--accent)}
+@media(pointer:coarse){.public-nav-links .public-nav-text{max-width:140px;margin-left:9px;opacity:1}}
+@media(prefers-reduced-motion:reduce){.public-nav-links .public-nav-text,.public-nav-links .public-nav-item>svg{transition:none}}
