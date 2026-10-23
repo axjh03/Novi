@@ -1,16 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { durationDate, licenseKey } from '../src/lib/access-policy';
 
-test('access lifecycle: hierarchy, isolation, permanent licenses and exclusive desktop sessions', async () => {
-  const directory = mkdtempSync(join(tmpdir(), 'astra-access-test-'));
-  process.env.DATABASE_URL = 'file:' + join(directory, 'test.db').replaceAll('\\', '/');
+// Needs a disposable Postgres (TEST_DATABASE_URL). Each run builds its own schema from the real
+// migrations in prisma/migrations, so the database protection rules are tested too, then drops it.
+test('access lifecycle: hierarchy, isolation, permanent licenses and exclusive desktop sessions', async t => {
+  if (!process.env.TEST_DATABASE_URL) { t.skip('Set TEST_DATABASE_URL to a disposable Postgres database'); return; }
+  const schema = `access_${randomBytes(6).toString('hex')}`;
+  const url = new URL(process.env.TEST_DATABASE_URL);
+  url.searchParams.set('schema', schema);
+  process.env.DATABASE_URL = process.env.DIRECT_URL = url.href;
   process.env.ACCESS_JWT_SECRET = randomBytes(32).toString('hex');
   process.env.ACCESS_ENCRYPTION_KEY = randomBytes(32).toString('hex');
   execFileSync(process.execPath, ['node_modules/prisma/build/index.js', 'migrate', 'deploy'], { cwd: resolve('.'), env: process.env, stdio: 'pipe' });
@@ -97,8 +100,16 @@ test('access lifecycle: hierarchy, isolation, permanent licenses and exclusive d
     await mutate(req(a, 'PATCH'), 'licenses', license.id, { action: 'terminate' });
     await assert.rejects(sign('desktop', 'desktop'), /expired or terminated/);
     await assert.rejects(mutate(req(a, 'PATCH'), 'licenses', license.id, { action: 'renew', duration: 1, unit: 'YEARS' }), /cannot be renewed/);
-    await assert.rejects(db.accessLicense.update({ where: { id: license.id }, data: { accountId: null } }));
-    await assert.rejects(db.accessLicense.delete({ where: { id: license.id } }));
+    // The database's own protection rules (the access_protection_rules migration), tried directly:
+    // the app never attempts these changes, so only the rules stop a bug, a script or a manual edit.
+    const permanentLicense = /License identity and assigned account are permanent/;
+    await assert.rejects(db.accessLicense.update({ where: { id: license.id }, data: { accountId: null } }), permanentLicense);
+    await assert.rejects(db.accessLicense.update({ where: { id: license.id }, data: { ownerId: other.id } }), permanentLicense);
+    await assert.rejects(db.accessLicense.update({ where: { id: license.id }, data: { key: licenseKey() } }), permanentLicense);
+    await assert.rejects(db.accessLicense.update({ where: { id: license.id }, data: { status: 'ACTIVE' } }), permanentLicense, 'a terminated license never becomes active again');
+    await assert.rejects(db.accessLicense.delete({ where: { id: license.id } }), /Licenses must be terminated, never deleted/);
+    await assert.rejects(db.accessAccount.update({ where: { id: account.id }, data: { role: 'STANDALONE' } }), /Account role and hierarchy are permanent/);
+    await assert.rejects(db.accessAccount.update({ where: { id: subcorp.id }, data: { parentId: null } }), /Account role and hierarchy are permanent/);
     await mutate(req(sub), 'requests', undefined, { quantity: 2, duration: 1, unit: 'YEARS' });
     const order = await db.licenseRequest.findFirstOrThrow({ where: { ownerId: subcorp.id } });
     await mutate(req(a, 'PATCH'), 'requests', order.id, { status: 'APPROVED' });
@@ -171,8 +182,7 @@ test('access lifecycle: hierarchy, isolation, permanent licenses and exclusive d
     assert.equal((await state(req(otherSession, 'GET'))).user.id, other.id, 'admin self-reset does not end other accounts sessions');
     assert.equal((await login({ username: 'admin', password: 'new administrator password' })).user.id, admin.id);
   } finally {
+    await db.$executeRawUnsafe(`DROP SCHEMA "${schema}" CASCADE`);
     await db.$disconnect();
-    assert.equal(dirname(resolve(directory)), resolve(tmpdir()), 'cleanup must stay in the temporary directory');
-    rmSync(directory, { recursive: true, force: true });
   }
 });

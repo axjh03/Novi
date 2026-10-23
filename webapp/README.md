@@ -1,6 +1,6 @@
 # Novi web portal and access backend
 
-A separate Next.js app containing the monochrome landing page, management portal, and JSON backend used by the Electron app. Prisma 6 and SQLite provide a runnable sample database. No registration endpoint is exposed.
+A separate Next.js app containing the monochrome landing page, management portal, and JSON backend used by the Electron app. Data lives in PostgreSQL through Prisma 6 (Supabase in production). No registration endpoint is exposed.
 
 ## Local setup
 
@@ -14,7 +14,7 @@ npm run web:dev
 npm run dev
 ```
 
-Open http://localhost:3000. Setup creates `webapp/.env.access` with generated secrets and passwords, migrates a separate `prisma/access.db`, and seeds sample accounts. It preserves existing `.env`, `prisma/dev.db`, legacy records, and local desktop history. Running setup again preserves passwords and license assignments.
+Open http://localhost:3000. The first setup run creates `webapp/.env.access` with generated secrets and passwords, then stops: put a separate development PostgreSQL database (for example a second, free Supabase project) in its `DATABASE_URL` and `DIRECT_URL`, and run setup again to migrate it and seed sample accounts. Never use the production database: setup adds demo accounts. Setup reads the database only from `.env.access`, never from your shell. Running setup again preserves passwords and license assignments, and setup never touches local desktop history.
 
 | Identity | Username | Password source |
 | --- | --- | --- |
@@ -108,13 +108,13 @@ npm run db:seed
 npm run build
 npm start
 npm run typecheck
-npm run test:access
 npm run test:control
+TEST_DATABASE_URL=postgresql://user@localhost:5432/scratch npm run test:access
 TEST_DATABASE_URL=postgresql://user@localhost:5432/scratch npm run test:throttle
 ```
 
-`test:throttle` needs a disposable Postgres database; it creates its own schema there and drops it afterwards, and skips when `TEST_DATABASE_URL` is unset. Sign-in allows 10 attempts per address and 50 per account every 15 minutes, so locking an account out takes several addresses. The client address comes from `x-real-ip` / `x-forwarded-for`, which Vercel overwrites; other forwarding headers are ignored because clients can forge them.
+`test:access` and `test:throttle` need a disposable Postgres database; each creates its own schema there and drops it afterwards, and skips when `TEST_DATABASE_URL` is unset. `test:access` builds its schema from the real migrations, so it also checks the database protection rules. Sign-in allows 10 attempts per address and 50 per account every 15 minutes, so locking an account out takes several addresses. The client address comes from `x-real-ip` / `x-forwarded-for`, which Vercel overwrites; other forwarding headers are ignored because clients can forge them.
 
-Use persistent storage for SQLite and back up the database. This sample deployment targets one persistent application host. A multi-host deployment needs a shared database and equivalent constraints/migrations for that database. The desktop launch environment must set `NOVI_ACCESS_URL` to the server's HTTPS origin. No live payment processing or paid-provider smoke call is included.
+Production runs on Supabase PostgreSQL, and Vercel builds never change the database. Apply schema changes with migrations (`npm run db:deploy`), never `prisma db push`, and take a backup first: the free plan has no automatic backups, so use `pg_dump`. The desktop launch environment must set `NOVI_ACCESS_URL` to the server's HTTPS origin. No live payment processing or paid-provider smoke call is included.
 
 The access integration test uses an isolated temporary database and covers role/tenant isolation, single admin, immutable bindings, concurrent desktop login, crash lease recovery, session revocation, API inheritance, purchase fulfillment, deletion, and calendar renewal.

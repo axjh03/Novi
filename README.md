@@ -215,7 +215,7 @@ To add a managed provider, extend the web catalog in `webapp/src/lib/access-poli
 
 ## Verification and current limits
 
-Core checks use the installed `tsx` runner and cover URL/input validation, session persistence, account separation, SSE, provider errors, and the managed auth/credential boundary. `npm --prefix webapp run test:access` creates an isolated temporary SQLite database and checks permissions, license immutability, inheritance, revocation, and device exclusivity.
+Core checks use the installed `tsx` runner and cover URL/input validation, session persistence, account separation, SSE, provider errors, and the managed auth/credential boundary. `npm --prefix webapp run test:access` builds a temporary schema from the real migrations in the disposable PostgreSQL database named by `TEST_DATABASE_URL` (it skips without one) and checks permissions, license immutability, inheritance, revocation, and device exclusivity.
 
 The desktop smoke script exercises managed sign-in, read-only provider selection, context loading, image chat, cleanup, and sign-out against a local fixture. It does not call a real AI provider.
 
