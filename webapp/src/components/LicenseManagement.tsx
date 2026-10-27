@@ -88,9 +88,9 @@ export default function LicenseManagement({ licenses, accounts, admin, busy, onR
     </div>
     <div className="license-results"><span role="status">{filtered.length} {filtered.length === 1 ? 'license' : 'licenses'}{hasFilters ? ` matching filters · ${licenses.length} total` : ' in your workspace'}</span>{hasFilters && <button className="text-btn" onClick={clearFilters}><X size={13} />Clear filters</button>}</div>
     {!!visible.length && <div className="table-wrap" tabIndex={0} role="region" aria-label="License results, scroll horizontally for more columns"><table className="license-table" aria-label="Licenses">
-      <thead><tr><th scope="col">License key</th><th scope="col">Owner</th><th scope="col">Assigned account</th><th scope="col">Plan</th><th scope="col">Status</th><th scope="col">Expires</th>{admin && <th scope="col">Manage</th>}</tr></thead>
+      <thead><tr><th scope="col">License key</th><th scope="col">Owner</th><th scope="col">Assigned account</th><th scope="col">Plan</th><th scope="col">Status</th><th scope="col">Expires</th><th scope="col">{admin ? 'Manage' : 'Actions'}</th></tr></thead>
       <tbody>{visible.map((license, index) => <Fragment key={license.id}>
-        {view.sort === 'owner' && (index === 0 || visible[index - 1].ownerId !== license.ownerId) && <tr className="license-owner-group"><th scope="rowgroup" colSpan={admin ? 7 : 6}>{license.owner?.name || license.ownerId}<span>{license.owner?.role === 'SUBCORP' ? 'Sub-corporation' : license.owner?.role === 'STANDALONE' ? 'Standalone' : 'Owner'}{index === 0 && start > 0 && filtered[start - 1].ownerId === license.ownerId ? ' · continued' : ''}</span></th></tr>}
+        {view.sort === 'owner' && (index === 0 || visible[index - 1].ownerId !== license.ownerId) && <tr className="license-owner-group"><th scope="rowgroup" colSpan={7}>{license.owner?.name || license.ownerId}<span>{license.owner?.role === 'SUBCORP' ? 'Sub-corporation' : license.owner?.role === 'STANDALONE' ? 'Standalone' : 'Owner'}{index === 0 && start > 0 && filtered[start - 1].ownerId === license.ownerId ? ' · continued' : ''}</span></th></tr>}
         <tr className="license-row">
           <td><code>{license.key}</code></td>
           <td>{identity(license.owner, license.ownerId)}</td>
@@ -99,7 +99,7 @@ export default function LicenseManagement({ licenses, accounts, admin, busy, onR
           <td><span className={`badge license-status ${license.state}`}>{license.state}</span></td>
           {/* Lifetime is stored with a far-future expiry; show what it means instead of the date. */}
           <td>{license.plan === 'LIFETIME' ? <span>Never</span> : <><time dateTime={license.expiresAt}>{date(license.expiresAt)}</time>{license.state === 'active' && <small>{Math.ceil((+new Date(license.expiresAt) - now) / 86400000)} days left</small>}</>}</td>
-          {admin && <td>{license.state !== 'terminated' ? <div className="row-actions">{license.plan !== 'LIFETIME' && <button disabled={busy} aria-label={`Renew ${license.key}`} onClick={() => onRenew(license)}>Renew</button>}<button disabled={busy} aria-label={`Change plan of ${license.key}`} onClick={() => onChangePlan(license)}>Change plan</button><button disabled={busy} aria-label={`Terminate ${license.key}`} onClick={() => onTerminate(license)}>Terminate</button></div> : <span className="muted">Closed</span>}</td>}
+          <td>{license.state !== 'terminated' ? <div className="row-actions">{license.plan !== 'LIFETIME' && <button disabled={busy} aria-label={`${admin ? 'Renew' : 'Request renewal for'} ${license.key}`} onClick={() => onRenew(license)}>{admin ? 'Renew' : 'Request renewal'}</button>}{admin && <><button disabled={busy} aria-label={`Change plan of ${license.key}`} onClick={() => onChangePlan(license)}>Change plan</button><button disabled={busy} aria-label={`Terminate ${license.key}`} onClick={() => onTerminate(license)}>Terminate</button></>}{!admin && license.plan === 'LIFETIME' && <span className="muted">No renewal needed</span>}</div> : <span className="muted">Closed</span>}</td>
         </tr>
       </Fragment>)}</tbody>
     </table></div>}

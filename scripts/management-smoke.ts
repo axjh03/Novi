@@ -3,25 +3,33 @@
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright';
+import { PURCHASE_HELP } from '../webapp/src/lib/site';
 
 async function main() {
-  const browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge' });
+  const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : { channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge' }) });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
+  page.setDefaultTimeout(15_000);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   const accounts = [
-    { id: 'admin', name: 'Administrator', username: 'admin', role: 'ADMIN', status: 'ACTIVE' },
-    { id: 'a', name: 'Acme Studio', username: 'acme', role: 'STANDALONE', status: 'ACTIVE' },
-    { id: 'b', name: 'Beacon Team', username: 'beacon', role: 'SUBCORP', status: 'ACTIVE' },
+    { id: 'admin', name: 'Administrator', username: 'admin', role: 'ADMIN', status: 'ACTIVE', parentId: null },
+    { id: 'a', name: 'Acme Studio', username: 'acme', role: 'STANDALONE', status: 'ACTIVE', parentId: null },
+    { id: 'b', name: 'Beacon Team', username: 'beacon', role: 'SUBCORP', status: 'ACTIVE', parentId: null },
     ...Array.from({ length: 47 }, (_, i) => ({ id: `account-${i}`, name: `Designer ${i}`, username: `designer.${i}`, role: 'LICENSE', status: 'ACTIVE', parentId: i < 25 ? 'a' : 'b' })),
   ];
   // Plans rotate Core, Pro, Ultimate, Lifetime; Lifetime licenses carry the far-future expiry the server stores.
   const plans = ['CORE', 'PRO', 'ULTIMATE', 'LIFETIME'];
   const licenses = Array.from({ length: 47 }, (_, i) => ({ id: `license-${i}`, key: `TEST-${String(i).padStart(4, '0')}-ABCD-EFGH`, ownerId: i < 25 ? 'a' : 'b', accountId: i % 2 ? `account-${i}` : null, status: i % 7 === 0 ? 'TERMINATED' : 'ACTIVE', plan: plans[i % 4], expiresAt: i % 4 === 3 ? '9999-12-31T00:00:00.000Z' : new Date(Date.now() + (i - 5) * 86400000).toISOString(), createdAt: new Date(Date.UTC(2026, 0, i + 1)).toISOString() }));
   let admin = true;
+  const mutations: { path: string; method: string; body: unknown }[] = [];
   let activityQuery = new URLSearchParams();
   let failActivity = false;
-  await page.route('**/api/control/state', route => route.fulfill({ json: { data: { user: admin ? accounts[0] : accounts[1], accounts, licenses, sessions: [], credentials: [], requests: [], providers: {} } } }));
+  await page.route('**/api/control/**', route => {
+    if (route.request().method() === 'GET') return route.fulfill({ status: 404, json: { error: 'Unexpected test request' } });
+    mutations.push({ path: new URL(route.request().url()).pathname, method: route.request().method(), body: route.request().postDataJSON() });
+    return route.fulfill({ json: { data: {} } });
+  });
+  await page.route('**/api/control/state', route => route.fulfill({ json: { data: { user: admin ? accounts[0] : accounts[1], accounts: admin ? accounts : accounts.filter(a => a.id === 'a' || a.parentId === 'a'), licenses: admin ? licenses : licenses.filter(l => l.ownerId === 'a'), sessions: [], credentials: [], requests: [], providers: {} } } }));
   await page.route('**/api/control/activity?*', route => {
     activityQuery = new URL(route.request().url()).searchParams;
     if (failActivity) return route.fulfill({ status: 500, json: { error: 'Test connection error' } });
@@ -30,6 +38,7 @@ async function main() {
     return route.fulfill({ json: { data: { total, page: current, pages: Math.ceil(total / 20), pageSize: 20, items: Array.from({ length: Math.min(20, total - (current - 1) * 20) }, (_, i) => ({ id: `event-${current}-${i}`, action: activityQuery.get('event') || 'ACCOUNT_UPDATED', actorId: 'admin', actorName: '@admin', targetId: `account-${i}`, targetName: `@designer.${i}`, createdAt: '2026-10-01T14:30:00Z' })) } } });
   });
   try {
+    await mkdir('.test-data', { recursive: true });
     await page.goto(process.env.MANAGEMENT_URL || 'http://localhost:3000');
     await page.getByRole('button', { name: 'Licenses', exact: true }).click();
     await page.getByText('1–20 of 47', { exact: true }).waitFor();
@@ -68,7 +77,11 @@ async function main() {
     await page.getByRole('button', { name: 'Renew TEST-0001-ABCD-EFGH' }).click();
     await page.getByRole('dialog').waitFor();
     assert.ok((await page.getByRole('dialog').innerText()).includes('TEST-0001'));
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    assert.ok((await page.getByRole('dialog').innerText()).includes('expired terms restart today'));
+    await page.getByRole('button', { name: '3 months', exact: true }).click();
+    await page.getByRole('button', { name: 'Renew license', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'License renewed.' }).waitFor();
+    assert.deepEqual(mutations.at(-1), { path: '/api/control/licenses/license-1', method: 'PATCH', body: { action: 'renew', duration: 3, unit: 'MONTHS' } });
     await page.getByRole('button', { name: 'Terminate TEST-0001-ABCD-EFGH' }).click();
     assert.ok((await page.getByRole('dialog').innerText()).includes('TEST-0001'));
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -98,7 +111,13 @@ async function main() {
     assert.equal(await page.getByRole('dialog').getByLabel('Duration').count(), 0, 'Lifetime takes no term');
     await page.getByRole('dialog').getByLabel(/^Plan/).selectOption('CORE');
     await page.getByRole('dialog').getByLabel('Duration').waitFor();
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.getByRole('button', { name: '1 year', exact: true }).click();
+    await page.getByRole('dialog').getByRole('button', { name: '1 year', exact: true, pressed: true }).waitFor();
+    assert.equal(await page.getByRole('dialog').getByLabel(/^Unit/).inputValue(), 'YEARS');
+    await page.screenshot({ path: '.test-data/license-issue.png' });
+    await page.getByRole('dialog').getByRole('button', { name: 'Issue license', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'License issued.' }).waitFor();
+    assert.deepEqual(mutations.at(-1), { path: '/api/control/licenses', method: 'POST', body: { ownerId: 'a', plan: 'CORE', duration: 1, unit: 'YEARS', quantity: 1 } });
     await page.getByLabel('Sort by').selectOption('owner');
     await page.getByLabel('Rows per page').selectOption('20');
     await mkdir('.test-data', { recursive: true });
@@ -140,13 +159,65 @@ async function main() {
     await page.getByRole('button', { name: 'Retry', exact: true }).click();
     await page.getByText('1–20 of 45', { exact: true }).waitFor();
     admin = false;
+    await page.setViewportSize({ width: 1440, height: 1100 });
     await page.reload();
     await page.getByRole('button', { name: 'Licenses', exact: true }).click();
-    await page.getByText('1–20 of 47', { exact: true }).waitFor();
+    await page.getByText('1–20 of 25', { exact: true }).waitFor();
     assert.equal(await page.getByRole('columnheader', { name: 'Manage', exact: true }).count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Activity', exact: true }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: /^Change plan of/ }).count(), 0);
+    await page.getByRole('button', { name: 'Request licenses', exact: true }).click();
+    assert.equal(await dialog.getByLabel('License owner', { exact: true }).count(), 0, 'owners cannot select another account');
+    await dialog.getByLabel(/^Plan/).selectOption('ULTIMATE');
+    await dialog.getByLabel('Quantity', { exact: true }).fill('2');
+    await dialog.getByRole('button', { name: '1 year', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Submit request', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Request submitted for administrator review.' }).waitFor();
+    assert.deepEqual(mutations.at(-1), { path: '/api/control/requests', method: 'POST', body: { ownerId: 'a', plan: 'ULTIMATE', quantity: 2, duration: 1, unit: 'YEARS' } });
+    const writesBeforePreview = mutations.length;
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole('button', { name: 'Preview checkout', exact: true }).click();
+    await dialog.getByLabel(/^Plan/).selectOption('LIFETIME');
+    assert.equal(await dialog.getByLabel('Duration').count(), 0);
+    assert.ok((await dialog.innerText()).includes('$399'));
+    await dialog.getByRole('button', { name: 'Continue to checkout', exact: true }).click();
+    await dialog.getByRole('status').filter({ hasText: PURCHASE_HELP }).waitFor();
+    let contact = await dialog.getByRole('link', { name: 'Contact the developer', exact: true }).getAttribute('href');
+    assert.ok(decodeURIComponent(contact!).includes('Plan: Lifetime'));
+    assert.ok(decodeURIComponent(contact!).includes('New licenses: 1'));
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    assert.ok(await dialog.locator('.modal-card').evaluate(card => card.scrollWidth <= card.clientWidth));
+    await page.screenshot({ path: '.test-data/license-user-checkout-mobile.png' });
+    await dialog.getByRole('button', { name: 'Back to review', exact: true }).click();
+    await dialog.getByLabel(/^Plan/).selectOption('PRO');
+    await dialog.getByRole('button', { name: '3 months', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Continue to checkout', exact: true }).click();
+    await dialog.getByRole('status').filter({ hasText: PURCHASE_HELP }).waitFor();
+    contact = await dialog.getByRole('link', { name: 'Contact the developer', exact: true }).getAttribute('href');
+    assert.ok(decodeURIComponent(contact!).includes('Requested term: 3 months'));
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await page.getByLabel('Search licenses').fill('TEST-0001');
+    await page.getByRole('button', { name: 'Request renewal for TEST-0001-ABCD-EFGH', exact: true }).click();
+    assert.ok((await dialog.innerText()).includes('TEST-0001-ABCD-EFGH'));
+    await dialog.getByRole('button', { name: '3 months', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Continue to checkout', exact: true }).click();
+    await dialog.getByRole('status').filter({ hasText: PURCHASE_HELP }).waitFor();
+    contact = await dialog.getByRole('link', { name: 'Contact the developer', exact: true }).getAttribute('href');
+    assert.ok(decodeURIComponent(contact!).includes('Renew existing license: TEST-0001-ABCD-EFGH'));
+    assert.ok(decodeURIComponent(contact!).includes('Requested term: 3 months'));
+    assert.ok((await dialog.innerText()).includes('your license has not been renewed'));
+    await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    await page.getByLabel('Search licenses').fill('TEST-0003');
+    assert.equal(await page.getByRole('button', { name: /^Request renewal for/ }).count(), 0, 'Lifetime needs no renewal');
+    await page.getByLabel('Search licenses').fill('TEST-0000');
+    assert.equal(await page.getByRole('button', { name: /^Request renewal for/ }).count(), 0, 'terminated licenses cannot be renewed');
+    assert.equal(mutations.length, writesBeforePreview, 'checkout and renewal previews never charge or mutate access');
     assert.deepEqual(errors, []);
-    console.log('License and activity UI checks passed (desktop, mobile, filtering, sorting, pagination, dialogs, errors, and role visibility).');
+    console.log('License and activity UI checks passed, including admin issue/renew, owner requests, checkout/renewal handoff, and mobile layouts.');
+  } catch (error) {
+    console.error({ errors, page: (await page.locator('body').innerText()).slice(-2500) });
+    await page.screenshot({ path: '.test-data/management-failure.png', fullPage: true });
+    throw error;
   } finally { await browser.close(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

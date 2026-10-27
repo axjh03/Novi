@@ -9,6 +9,8 @@ Use one license model and one plan-to-feature table for both manual and paid acc
 
 Today, the website implements the purchase preview only: choose a plan → contact details → payment review → developer help. The final step says: “Online payment isn't ready yet. Call MUKUL KAWADI WALA, the developer, for help.” No charge, account, license, or order is created. The email handoff lets the team complete the existing manual process.
 
+Inside the signed-in workspace, administrators can issue licenses manually, extend an existing term, and approve new-license requests. Owners can submit new-license requests to that queue or preview checkout. Their renewal action reviews the existing license and prepares an email for the developer; it does not submit a new-license request or extend access. Both checkout previews end at the same developer-help message. Lifetime licenses need no renewal, and terminated licenses stay closed.
+
 When real payments are introduced:
 
 1. Keep product/price IDs mapped to Core, Pro, Ultimate, and Lifetime on the server. Browser amounts and the return page must not grant access.
