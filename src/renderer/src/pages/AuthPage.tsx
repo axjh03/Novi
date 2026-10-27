@@ -7,26 +7,31 @@ import { errorText, unwrap } from '../services/api';
  * The sign-in screen (desktop sign-in is always through the managed access server).
  *
  * Built for people signing in under pressure:
- * - a remembered username is filled in and the cursor goes straight to the password;
+ * - remembered login fields are restored, with saved passwords protected by the OS secure store;
  * - Show/hide password, and a "Caps Lock is on" hint while typing the password;
  * - after a failed attempt the error appears under the button and the password is selected, ready to retype;
- * - "Keep me signed in" (on by default) saves the session token, never the password.
+ * - password saving is optional and available only with a working system credential store.
  *
  * @param onAuthenticated called with the app snapshot after a successful sign-in.
  */
 export function AuthPage({ onAuthenticated }: { onAuthenticated: (state: Snapshot) => void }) {
   const [username, setUsername] = useState(''), [password, setPassword] = useState('');
   const [keepSignedIn, setKeepSignedIn] = useState(true);
+  const [savePassword, setSavePassword] = useState(false), [passwordSavingAvailable, setPasswordSavingAvailable] = useState(false);
   const [showPassword, setShowPassword] = useState(false), [capsLock, setCapsLock] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const passwordInput = useRef<HTMLInputElement>(null);
+  const submitButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let mounted = true;
     unwrap(window.novi.getSavedCredentials())
       .then((saved) => {
-        // A remembered username is filled in, so the password is the only thing left to type.
-        if (mounted && saved?.username) { setUsername(saved.username); passwordInput.current?.focus(); }
+        if (!mounted) return;
+        setPasswordSavingAvailable(saved?.passwordSavingAvailable === true);
+        if (saved?.username) { setUsername(saved.username); passwordInput.current?.focus(); }
+        if (saved?.password) { setPassword(saved.password); setSavePassword(true); submitButton.current?.focus(); }
+        if (saved?.passwordError) setError(saved.passwordError);
       })
       .catch(() => {});
     return () => { mounted = false; };
@@ -39,10 +44,10 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (state: Snapsho
     passwordInput.current?.select();
   }, [error, busy]);
 
-  /** Sends the username, password and "Keep me signed in" choice to the main process, and shows the server's message on failure. */
+  /** Sends the login and saving choices to main; the server still validates every sign-in. */
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError('');
-    try { onAuthenticated(await unwrap(window.novi.signIn(username, password, keepSignedIn))); }
+    try { onAuthenticated(await unwrap(window.novi.signIn(username, password, keepSignedIn, savePassword))); }
     catch (error) { setError(errorText(error)); } finally { setBusy(false); }
   }
   // Reads Caps Lock from each key press in the password field, so the hint appears and disappears as it changes.
@@ -62,8 +67,10 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (state: Snapsho
             <button type="button" className="icon-button" aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
           </div>
         </div>
-        <label className="auth-checkbox-label"><input type="checkbox" checked={keepSignedIn} onChange={(e) => setKeepSignedIn(e.target.checked)} /><span>Keep me signed in</span></label>
-        <button className="primary wide" type="submit" aria-busy={busy}>{busy ? <>Signing in…<Loader2 size={17} className="spin" aria-hidden="true" /></> : <>Sign in<ArrowRight size={17} /></>}</button>
+        <label className="auth-checkbox-label"><input type="checkbox" checked={keepSignedIn} onChange={e => { setKeepSignedIn(e.target.checked); if (!e.target.checked) setSavePassword(false); }} /><span>Remember username</span></label>
+        <label className="auth-checkbox-label"><input type="checkbox" checked={savePassword} disabled={!passwordSavingAvailable} onChange={e => { setSavePassword(e.target.checked); if (e.target.checked) setKeepSignedIn(true); }} /><span>Save password on this device</span></label>
+        <p className="auth-save-detail">{passwordSavingAvailable ? 'Your saved password will be filled in next time.' : 'System password storage is unavailable. Your username can still be remembered.'}</p>
+        <button ref={submitButton} className="primary wide" type="submit" aria-busy={busy}>{busy ? <>Signing in…<Loader2 size={17} className="spin" aria-hidden="true" /></> : <>Sign in<ArrowRight size={17} /></>}</button>
         {error && <div className="error" role="alert">{error}</div>}
       </fieldset></form>
       </div></main>

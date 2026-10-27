@@ -359,7 +359,11 @@ export function registerIPC(
     const input = object(value);
     get().remoteCompanion.setConversationScroll(input.position, input.scrollable);
   });
-  handle('get-saved-credentials', () => get().auth.getSavedCredentials());
+  handle('get-saved-credentials', (_value, event) => {
+    fromMain(event);
+    if (get().auth.signedIn) throw new UserError('Saved credentials are available only while signed out.');
+    return get().auth.getSavedCredentials();
+  });
   handle('sign-in', async (value) => {
     requireNoContext();
     get().chat.assertIdle();
@@ -371,12 +375,12 @@ export function registerIPC(
       }
     }
     const v = object(value);
-    // keepSignedIn: true or missing saves the session token so Novi opens signed in next
-    // time; false keeps the session in memory only. The password itself is never saved either way.
+    // Password saving is explicit and uses the OS secure store; it is never part of a snapshot.
     await get().auth.signIn(
       v.username as string,
       v.password as string,
-      typeof v.keepSignedIn === 'boolean' ? v.keepSignedIn : undefined
+      typeof v.keepSignedIn === 'boolean' ? v.keepSignedIn : undefined,
+      v.savePassword === true
     );
     return snapshot();
   });

@@ -95,7 +95,7 @@ test('keep me signed in remembers the session and username without a keychain', 
   writeFileSync(file, JSON.stringify({ deviceId: 'device-1', encryptedToken: 'old-encrypted-token', savedCredentials: { username: 'old.user', encryptedPassword: Buffer.from('old-secret').toString('base64') } }));
   const storage = new Storage(directory), credentials = new CredentialStore(directory);
   const auth = new ManagedAuthService(storage, credentials);
-  assert.deepEqual(auth.getSavedCredentials(), { username: 'old.user' });
+  assert.deepEqual(auth.getSavedCredentials(), { username: 'old.user', passwordSavingAvailable: false });
   assert.equal(auth.signedIn, false, 'old encrypted sessions require one new sign-in');
   assert(!onDisk().includes('old-encrypted-token'), 'old encrypted token removed from disk');
   assert(!onDisk().includes('encryptedPassword') && !onDisk().includes(Buffer.from('old-secret').toString('base64')), 'legacy password removed from disk');
@@ -108,22 +108,22 @@ test('keep me signed in remembers the session and username without a keychain', 
 
   // Kept signed in: the session survives a restart, only the username is remembered, and the password never reaches disk.
   await auth.signIn('saved.user', 'secret-pass-123', true);
-  assert.deepEqual(auth.getSavedCredentials(), { username: 'saved.user' });
+  assert.deepEqual(auth.getSavedCredentials(), { username: 'saved.user', passwordSavingAvailable: false });
   assert.equal(JSON.parse(onDisk()).token, 'jwt-token');
   assert(!onDisk().includes('secret-pass-123') && !onDisk().includes(Buffer.from('secret-pass-123').toString('base64')));
   assert.equal(new ManagedAuthService(storage, credentials).signedIn, true, 'restart stays signed in');
   await auth.signOut();
   const afterSignOut = new ManagedAuthService(storage, credentials);
   assert.equal(afterSignOut.signedIn, false);
-  assert.deepEqual(afterSignOut.getSavedCredentials(), { username: 'saved.user' }, 'the username is filled in after signing out');
+  assert.deepEqual(afterSignOut.getSavedCredentials(), { username: 'saved.user', passwordSavingAvailable: false }, 'the username is filled in after signing out');
 
   // Not kept: the session ends with the app and nothing is remembered.
   await afterSignOut.signIn('saved.user', 'secret-pass-123', false);
   assert.equal(afterSignOut.signedIn, true, 'signed in for this launch');
-  assert.equal(afterSignOut.getSavedCredentials(), null);
+  assert.deepEqual(afterSignOut.getSavedCredentials(), { username: '', passwordSavingAvailable: false });
   const restarted = new ManagedAuthService(storage, credentials);
   assert.equal(restarted.signedIn, false, 'a restart asks to sign in again');
-  assert.equal(restarted.getSavedCredentials(), null);
+  assert.deepEqual(restarted.getSavedCredentials(), { username: '', passwordSavingAvailable: false });
   assert(!onDisk().includes('secret-pass-123') && !onDisk().includes('jwt-token') && !onDisk().includes(Buffer.from('jwt-token').toString('base64')));
 });
 

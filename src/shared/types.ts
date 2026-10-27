@@ -119,8 +119,8 @@ export interface Conversation { id: string; title: string; createdAt: number; up
 export interface ContextFolder { id: string; name: string; files: string[]; characters: number }
 export interface ContextInput { folderIds?: string[]; purpose?: string; company?: string; role?: string; vocabulary?: VocabularyLevel; fields?: Array<{ label: string; value: string }>; empty?: boolean }
 export interface ContextSession { id: string; connection: ProviderConnection; status: 'pending' | 'loading' | 'ready' | 'error' | 'ending'; summaryReady: boolean; isEmpty?: boolean }
-/** What "Keep me signed in" remembers. Passwords are never saved. */
-export interface SavedCredentials { username: string }
+/** Login fields restored only to the trusted main window. Passwords use the OS secure store. */
+export interface SavedCredentials { username: string; password?: string; passwordSavingAvailable: boolean; passwordError?: string }
 /** Access server reachability. `connectionLost` means offline long enough to tell the user. */
 export interface AccessStatus { offline: boolean; connectionLost: boolean }
 export interface Snapshot { user: User | null; settings: AppSettings | null; credentialIds: string[]; conversations: Conversation[]; contextSession?: ContextSession | null; access?: AccessStatus }
@@ -265,7 +265,7 @@ export interface NoviAPI {
   initializeContext(retry?: boolean): Promise<Result<Snapshot>>;
   endContext(): Promise<Result<Snapshot>>;
   session(): Promise<Result<Snapshot>>;
-  signIn(username: string, password: string, keepSignedIn?: boolean): Promise<Result<Snapshot>>;
+  signIn(username: string, password: string, keepSignedIn?: boolean, savePassword?: boolean): Promise<Result<Snapshot>>;
   getSavedCredentials(): Promise<Result<SavedCredentials | null>>;
   signOut(): Promise<Result<void>>;
   saveSettings(input: SettingsInput): Promise<Result<Snapshot>>;

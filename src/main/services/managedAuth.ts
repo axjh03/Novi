@@ -1,8 +1,8 @@
-import { app } from 'electron';
+import { app, safeStorage } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { DEFAULT_CLICK_THROUGH_SHORTCUT, type ProviderConnection, type User } from '../../shared/types';
+import { DEFAULT_CLICK_THROUGH_SHORTCUT, type ProviderConnection, type SavedCredentials, type User } from '../../shared/types';
 import { atomicJSON, readJSON, Storage } from './storage';
 import { CredentialStore } from './credentials';
 import { text, UserError } from './validation';
@@ -45,12 +45,13 @@ interface SavedSession {
   /** Removed on load from older versions. */
   encryptedToken?: string;
   server?: string;
-  /** Only the username is remembered. `encryptedPassword` is from older versions and is deleted on load. */
   savedCredentials?: {
     username: string;
     encryptedPassword?: string;
+    passwordFormat?: 'safe-storage-v1';
   };
 }
+type PasswordStorage = Pick<typeof safeStorage, 'isEncryptionAvailable' | 'getSelectedStorageBackend' | 'encryptString' | 'decryptString'>;
 export class ManagedAuthService {
   private token = '';
   private current: User | null = null;
@@ -63,15 +64,20 @@ export class ManagedAuthService {
   private baseUrl: string;
   private remoteFiles: RemoteFileService;
 
-  constructor(private storage: Storage, private credentials: CredentialStore) {
+  constructor(private storage: Storage, private credentials: CredentialStore, private passwordStorage: PasswordStorage | undefined = safeStorage) {
     this.file = join(storage.directory, 'access-session.json');
     this.saved = readJSON<SavedSession>(this.file, { deviceId: randomUUID() });
-    // Passwords are never kept on disk; remove any saved by an older version.
-    if (this.saved.savedCredentials) this.saved.savedCredentials = this.saved.savedCredentials.username ? { username: this.saved.savedCredentials.username } : undefined;
     const url = new URL(getEffectiveAccessUrl());
     if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))) throw new UserError('The access server must use HTTPS.');
     if (url.username || url.password || url.search || url.hash) throw new UserError('Invalid access server URL.');
     this.baseUrl = url.href.replace(/\/$/, '') + '/api/control';
+    const remembered = this.saved.savedCredentials;
+    // Older password blobs have no verified encryption format or server binding; require saving once again.
+    this.saved.savedCredentials = typeof remembered?.username === 'string' && remembered.username.length <= 64 ? {
+      username: remembered.username,
+      ...(this.saved.server === this.baseUrl && remembered.passwordFormat === 'safe-storage-v1' && typeof remembered.encryptedPassword === 'string' && remembered.encryptedPassword.length < 16384
+        ? { encryptedPassword: remembered.encryptedPassword, passwordFormat: 'safe-storage-v1' as const } : {}),
+    } : undefined;
     this.storage.data.currentUserId = null;
     this.remoteFiles = new RemoteFileService(
       () => this.baseUrl,
@@ -112,16 +118,23 @@ export class ManagedAuthService {
     this.credentials.clearManaged(); this.storage.data.currentUserId = null; this.storage.save();
     delete this.saved.token; atomicJSON(this.file, this.saved);
   }
-  /** The username remembered by "Keep me signed in", to fill in the sign-in form. */
-  /**
-   * Returns the username remembered from the last "Keep me signed in" sign-in, so the sign-in form
-   * can fill it in. Never returns a password: passwords are not stored anywhere (see the constructor,
-   * which deletes passwords that older versions of Novi saved).
-   *
-   * @returns `{ username }`, or `null` when no username is remembered.
-   */
-  getSavedCredentials(): { username: string } | null {
-    return this.saved.savedCredentials?.username ? { username: this.saved.savedCredentials.username } : null;
+  private canSavePassword() {
+    try {
+      return Boolean(this.passwordStorage?.isEncryptionAvailable() && (process.platform !== 'linux' || !['basic_text', 'unknown'].includes(this.passwordStorage.getSelectedStorageBackend())));
+    } catch { return false; }
+  }
+  /** Decrypts an opted-in password only for the main sign-in window, bound to this server and username. */
+  getSavedCredentials(): SavedCredentials {
+    const remembered = this.saved.savedCredentials;
+    const result: SavedCredentials = { username: remembered?.username || '', passwordSavingAvailable: this.canSavePassword() };
+    if (remembered?.encryptedPassword && result.passwordSavingAvailable) {
+      try {
+        const decoded = JSON.parse(this.passwordStorage!.decryptString(Buffer.from(remembered.encryptedPassword, 'base64')));
+        if (decoded?.server !== this.baseUrl || decoded.username !== remembered.username || typeof decoded.password !== 'string' || !decoded.password || decoded.password.length > 128) throw new Error('Saved login does not match.');
+        result.password = decoded.password;
+      } catch { result.passwordError = 'Your saved password could not be opened. Enter it again to replace it.'; }
+    }
+    return result;
   }
   /**
    * Signs in to the access server with a username and password.
@@ -131,7 +144,7 @@ export class ManagedAuthService {
    *   so Novi opens signed in next time.
    * - false: nothing is saved. Any previously saved token and username are deleted, so the session
    *   ends when Novi quits.
-   * The password is never saved in either case.
+   * `savePassword` additionally saves the password with the OS secure store, for autofill after expiry or exit.
    *
    * If anything fails after the server accepted the password (saving, or the first access check),
    * the new session is signed out again so Novi never ends up half signed in.
@@ -139,10 +152,12 @@ export class ManagedAuthService {
    * @throws UserError for a wrong password, an inactive account or license, or a device conflict,
    *   using the server's own message.
    */
-  async signIn(username: string, password: string, keepSignedIn?: boolean) {
+  async signIn(username: string, password: string, keepSignedIn?: boolean, savePassword = false) {
     if (this.token) throw new UserError('Sign out of the current account first.');
     username = text(username, 'username', 64);
     if (typeof password !== 'string' || !password || password.length > 128) throw new UserError('Enter your password.');
+    if (savePassword && keepSignedIn === false) throw new UserError('Remember the username to save its password.');
+    if (savePassword && !this.canSavePassword()) throw new UserError('Secure password storage is unavailable. Unlock your system keyring or turn off Save password.');
     const result = await this.request<{ token: string }>('login', { username, password, audience: 'desktop', deviceId: this.saved.deviceId, deviceName: hostname().slice(0, 100) });
     this.generation++; this.token = result.token;
     try {
@@ -151,7 +166,10 @@ export class ManagedAuthService {
       } else {
         this.saved.token = this.token;
         this.saved.server = this.baseUrl;
-        this.saved.savedCredentials = { username };
+        this.saved.savedCredentials = {
+          username,
+          ...(savePassword ? { passwordFormat: 'safe-storage-v1' as const, encryptedPassword: this.passwordStorage!.encryptString(JSON.stringify({ username, password, server: this.baseUrl })).toString('base64') } : {}),
+        };
       }
       atomicJSON(this.file, this.saved);
       //backdoor

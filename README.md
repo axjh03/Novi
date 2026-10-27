@@ -232,11 +232,11 @@ Novi uses Electron's `app.getPath('userData')`, typically:
 The exact directory follows Electron's platform conventions. `NOVI_DATA_DIR` can override it for isolated testing; do not point it at an unrelated application's directory.
 
 - `data.json`: local account caches, display preferences, provider metadata, selection, theme, and existing history. Managed passwords and API secrets are never written here. This file is **not encrypted**.
-- `access-session.json`: the session token (JWT), the access server it belongs to, and a generated installation identifier. With **Keep me signed in** (on by default) it also remembers your username, so Novi opens signed in while the server session remains valid (up to 8 hours); without it, the token and username are deleted and the session ends when Novi quits. Your password is never saved. The server binding prevents reuse against a different access server.
+- `access-session.json`: the desktop session token, its access server, an installation identifier, and (when selected) the remembered username plus an OS-encrypted password for sign-in autofill. The app still checks the session with the server, and closing Novi ends the desktop session. Password saving is optional and requires the system credential store; on Linux, unlock a supported keyring first. The encrypted password is bound to its username and access server.
 - Managed provider secrets stay in main-process memory and are cleared on sign-out. The renderer receives metadata only. Local `credentials.json` keys are stored in app data without a keychain; older encrypted keys remain preserved but must be re-entered before use.
 - `images/`: app-owned local copies of attached images, addressed by generated IDs rather than renderer-provided filesystem paths. Copies preserve history if an original file moves. Deleting conversations or clearing history removes unreferenced copies. Unsent copies are pruned on sign-out or next startup.
 
-Remembered sessions and local API keys do not require an OS keychain. They are stored in app data, protected by that directory's OS account permissions. Anyone with access to the files can use those secrets until they expire or are revoked. Existing keychain-encrypted sessions require one new sign-in after upgrading.
+The active desktop session token and local API keys do not require an OS keychain. They are stored in app data, protected by that directory's OS account permissions. Anyone with access to the files can use those secrets until the app signs out or they are revoked. Saved passwords use the OS credential store separately.
 
 The backend encrypts managed API keys with AES-256-GCM. Desktop credentials are bound to the provider endpoint and cannot be redirected through renderer IPC.
 
