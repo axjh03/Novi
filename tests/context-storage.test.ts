@@ -1,0 +1,55 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { Storage } from '../src/main/services/storage';
+import { LocalAuthService } from '../src/main/services/auth';
+import { conversationExport } from '../src/main/services/conversationExport';
+
+test('reference documents are stored once, restored for every conversation and removed with history', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'novi-reference-storage-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const storage = new Storage(directory);
+  await new LocalAuthService(storage).signUp('Test', 'references@example.test', 'test-password');
+  const context = { instructions: 'Explain clearly.', summary: 'Summary.', documents: [{ name: 'notes.txt', content: `REFERENCE_DATA ${'x'.repeat(256_000)}` }] };
+  storage.current().conversations = Array.from({ length: 5 }, (_, i) => ({ id: String(i), title: 'Test', createdAt: i, updatedAt: i, messages: [], context }));
+  storage.save();
+  const raw = readFileSync(storage.file, 'utf8');
+  const saved = JSON.parse(raw);
+  assert.equal(saved.version, 3);
+  assert.equal(raw.match(/REFERENCE_DATA/g)?.length, 1);
+  assert.equal(Object.keys(saved.contextDocuments).length, 1);
+  assert(saved.accounts[0].conversations.every((c: any) => c.context.documentsId && !c.context.documents.length));
+  assert.equal(storage.conversations[0].context?.documents[0].content, context.documents[0].content, 'saving preserves in-memory sources');
+  const reopened = new Storage(directory);
+  for (const conversation of reopened.conversations) assert.deepEqual(conversation.context, context);
+  assert.equal(reopened.conversations[0].context?.documents, reopened.conversations[4].context?.documents, 'loaded chats share one reference array');
+  const exported = conversationExport(reopened.conversations[0], () => '');
+  assert.deepEqual(exported.context?.documents, context.documents, 'exports remain self-contained');
+  reopened.current().conversations = [];
+  reopened.save();
+  assert.deepEqual(JSON.parse(readFileSync(reopened.file, 'utf8')).contextDocuments, {});
+  assert(!readFileSync(reopened.file, 'utf8').includes('REFERENCE_DATA'));
+});
+
+test('legacy reference copies migrate without losing text and missing references preserve the file', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'novi-reference-migration-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const storage = new Storage(directory);
+  await new LocalAuthService(storage).signUp('Test', 'migration@example.test', 'test-password');
+  const context = { instructions: '', summary: '', documents: [{ name: 'legacy.txt', content: 'LEGACY_REFERENCE' }] };
+  storage.current().conversations = [1, 2].map(i => ({ id: String(i), title: 'Legacy', createdAt: i, updatedAt: i, messages: [], context }));
+  writeFileSync(storage.file, JSON.stringify({ ...storage.data, version: 2 }));
+  const migrated = new Storage(directory);
+  assert.deepEqual(migrated.conversations[1].context, context);
+  migrated.save();
+  const saved = JSON.parse(readFileSync(storage.file, 'utf8'));
+  assert.equal(Object.keys(saved.contextDocuments).length, 1);
+  assert.deepEqual(new Storage(directory).conversations[0].context, context);
+  saved.contextDocuments = {};
+  const damaged = JSON.stringify(saved);
+  writeFileSync(storage.file, damaged);
+  assert.throws(() => new Storage(directory), /reference documents could not be read/);
+  assert.equal(readFileSync(storage.file, 'utf8'), damaged);
+});

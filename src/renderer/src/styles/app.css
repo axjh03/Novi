@@ -2878,6 +2878,9 @@ html.transparent-mode #root {
 .context-presets legend span { margin-left: 4px; color: var(--muted); font-size: 12px; font-weight: 400; }
 .context-presets > label { margin-bottom: 6px; font-size: 12px; }
 .context-presets > select { min-height: 36px; padding: 7px 10px; font-size: 12px; }
+.context-vocabulary input[type='range'] { width: 100%; min-height: 28px; padding: 0; accent-color: var(--accent); }
+.context-vocabulary-labels { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+.context-vocabulary p { margin-bottom: 0; font-size: 12px; line-height: 1.6; }
 .context-preset-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
 .context-preset-options button { display: grid; gap: 5px; padding: 12px; border: 1px solid var(--border); border-radius: 7px; text-align: left; background: var(--surface); }
 .context-preset-options button:hover:not(:disabled) { background: var(--hover); }

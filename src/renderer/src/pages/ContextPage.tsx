@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Bookmark, Check, Cpu, FastForward, FileText, FolderOpen, Pencil, Play, Trash2, X } from 'lucide-react';
-import type { AppMode, ContextFolder, SessionProfile, Snapshot } from '../../../shared/types';
+import type { AppMode, ContextFolder, SessionProfile, Snapshot, VocabularyLevel } from '../../../shared/types';
 import { activeConnection } from '../../../shared/providers';
 import { Brand } from '../components/Brand';
 import { ProviderPicker } from '../components/chat/ProviderPicker';
@@ -12,7 +12,7 @@ import { continueFromGetReady, getReadyContinued } from '../services/readiness';
 import { SESSION_ROLES, defaultPurpose, presetFields } from '../context/sessionPresets';
 
 import { useAppMode } from '../context/AppModeContext';
-import { SESSION_MODES, modeInstructions } from '../../../shared/sessionModes';
+import { SESSION_MODES, VOCABULARY_LEVELS, modeInstructions } from '../../../shared/sessionModes';
 import { fallbackMode, lockedMessage } from '../../../shared/plans';
 import { PlanLock } from '../components/PlanLock';
 
@@ -62,11 +62,13 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
   // The purpose follows the session type, preset, company and role until the user writes their own.
   const [purpose, setPurpose] = useState(''), [purposeEdited, setPurposeEdited] = useState(false);
   const [company, setCompany] = useState(''), [targetRole, setTargetRole] = useState('');
+  const [vocabulary, setVocabulary] = useState<VocabularyLevel>('everyday');
+  const vocabularyIndex = VOCABULARY_LEVELS.findIndex((level) => level.id === vocabulary);
   // The profile name follows company and role (or the purpose) until the user types their own.
   const [profileName, setProfileName] = useState(''), [profileNameEdited, setProfileNameEdited] = useState(false);
   const [profileNotice, setProfileNotice] = useState(''), [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [fields, setFields] = useState<Field[]>(['Role / perspective', 'Level / experience', 'Output format', 'Additional instructions'].map((label) => ({ label, value: '' })));
-  const [roleIndex, setRoleIndex] = useState(0);
+  const [roleIndex, setRoleIndex] = useState(SESSION_ROLES.length - 1);
   // Only an applied preset shows as selected; Undo restores what applying it replaced.
   const [applied, setApplied] = useState<Applied>(null);
   const [undo, setUndo] = useState<{ fields: Field[]; startMode: AppMode | null; applied: Applied } | null>(null);
@@ -139,7 +141,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
       await unwrap(window.novi.testConnection());
       if (current !== attempt.current) return;
       setChecking(false);
-      const next = await unwrap(window.novi.startContext({ folderIds: folders.map((f) => f.id), purpose: purposeValue.trim(), company, role: targetRole, fields }));
+      const next = await unwrap(window.novi.startContext({ folderIds: folders.map((f) => f.id), purpose: purposeValue.trim(), company, role: targetRole, vocabulary, fields }));
       setAppMode(startMode);
       onSaved(next);
     } catch (err) { if (current === attempt.current) setError(errorText(err)); }
@@ -211,7 +213,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     if (!canStart || !startMode || !name) return;
     setBusy(true); setError(''); setProfileNotice('');
     try {
-      const next = await unwrap(window.novi.saveSessionProfile({ name, folderIds: folders.map((f) => f.id), mode: startMode, framework: behavioralFramework, company, role: targetRole, purpose: purposeValue.trim(), fields }));
+      const next = await unwrap(window.novi.saveSessionProfile({ name, folderIds: folders.map((f) => f.id), mode: startMode, framework: behavioralFramework, company, role: targetRole, purpose: purposeValue.trim(), vocabulary, fields }));
       onSaved(next);
       setProfileName(name); setProfileNameEdited(true);
       setProfileNotice(`${existingProfile ? 'Updated' : 'Saved'} “${name}”. Next time, start it from the Model step in one click.`);
@@ -246,6 +248,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
     let reached: Section = 'model';
     setBusy(true); setError(''); setProfileNotice(''); setPresetNotice(''); setConfirmDelete(null);
     setCompany(profile.company); setTargetRole(profile.role); setPurpose(profile.purpose); setPurposeEdited(true);
+    setVocabulary(profile.vocabulary ?? 'everyday');
     setFields(profile.fields.map((field) => ({ ...field }))); setStartMode(profile.mode); setApplied(null); setUndo(null);
     setProfileName(profile.name); setProfileNameEdited(true);
     try {
@@ -269,7 +272,7 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
       await unwrap(window.novi.testConnection());
       if (stale()) return;
       setChecking(false);
-      const next = await unwrap(window.novi.startContext({ folderIds: loaded.map((f) => f.id), purpose: profile.purpose, company: profile.company, role: profile.role, fields: profile.fields }));
+      const next = await unwrap(window.novi.startContext({ folderIds: loaded.map((f) => f.id), purpose: profile.purpose, company: profile.company, role: profile.role, vocabulary: profile.vocabulary, fields: profile.fields }));
       setAppMode(profile.mode);
       onSaved(next);
     } catch (err) {
@@ -340,7 +343,8 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
 
         <section id="context-panel-sources" aria-labelledby="context-tab-sources" className="context-panel-content" hidden={section !== 'sources'}>
           <div className="context-panel-heading"><div className="context-panel-icon"><FolderOpen size={19} /></div><div><span className="context-overline">STEP 2 OF 3 · OPTIONAL</span><h2>Add documents</h2></div></div>
-          <div className="context-sources-toolbar"><button className="secondary" disabled={busy || !connection} onClick={() => void loadFolders()}><FolderOpen size={15} />{busy ? 'Working…' : folders.length ? 'Replace folders' : 'Choose folders'}</button><span>TXT and PDF · up to 30 files / 80k characters</span></div>
+          <div className="context-sources-toolbar"><button className="secondary" disabled={busy || !connection} onClick={() => void loadFolders()}><FolderOpen size={15} />{busy ? 'Working…' : folders.length ? 'Replace folders' : 'Choose folders'}</button><span>TXT and PDF · up to 30 files / 50 MB total</span></div>
+          <p className="muted">Loaded reference text is sent to your AI provider and saved in local conversation history as unencrypted text. Ending a session keeps that history; delete its conversations or clear history to remove the saved references.</p>
           <div className="context-folder-list">
             {folders.length ? folders.map((folder) => <div className="context-folder" key={folder.id}><div className="context-folder-row"><FolderOpen size={16} /><strong title={folder.name}>{folder.name}</strong><span>{folder.files.length} files · {folder.characters.toLocaleString()} chars</span><button className="icon-button" disabled={busy} aria-label={`Remove ${folder.name}`} onClick={() => setFolders((items) => items.filter((f) => f.id !== folder.id))}><X size={14} /></button></div><details><summary>Included files</summary><ul>{folder.files.map((file) => <li key={file}>{file}</li>)}</ul></details></div>) : <div className="context-empty-sources"><FolderOpen size={25} /><strong>No documents yet</strong></div>}
           </div>
@@ -361,6 +365,16 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
               })}</div>
               {startMode && startMode !== 'normal' && <details className="context-preset-preview"><summary>How AI will answer</summary><p>{modeInstructions(startMode)}</p></details>}
               {startMode === 'behavioral' && <div className="context-framework"><span>Answer framework</span><BehavioralModeHUD framework={behavioralFramework} onSelectFramework={(framework) => void setBehavioralFramework(framework)} /></div>}
+            </fieldset>
+
+            <fieldset className="context-presets context-vocabulary" disabled={busy}>
+              <legend>Answer vocabulary</legend>
+              <label htmlFor="context-vocabulary">Word choice: <strong>{VOCABULARY_LEVELS[vocabularyIndex].name}</strong></label>
+              <input id="context-vocabulary" type="range" min={0} max={VOCABULARY_LEVELS.length - 1} step={1} value={vocabularyIndex}
+                aria-valuetext={VOCABULARY_LEVELS[vocabularyIndex].name} aria-describedby="context-vocabulary-description"
+                onChange={(event) => setVocabulary(VOCABULARY_LEVELS[Number(event.target.value)].id)} />
+              <div className="context-vocabulary-labels" aria-hidden="true">{VOCABULARY_LEVELS.map((level) => <span key={level.id}>{level.name}</span>)}</div>
+              <p id="context-vocabulary-description" className="muted">{VOCABULARY_LEVELS[vocabularyIndex].instructions}</p>
             </fieldset>
 
             <div className="context-brief-row">

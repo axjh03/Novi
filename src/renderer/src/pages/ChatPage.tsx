@@ -74,6 +74,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const streamingMessageId = chat.busy && chat.activeId === chat.selectedId ? chat.selected?.messages.at(-1)?.id : undefined;
   const contextBusy = Boolean(state.contextSession && state.contextSession.status !== 'ready');
   const [ending, setEnding] = useState(false);
+  const [retryingContext, setRetryingContext] = useState(false);
   const sidebarBusy = chat.busy || ending || (contextBusy && state.contextSession?.status !== 'error');
   const [confirmEnd, setConfirmEnd] = useState(false);
   const sessionId = state.contextSession?.id;
@@ -104,7 +105,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     void unwrap(window.novi.openReview({ projectId: result.projectId, fromVersionId: result.baseVersionId, toVersionId: result.resultingVersionId, fileId })).catch((error) => chat.setError(errorText(error)));
   }, [chat.setError]);
   function sendLocal(content: string, imageIds: string[], reconcile?: ReconcileRequest) {
-    if (!localBinding || !local.project) { chat.setError('Choose a working folder and start Local Coding first.'); return Promise.resolve(false); }
+    if (!localBinding || !local.project || local.project.projectId !== localBinding.projectId) { chat.setError('Wait for the selected Local Coding project to load, or choose a working folder first.'); return Promise.resolve(false); }
     const baseVersionId = reconcile?.baseVersionId ?? local.project.selectedVersionId;
     return chat.send({ content, imageIds, pinnedContext, localCoding: { baseVersionId, ...(reconcile ? { reconcile: { fromVersionId: reconcile.fromVersionId, fileIds: reconcile.fileIds } } : {}) } });
   }
@@ -122,7 +123,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     if (id) await chat.remove(id);
   }
   useEffect(() => {
-    if (!sessionId || state.contextSession?.status === 'ready' || state.contextSession?.isEmpty) return;
+    if (!sessionId || state.contextSession?.status === 'ready' || state.contextSession?.status === 'error' || state.contextSession?.isEmpty) return;
     let mounted = true;
     void unwrap(window.novi.initializeContext()).then((snapshot) => { if (mounted) onSaved(snapshot); })
       .catch((error) => {
@@ -131,6 +132,12 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
       });
     return () => { mounted = false; };
   }, [sessionId, state.contextSession?.status, state.contextSession?.isEmpty]);
+  async function retryContext() {
+    setRetryingContext(true); chat.setError('');
+    try { onSaved(await unwrap(window.novi.initializeContext(true))); }
+    catch (error) { chat.setError(errorText(error)); }
+    finally { setRetryingContext(false); }
+  }
   async function endSession() {
     setEnding(true); et.stop();
     try { onSaved(await unwrap(window.novi.endContext())); }
@@ -301,6 +308,10 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
           {practice.active && <PracticeCoach state={practice.state} voiced={practice.voiced} listenKey={listenKey}
             onTypeInstead={practice.typeInstead} onRemove={() => void removePractice()} onEnd={practice.cancel} />}
           {syncingModel && <div className="tray-status" role="status">Saving model selection…</div>}
+          {state.contextSession?.status === 'error' && <div className="error" role="alert">
+            <p>Session setup could not finish. Your documents and instructions are still loaded.</p>
+            <button type="button" className="secondary" disabled={retryingContext} onClick={() => void retryContext()}>{retryingContext ? 'Retrying setup…' : 'Retry session setup'}</button>
+          </div>}
           {chat.error && (
             <div className="error dismissible" role="alert">
               {chat.error}

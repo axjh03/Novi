@@ -37,6 +37,9 @@ test('managed desktop keeps tokens and keys out of renderer state, preserves sel
   });
   assert.equal(await auth.getCurrentUser(), null);
   const user = await auth.signIn('desktop.user', 'password test');
+  const disk = t.mock.method(storage, 'save');
+  await auth.refresh(true);
+  assert.equal(disk.mock.callCount(), 0, 'an unchanged heartbeat does not rewrite history');
   assert.equal(user.managed, true);
   assert.equal(storage.current().settings.onboardingComplete, true);
   assert(!JSON.stringify(storage.data).includes('owner-private-secret'));

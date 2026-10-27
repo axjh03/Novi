@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { require as tsxRequire } from 'tsx/cjs/api';
 import type { ChatEvent, Conversation } from '../src/shared/types';
-import type { AgentTask, CodingAgent } from '../src/main/services/codingAgents/types';
+import type { AgentCredential, AgentTask, CodingAgent } from '../src/main/services/codingAgents/types';
 
 const { Storage } = tsxRequire('../src/main/services/storage.ts', import.meta.url);
 const { LocalAuthService } = tsxRequire('../src/main/services/auth.ts', import.meta.url);
@@ -25,7 +25,7 @@ class FakeAgent implements CodingAgent {
     if (!next) throw new Error('no scripted answer');
     return next(task);
   }
-  async listModels() { return [{ id: 'gpt-test', name: 'GPT test', efforts: ['low', 'high', 'xhigh'], highestEffort: 'xhigh', images: true }]; }
+  async listModels(_credential: AgentCredential, _signal: AbortSignal) { return [{ id: 'gpt-test', name: 'GPT test', efforts: ['low', 'high', 'xhigh'], highestEffort: 'xhigh', images: true }]; }
 }
 
 const answer = (changes: unknown[], extra: Record<string, unknown> = {}) => ({ schemaVersion: 1, summary: 'Summary.', approach: 'Approach.', evidence: [], assumptions: [], questions: [], changes, suggestedChecks: ['Try it.'], ...extra });
@@ -92,6 +92,20 @@ test('a request becomes a pinned, validated iteration; explanation-only answers 
   env.agent.answers.push(() => answer([], { questions: ['Which currency?'] }));
   await env.send('Add tax.', it1);
   assert.equal(env.conversation().messages.at(-1)!.localCoding?.state, 'needs-information');
+});
+
+test('Local Coding inherits session answer instructions and vocabulary', async t => {
+  const env = await setup(t);
+  const instructions = 'Vocabulary: Use familiar words and short sentences.';
+  const context = { session: { status: 'ready' }, savedContext: { instructions, summary: '', documents: [] } };
+  const chat = new ChatService(env.storage, {}, { commit() {} }, context, env.service);
+  env.agent.answers.push(task => {
+    assert.match(task.prompt, /Session instructions:\nVocabulary: Use familiar words and short sentences/);
+    return answer([]);
+  });
+  await chat.send({ appMode: 'local-coding', conversationId: env.conversation().id, content: 'Explain the project.', imageIds: [], localCoding: { baseVersionId: env.service.state(env.projectId).selectedVersionId } }, () => {});
+  assert.equal(env.conversation().context?.instructions, instructions);
+  assert.equal(env.conversation().messages.at(-1)!.status, 'complete');
 });
 
 test('an agent cannot be uninstalled while a Local Coding task uses it', async t => {
@@ -174,6 +188,44 @@ test('cancel, engine failure, audio attachments and wrong connections end cleanl
       /Codex needs an enabled OpenAI connection using https:\/\/api\.openai\.com\/v1\. Turn one on in Settings › API Management, or ask your Novi admin to add one in the web portal\. Then choose it in Local Coding setup\.$/);
   } finally { env.storage.current().managed = false; }
   await assert.rejects(env.chat.send({ appMode: 'normal', conversationId: env.conversation().id, content: 'hi', imageIds: [] }, () => {}), /Local Coding conversation/);
+  assert.equal(env.service.state(env.projectId).versions.length, 1);
+});
+
+test('stop cancels model discovery before an engine task starts', async t => {
+  const env = await setup(t);
+  let discoverySignal!: AbortSignal;
+  let started!: () => void, release!: () => void;
+  const discovering = new Promise<void>(resolve => { started = resolve; });
+  t.mock.method(env.agent, 'listModels', async (_credential: AgentCredential, signal: AbortSignal) => {
+    discoverySignal = signal;
+    started();
+    await new Promise<void>(resolve => {
+      release = resolve;
+      signal.addEventListener('abort', () => resolve(), { once: true });
+    });
+    return [{ id: 'gpt-test', name: 'GPT test', efforts: [], highestEffort: null, images: true }];
+  });
+  const running = env.send('Explain the project.', env.service.state(env.projectId).selectedVersionId);
+  await discovering;
+  try {
+    env.chat.stop();
+    assert.equal(discoverySignal.aborted, true, 'stop must reach the model catalog request');
+    await running;
+    assert.equal(env.agent.runs.length, 0, 'no task starts after cancellation');
+    assert.equal(env.conversation().messages.at(-1)!.localCoding?.state, 'cancelled');
+    assert.equal(env.chat.busy, false);
+    assert.equal(env.service.busy, false);
+  } finally { release(); await running; }
+});
+
+test('a late engine answer after stop cannot publish an iteration', async t => {
+  const env = await setup(t);
+  env.agent.answers.push(() => {
+    env.chat.stop();
+    return answer([{ operation: 'create', destinationRootId: 'r1', relativePath: 'late.js', reason: 'r', content: 'late\n' }]);
+  });
+  await env.send('Add a file.', env.service.state(env.projectId).selectedVersionId);
+  assert.equal(env.conversation().messages.at(-1)!.localCoding?.state, 'cancelled');
   assert.equal(env.service.state(env.projectId).versions.length, 1);
 });
 

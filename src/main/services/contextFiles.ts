@@ -3,7 +3,6 @@ import { basename, extname, join, relative, isAbsolute } from 'node:path';
 import { UserError } from './validation';
 
 export interface ContextDocument { name: string; content: string }
-const MAX_CHARACTERS = 80_000;
 
 /**
  * Extracts the text of a PDF with pdf.js, page by page, for use as session context.
@@ -13,7 +12,7 @@ const MAX_CHARACTERS = 80_000;
  * decoders. (pdf.js 6 removed its old `eval`-based code path entirely, so no flag is needed for it.)
  *
  * Limits: at most 200 pages, every page must contain readable text (scanned image-only PDFs are
- * refused with a clear message), and the total stays within the 80,000-character context limit.
+ * refused with a clear message). File count and byte limits apply when loading folders.
  *
  * @param bytes the PDF file contents.
  * @returns the text with a "[Page N]" header before each page.
@@ -36,7 +35,6 @@ async function pdfText(bytes: Buffer): Promise<string> {
       const extracted = text.items.map((item: { str?: string; hasEOL?: boolean }) => (item.str || '') + (item.hasEOL ? '\n' : ' ')).join('').trim();
       if (!extracted) throw new UserError(`PDF page ${pageNumber} has no readable text. OCR/image-only PDFs are not supported; convert it to searchable text first.`);
       content += `\n[Page ${pageNumber}]\n${extracted}\n`;
-      if (content.length > MAX_CHARACTERS) throw new UserError('Context exceeds 80,000 text characters. Select fewer/smaller documents.');
       page.cleanup();
     }
     return content;
@@ -48,7 +46,7 @@ async function pdfText(bytes: Buffer): Promise<string> {
 
 export async function readContextFolders(paths: string[]): Promise<Array<{ path: string; name: string; documents: ContextDocument[] }>> {
   if (!paths.length || paths.length > 8) throw new UserError('Select 1–8 context folders.');
-  let count = 0, size = 0, characters = 0, visited = 0;
+  let count = 0, size = 0, visited = 0;
   const seen = new Set<string>();
   const result = [];
   for (const input of paths) {
@@ -81,8 +79,6 @@ export async function readContextFolders(paths: string[]): Promise<Array<{ path:
           if (content.includes('\0')) throw new UserError(`${entry.name} is not a plain text file.`);
         }
         if (!content.trim()) throw new UserError(`${entry.name} is empty. Remove it from the context folder.`);
-        characters += content.length;
-        if (characters > MAX_CHARACTERS) throw new UserError('Context exceeds 80,000 text characters. Select fewer/smaller documents.');
         documents.push({ name: `${basename(root)}/${rel.replaceAll('\\', '/')}`, content });
       }
     }

@@ -13,6 +13,7 @@ export const DEFAULT_TRANSPARENT_SHORTCUT = isMacPlatform ? 'Option+Control+T' :
 export const LEGACY_TRANSPARENT_SHORTCUT = 'Home+PageUp';
 export type AppMode = 'normal' | 'coding' | 'behavioral' | 'recruiter' | 'technical' | 'system-design' | 'local-coding';
 export type BehavioralFramework = 'smart' | 'star' | 'car' | 'par' | 'soar';
+export type VocabularyLevel = 'plain' | 'everyday' | 'technical';
 export const DEFAULT_CODING_SHORTCUT = 'Alt+C';
 export const DEFAULT_BEHAVIORAL_SHORTCUT = 'Alt+B';
 export const DEFAULT_SCREENSHOT_SHORTCUT = 'Alt+3';
@@ -76,10 +77,11 @@ export interface SessionProfile {
   company: string;
   role: string;
   purpose: string;
+  vocabulary?: VocabularyLevel;
   fields: Array<{ label: string; value: string }>;
   folders: Array<{ name: string; path: string }>;
 }
-export interface SessionProfileInput { name: string; folderIds: string[]; mode: AppMode; framework: BehavioralFramework; company: string; role: string; purpose: string; fields: Array<{ label: string; value: string }> }
+export interface SessionProfileInput { name: string; folderIds: string[]; mode: AppMode; framework: BehavioralFramework; company: string; role: string; purpose: string; vocabulary?: VocabularyLevel; fields: Array<{ label: string; value: string }> }
 export interface ProviderConnection extends AIProviderConfig { id: string; name: string; managed?: boolean; ownerName?: string; enabled?: boolean }
 export interface ConnectionInput { id?: string; name: string; ai: AIProviderConfig; apiKey?: string }
 export interface ModelOption { id: string; name: string }
@@ -115,7 +117,7 @@ export interface ChatLatency {
 export interface SavedContext { instructions: string; summary: string; documents: Array<{ name: string; content: string }> }
 export interface Conversation { id: string; title: string; createdAt: number; updatedAt: number; messages: ChatMessage[]; context?: SavedContext; pinnedContext?: string; localCoding?: LocalCodingBinding }
 export interface ContextFolder { id: string; name: string; files: string[]; characters: number }
-export interface ContextInput { folderIds?: string[]; purpose?: string; company?: string; role?: string; fields?: Array<{ label: string; value: string }>; empty?: boolean }
+export interface ContextInput { folderIds?: string[]; purpose?: string; company?: string; role?: string; vocabulary?: VocabularyLevel; fields?: Array<{ label: string; value: string }>; empty?: boolean }
 export interface ContextSession { id: string; connection: ProviderConnection; status: 'pending' | 'loading' | 'ready' | 'error' | 'ending'; summaryReady: boolean; isEmpty?: boolean }
 /** What "Keep me signed in" remembers. Passwords are never saved. */
 export interface SavedCredentials { username: string }
@@ -260,7 +262,7 @@ export interface NoviAPI {
   /** For the detached viewer: the files changed in the review it is showing. */
   getReviewChanges(fromVersionId: string): Promise<Result<Array<{ fileId: string; operation: ChangeOperation; rootName: string; relativePath: string }>>>;
   sendReviewAction(action: { kind: 'ask' | 'revise'; text: string }): Promise<Result<void>>;
-  initializeContext(): Promise<Result<Snapshot>>;
+  initializeContext(retry?: boolean): Promise<Result<Snapshot>>;
   endContext(): Promise<Result<Snapshot>>;
   session(): Promise<Result<Snapshot>>;
   signIn(username: string, password: string, keepSignedIn?: boolean): Promise<Result<Snapshot>>;

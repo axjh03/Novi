@@ -3,12 +3,12 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, Copy, CreditCard, Mail } from 'lucide-react';
-import { CONTACT_EMAIL, referralCode, mailto, PLANS, type PlanId } from '@/lib/site';
+import { CONTACT_EMAIL, PURCHASE_HELP, referralCode, mailto, PLANS, type PlanId } from '@/lib/site';
 import styles from './get-access.module.css';
 
 export default function AccessRequest({ initialPlan, initialReferral = '' }: { initialPlan: PlanId; initialReferral?: string }) {
   const [plan, setPlan] = useState<PlanId>(initialPlan);
-  const [step, setStep] = useState<'details' | 'payment'>('details');
+  const [step, setStep] = useState<'details' | 'payment' | 'help'>('details');
   const [referral, setReferral] = useState(initialReferral);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -68,6 +68,7 @@ export default function AccessRequest({ initialPlan, initialReferral = '' }: { i
           <li><a href="#plans"><span><Check size={13} aria-hidden="true" /></span>Choose a plan</a></li>
           <li aria-current={step === 'details' ? 'step' : undefined}><span>2</span>Your details</li>
           <li aria-current={step === 'payment' ? 'step' : undefined}><span>3</span>Payment review</li>
+          <li aria-current={step === 'help' ? 'step' : undefined}><span>4</span>Get help</li>
         </ol>
         <div className={styles.checkoutGrid}>
           <div className={styles.checkoutMain}>
@@ -81,7 +82,7 @@ export default function AccessRequest({ initialPlan, initialReferral = '' }: { i
                 <button className={styles.primary} type="submit">Continue to payment review <ArrowRight size={16} aria-hidden="true" /></button>
                 <p className={styles.hint}>No charge is made here. Your details stay in this page until you send the email.</p>
               </form>
-            ) : (
+            ) : step === 'payment' ? (
               <div>
                 <button type="button" className={styles.back} onClick={() => { setStep('details'); requestAnimationFrame(() => document.querySelector<HTMLInputElement>('input[name="name"]')?.focus()); }}><ArrowLeft size={15} aria-hidden="true" /> Edit your details</button>
                 <div className={styles.paymentHeading}><h3 id="payment-title" tabIndex={-1}>Payment review</h3><span className={styles.previewBadge}>Preview only</span></div>
@@ -91,9 +92,18 @@ export default function AccessRequest({ initialPlan, initialReferral = '' }: { i
                   <p>•••• &nbsp; •••• &nbsp; •••• &nbsp; 4242</p>
                   <small>Example card · No payment information collected</small>
                 </div>
-                <p className={styles.paymentNote}>This is a preview of the payment step. Online payment is not connected. Send your request below to arrange payment and account activation with our team.</p>
-                <a className={styles.primary} href={mailto(subject, body)}><Mail size={16} aria-hidden="true" /> Request payment details</a>
+                <p className={styles.paymentNote}>This is a purchase preview. No card information is collected and no charge will be made. Manual access is available through our team.</p>
+                <button type="button" className={styles.primary} onClick={() => { setStep('help'); requestAnimationFrame(() => document.getElementById('purchase-help-title')?.focus()); }}>Continue to checkout <ArrowRight size={16} aria-hidden="true" /></button>
+                <p><a className={styles.back} href={mailto(subject, body)}><Mail size={16} aria-hidden="true" /> Arrange manual access</a></p>
                 <details className={styles.emailPreview}><summary>View or copy your request</summary><p>To: <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a><br />Subject: {subject}</p><pre>{body}</pre><button type="button" className={styles.secondary} onClick={() => void copy()}><Copy size={15} aria-hidden="true" />Copy email</button><p role="status">{copyStatus}</p></details>
+              </div>
+            ) : (
+              <div>
+                <button type="button" className={styles.back} onClick={() => { setStep('payment'); requestAnimationFrame(() => document.getElementById('payment-title')?.focus()); }}><ArrowLeft size={15} aria-hidden="true" /> Back to payment review</button>
+                <h3 id="purchase-help-title" tabIndex={-1}>Online checkout is coming soon</h3>
+                <p role="status" className={styles.paymentNote}>{PURCHASE_HELP}</p>
+                <p className={styles.hint}>No payment was taken and no license was issued. Your {selected.name} plan selection is ready to share with us.</p>
+                <a className={styles.primary} href={mailto(subject, body)}><Mail size={16} aria-hidden="true" /> Contact the developer</a>
               </div>
             )}
           </div>

@@ -185,6 +185,7 @@ export class ManagedAuthService {
         account = { ...user, salt: '', passwordHash: '', conversations: [], settings: { displayName: user.name, theme: 'system', clickThroughShortcut: DEFAULT_CLICK_THROUGH_SHORTCUT, connections: [], activeConnectionId: null, onboardingComplete: true } };
         this.storage.data.accounts.push(account);
       }
+      const before = JSON.stringify([this.current, account.settings.connections, account.settings.modelRoles, account.settings.activeConnectionId, account.settings.onboardingComplete, this.storage.data.currentUserId]);
       const oldConnections = account.settings.connections;
       const connections = result.credentials.map(({ apiKey: _secret, ...c }) => {
         const old = oldConnections.find(old => old.id === c.id && old.provider === c.provider && old.baseUrl === c.baseUrl);
@@ -204,7 +205,9 @@ export class ManagedAuthService {
       account.settings.onboardingComplete = true;
       if (!connections.some(c => c.id === account!.settings.activeConnectionId && c.enabled)) account.settings.activeConnectionId = connections.find(c => c.enabled)?.id || null;
       this.credentials.setManaged(user.id, result.credentials);
-      this.storage.data.currentUserId = user.id; this.storage.save();
+      this.storage.data.currentUserId = user.id;
+      const after = JSON.stringify([user, account.settings.connections, account.settings.modelRoles, account.settings.activeConnectionId, account.settings.onboardingComplete, this.storage.data.currentUserId]);
+      if (before !== after) this.storage.save();
       this.current = user; this.lastChecked = Date.now(); this.offlineSince = null;
     })().finally(() => { if (this.pending?.promise === promise) this.pending = null; });
     this.pending = { generation, promise };

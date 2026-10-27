@@ -79,6 +79,8 @@ Activity shows only account and license changes, including password resets and l
 
 Purchases use admin-approved requests with quantity, plan and term. Approval atomically issues the requested licenses on that plan; a request cannot be fulfilled twice. This implementation does not charge cards or imply a successful payment. Automated checkout requires a payment provider, pricing, and verified payment webhooks.
 
+The public purchase preview lets visitors choose a plan, enter contact details, review pricing, and continue to a final help screen: “Online payment isn't ready yet. Call MUKUL KAWADI WALA, the developer, for help.” Its email handoff supports manual access. It collects no payment details and never creates accounts or licenses. The proposed manual and automatic license logic is in [docs/license-flow.md](../docs/license-flow.md).
+
 ## Sessions and JWTs
 
 Passwords use bcrypt with cost 12, a 12-character minimum, and a 72-byte maximum. Usernames are case-insensitive. Failed sign-in attempts are throttled in the database (10 attempts per username per 15 minutes).
@@ -132,7 +134,7 @@ TEST_DATABASE_URL=postgresql://user@localhost:5432/scratch npm run test:access
 TEST_DATABASE_URL=postgresql://user@localhost:5432/scratch npm run test:throttle
 ```
 
-`test:access` and `test:throttle` need a disposable Postgres database; each creates its own schema there and drops it afterwards, and skips when `TEST_DATABASE_URL` is unset. `test:access` builds its schema from the real migrations, so it also checks the database protection rules. Sign-in allows 10 attempts per address and 50 per account every 15 minutes, so locking an account out takes several addresses. The client address comes from `x-real-ip` / `x-forwarded-for`, which Vercel overwrites; other forwarding headers are ignored because clients can forge them.
+`test:access` always runs the transaction-lock concurrency checks with a mocked database. Its database lifecycle test and `test:throttle` need a disposable Postgres database; each creates its own schema there and drops it afterwards, and skips when `TEST_DATABASE_URL` is unset. The lifecycle test builds its schema from the real migrations, so it also checks the database protection rules. Sign-in allows 10 attempts per address and 50 per account every 15 minutes, so locking an account out takes several addresses. The client address comes from `x-real-ip` / `x-forwarded-for`, which Vercel overwrites; other forwarding headers are ignored because clients can forge them.
 
 Production runs on Supabase PostgreSQL, and Vercel builds never change the database. Apply schema changes with migrations (`npm run db:deploy`), never `prisma db push`, and take a backup first: the free plan has no automatic backups, so use `pg_dump`. The desktop launch environment must set `NOVI_ACCESS_URL` to the server's HTTPS origin. No live payment processing or paid-provider smoke call is included.
 

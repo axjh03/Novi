@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { ArrowUpRight, Building2 } from 'lucide-react';
 import PublicNavbar from '@/components/PublicNavbar';
 import SiteFooter from '@/components/SiteFooter';
-import { CONTACT_EMAIL, isPlanId, referralCode, JOURNEY, mailto } from '@/lib/site';
+import { CONTACT_EMAIL, isPlanId, referralCode, JOURNEY, mailto, PURCHASE_HELP } from '@/lib/site';
 import AccessRequest from './AccessRequest';
 import styles from './get-access.module.css';
 
@@ -42,7 +42,7 @@ export default async function GetAccessPage({ searchParams }: { searchParams: Pr
             <details><summary>What does Core include for $16?</summary><p>Core includes behavioral and technical modes, résumé and document context, screenshots, audio transcription, transparency, and local history. Pro adds chat, recruiter mode, coding, system design, and eye tracking for $45/month. Ultimate adds local coding and the exclusive phone companion.</p></details>
             <details><summary>What is included in the $90 plan?</summary><p>Ultimate includes all Novi features, including coding assistance, system design, and local code context. Your AI provider bills its usage separately.</p></details>
             <details><summary>How does Lifetime work?</summary><p>Lifetime is a one-time $399 payment for the Pro toolkit. Local coding and the phone companion are exclusive to Ultimate. There is no monthly Novi subscription fee. AI provider usage is still billed separately.</p></details>
-            <details><summary>Can I pay on this page?</summary><p>The checkout currently previews your plan and payment step. It does not process a charge or collect card details. Send the prepared email and our team will arrange payment and activate your account.</p></details>
+            <details><summary>Can I pay on this page?</summary><p>The checkout previews your plan and payment step. It does not process a charge or collect card details. {PURCHASE_HELP} You can also send the prepared email to arrange manual access.</p></details>
           </div>
         </section>
         <div className={styles.spacer} />

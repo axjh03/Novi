@@ -26,6 +26,8 @@ test('all seven modes have distinct guidance and respect session instructions', 
   assert.equal(presetMode('Pipeline coding'), 'coding');
   assert.equal(presetMode('Data platform design'), 'system-design');
   for (const preset of SESSION_ROLES.flatMap(role => role.presets)) assert(isAppMode(preset.mode), preset.name);
+  const common = SESSION_ROLES.find(role => role.name === 'Any role')!;
+  for (const mode of SESSION_MODES) assert(common.presets.some(preset => preset.mode === mode.id), `${mode.name} has a question preset`);
   assert.equal(defaultPurpose(null), '');
   assert.equal(defaultPurpose('coding'), 'Coding interview.');
   assert.equal(defaultPurpose('coding', { company: ' Acme ', role: 'Software Engineer II' }), 'Coding interview for the Software Engineer II role at Acme.');

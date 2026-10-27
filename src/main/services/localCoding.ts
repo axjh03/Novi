@@ -166,7 +166,8 @@ export class LocalCodingService {
     return `API key accepted for ${connection.name} · ${models.length} models listed. Model replies have not been tested.`;
   }
 
-  async listModels(engine: unknown, connectionId: unknown): Promise<EngineModel[]> {
+  async listModels(engine: unknown, connectionId: unknown, signal?: AbortSignal): Promise<EngineModel[]> {
+    signal?.throwIfAborted();
     if (!isEngineId(engine)) throw new UserError('Choose Codex, Claude Code, or Antigravity.');
     const { connection, apiKey } = this.credential(engine, text(connectionId, 'connection', 100));
     debug.secret(apiKey);
@@ -175,15 +176,17 @@ export class LocalCodingService {
     const cacheKey = `${this.owner()}:${engine}:${connection.id}`;
     const cached = this.models.get(cacheKey);
     if (cached && Date.now() - cached.at < 10 * 60_000) { debug.event('Using cached engine model catalog', { models: cached.models.length }); return cached.models; }
-    const models = await this.agents[engine].listModels({ apiKey }, AbortSignal.timeout(60_000));
+    const timeout = AbortSignal.timeout(60_000);
+    const models = await this.agents[engine].listModels({ apiKey }, signal ? AbortSignal.any([signal, timeout]) : timeout);
+    signal?.throwIfAborted();
     if (!models.length) throw new UserError(`${ENGINES.find((item) => item.id === engine)!.label} reported no models for this connection.`);
     this.models.set(cacheKey, { at: Date.now(), models });
     debug.event('Engine model catalog loaded', { models: models.length });
     return models;
   }
 
-  private async modelInfo(binding: LocalCodingBinding) {
-    const models = await this.listModels(binding.engine, binding.connectionId);
+  private async modelInfo(binding: LocalCodingBinding, signal?: AbortSignal) {
+    const models = await this.listModels(binding.engine, binding.connectionId, signal);
     const model = models.find((item) => item.id === binding.model);
     if (!model) throw new UserError(`${binding.model} is not offered by ${ENGINES.find((item) => item.id === binding.engine)!.label} for this connection. Choose another model in the session bar.`);
     return model;
@@ -396,6 +399,7 @@ export class LocalCodingService {
     const controller = new AbortController();
     const relay = () => controller.abort();
     signal.addEventListener('abort', relay, { once: true });
+    if (signal.aborted) relay();
     const deadline = setTimeout(() => controller.abort(new Error('timeout')), TASK_TIMEOUT_MS);
     let idle = setTimeout(() => controller.abort(new Error('idle')), IDLE_TIMEOUT_MS);
     const touch = () => { clearTimeout(idle); idle = setTimeout(() => controller.abort(new Error('idle')), IDLE_TIMEOUT_MS); };
@@ -405,7 +409,8 @@ export class LocalCodingService {
       ({ apiKey } = this.credential(binding.engine, binding.connectionId));
       debug.secret(apiKey);
       debug.event('Checking engine model availability');
-      const model = await this.modelInfo(binding);
+      const model = await this.modelInfo(binding, controller.signal);
+      controller.signal.throwIfAborted();
       debug.identify({ model: binding.model });
       debug.event('Engine model ready', { effort: model.highestEffort || 'default' });
       result.reasoningEffort = model.highestEffort;
@@ -460,6 +465,7 @@ export class LocalCodingService {
       }, { apiKey });
       update('analyzing', 'Analyzing', true);
       let raw = await attempt(prompt);
+      controller.signal.throwIfAborted();
       update('validating', 'Validating the proposal', true);
       let parsed, validated, repaired = false;
       try {
@@ -472,6 +478,7 @@ export class LocalCodingService {
         update('analyzing', 'Correcting the proposal', true);
         const previous = typeof raw === 'string' ? raw : JSON.stringify(raw);
         raw = await attempt(`${prompt}\n\nYour previous answer for this request failed Novi's validation against ${base.label}:\n${error.issues.slice(0, 40).map((issue) => `- ${issue}`).join('\n')}\nRead the files again if needed and return a corrected, complete answer.\nPrevious answer (for reference):\n${previous.slice(0, 60_000)}`);
+        controller.signal.throwIfAborted();
         update('validating', 'Validating the corrected proposal', true);
         parsed = parseProposal(raw);
         validated = validateProposal(this.store, meta, base, parsed);

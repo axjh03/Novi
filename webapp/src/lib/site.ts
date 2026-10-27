@@ -1,6 +1,7 @@
 // One source for the public site's journey, plans and contact links, so every page tells the same story.
 
 export const CONTACT_EMAIL = 'getnoviapp@outlook.com';
+export const PURCHASE_HELP = "Online payment isn't ready yet. Call MUKUL KAWADI WALA, the developer, for help.";
 export const INSTAGRAM_URL = 'https://instagram.com/getnoviapp';
 
 export function mailto(subject: string, body?: string) {

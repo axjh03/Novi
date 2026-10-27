@@ -296,7 +296,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
 
   async function submit(event?: FormEvent, draw = false, addedImage?: ImageAttachment) {
     event?.preventDefault();
-    if (busy || attaching || sending.current || localTransition.current) {
+    if (busy || attaching || sending.current) {
       if (addedImage) setImages((current) => [...current, addedImage]);
       return;
     }
@@ -311,7 +311,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
       setImages([]);
       // The box stays usable while the answer streams; keep the cursor there for the next question.
       textarea.current?.focus();
-      const success = await onSend(sentText, sentImages);
+      const success = await onSend(sentText, sentImages).catch((cause) => { setError(errorText(cause)); return false; });
       if (!success) {
         // Put the unsent message back ahead of anything typed or attached since.
         textRef.current = draft.current.restore(rawText); setText(textRef.current);
@@ -373,7 +373,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
               <Camera size={14} />
             </button>
 
-            {appMode === 'system-design' && <button type="button" className="composer-quick-btn composer-diagram" disabled={busy || attaching || localStarting || localStopping} onClick={() => void submit(undefined, true)} aria-label="Draw / update diagram" title="Draw / update diagram"><Network size={14} /></button>}
+            {appMode === 'system-design' && <button type="button" className="composer-quick-btn composer-diagram" disabled={busy || attaching} onClick={() => void submit(undefined, true)} aria-label="Draw / update diagram" title="Draw / update diagram"><Network size={14} /></button>}
             <div className="composer-audio-source composer-local-control">
               <button type="button" className={`composer-quick-btn composer-mic ${localActive ? 'recording' : ''}`} onClick={() => void toggleListening()}
                 disabled={localStarting || localStopping} aria-pressed={localActive}
@@ -432,7 +432,6 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
           value={text}
           maxLength={100000}
           // Typing stays possible while an answer streams; submit() blocks sending until it finishes.
-          disabled={localStarting || localStopping}
           onChange={(e) => {
             draft.current.edit(e.target.value);
             textRef.current = e.target.value;
@@ -465,7 +464,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
               type="submit"
               className="send-button"
               aria-label="Send message"
-              disabled={attaching || localStarting || localStopping || (!localActive && !text.trim() && !images.length)}
+              disabled={attaching || (!text.trim() && !images.length)}
             >
               <ArrowUp size={20} />
             </button>

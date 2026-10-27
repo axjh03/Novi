@@ -484,14 +484,16 @@ export function registerIPC(
     if (missing) throw new UserError(`The folder “${missing.name}” was moved or deleted. Choose your folders again, then save the profile.`);
     return context.loadFolders(profile.folders.map((folder) => folder.path));
   });
-  handle('initialize-context', async (_value, event, timing) => {
+  handle('initialize-context', async (retry, event, timing) => {
     const { context, chat } = get();
+    if (retry !== undefined && typeof retry !== 'boolean') throw new UserError('Invalid session retry.');
+    if (retry) { chat.assertIdle(); context.retryInitialization(); }
     const session = context.assertActive();
     if (!context.initialization && session.status === 'pending') {
       session.status = 'loading';
       const stop = () => chat.stop();
       event.sender.once('destroyed', stop);
-      context.initialization = chat.send({ conversationId: null, content: context.prompt, imageIds: [] }, (data) => {
+      context.initialization = chat.initializeContext((data) => {
         if (!event.sender.isDestroyed()) event.sender.send('chat-event', data);
       }, timing).then(() => context.completeInitialization()).catch((error) => { session.status = 'error'; throw error; })
         .finally(() => event.sender.removeListener('destroyed', stop));

@@ -3,10 +3,21 @@ import { test } from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { c } from 'tar';
 import { EngineInstaller, extractRelease, newerVersion, validateRelease } from '../src/main/services/codingAgents/install';
 import { CODEX_TRIPLES, engineRuntime } from '../src/main/services/codingAgents/runtime';
+
+test('development finds Antigravity on PATH without a second managed installation', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'novi-agy-path-'));
+  const original = process.env.PATH;
+  t.after(() => { if (original === undefined) delete process.env.PATH; else process.env.PATH = original; rmSync(directory, { recursive: true, force: true }); });
+  const executable = join(directory, process.platform === 'win32' ? 'agy.exe' : 'agy');
+  writeFileSync(executable, 'runtime fixture');
+  process.env.PATH = `${directory}${delimiter}${original ?? ''}`;
+  const runtime = await engineRuntime('antigravity', { packaged: false, resourcesPath: '' });
+  assert.equal(runtime.executable, executable);
+});
 
 test('agent updates compare numeric versions without treating platform suffixes as updates', () => {
   assert.equal(newerVersion('0.163.0', '0.162.1-linux-x64'), true);

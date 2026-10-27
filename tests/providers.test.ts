@@ -270,7 +270,7 @@ test('version-one configuration migrates without losing model, endpoint, profile
     assert.equal(migrated.current().settings.connections[0].baseUrl, 'http://localhost:9999/v1');
     assert.equal(migrated.current().settings.theme, 'dark');
     assert.equal(migrated.current().conversations[0].id, 'kept');
-    assert.equal(migrated.data.version, 2);
+    assert.equal(migrated.data.version, 3);
     assert.equal(new Storage(directory).current().settings.connections.length, 1);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

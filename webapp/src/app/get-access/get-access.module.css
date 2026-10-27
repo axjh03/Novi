@@ -31,7 +31,7 @@
 .checkoutHeading { display:flex; align-items:end; justify-content:space-between; gap:24px; margin-bottom:28px; }
 .checkoutHeading h2,.section>h2 { margin:12px 0 0; font-size:clamp(28px,3vw,38px); font-weight:500; letter-spacing:-.04em; }
 .checkoutHeading>p { color:var(--muted); font-size:13px; line-height:1.8; }
-.progress { display:flex; gap:36px; list-style:none; padding:20px 26px; margin:0; border:1px solid var(--line); border-radius:10px 10px 0 0; background:var(--soft); }
+.progress { display:flex; flex-wrap:wrap; gap:20px 36px; list-style:none; padding:20px 26px; margin:0; border:1px solid var(--line); border-radius:10px 10px 0 0; background:var(--soft); }
 .progress li,.progress a { display:flex; align-items:center; gap:9px; color:var(--muted); font-size:12px; }
 .progress span { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border:1px solid var(--line); border-radius:50%; font-size:11px; }
 .progress li[aria-current] { color:var(--ink); font-weight:700; }

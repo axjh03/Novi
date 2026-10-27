@@ -13,9 +13,9 @@ async function main() {
   mkdirSync(source);
   writeFileSync(join(source, 'brief.txt'), 'SESSION_SOURCE: Project Cedar uses blue buttons.');
   const imagePath = join(directory, 'sample.png');
-  writeFileSync(imagePath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1XkAAAAASUVORK5CYII=', 'base64'));
+  writeFileSync(imagePath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==', 'base64'));
   const requests: Array<{ messages: Array<{ content: unknown }>; model: string }> = [];
-  let rejectPing = false, pings = 0, confirmedAt = 0, contextSentAt = 0, diagramRequests = 0;
+  let rejectPing = false, rejectSetup = true, pings = 0, confirmedAt = 0, contextSentAt = 0, diagramRequests = 0;
   const server = createServer(async (request, response) => {
     if (request.url?.startsWith('/api/control/')) {
       response.writeHead(200, { 'Content-Type': 'application/json' });
@@ -49,6 +49,11 @@ async function main() {
       response.writeHead(200, { 'Content-Type': 'text/event-stream' });
       response.end('data: ' + JSON.stringify({ choices: [{ delta: { content: 'OK' }, finish_reason: 'stop' }] }) + '\n\ndata: [DONE]\n\n');
       return;
+    }
+    if (rejectSetup) {
+      rejectSetup = false;
+      response.writeHead(503, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ error: {} })); return;
     }
     if (!requests.length) contextSentAt = Date.now();
     requests.push(payload);
@@ -107,8 +112,9 @@ async function main() {
     assert.equal(await page.getByRole('dialog', { name: 'Phone companion' }).count(), 0);
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'API Management', exact: true }).click();
-    await page.getByText('Shared by Test owner · Key hidden').waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Selected', exact: true }).count(), 1);
+    await page.getByText('Shared by Test owner', { exact: true }).waitFor();
+    await page.getByText('Keys are hidden and managed in your web account.', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Deselect Local test', exact: true }).getAttribute('aria-pressed'), 'true');
     assert.equal(await page.getByRole('button', { name: 'Add provider' }).count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Edit Local test' }).count(), 0);
     assert(!JSON.stringify(await page.evaluate(() => window.novi.session())).includes('fixture-key'));
@@ -127,6 +133,10 @@ async function main() {
     await page.getByRole('button', { name: 'Choose folders' }).click();
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.getByLabel('Purpose').fill('Review the Cedar interface.');
+    assert.equal(await page.getByRole('group', { name: 'Any role presets', exact: true }).getByRole('button').count(), 7);
+    await page.getByRole('slider', { name: /Word choice/ }).focus();
+    await page.keyboard.press('Home');
+    assert.equal(await page.getByRole('slider', { name: /Word choice/ }).getAttribute('aria-valuetext'), 'Plain');
     for (const label of ['Software Engineer', 'Data Analyst', 'Data Scientist', 'Data Engineer']) {
       await page.getByLabel('Role type', { exact: true }).selectOption({ label });
       assert.equal(await page.getByRole('group', { name: `${label} presets`, exact: true }).getByRole('button').count(), 4);
@@ -142,6 +152,15 @@ async function main() {
     assert.equal(await page.getByLabel('Additional instructions details').inputValue(), 'CUSTOM_CONSTRAINT: Explain jargon in plain English.', 'browsing presets preserves edits');
     assert.equal(await page.getByLabel('Purpose').inputValue(), 'Review the Cedar interface.');
     await page.getByLabel('Role / perspective details').fill('Keep the answer concise.');
+    await page.getByLabel('Profile name', { exact: true }).fill('Cedar plain');
+    await page.getByRole('button', { name: 'Save profile', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Saved “Cedar plain”' }).waitFor();
+    const profile = await page.evaluate(async () => {
+      const result = await window.novi.session();
+      if (!result.ok) throw new Error(result.error);
+      return result.value.settings?.sessionProfiles?.find(profile => profile.name === 'Cedar plain');
+    });
+    assert.equal(profile?.vocabulary, 'plain');
     rejectPing = true;
     await page.getByRole('button', { name: 'Start session', exact: true }).click();
     await page.getByRole('alert').filter({ hasText: 'Your API key was rejected' }).waitFor();
@@ -149,6 +168,7 @@ async function main() {
     rejectPing = false;
     const viewerEvent = windowAt('#/code-viewer');
     await page.getByRole('button', { name: 'Start session', exact: true }).click();
+    await page.getByRole('button', { name: 'Retry session setup', exact: true }).click();
     await page.getByText('Understood the loaded context. Cedar uses blue buttons.', { exact: true }).waitFor();
     await page.getByLabel('Message Novi').waitFor();
     assert.equal(trayCount(), 0, 'controls start attached to the chat');
@@ -189,6 +209,7 @@ async function main() {
     assert.match(JSON.stringify(requests[0]), /Keep the answer concise/);
     assert.match(JSON.stringify(requests[0]), /CUSTOM_CONSTRAINT/);
     assert.match(JSON.stringify(requests[0]), /time and space complexity/);
+    assert.match(JSON.stringify(requests[0]), /Vocabulary: Use familiar words and short sentences/);
     const summary = join(env.NOVI_DATA_DIR, 'context-session', 'AI Context.md');
     assert(existsSync(summary));
     assert(readFileSync(join(env.NOVI_DATA_DIR, 'data.json'), 'utf8').includes('SESSION_SOURCE'));
@@ -213,6 +234,36 @@ async function main() {
     assert.match(JSON.stringify(requests[1]), /SESSION_SOURCE/);
     assert.match(JSON.stringify(requests[1]), /CUSTOM_CONSTRAINT/);
     assert.match(JSON.stringify(requests[1]), /data:image\/png;base64/);
+    // Hold both listening transitions: typed questions must remain sendable while speech is busy.
+    await app.evaluate(({ ipcMain }) => {
+      ipcMain.removeHandler('interview-start'); ipcMain.removeHandler('interview-stop');
+      ipcMain.handle('interview-start', () => new Promise(resolve => {
+        (globalThis as any).finishListeningStart = () => resolve({ ok: false, error: 'Simulated speech startup failure.' });
+      }));
+      ipcMain.handle('interview-stop', () => new Promise(resolve => {
+        (globalThis as any).finishListeningStop = () => resolve({ ok: true, value: null });
+        (globalThis as any).listeningStopStarted?.();
+      }));
+    });
+    await tray.getByLabel('Audio settings', { exact: true }).click();
+    await tray.getByLabel('Audio transcription engine').selectOption('local');
+    await tray.keyboard.press('Escape');
+    await tray.getByRole('button', { name: 'Start listening', exact: true }).click();
+    await tray.getByRole('button', { name: 'Starting listening', exact: true }).waitFor();
+    await tray.getByLabel('Message Novi').fill('Send while listening starts.');
+    await tray.getByLabel('Message Novi').press('Enter');
+    await page.getByText('Your button should be blue.', { exact: true }).nth(1).waitFor();
+    assert.equal(requests.at(-1)!.messages.at(-1)!.content, 'Send while listening starts.');
+    await app.evaluate(() => new Promise<void>(resolve => {
+      (globalThis as any).listeningStopStarted = resolve;
+      (globalThis as any).finishListeningStart();
+    }));
+    await tray.getByLabel('Message Novi').fill('Send while listening stops.');
+    await tray.getByRole('button', { name: 'Send message', exact: true }).click();
+    await page.getByText('Your button should be blue.', { exact: true }).nth(2).waitFor();
+    assert.equal(requests.at(-1)!.messages.at(-1)!.content, 'Send while listening stops.');
+    await app.evaluate(() => (globalThis as any).finishListeningStop());
+    await tray.getByRole('button', { name: 'Start listening', exact: true }).waitFor();
     const diagramWindowEvent = windowAt('#/code-viewer');
     await tray.getByLabel('Change conversation mode', { exact: true }).click();
     await tray.getByRole('button', { name: 'System Design', exact: true }).click();
@@ -220,17 +271,17 @@ async function main() {
     await diagramWindow.getByRole('region', { name: 'Diagram viewer' }).waitFor();
     await tray.getByLabel('Message Novi').fill('Design a chat service with an API and database.');
     await tray.getByRole('button', { name: 'Draw / update diagram', exact: true }).click();
-    await diagramWindow.locator('.mermaid-diagram svg').waitFor();
+    await diagramWindow.locator('.mermaid-viewport svg').waitFor();
     assert.equal(await diagramWindow.locator('.diagram-viewer').evaluate(el => getComputedStyle(el).backgroundColor.startsWith('rgb(')), true);
-    assert.equal(await diagramWindow.locator('.mermaid-diagram svg').count(), 1);
+    assert.equal(await diagramWindow.locator('.mermaid-viewport svg').count(), 1);
     assert.equal(await diagramWindow.evaluate(() => getComputedStyle(document.documentElement).backgroundColor.startsWith('rgb(')), true);
     await tray.getByRole('button', { name: 'Draw / update diagram', exact: true }).click();
     await page.getByText('No diagram changes needed', { exact: true }).waitFor();
-    assert.equal(await diagramWindow.locator('.mermaid-diagram svg').count(), 1);
+    assert.equal(await diagramWindow.locator('.mermaid-viewport svg').count(), 1);
     await diagramWindow.getByRole('button', { name: 'Close Architecture', exact: true }).click();
-    assert.equal(await diagramWindow.locator('.mermaid-diagram svg').count(), 0);
+    assert.equal(await diagramWindow.locator('.mermaid-viewport svg').count(), 0);
     await diagramWindow.getByRole('button', { name: 'Reopen closed diagrams' }).click();
-    await diagramWindow.locator('.mermaid-diagram svg').waitFor();
+    await diagramWindow.locator('.mermaid-viewport svg').waitFor();
     assert.equal(await diagramWindow.locator('.diagram-viewer').evaluate(el => getComputedStyle(el).backgroundColor.startsWith('rgb(')), true);
     await diagramWindow.getByRole('button', { name: 'Close diagram window' }).click({ noWaitAfter: true }).catch(() => { /* the viewer window closes */ });
     await tray.getByLabel('Change conversation mode', { exact: true }).click();
@@ -238,13 +289,14 @@ async function main() {
     await tray.keyboard.press('Escape');
     const reopenedEvent = windowAt('#/code-viewer');
     await page.getByRole('button', { name: /Open diagrams/ }).click();
-    await (await reopenedEvent).locator('.mermaid-diagram svg').waitFor();
+    await (await reopenedEvent).locator('.mermaid-viewport svg').waitFor();
     const savedBeforeNewSession = await page.evaluate(async () => {
       const result = await window.novi.session();
       if (!result.ok) throw new Error(result.error);
       return result.value.conversations;
     });
     await page.getByRole('button', { name: 'New session', exact: true }).click();
+    await page.getByRole('alertdialog', { name: 'End context session' }).getByRole('button', { name: 'End session', exact: true }).click();
     await page.getByRole('heading', { name: 'Session setup' }).waitFor();
     const setupSteps = page.getByRole('navigation', { name: 'Session setup' });
     for (const name of ['Model', 'Documents', 'Instructions']) await setupSteps.getByRole('button', { name }).waitFor();
@@ -259,10 +311,13 @@ async function main() {
     assert.equal(await page.getByLabel('Message Novi').count(), 0);
     assert.equal(trayCount(), 0, 'ending the session closes the tray');
     assert.equal(await page.getByRole('button', { name: 'Start an empty chat instead', exact: true }).count(), 1);
+    await page.getByRole('button', { name: 'Edit Cedar plain', exact: true }).click();
+    assert.equal(await page.getByRole('slider', { name: /Word choice/ }).getAttribute('aria-valuetext'), 'Plain', 'saved profiles restore vocabulary');
+    await page.getByRole('navigation', { name: 'Session setup', exact: true }).getByRole('button', { name: /^Model/ }).click();
     for (const mode of ['Recruiter Call', 'Technical Phone/Video Screen', 'Behavioral Interview', 'System Design', 'Code', 'Chat']) {
       await page.getByRole('button', { name: 'Next', exact: true }).click();
       await app.evaluate(({ dialog }, source) => { dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [source] })) as typeof dialog.showOpenDialog; }, source);
-      await page.getByRole('button', { name: 'Choose folders', exact: true }).click();
+      await page.getByRole('button', { name: /^(Choose|Replace) folders$/ }).click();
       await page.getByRole('button', { name: 'Next', exact: true }).click();
       await page.getByLabel('Purpose').fill('Review Cedar');
       await page.locator('.context-mode-options').getByRole('button', { name: new RegExp('^' + mode) }).click();

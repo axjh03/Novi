@@ -1,5 +1,11 @@
-import type { AppMode, BehavioralFramework, ChatMessage } from './types';
+import type { AppMode, BehavioralFramework, ChatMessage, VocabularyLevel } from './types';
 import { DIAGRAM_SYNTAX } from './diagrams';
+
+export const VOCABULARY_LEVELS: ReadonlyArray<{ id: VocabularyLevel; name: string; instructions: string }> = [
+  { id: 'plain', name: 'Plain', instructions: 'Use familiar words and short sentences. Explain technical terms in everyday language when they are needed. Keep the reasoning and technical detail appropriate to the question and role.' },
+  { id: 'everyday', name: 'Everyday', instructions: 'Use natural, conversational language. Include common professional terms and briefly explain unfamiliar ones. Keep answers easy to say aloud.' },
+  { id: 'technical', name: 'Technical', instructions: 'Use precise professional and technical vocabulary appropriate to the question and target role. Explain rare terms on first use. Keep sentences clear and avoid inflated or needlessly complex wording.' },
+];
 
 export const SESSION_MODES: Array<{ id: AppMode; name: string; description: string; instructions: string }> = [
   { id: 'normal', name: 'Chat', description: 'General questions and everyday help.', instructions: 'Lead with a direct answer. Keep ordinary answers and follow-ups concise unless the user asks for detail. Preserve user constraints and needed correctness checks.' },

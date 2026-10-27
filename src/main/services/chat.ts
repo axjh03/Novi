@@ -39,8 +39,17 @@ export class ChatService {
     return result.match(/^```(?:mermaid)?\s*\n([\s\S]*?)\n```$/i)?.[1].trim() ?? result;
   }
   async send(value: unknown, emit: (event: ChatEvent) => void, timing: ChatLatency = {}) {
+    return this.sendPrepared(sendInput(value), emit, timing);
+  }
+  async initializeContext(emit: (event: ChatEvent) => void, timing: ChatLatency = {}) {
+    if (!this.context?.prompt) throw new UserError('Start a context session first.');
+    this.context.assertActive();
+    // Main-owned documents already passed file validation; they are not a typed chat message.
+    return this.sendPrepared({ conversationId: null, content: this.context.prompt, imageIds: [] }, emit, timing);
+  }
+  private async sendPrepared(input: SendInput, emit: (event: ChatEvent) => void, timing: ChatLatency) {
     this.assertIdle();
-    const input = sendInput(value), user = this.storage.current();
+    const user = this.storage.current();
     debug.identify({ conversationId: input.conversationId || undefined });
     if (!user.settings.onboardingComplete) throw new UserError('Complete your AI setup first.');
     if (input.appMode === 'local-coding') return this.sendLocalCoding(input, emit);
@@ -139,6 +148,7 @@ export class ChatService {
     if (!this.localCoding) throw new UserError('Local Coding is unavailable.');
     const conversation = this.storage.conversations.find((item) => item.id === input.conversationId);
     if (!conversation?.localCoding) throw new UserError('Start a Local Coding session first: choose a working folder in Local Coding.');
+    if (!conversation.context && this.context?.session?.status === 'ready') conversation.context = this.context.savedContext;
     if (!input.localCoding) throw new UserError('Choose which version the request should use.');
     if (!input.content.trim()) throw new UserError('Write what you want the coding engine to do.');
     const images = input.imageIds.map((id) => this.images.resolve(id));

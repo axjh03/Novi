@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import type { EngineId } from '../../../shared/localCoding';
 
 // Prefer runtimes installed in Settings, then bundled engines or development dependencies.
@@ -45,7 +45,10 @@ function developmentRuntime(engine: EngineId): EngineRuntime {
     return { executable: join(root, 'bin', exe('agy')), pathDirs: [], version: JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version };
   } catch {
     // Fall back to resolving `agy` from system PATH in development.
-    return { executable: exe('agy'), pathDirs: [], version: 'unknown' };
+    const executable = (process.env.PATH ?? '').split(delimiter).map(dir => resolve(dir, exe('agy'))).find(path => {
+      try { return statSync(path).isFile(); } catch { return false; }
+    });
+    return { executable: executable ?? exe('agy'), pathDirs: [], version: 'unknown' };
   }
 }
 

@@ -117,6 +117,11 @@ test('access lifecycle: hierarchy, isolation, permanent licenses and exclusive d
     await assert.rejects(mutate(req(a, 'PATCH'), 'requests', order.id, { status: 'APPROVED' }), /already been processed/);
     assert.equal(await db.accessLicense.count({ where: { ownerId: subcorp.id } }), 2);
     assert.equal(await db.accessLicense.count({ where: { ownerId: subcorp.id, plan: 'ULTIMATE' } }), 2, 'approved licenses use the requested plan');
+    await mutate(req(sub), 'requests', undefined, { quantity: 2, plan: 'CORE', duration: 1, unit: 'MONTHS' });
+    const concurrentOrder = await db.licenseRequest.findFirstOrThrow({ where: { ownerId: subcorp.id, status: 'PENDING' } });
+    const approvals = await Promise.allSettled([1, 2].map(() => mutate(req(a, 'PATCH'), 'requests', concurrentOrder.id, { status: 'APPROVED' })));
+    assert.equal(approvals.filter(result => result.status === 'fulfilled').length, 1);
+    assert.equal(await db.accessLicense.count({ where: { ownerId: subcorp.id, plan: 'CORE' } }), 2, 'overlapping approvals issue the requested quantity once');
 
     // Plans: issuing, changing, Lifetime, purchase requests, and what each kind of desktop app is allowed.
     const o = (await sign(other.username)).token;
@@ -184,7 +189,7 @@ test('access lifecycle: hierarchy, isolation, permanent licenses and exclusive d
     await changePlan(core.id, { plan: 'LIFETIME' });
     assert.deepEqual((await checkIn(updatedToken, true)).features, ['technical', 'behavioral', 'normal', 'recruiter', 'coding', 'system-design', 'eye-tracking']);
     await assert.rejects(checkIn(updatedToken, false), /on the Lifetime plan/);
-    const subLicense = await db.accessLicense.findFirstOrThrow({ where: { ownerId: subcorp.id } });
+    const subLicense = await db.accessLicense.findFirstOrThrow({ where: { ownerId: subcorp.id, plan: 'ULTIMATE' } });
     const subdesktop = await create(sub, 'subdesktop', 'LICENSE', subcorp.id, subLicense.id);
     await mutate(req(c), 'credentials', undefined, { provider: 'ANTHROPIC', nickname: 'Corp key', model: 'test-model', secret: 'corp-secret' });
     await mutate(req(sub), 'credentials', undefined, { provider: 'GEMINI', nickname: 'Studio key', model: 'test-model', secret: 'studio-secret' });

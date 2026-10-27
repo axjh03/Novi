@@ -18,7 +18,8 @@ test('source snapshots and instructions survive sessions and reopening saved con
   const root = mkdtempSync(join(tmpdir(), 'novi-context-test-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const source = join(root, 'source'); mkdirSync(source);
-  writeFileSync(join(source, 'reference.txt'), 'CONFIDENTIAL_REFERENCE: Project Cedar uses blue buttons.');
+  const reference = `CONFIDENTIAL_REFERENCE: Project Cedar uses blue buttons.\n${'Large source text. '.repeat(8000)}`;
+  writeFileSync(join(source, 'reference.txt'), reference);
   writeFileSync(join(source, 'ignore.csv'), 'DO_NOT_SEND');
   const storage = new Storage(join(root, 'app'));
   await new LocalAuthService(storage).signUp('Test', 'context@example.com', 'test-password');
@@ -44,7 +45,11 @@ test('source snapshots and instructions survive sessions and reopening saved con
     return new Response(JSON.stringify({ choices: [{ message: { content: '# Understood\nCedar uses blue buttons. No other files were provided.' }, finish_reason: 'stop' }] }), { headers: { 'Content-Type': 'application/json' } });
   });
   const chat = new ChatService(storage, { get: () => '' }, { commit() {}, dataUrl() {}, resolve() {} }, context);
-  await chat.send({ conversationId: null, content: context.prompt, imageIds: [] }, () => {});
+  assert(context.prompt.length > 100_000, 'large sources pass both former character limits');
+  await chat.initializeContext(() => {});
+  assert.equal(requests[0].messages.at(-1)!.content, context.prompt, 'the full context reaches the provider');
+  assert.equal(context.savedContext.documents[0].content, reference);
+  await assert.rejects(chat.send({ conversationId: null, content: 'x'.repeat(100_001), imageIds: [] }, () => {}), /valid message/, 'typed messages retain their boundary validation');
   context.completeInitialization();
   assert.equal(context.session.status, 'ready');
   assert.match(readFileSync(context.summaryPath, 'utf8'), /Cedar/);
@@ -92,10 +97,43 @@ test('source snapshots and instructions survive sessions and reopening saved con
 test('folder loading rejects oversized and non-text content rather than silently truncating it', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'novi-context-limits-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  writeFileSync(join(root, 'too-large.txt'), 'a'.repeat(80_001));
-  await assert.rejects(() => readContextFolders([root]), /80,000/);
+  writeFileSync(join(root, 'too-large.txt'), Buffer.alloc(10 * 1024 * 1024 + 1));
+  await assert.rejects(() => readContextFolders([root]), /10 MB/);
   writeFileSync(join(root, 'too-large.txt'), 'binary\0content');
   await assert.rejects(() => readContextFolders([root]), /plain text/);
+});
+
+test('failed context initialization can retry with the same documents and instructions', async t => {
+  const root = mkdtempSync(join(tmpdir(), 'novi-context-retry-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const source = join(root, 'source'); mkdirSync(source);
+  writeFileSync(join(source, 'notes.txt'), 'RETRY_REFERENCE');
+  const storage = new Storage(join(root, 'data'));
+  await new LocalAuthService(storage).signUp('Test', 'retry@example.test', 'test-password');
+  Object.assign(storage.current().settings, { onboardingComplete: true, activeConnectionId: 'local', connections: [{ id: 'local', name: 'Test', provider: 'compatible', baseUrl: 'http://localhost:1234/v1', model: 'test', stream: false }] });
+  const context = new ContextService(storage);
+  const folders = await context.loadFolders([source]);
+  context.begin({ folderIds: [folders[0].id], purpose: 'Keep my setup', fields: Array.from({ length: 4 }, () => ({ label: '', value: '' })) });
+  const original = context.prompt;
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => ++calls === 1
+    ? Response.json({ error: {} }, { status: 503 })
+    : Response.json({ choices: [{ message: { content: 'Ready after retry.' }, finish_reason: 'stop' }] }));
+  const chat = new ChatService(storage, { get: () => '' }, { commit() {} }, context);
+  context.initialization = chat.initializeContext(() => {}).then(() => context.completeInitialization());
+  await context.initialization;
+  assert.equal(context.session.status, 'error');
+  context.retryInitialization();
+  assert.equal(context.initialization, null);
+  assert.equal(context.session.status, 'pending');
+  assert.equal(context.prompt, original);
+  assert.deepEqual(storage.sessionConversations, []);
+  context.initialization = chat.initializeContext(() => {}).then(() => context.completeInitialization());
+  await context.initialization;
+  assert.equal(context.session.status, 'ready');
+  assert.equal(storage.current().conversations.length, 1);
+  assert.equal(context.savedContext.documents[0].content, 'RETRY_REFERENCE');
+  assert.throws(() => context.retryInitialization(), /Only a failed/);
 });
 
 test('PDF extraction includes page text without a cloud upload', async (t) => {
@@ -193,7 +231,7 @@ test('company and role join the instructions, and loaded folders can be saved by
   // Without company and role the instructions are exactly as before.
   const plain = new ContextService(storage);
   plain.begin({ folderIds: [], purpose: 'Practice', fields: fields.map((field) => ({ ...field, value: '' })) });
-  assert.match(plain.savedContext.instructions, /Session purpose: Practice\n$/);
+  assert.match(plain.savedContext.instructions, /Session purpose: Practice\nVocabulary: Use natural, conversational language/);
   assert(!/Company:|Target role:/.test(plain.prompt));
   plain.end();
 
@@ -207,15 +245,18 @@ test('company and role join the instructions, and loaded folders can be saved by
   assert.equal(sources[0].path, realpathSync(source));
   assert.deepEqual(context.folderSources([]), [], 'a profile may have no documents');
   assert.throws(() => context.folderSources(['other']), /no longer loaded/);
-  context.begin({ folderIds: [folders[0].id], purpose: 'Acme onsite', company: ' Acme ', role: 'Software Engineer II', fields });
+  context.begin({ folderIds: [folders[0].id], purpose: 'Acme onsite', company: ' Acme ', role: 'Software Engineer II', vocabulary: 'technical', fields });
   assert.match(context.prompt, /Session purpose: Acme onsite\nCompany: Acme\nTarget role: Software Engineer II\nRole \/ perspective:/);
   assert.match(context.savedContext.instructions, /Company: Acme/);
+  assert.match(context.savedContext.instructions, /Vocabulary: Use precise professional and technical vocabulary/);
   // Starting a session forgets loaded folders, so stale IDs cannot be saved later.
   assert.throws(() => context.folderSources([folders[0].id]), /no longer loaded/);
   context.end();
   assert.throws(() => context.folderSources([folders[0].id]), /Load context folders first/);
 
-  assert.deepEqual(sessionBrief({ purpose: ' Go ', fields }), { purpose: 'Go', company: '', role: '', fields: fields.map((field) => ({ label: field.label.trim(), value: field.value.trim() })) });
+  assert.deepEqual(sessionBrief({ purpose: ' Go ', fields }), { purpose: 'Go', company: '', role: '', vocabulary: 'everyday', fields: fields.map((field) => ({ label: field.label.trim(), value: field.value.trim() })) });
+  for (const vocabulary of ['plain', 'everyday', 'technical']) assert.equal(sessionBrief({ purpose: 'Go', fields, vocabulary }).vocabulary, vocabulary);
+  for (const vocabulary of ['advanced', 2, {}, null, 'toString']) assert.throws(() => sessionBrief({ purpose: 'Go', fields, vocabulary }), /vocabulary/);
   assert.throws(() => sessionBrief({ purpose: 'Go', company: 'x'.repeat(121), fields }), /company/);
   assert.throws(() => sessionBrief({ purpose: 'Go', role: 42, fields }), /target role/);
   assert.throws(() => sessionBrief({ purpose: '', fields }), /session purpose/);

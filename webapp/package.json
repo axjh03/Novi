@@ -3,6 +3,7 @@
   "version": "0.2.2",
   "private": true,
   "scripts": {
+    "predev": "npm run db:generate",
     "dev": "node scripts/run-access.mjs next dev",
     "prebuild": "node scripts/run-access.mjs prisma generate",
     "build": "node scripts/run-access.mjs next build",
@@ -14,8 +15,9 @@
     "db:seed": "node scripts/run-access.mjs seed",
     "db:deploy": "node scripts/run-access.mjs prisma migrate deploy",
     "setup": "node scripts/setup-access.mjs",
+    "pretypecheck": "npm run db:generate",
     "typecheck": "tsc --noEmit",
-    "test:access": "tsx --test tests/access.test.ts",
+    "test:access": "tsx --test tests/access.test.ts tests/access-concurrency.test.ts",
     "test:site": "node --import tsx --test tests/site.test.ts",
     "test:artifacts": "node --import tsx --test tests/artifacts.test.ts",
     "test:legacy": "node --import tsx --test tests/legacy-api.test.ts",

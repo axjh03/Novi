@@ -125,7 +125,8 @@ export async function login(body: Record<string, unknown>, req?: Request) {
   const valid = await bcrypt.compare(secret, account?.passwordHash || '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxIkqHU2zd2PcBzSVdmjCCoINHa');
   if (!account || !valid) throw new AccessError('Username or password is incorrect.', 401);
   const result = await prisma.$transaction(async db => {
-    // Re-read in the transaction so password reset/deletion cannot race session creation.
+    // Password resets update this same row, so they must wait for session creation or finish first.
+    await db.$queryRaw`SELECT "id" FROM "AccessAccount" WHERE "id" = ${account.id} FOR UPDATE`;
     const current = await db.accessAccount.findUniqueOrThrow({ where: { id: account.id } });
     if (current.passwordHash !== account.passwordHash) throw new AccessError('Credentials changed. Sign in again.', 401);
     await chain(db, current);
@@ -396,12 +397,13 @@ export async function mutate(req: Request, resource: string, id: string | undefi
         if (!['APPROVED', 'REJECTED'].includes(String(body.status))) throw new AccessError('Choose approve or reject.');
         const request = await db.licenseRequest.findUniqueOrThrow({ where: { id } });
         if (request.status !== 'PENDING') throw new AccessError('This request has already been processed.');
+        const claimed = await db.licenseRequest.updateMany({ where: { id, status: 'PENDING' }, data: { status: String(body.status) } });
+        if (claimed.count !== 1) throw new AccessError('This request has already been processed.');
         if (body.status === 'APPROVED') {
           await owner(request.ownerId);
           const requestPlan = plan(request.plan);
           for (let i = 0; i < request.quantity; i++) await db.accessLicense.create({ data: { key: licenseKey(), ownerId: request.ownerId, plan: requestPlan, expiresAt: planExpiry(requestPlan, request.duration, request.unit) } });
         }
-        await db.licenseRequest.update({ where: { id }, data: { status: String(body.status) } });
         await audit(db, actor.id, `REQUEST_${body.status}`, id); return {};
       }
     }

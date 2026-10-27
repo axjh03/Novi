@@ -8,14 +8,25 @@ export function useLocalCodingProject(binding: LocalCodingBinding | undefined, b
   const [project, setProject] = useState<ProjectState | null>(null);
   const [notice, setNotice] = useState<{ versionId: string; label: string; baseLabel: string } | null>(null);
   const projectId = binding?.projectId;
+  const selectedProject = useRef(projectId);
+  selectedProject.current = projectId;
+  const request = useRef(0);
   const errors = useRef(onError);
   errors.current = onError;
   const load = useCallback(async () => {
-    if (!projectId) { setProject(null); return; }
-    try { setProject(await unwrap(window.novi.getProjectState(projectId))); }
-    catch (cause) { setProject(null); errors.current(errorText(cause)); }
+    const current = ++request.current;
+    if (!projectId) { setProject(null); return null; }
+    try {
+      const next = await unwrap(window.novi.getProjectState(projectId));
+      if (current !== request.current || selectedProject.current !== projectId) return null;
+      setProject(next);
+      return next;
+    } catch (cause) {
+      if (current === request.current && selectedProject.current === projectId) { setProject(null); errors.current(errorText(cause)); }
+      return null;
+    }
   }, [projectId]);
-  useEffect(() => { setNotice(null); void load(); }, [load, binding?.engine, binding?.model, binding?.connectionId]);
+  useEffect(() => { setNotice(null); void load(); return () => { request.current++; }; }, [load, binding?.engine, binding?.model, binding?.connectionId]);
   // When a task ends, reload; if its result was not selected because the user moved elsewhere, say it is ready.
   const wasBusy = useRef(busy);
   useEffect(() => {
@@ -24,12 +35,16 @@ export function useLocalCodingProject(binding: LocalCodingBinding | undefined, b
     if (busy && projectId) void load();
     if (!finished || !projectId) return;
     void (async () => {
-      await load();
+      const state = await load();
+      if (!state || selectedProject.current !== projectId) return;
       const last = [...(messages ?? [])].reverse().find((message) => message.localCoding?.projectId === projectId)?.localCoding;
       if (!last?.resultingVersionId) return;
-      const state = await unwrap(window.novi.getProjectState(projectId)).catch(() => null);
-      if (state && state.selectedVersionId !== last.resultingVersionId) setNotice({ versionId: last.resultingVersionId, label: last.resultingLabel ?? 'A new iteration', baseLabel: last.baseLabel });
+      if (state.selectedVersionId !== last.resultingVersionId) setNotice({ versionId: last.resultingVersionId, label: last.resultingLabel ?? 'A new iteration', baseLabel: last.baseLabel });
     })();
   }, [busy]);
-  return { project, setProject, notice, clearNotice: () => setNotice(null), reload: load };
+  return {
+    project: project?.projectId === projectId ? project : null,
+    setProject(next: ProjectState) { if (next.projectId === selectedProject.current) setProject(next); },
+    notice, clearNotice: () => setNotice(null), reload: load,
+  };
 }
