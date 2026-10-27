@@ -6,14 +6,14 @@ import styles from './Testimonials.module.css';
 
 // These are illustrative identities and quotes, pending approved customer feedback.
 const samples = [
-  { name: 'Aarav', quote: "I was so nervous before my interview. Having my resume and project notes there helped me find the words when my mind went blank." },
-  { name: 'Ananya', quote: "I kept getting stuck when they asked why my code worked. Seeing it explained step by step made that part feel a lot less scary." },
-  { name: 'Diego', quote: "The worst feeling is going blank on something you actually know. Having my own notes right there helped me slow down and think." },
-  { name: 'Anonymous', quote: "Follow-up questions really throw me off. Being able to go back to the original question helped me stop rushing my answers." },
-  { name: 'Prisha', quote: "I'm not great with setup stuff, so using the same login on my laptop was a relief. I just wanted to get started without making another account." },
-  { name: 'Rohan', quote: "The code wasn't what stressed me out. It was explaining it while someone watched. The little explanations helped me find the words." },
-  { name: 'Valeria', quote: "I usually read a question three times and still overthink it. Sending a screenshot and working through it felt so much easier." },
-  { name: 'Anonymous', quote: "After a whole day of applications, I really didn't want another complicated setup. This felt easy enough to actually stick with." },
+  { name: 'Aarav', quote: "After weeks of silence, I finally landed a developer interview. I nearly froze on the project questions. Having my resume in Context helped me explain my own work instead of going blank." },
+  { name: 'Ananya', quote: "I got through to the next technical round! Code was the best feature for me. The explanation helped so much when they asked why my solution worked. That follow-up used to terrify me." },
+  { name: 'Diego', quote: "Finally got a second interview. Listening was honestly the standout. I could focus on what they were asking instead of trying to type every question while I was already nervous." },
+  { name: 'Anonymous', quote: "They invited me to the final round and I was so relieved. Behavioral mode helped me turn my rambling project stories into answers that actually made sense." },
+  { name: 'Prisha', quote: "I landed an interview after so many applications and really didn't want to mess it up. Screenshots were my favorite feature. Seeing the question and explanation together helped me get unstuck." },
+  { name: 'Rohan', quote: "Made it through my system design round. I usually panic when the question gets vague, but the diagrams gave me a way to explain the architecture. That feature was amazing." },
+  { name: 'Valeria', quote: "I got called back for another interview! The follow-up chat helped the most. When they changed the question, I could keep working from the same project context instead of starting over." },
+  { name: 'Anonymous', quote: "I finally cleared a technical screen I'd been dreading. Going back over the saved chat afterwards helped me see what I needed to work on before the next round. Felt a little more ready this time." },
 ];
 
 export default function Testimonials() {
