@@ -132,7 +132,9 @@ input::placeholder, textarea::placeholder { color: #8f838c; opacity: 1; }
 .license-plan-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.license-plan-heading>span{text-align:right;font-size:13px;color:var(--accent)}.license-plan-heading small{display:block;color:var(--muted)}
 .license-term-presets{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}.license-term-presets button{border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--muted);padding:8px 12px;font-size:12px}.license-term-presets button[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .license-help>p{font-size:13px;line-height:1.8;margin-bottom:18px;color:var(--muted)}.license-help>p[role=status]{color:var(--ink)}
+.individual-access{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;padding:0 24px 24px}.individual-access article{border:1px solid var(--line);border-radius:12px;padding:20px;min-width:0}.individual-access h3{margin:14px 0;overflow-wrap:anywhere}.individual-access p{font-size:13px;line-height:1.7;color:var(--muted);margin-bottom:16px}
 @media(max-width:820px){.license-paths{grid-template-columns:1fr}.license-path{padding:20px}.license-path .btn{width:100%}}
+@media(max-width:650px){.individual-access{grid-template-columns:1fr;padding:0 16px 16px}}
 
 .workspace .badge:is(.status-suspended,.status-pending){background:var(--warning-soft);color:var(--warning);border-color:#54432d}.workspace .badge:is(.status-deleted,.status-rejected){background:var(--danger-soft);color:var(--danger);border-color:var(--accent-line)}.workspace .badge:is(.status-active,.status-approved){background:var(--success-soft);color:var(--success)}
 

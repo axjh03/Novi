@@ -90,7 +90,7 @@ export default function LicenseManagement({ licenses, accounts, admin, busy, onR
     {!!visible.length && <div className="table-wrap" tabIndex={0} role="region" aria-label="License results, scroll horizontally for more columns"><table className="license-table" aria-label="Licenses">
       <thead><tr><th scope="col">License key</th><th scope="col">Owner</th><th scope="col">Assigned account</th><th scope="col">Plan</th><th scope="col">Status</th><th scope="col">Expires</th><th scope="col">{admin ? 'Manage' : 'Actions'}</th></tr></thead>
       <tbody>{visible.map((license, index) => <Fragment key={license.id}>
-        {view.sort === 'owner' && (index === 0 || visible[index - 1].ownerId !== license.ownerId) && <tr className="license-owner-group"><th scope="rowgroup" colSpan={7}>{license.owner?.name || license.ownerId}<span>{license.owner?.role === 'SUBCORP' ? 'Sub-corporation' : license.owner?.role === 'STANDALONE' ? 'Standalone' : 'Owner'}{index === 0 && start > 0 && filtered[start - 1].ownerId === license.ownerId ? ' · continued' : ''}</span></th></tr>}
+        {view.sort === 'owner' && (index === 0 || visible[index - 1].ownerId !== license.ownerId) && <tr className="license-owner-group"><th scope="rowgroup" colSpan={7}>{license.owner?.name || license.ownerId}<span>{license.owner?.role === 'INDIVIDUAL' ? 'Individual' : license.owner?.role === 'SUBCORP' ? 'Enterprise group' : license.owner?.role === 'STANDALONE' ? 'Legacy team owner' : 'Owner'}{index === 0 && start > 0 && filtered[start - 1].ownerId === license.ownerId ? ' · continued' : ''}</span></th></tr>}
         <tr className="license-row">
           <td><code>{license.key}</code></td>
           <td>{identity(license.owner, license.ownerId)}</td>
@@ -103,12 +103,12 @@ export default function LicenseManagement({ licenses, accounts, admin, busy, onR
         </tr>
       </Fragment>)}</tbody>
     </table></div>}
-    {!visible.length && <div className="empty"><KeyRound size={25} /><h3>{licenses.length ? 'No matching licenses' : 'No licenses yet'}</h3><p>{licenses.length ? 'Try another search or clear your filters.' : admin ? 'Issue a license to a standalone or sub-corporation owner.' : 'Request licenses to begin creating desktop accounts.'}</p>{hasFilters && <button className="btn" onClick={clearFilters}>Clear filters</button>}</div>}
+    {!visible.length && <div className="empty"><KeyRound size={25} /><h3>{licenses.length ? 'No matching licenses' : 'No licenses yet'}</h3><p>{licenses.length ? 'Try another search or clear your filters.' : admin ? 'Issue a license to an individual or enterprise team owner.' : 'Request access for your individual account or enterprise team.'}</p>{hasFilters && <button className="btn" onClick={clearFilters}>Clear filters</button>}</div>}
     <div className="license-pagination">
       <span aria-live="polite">{filtered.length ? `${start + 1}–${Math.min(start + view.pageSize, filtered.length)} of ${filtered.length}` : '0 results'}</span>
       <label>Rows per page<select aria-label="Rows per page" value={view.pageSize} onChange={e => change({ pageSize: Number(e.target.value) })}>{[20, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}</select></label>
       <nav aria-label="License pagination"><button className="btn" aria-label="Previous page" disabled={page === 1} onClick={() => setView(current => ({ ...current, page: page - 1 }))}><ChevronLeft size={15} /></button><span>Page {page} of {pages}</span><button className="btn" aria-label="Next page" disabled={page === pages} onClick={() => setView(current => ({ ...current, page: page + 1 }))}><ChevronRight size={15} /></button></nav>
     </div>
-    <div className="panel-footer">Assignment is permanent. Unassigned licenses must be active before they can be used to create a desktop account.</div>
+    <div className="panel-footer">Individuals use their web login on desktop. Enterprise licenses bind permanently to managed desktop accounts; unassigned licenses must be active before assignment.</div>
   </section>;
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowRight, ArrowUpRight, AudioLines, Check, Code2, Eye, FileText, FolderOpen, Layers, Network, Smartphone, Sparkles, X } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, AudioLines, Check, Code2, Eye, FileText, FolderOpen, Layers, Smartphone, Sparkles, X } from 'lucide-react';
 import PublicNavbar from '@/components/PublicNavbar';
 import SiteFooter from '@/components/SiteFooter';
 import { FEATURES, FEATURE_GROUPS } from '@/lib/features';
@@ -8,7 +8,7 @@ import { PLANS } from '@/lib/site';
 import styles from './features.module.css';
 
 export const metadata: Metadata = {
-  title: 'Features: Your interview loadout | Novi',
+  title: 'Features: Live interview answers, code and audio | Novi',
   description: 'Explore Novi’s interview modes, audio, screenshots, coding, eye tracking, phone companion, and local project context. Compare Novi with four interview assistant competitors.',
 };
 
@@ -31,8 +31,8 @@ export default function FeaturesPage() {
       <PublicNavbar active="features" />
       <main>
         <section className={styles.hero} aria-labelledby="features-title">
-          <span className={styles.eyebrow}>THE WHOLE LOADOUT</span>
-          <h1 id="features-title">Your interview backup.<br /><em>Absolutely stacked.</em></h1>
+          <span className={styles.eyebrow}>LIVE INTERVIEW TOOLS</span>
+          <h1 id="features-title">Cheat through the question.<br /><em>Understand the answer.</em></h1>
           <p>They brought another round. You brought the toolkit. From “tell me about yourself” to “design this entire system,” here’s what Novi puts on your desktop.</p>
           <div className={styles.actions}><a className={styles.primary} href="#all-features">Explore every feature <ArrowRight size={17} aria-hidden="true" /></a><a className={styles.secondary} href="#compare">Compare the alternatives <ArrowUpRight size={17} aria-hidden="true" /></a></div>
           <figure className={styles.loadout}>
@@ -86,13 +86,12 @@ export default function FeaturesPage() {
           <div className={styles.heading}><span className={styles.eyebrow}>SIDE-BY-SIDE FEATURE CHECK</span><h2 id="compare-title">Novi and four interview tools.</h2><p>Same checklist for every product: interview help, coding, practice, and the tools that make Novi different.</p><p className={styles.comparisonJoke}>They might look and feel pretty. Be real: after you secure the job, would you rather feel a pretty app, or feel a pretty wife?</p></div>
           <p className={styles.scrollHint}>Scroll horizontally to see all four competitors <ArrowRight size={15} aria-hidden="true" /></p>
           <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Feature comparison of Novi and four competitors; scroll horizontally on smaller screens">
-            <table><caption>Published product features and USD prices · Reviewed October 15, 2026</caption><thead><tr><th scope="col">Feature</th><th scope="col">Novi<span className={styles.tableBadge}>Your loadout</span></th><th scope="col"><a href="https://www.interviewcoder.co/" target="_blank" rel="noreferrer">Interview Coder <ArrowUpRight size={13} aria-hidden="true" /></a></th><th scope="col"><a href="https://cluely.com/pricing" target="_blank" rel="noreferrer">Cluely <ArrowUpRight size={13} aria-hidden="true" /></a></th><th scope="col"><a href="https://www.finalroundai.com/interview-copilot" target="_blank" rel="noreferrer">Final Round AI <ArrowUpRight size={13} aria-hidden="true" /></a></th><th scope="col"><a href="https://www.lockedinai.com/" target="_blank" rel="noreferrer">LockedIn AI <ArrowUpRight size={13} aria-hidden="true" /></a></th></tr></thead><tbody>{comparison.map(row => <tr key={row.feature}><th scope="row">{row.feature}</th>{(['novi', 'interviewCoder', 'cluely', 'finalRound', 'lockedIn'] as const).map(key => { const value = row[key]; return <td key={key}>{typeof value === 'boolean' ? <span className={value ? styles.yes : styles.no} aria-label={value ? 'Listed' : 'Not listed'} title={value ? 'Listed in public product information' : 'Not listed in reviewed public product information'}>{value ? <Check size={18} aria-hidden="true" /> : <X size={17} aria-hidden="true" />}</span> : value}</td>; })}</tr>)}</tbody></table>
+            <table><caption>Published product features and USD prices · Reviewed October 15, 2026</caption><thead><tr><th scope="col">Feature</th><th scope="col">Novi<span className={styles.tableBadge}>Included in Novi</span></th><th scope="col"><a href="https://www.interviewcoder.co/" target="_blank" rel="noreferrer">Interview Coder <ArrowUpRight size={13} aria-hidden="true" /></a></th><th scope="col"><a href="https://cluely.com/pricing" target="_blank" rel="noreferrer">Cluely <ArrowUpRight size={13} aria-hidden="true" /></a></th><th scope="col"><a href="https://www.finalroundai.com/interview-copilot" target="_blank" rel="noreferrer">Final Round AI <ArrowUpRight size={13} aria-hidden="true" /></a></th><th scope="col"><a href="https://www.lockedinai.com/" target="_blank" rel="noreferrer">LockedIn AI <ArrowUpRight size={13} aria-hidden="true" /></a></th></tr></thead><tbody>{comparison.map(row => <tr key={row.feature}><th scope="row">{row.feature}</th>{(['novi', 'interviewCoder', 'cluely', 'finalRound', 'lockedIn'] as const).map(key => { const value = row[key]; return <td key={key}>{typeof value === 'boolean' ? <span className={value ? styles.yes : styles.no} aria-label={value ? 'Listed' : 'Not listed'} title={value ? 'Listed in public product information' : 'Not listed in reviewed public product information'}>{value ? <Check size={18} aria-hidden="true" /> : <X size={17} aria-hidden="true" />}</span> : value}</td>; })}</tr>)}</tbody></table>
           </div>
           <p className={styles.sourceNote}>Sources: <a href="https://www.interviewcoder.co/" target="_blank" rel="noreferrer">Interview Coder</a>, <a href="https://cluely.com/pricing" target="_blank" rel="noreferrer">Cluely</a>, <a href="https://www.finalroundai.com/interview-copilot" target="_blank" rel="noreferrer">Final Round AI</a>, and <a href="https://www.lockedinai.com/pricing" target="_blank" rel="noreferrer">LockedIn AI</a>. ✓ means a feature is publicly listed; × means we didn’t find it in reviewed product information, not proof it is unavailable. Prices can change; LockedIn’s lower monthly equivalent is billed quarterly. Novi plans exclude separately billed AI provider usage.</p>
-          <div className={styles.difference}><Network size={26} aria-hidden="true" /><div><h3>The Novi difference: more of your setup, under your control.</h3><p>Bring your context, pick your provider, choose your screen, and connect your phone. Local transcription and local history are available; AI requests and relevant context are still sent to your chosen provider.</p></div></div>
         </section>
 
-        <section className={styles.closing} aria-labelledby="closing-title"><span className={styles.eyebrow}>MAIN QUEST: GET THE BAG</span><h2 id="closing-title">Pick the loadout.<br />Bring the backup.</h2><p>Core starts at {PLANS.core.price}/month. Pro starts at {PLANS.pro.price}/month with the full technical toolkit. AI provider usage is separate.</p><div className={styles.actions}><Link className={styles.primary} href="/get-access">Choose your plan <ArrowUpRight size={17} aria-hidden="true" /></Link><Link className={styles.secondary} href="/how-it-works">See it in action <ArrowRight size={17} aria-hidden="true" /></Link></div></section>
+        <section className={styles.closing} aria-labelledby="closing-title"><span className={styles.eyebrow}>MAIN QUEST: GET THE BAG</span><h2 id="closing-title">Get the answer.<br />Handle the follow-up.</h2><p>Core starts at {PLANS.core.price}/month. Pro starts at {PLANS.pro.price}/month with the full technical toolkit. AI provider usage is separate.</p><div className={styles.actions}><Link className={styles.primary} href="/get-access">Choose your plan <ArrowUpRight size={17} aria-hidden="true" /></Link><Link className={styles.secondary} href="/how-it-works">See it in action <ArrowRight size={17} aria-hidden="true" /></Link></div></section>
       </main>
       <SiteFooter />
     </div>

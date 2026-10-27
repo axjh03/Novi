@@ -14,6 +14,8 @@ async function main() {
     const demoHash = await bcrypt.hash(password(process.env.DEMO_PASSWORD), 12);
     const create = (username: string, name: string, role: string, parentId?: string) => db.accessAccount.upsert({ where: { username }, update: {}, create: { username, name, role, parentId, passwordHash: demoHash } });
     const standalone = await create('standalone', 'Alex Morgan', 'STANDALONE');
+    const individual = await create('individual', 'Sam Rivera', 'INDIVIDUAL');
+    if (!(await db.accessLicense.findUnique({ where: { accountId: individual.id } }))) await db.accessLicense.create({ data: { ownerId: individual.id, accountId: individual.id, key: licenseKey(), plan: 'PRO', expiresAt: durationDate(new Date(), 1, 'YEARS') } });
     const corp = await create('corporation', 'Acme Corporation', 'CORP');
     const subcorp = await create('subcorp', 'Acme Studio', 'SUBCORP', corp.id);
     for (const [owner, name] of [[standalone, 'standalone.desktop'], [subcorp, 'studio.desktop']] as const) {
@@ -21,7 +23,7 @@ async function main() {
       if (!(await db.accessLicense.findUnique({ where: { accountId: account.id } }))) await db.accessLicense.create({ data: { ownerId: owner.id, accountId: account.id, key: licenseKey(), plan: 'ULTIMATE', expiresAt: durationDate(new Date(), 1, 'YEARS') } });
       if (!(await db.accessLicense.count({ where: { ownerId: owner.id, accountId: null } }))) await db.accessLicense.create({ data: { ownerId: owner.id, key: licenseKey(), plan: 'ULTIMATE', expiresAt: durationDate(new Date(), 1, 'YEARS') } });
     }
-    console.log('Sample owners: standalone, corporation, subcorp. Desktop: standalone.desktop, studio.desktop. Passwords come from DEMO_PASSWORD.');
+    console.log('Individual web + desktop: individual. Team owners: standalone (legacy), corporation, subcorp. Enterprise desktop: standalone.desktop, studio.desktop. Passwords come from DEMO_PASSWORD.');
   }
   console.log('Access database ready. Existing accounts and passwords were preserved.');
 }

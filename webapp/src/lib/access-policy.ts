@@ -1,7 +1,7 @@
 import { randomInt } from 'node:crypto';
 import { isLicensePlan, type LicensePlan } from '../../../src/shared/plans';
 
-export const roles = ['ADMIN', 'STANDALONE', 'CORP', 'SUBCORP', 'LICENSE'] as const;
+export const roles = ['ADMIN', 'INDIVIDUAL', 'STANDALONE', 'CORP', 'SUBCORP', 'LICENSE'] as const;
 export const providers = {
   OPENAI: { name: 'OpenAI', kind: 'openai', baseUrl: 'https://api.openai.com/v1' },
   ANTHROPIC: { name: 'Anthropic / Claude', kind: 'anthropic', baseUrl: 'https://api.anthropic.com/v1' },
@@ -18,6 +18,11 @@ export function string(value: unknown, label: string, max = 100): string {
 export function password(value: unknown): string {
   if (typeof value !== 'string' || value.length < 12 || Buffer.byteLength(value) > 72) throw new AccessError('Passwords need at least 12 characters and at most 72 bytes.');
   return value;
+}
+export function username(value: unknown) {
+  const name = string(value, 'username', 64).toLowerCase();
+  if (!/^[a-z0-9][a-z0-9_.-]{2,63}$/.test(name)) throw new AccessError('Use 3–64 letters, numbers, dots, underscores or hyphens.');
+  return name;
 }
 /**
  * Validates a license plan sent by the portal (issuing, changing a plan, or a purchase request).
@@ -47,5 +52,5 @@ export function licenseKey() {
   return Array.from({ length: 4 }, () => Array.from({ length: 4 }, () => chars[randomInt(chars.length)]).join('')).join('-');
 }
 export function validParent(role: string, parentRole?: string) {
-  return (['STANDALONE', 'CORP'].includes(role) && !parentRole) || (role === 'SUBCORP' && parentRole === 'CORP') || (role === 'LICENSE' && ['STANDALONE', 'SUBCORP'].includes(parentRole || ''));
+  return (['INDIVIDUAL', 'STANDALONE', 'CORP'].includes(role) && !parentRole) || (role === 'SUBCORP' && parentRole === 'CORP') || (role === 'LICENSE' && ['STANDALONE', 'SUBCORP'].includes(parentRole || ''));
 }

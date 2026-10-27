@@ -49,9 +49,9 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (state: Snapsho
   const watchCapsLock = (event: KeyboardEvent<HTMLInputElement>) => setCapsLock(event.getModifierState('CapsLock'));
 
   return <div className="auth-layout managed-auth">
-    <main className="auth-main"><div className="auth-form-wrap"><h2>Welcome back.</h2><p className="muted">Sign in with your licensed desktop account.</p>
+    <main className="auth-main"><div className="auth-form-wrap"><h2>Welcome back.</h2><p className="muted">Individuals: use your web account. Enterprise members: use your assigned desktop login.</p>
       <form onSubmit={submit}><fieldset disabled={busy}>
-        <label>Username<input autoFocus autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} placeholder="Your assigned username" required maxLength={64} /></label>
+        <label>Username<input autoFocus autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} placeholder="Your Novi username" required maxLength={64} /></label>
         <div className="auth-password">
           <label htmlFor="auth-password">Password</label>
           {capsLock && <span id="auth-caps" className="auth-caps" role="status">Caps Lock is on</span>}

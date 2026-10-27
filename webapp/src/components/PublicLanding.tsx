@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, ArrowUpRight, AudioLines, Check, ChevronRight, Code2, Download, FileText, KeyRound, Layers, LockKeyhole, MessageSquare, Monitor, Network, Plus, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, AudioLines, Check, ChevronRight, Code2, Download, FileText, KeyRound, Layers, LockKeyhole, MessageSquare, Monitor, Network, Play, Plus, ShieldCheck, Sparkles } from 'lucide-react';
 import PublicNavbar from './PublicNavbar';
 import SiteFooter from './SiteFooter';
+import Testimonials from './Testimonials';
 import { JOURNEY, PLANS } from '@/lib/site';
 import { FEATURES } from '@/lib/features';
 import styles from './PublicLanding.module.css';
@@ -74,29 +75,33 @@ function WorkspacePreview() {
   );
 }
 
-export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
+export default function PublicLanding({ onSignIn, onSignUp }: { onSignIn: () => void; onSignUp: () => void }) {
   return (
     <div className={styles.page}>
-      <PublicNavbar onSignIn={onSignIn} />
+      <PublicNavbar onSignIn={onSignIn} onSignUp={onSignUp} />
       <main>
         <section className={styles.hero} aria-labelledby="landing-title">
           <div className={styles.heroCopy}>
             <span className={styles.heroEyebrow}><span aria-hidden="true" />THE INTERVIEW CHEAT CODE<ChevronRight size={13} aria-hidden="true" /></span>
-            <h1 id="landing-title">Fuck LeetCode.<br />Fuck HackerRank.<br />Fuck Assessment.<br /><em>We&apos;re here.</em></h1>
-            <p className={styles.heroLead}>Another timed puzzle. Another technical grilling. Enough. Bring the question, a screenshot, or audio context. Novi puts AI backup on your desktop for the code, the explanation, and whatever follow-up comes next.</p>
+            <h1 id="landing-title">Fuck LeetCode.<br />Fuck HackerRank.<br />Fuck Assessment.<br /><em>Fuck it <abbr title="Random Access Wisdom">RAW</abbr>.</em></h1>
+            <p className={styles.heroLead}>Novi is an AI interview cheating app. Capture a live question from your screen or audio and get answers, code, and explanations during the interview. Behavioral round, technical screen, or another surprise follow-up: get the answer when you need it.</p>
             <div className={styles.actions}>
-              <Link className={styles.primaryLink} href="/get-access">Get your backup <ArrowUpRight size={17} aria-hidden="true" /></Link>
+              <Link className={styles.primaryLink} href="/#signup" onClick={event => { event.preventDefault(); onSignUp(); }}>Create your account <ArrowUpRight size={17} aria-hidden="true" /></Link>
               <Link className={styles.secondaryLink} href="/how-it-works">See how it works <ArrowRight size={16} aria-hidden="true" /></Link>
             </div>
             <span className={styles.heroPrice}>From <strong>{PLANS.core.price}</strong> / month</span>
           </div>
           <WorkspacePreview />
-          <div className={styles.heroMeta}><span><Monitor size={16} aria-hidden="true" />macOS · Windows · Linux</span><span><KeyRound size={16} aria-hidden="true" />Bring your own AI provider</span><span><Layers size={16} aria-hidden="true" />Your context. A clearer next step.</span></div>
         </section>
 
         <section className={styles.intro} aria-labelledby="intro-title">
           <div><span className={styles.eyebrow}>YOU KNOW THE WORK</span><h2 id="intro-title">The interview grind?<br /><em>That&apos;s another story.</em></h2></div>
           <p>You&apos;ve built projects, solved problems, and shipped real work. Then a timed question asks you to remember an algorithm you haven&apos;t touched in months. Novi brings your notes, audio, screenshots, and project files together so you have something useful to work with when the question lands.</p>
+        </section>
+
+        <section className={styles.developerDemo} aria-labelledby="developer-demo-title">
+          <div className={styles.demoPoster} aria-label="Developer demo video placeholder"><span className={styles.demoPlay}><Play size={32} aria-hidden="true" /></span><span>YOUTUBE · LINK COMING SOON</span><span>15 MINUTES / WITH THE DEVELOPER</span></div>
+          <div><span className={styles.eyebrow}>DEMO FROM THE DEVELOPER</span><h2 id="developer-demo-title">See how Novi works.<br /><em>In 15 minutes.</em></h2><p>A planned walkthrough of the features: set up your account, add context, capture interview questions, use Listening, and get live answers and code.</p><button type="button" className={styles.demoButton} disabled>YouTube demo coming soon<Play size={15} aria-hidden="true" /></button></div>
         </section>
 
         <section className={styles.features} id="features" aria-labelledby="features-title">
@@ -162,9 +167,10 @@ export default function PublicLanding({ onSignIn }: { onSignIn: () => void }) {
           </div>
         </section>
 
-        <section className={styles.closing} aria-labelledby="closing-title"><div><span className={styles.eyebrow}>YOUR NEXT ROUND IS COMING</span><h2 id="closing-title">Enough interview bullshit.<br /><em>Bring Novi.</em></h2><p>The question lands. Your backup is already open.</p></div><Link className={styles.primaryLink} href="/get-access">Find your plan <ArrowUpRight size={18} aria-hidden="true" /></Link></section>
+        <Testimonials />
+        <section className={styles.closing} aria-labelledby="closing-title"><div><span className={styles.eyebrow}>YOUR NEXT ROUND IS COMING</span><h2 id="closing-title">Enough interview bullshit.<br /><em>Bring Novi.</em></h2><p>Live interview answers, readable code, and explanations for the follow-up. Start with the plan that fits your next round.</p></div><Link className={styles.primaryLink} href="/get-access">Find your plan <ArrowUpRight size={18} aria-hidden="true" /></Link></section>
       </main>
-      <SiteFooter onSignIn={onSignIn} />
+      <SiteFooter onSignIn={onSignIn} onSignUp={onSignUp} />
     </div>
   );
 }

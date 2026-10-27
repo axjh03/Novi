@@ -8,11 +8,11 @@ import styles from './how-it-works.module.css';
 
 export const metadata: Metadata = {
   title: 'How it works: Your interview cheat code | Novi',
-  description: 'Your interview cheat code: bring your résumé, capture the question, and get AI backup for answers, code, and follow-ups. Get set up. Chase the bag.',
+  description: 'Your interview cheat code: bring your résumé, capture the question, and get live AI answers, code, and follow-ups. Get set up. Chase the bag.',
 };
 
 const faqs = [
-  ['What do I need to get locked in?', 'The starter pack: a Novi account, a desktop login, and a configured AI provider. Install the desktop app, connect your provider key through your account, and check microphone and screen capture permissions for the tools you want to use.'],
+  ['What do I need to get locked in?', 'Create an individual account, activate a license, and connect your AI provider. Use the same login on web and desktop. Enterprise teams keep separate managed desktop logins. Install the desktop app, connect your provider key through your account, and check microphone and screen capture permissions for the tools you want to use.'],
   ['Which plan handles the technical final boss?', 'Core includes behavioral and technical modes with context, screenshots, transcription, and transparency. Pro and Lifetime add coding, system design, chat, recruiter mode, and eye tracking. Ultimate adds local coding and the exclusive phone companion.'],
   ['Is Local Coding about to YOLO my codebase?', 'Nope. Local Coding reads and searches a selected project folder to answer questions and propose changes. It does not apply those changes or run code. You review and make any changes yourself.'],
   ['Is the AI bill included? No cap?', 'No cap: your plan covers access to Novi. You connect your own AI provider key and pay any provider usage charges separately. The same applies to Lifetime.'],
@@ -28,14 +28,14 @@ export default function HowItWorksPage() {
           <div className={styles.heroCopy}>
             <span className={styles.eyebrow}>THE INTERVIEW CHEAT CODE</span>
             <h1>Cheat the interview.<br /><em>Chase the bag.</em></h1>
-            <p>We help you cheat in interviews. For real. Bring your résumé, grab the question, and get AI backup for the answer, the code, and the follow-up they absolutely did not need to ask.</p>
+            <p>We help you cheat in interviews. For real. Bring your résumé, grab the question, and get the answer, the code, and the explanation for the follow-up they absolutely did not need to ask.</p>
             <a className={styles.heroAction} href="#setup">Show me the cheat code <ArrowRight size={17} aria-hidden="true" /></a>
             <span className={styles.platforms}>Built for macOS, Windows &amp; Linux</span>
           </div>
           <figure className={styles.heroScene}>
             <div className={styles.sceneOrbit} aria-hidden="true" />
             <div className={styles.workspacePreview} aria-hidden="true">
-              <div className={styles.windowBar}><span className={styles.windowDots}><i /><i /><i /></span><span>novi / interview backup</span><Layers size={14} /></div>
+              <div className={styles.windowBar}><span className={styles.windowDots}><i /><i /><i /></span><span>novi / live interview answers</span><Layers size={14} /></div>
               <div className={styles.previewBody}>
                 <div className={styles.previewSidebar}><span>CONTEXT</span><FileText size={20} /><span>Résumé</span><Code2 size={20} /><span>Projects</span><AudioLines size={20} /><span>Audio</span></div>
                 <div className={styles.previewChat}>
@@ -48,7 +48,7 @@ export default function HowItWorksPage() {
             </div>
             <div className={styles.floatingContext} aria-hidden="true"><span className={styles.floatIcon}><FileText size={20} /></span><div><strong>Your résumé = the lore</strong><span>Résumé + project notes</span></div><Check size={15} /></div>
             <div className={styles.floatingAudio} aria-hidden="true"><AudioLines size={26} /><div><strong>Catch the question</strong><span>Audio → transcription</span></div></div>
-            <figcaption>Illustrative session · Interview chaos, meet backup</figcaption>
+            <figcaption>Illustrative session · A live question becomes an answer</figcaption>
           </figure>
           <ul className={styles.jump} aria-label="On this page"><li><a href="#setup">01 · Set up</a></li><li><a href="#session">02 · Your session</a></li><li><a href="#tools">03 · Your toolkit</a></li><li><a href="#data">04 · Your data</a></li></ul>
         </section>
@@ -60,37 +60,37 @@ export default function HowItWorksPage() {
             const StepIcon = [CreditCard, KeyRound, Monitor][index];
             return <li key={step.title}><div className={styles.stepIcon}><StepIcon size={27} strokeWidth={1.5} aria-hidden="true" /><span>0{index + 1}</span></div><h3>{step.title}</h3><p>{step.text}</p></li>;
           })}</ol>
-          <div className={styles.setupNote}><KeyRound size={19} aria-hidden="true" /><p><strong>Already have an account?</strong> Connect your provider using the <Link href="/api-keys">setup guide</Link>, then <Link href="/download">download Novi</Link> and sign in with your desktop login.</p></div>
+          <div className={styles.setupNote}><KeyRound size={19} aria-hidden="true" /><p><strong>Already have an account?</strong> Connect your provider using the <Link href="/api-keys">setup guide</Link>, then <Link href="/download">download Novi</Link> and sign in with your individual account or enterprise desktop login.</p></div>
         </section>
 
         <section className={styles.section} id="session" aria-labelledby="session-title">
           <span className={styles.eyebrow}>02 / ENTER THE INTERVIEW</span><h2 id="session-title">Round 6-7? For real?</h2>
-          <p className={styles.lead}>Six rounds. Seven rounds. 6-7. At this point the hiring process has more lore than your résumé. Load your context once, bring in each question, and keep the backup rolling.</p>
+          <p className={styles.lead}>Six rounds. Seven rounds. 6-7. At this point the hiring process has more lore than your résumé. Load your context once, bring in each question, and keep answers tied to your experience.</p>
           <div className={styles.sessionFlow} aria-hidden="true">
             <div className={styles.documentStack}><div><FileText size={18} /><span>Project notes</span></div><div><FileText size={18} /><span>Job description</span></div><div><FileText size={18} /><span>Your résumé</span><Check size={14} /></div></div>
             <div className={styles.flowConnector}><span>ADD CONTEXT</span><ArrowRight size={18} /></div>
-            <div className={styles.noviCore}><Sparkles size={30} strokeWidth={1.5} /><strong>novi.</strong><span>Interview backup</span></div>
-            <div className={styles.flowConnector}><span>GET BACKUP</span><ArrowRight size={18} /></div>
+            <div className={styles.noviCore}><Sparkles size={30} strokeWidth={1.5} /><strong>novi.</strong><span>Live answers</span></div>
+            <div className={styles.flowConnector}><span>GET AN ANSWER</span><ArrowRight size={18} /></div>
             <div className={styles.responsePreview}><MessageSquare size={20} /><strong>Less brain freeze.<br />More “I’ve got this.”</strong><span className={styles.answerLine} /><span className={styles.answerLine} /><span className={styles.responseTag}>Context → question → follow-up</span></div>
           </div>
           <ol className={styles.phases}>
             <li><span className={styles.tag}>01 / DROP THE LORE</span><h3>Your résumé is the cheat sheet.</h3><p>Add your résumé, job description, and project notes so Novi has your actual context. Pick your interview mode. Check your mic, screen capture permissions, and provider connection. Technical difficulties are a terrible opening bit.</p></li>
-            <li><span className={styles.tag}>02 / SEND THE QUESTION</span><h3>They ask. You get backup.</h3><p>Type the question, attach a screenshot, or bring in transcribed audio. Ask Novi for an answer, a code explanation, or a way through the problem. “Let’s do a quick technical exercise” just got less fucking terrifying.</p></li>
+            <li><span className={styles.tag}>02 / SEND THE QUESTION</span><h3>They ask. You see the answer.</h3><p>Type the question, attach a screenshot, or bring in transcribed audio. Ask Novi for an answer, a code explanation, or a way through the problem. “Let’s do a quick technical exercise” just got less fucking terrifying.</p></li>
             <li><span className={styles.tag}>03 / HANDLE THE FOLLOW-UP</span><h3>Keep the plot armor on.</h3><p>They ask “why?” Keep the same conversation going for trade-offs, edge cases, and explanations. Check the details before using the answer. Your saved history is there for the next round of this apparently endless boss fight.</p></li>
           </ol>
         </section>
 
         <section className={styles.section} id="tools" aria-labelledby="tools-title">
-          <span className={styles.eyebrow}>03 / PICK YOUR LOADOUT</span><h2 id="tools-title">Fuck the whiteboard panic.</h2>
-          <p className={styles.lead}>Recruiter small talk? Behavioral lore dump? A surprise algorithm? Pick the mode for the round you’re in and bring the backup that fits.</p>
+          <span className={styles.eyebrow}>03 / CHOOSE YOUR TOOLS</span><h2 id="tools-title">Fuck the whiteboard panic.</h2>
+          <p className={styles.lead}>Recruiter small talk? Behavioral lore dump? A surprise algorithm? Pick the mode for the round you’re in and get the kind of answer you need.</p>
           <div className={styles.toolGroups}>
             <article><div className={styles.conversationArt} aria-hidden="true"><div><AudioLines size={24} /><span>“Tell me about a time…”</span></div><div><Sparkles size={20} /><span>Your project notes have entered the chat.</span></div><span className={styles.modePill}>Chat · Recruiter · Technical · Behavioral</span></div><span className={styles.tag}>EVERY PLAN</span><h3>“Tell me about yourself” insurance</h3><p>Chat handles general questions. Recruiter mode helps with intros and role fit. Technical mode tackles fundamentals and project deep dives. Behavioral mode turns your own experience into a story with a point. Main-character energy, supporting evidence included.</p><ul><li>Résumé and document context</li><li>Screenshots and audio transcription</li><li>Local conversation history</li></ul></article>
-            <article><div className={styles.codeArt} aria-hidden="true"><div className={styles.codeWindow}><span><Code2 size={15} /> The algorithm side quest</span><code><span>function</span> solve(question) {'{'}<br />&nbsp; understand(question);<br />&nbsp; explore(tradeoffs);<br />&nbsp; <span>return</span> nextStep;<br />{'}'}</code></div><span className={styles.codeBadge}><Layers size={16} />Architecture + reasoning</span></div><span className={styles.tag}>PRO, PLUS &amp; LIFETIME</span><h3>The technical round can catch these hands</h3><p>Bring the coding problem and work through solutions, complexity, and edge cases. Use System Design for architecture and trade-offs. Add a local project for code-aware questions. When “one quick question” becomes a distributed system, you’ve got backup.</p><ul><li>Readable code and explanations</li><li>Architecture diagrams and design reasoning</li><li>Read-only project search and change proposals</li></ul></article>
+            <article><div className={styles.codeArt} aria-hidden="true"><div className={styles.codeWindow}><span><Code2 size={15} /> The algorithm side quest</span><code><span>function</span> solve(question) {'{'}<br />&nbsp; understand(question);<br />&nbsp; explore(tradeoffs);<br />&nbsp; <span>return</span> nextStep;<br />{'}'}</code></div><span className={styles.codeBadge}><Layers size={16} />Architecture + reasoning</span></div><span className={styles.tag}>PRO, ULTIMATE &amp; LIFETIME</span><h3>The technical round can catch these hands</h3><p>Bring the coding problem and work through solutions, complexity, and edge cases. Use System Design for architecture and trade-offs. Add a local project for code-aware questions. When “one quick question” becomes a distributed system, Novi can outline the architecture and explain the trade-offs.</p><ul><li>Readable code and explanations</li><li>Architecture diagrams and design reasoning</li><li>Read-only project search and change proposals</li></ul></article>
           </div>
           <ul className={styles.tools}>
-            <li><strong>Your desktop, with backup attached</strong>Adjust the overlay’s transparency, position, and click-through behavior to put Novi where you need it alongside your work.</li>
+            <li><strong>Answers beside your interview</strong>Adjust the overlay’s transparency, position, and click-through behavior to put Novi where you need it alongside your work.</li>
             <li><strong>The HUD follows your gaze. Yes, really.</strong>Calibrate your camera so the answer HUD can respond to where you look. New lighting or a new position? Recalibrate. The camera needs the memo.</li>
-            <li><strong>Your phone gets a side quest</strong>Pair it with the desktop session to ask questions, capture the screen, and scroll answers. Tiny screen, useful backup.</li>
+            <li><strong>Your phone gets a side quest</strong>Pair it with the desktop session to ask questions, capture the screen, and scroll answers. Read and control your session from your phone.</li>
             <li><strong>Bring your own AI brain</strong>Connect a supported provider with your own API key. Provider usage is billed separately from your Novi plan. Keep that in the budget for the bag.</li>
           </ul>
           <Link className={styles.textLink} href="/get-access">Compare plan features <ArrowRight size={16} aria-hidden="true" /></Link>
@@ -102,12 +102,12 @@ export default function HowItWorksPage() {
           <ul className={styles.privacy}>
             <li><HardDrive size={21} aria-hidden="true" /><span><strong>Documents and history are stored locally</strong><span>Your source documents and conversation history stay on your computer for you to revisit.</span></span></li>
             <li><Send size={21} aria-hidden="true" /><span><strong>Your selected provider processes AI requests</strong><span>Questions, attachments, and relevant context are sent to the AI provider you choose. That provider’s data policies apply to the content you send.</span></span></li>
-            <li><KeyRound size={21} aria-hidden="true" /><span><strong>Your account manages access and provider keys</strong><span>Add your provider credentials and create desktop logins through your Novi account. Consultancies and staffing firms can contact sales for team licensing and setup.</span></span></li>
+            <li><KeyRound size={21} aria-hidden="true" /><span><strong>Your account manages access and provider keys</strong><span>Add your provider credentials through your Novi account. Individuals use that same login on desktop. Enterprise owners manage separate desktop logins for their teams. Consultancies and staffing firms can contact sales for team licensing and setup.</span></span></li>
           </ul>
         </section>
 
         <section className={styles.section} id="faq" aria-labelledby="faq-title"><span className={styles.eyebrow}>BEFORE YOU SEND IT</span><h2 id="faq-title">The “wait, but…” section.</h2><div className={styles.faq}>{faqs.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</div></section>
-        <section className={styles.cta}><h2>Main quest: get the bag.</h2><p>New role? Side quest income? Start with Core, or bring coding and system design backup with Pro and above. The interview grind can kiss your ass.</p><div className={styles.ctaActions}><Link className={styles.ctaPrimary} href="/get-access">Pick your cheat code <ArrowUpRight size={16} aria-hidden="true" /></Link></div></section>
+        <section className={styles.cta}><h2>Main quest: get the bag.</h2><p>New role? Side quest income? Start with Core, or get coding answers and system design guidance with Pro and above. The interview grind can kiss your ass.</p><div className={styles.ctaActions}><Link className={styles.ctaPrimary} href="/get-access">Pick your cheat code <ArrowUpRight size={16} aria-hidden="true" /></Link></div></section>
       </main>
       <SiteFooter />
     </div>

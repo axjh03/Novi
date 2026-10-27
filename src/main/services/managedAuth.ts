@@ -161,7 +161,7 @@ export class ManagedAuthService {
     } catch (error) { await this.signOut(); throw error; }
   }
   async refresh(force = false) {
-    if (!this.token) throw new UserError('Sign in with your licensed desktop account.');
+    if (!this.token) throw new UserError('Sign in with your licensed individual account or enterprise desktop login.');
     // During an outage, ordinary calls use the last verified state while the heartbeat retries.
     if (!force && this.current && (this.offlineSince !== null || Date.now() - this.lastChecked < 15_000)) return;
     // A request started for a previous session must not be shared with a new sign-in.
@@ -245,7 +245,7 @@ export class ManagedAuthService {
    * @throws UserError with the plans that include the feature, or a sign-in message when signed out.
    */
   requireFeature(feature: Feature) {
-    if (!this.allows(feature)) throw new UserError(this.current ? lockedMessage(feature) : 'Sign in with your licensed desktop account.');
+    if (!this.allows(feature)) throw new UserError(this.current ? lockedMessage(feature) : 'Sign in with your licensed individual account or enterprise desktop login.');
   }
   /** Changes whenever the plan or its features change, including on sign-in and sign-out. Compared by handlers.ts. */
   get planKey() { return this.current ? JSON.stringify([this.current.plan ?? null, this.current.features ?? null]) : ''; }

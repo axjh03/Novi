@@ -10,9 +10,9 @@ export function mailto(subject: string, body?: string) {
 
 /** The three steps from first visit to a working desktop app. Repeated on every page that explains getting started. */
 export const JOURNEY = [
-  { title: 'Choose your plan', text: 'Select a plan and send your access request. Our team confirms payment details and creates your account after payment.' },
-  { title: 'Connect your AI provider', text: 'Sign in on this website, add your AI provider key, and create your desktop login. AI usage is billed separately by your provider.' },
-  { title: 'Download and sign in', text: 'Install the desktop app on macOS, Windows, or Linux and sign in with your desktop login.' },
+  { title: 'Create your account and choose a plan', text: 'Individuals can sign up themselves. Our team confirms payment and attaches the license directly to your account. Enterprise teams can contact sales for managed accounts.' },
+  { title: 'Connect your AI provider', text: 'Add your AI provider key on this website. Individuals use their own keys; enterprise desktop accounts inherit their team’s connections. AI usage is billed separately by your provider.' },
+  { title: 'Download and sign in', text: 'Install Novi and use the same individual username and password as the website. Enterprise members use the desktop login their organization provides.' },
 ] as const;
 
 export const CORE_FEATURES = [

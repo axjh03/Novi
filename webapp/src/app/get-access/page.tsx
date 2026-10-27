@@ -20,7 +20,7 @@ export default async function GetAccessPage({ searchParams }: { searchParams: Pr
         <section className={styles.hero}>
           <span className={styles.eyebrow}>STRAIGHTFORWARD PRICING</span>
           <h1>A plan for your<br /><em>next chapter.</em></h1>
-          <p>Start with the essentials, unlock the complete toolkit, or make Novi yours for a lifetime. Choose the features that fit your work.</p>
+          <p>Start with the essentials, unlock the complete toolkit, or make Novi yours for a lifetime. Choose the features that fit your work. Individuals use one account on web and desktop.</p><p><a href="/#signup">Create an individual account →</a></p>
           <div className={styles.audiences}><a href="#plans">Explore plans</a><a href="#consultancies">Consultancies &amp; staffing firms <ArrowUpRight size={14} aria-hidden="true" /></a></div>
         </section>
 

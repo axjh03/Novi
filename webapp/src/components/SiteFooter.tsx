@@ -1,3 +1,5 @@
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
@@ -5,17 +7,16 @@ import { CONTACT_EMAIL, INSTAGRAM_URL, SITE_LINKS } from '@/lib/site';
 import styles from './SiteFooter.module.css';
 
 // On the home page, sign-in is a screen switch rather than a navigation, so the page passes it in.
-export default function SiteFooter({ onSignIn }: { onSignIn?: () => void }) {
+export default function SiteFooter({ onSignIn, onSignUp }: { onSignIn?: () => void; onSignUp?: () => void }) {
   return (
     <footer className={styles.footer}>
       <div className={styles.inner}>
         <div className={styles.brandColumn}>
-          <Link href="/" className={styles.brand}>
+          <Link href="/" className={styles.brand} onClick={event => { if (location.pathname === '/') event.preventDefault(); }}>
             <Image src="/logo.svg" width={32} height={32} alt="" style={{ borderRadius: 8 }} />
             <span>novi<span className={styles.dot}>.</span></span>
           </Link>
-          <p className={styles.tagline}>Your context. A clearer next step.</p>
-          <p className={styles.description}>An AI workspace for interview preparation, coding, and the questions that come next.</p>
+          <p className={styles.description}>Live AI answers, code, and explanations while you cheat through an interview.</p>
         </div>
         <nav className={styles.column} aria-label="Product">
           <h2>Explore</h2>
@@ -24,6 +25,7 @@ export default function SiteFooter({ onSignIn }: { onSignIn?: () => void }) {
         <nav className={styles.column} aria-label="Get started">
           <h2>Get started</h2>
           <Link href="/get-access">Pricing & plans</Link>
+          <Link href="/#signup" onClick={event => { if (onSignUp) { event.preventDefault(); onSignUp(); } }}>Create an individual account</Link>
           {onSignIn ? <Link href="/#signin" onClick={event => { event.preventDefault(); onSignIn(); }}>Account sign in</Link> : <Link href="/#signin">Account sign in</Link>}
         </nav>
         <div className={styles.column}>
@@ -34,8 +36,7 @@ export default function SiteFooter({ onSignIn }: { onSignIn?: () => void }) {
       </div>
       <div className={styles.bottom}>
         <p>© {new Date().getFullYear()} Novi. All rights reserved.</p>
-        <p>macOS · Windows · Linux</p>
-        <p>Available by private license.</p>
+        <p>Individual accounts · Enterprise teams</p>
       </div>
     </footer>
   );

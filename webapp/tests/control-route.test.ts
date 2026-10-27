@@ -13,7 +13,7 @@ const noCors = (response: Response) => assert.deepEqual([...response.headers.key
 
 test('the control API refuses other websites and sends no CORS headers', async () => {
   assert.equal('OPTIONS' in control, false, 'no preflight handler for other origins');
-  for (const [path, method] of [[['login'], 'POST'], [['state'], 'GET'], [['accounts'], 'POST'], [['credentials', 'x', 'reveal'], 'POST']] as const) {
+  for (const [path, method] of [[['login'], 'POST'], [['register'], 'POST'], [['state'], 'GET'], [['accounts'], 'POST'], [['credentials', 'x', 'reveal'], 'POST']] as const) {
     for (const origin of ['https://evil.example', 'null', 'not a url', 'http://portal.test.evil.example']) {
       const response = await call([...path], method, { origin });
       assert.equal(response.status, 403, `${method} /${path.join('/')} from ${origin}`);

@@ -927,7 +927,7 @@ export default function ApiGuideClient() {
               </h2>
             </div>
             <p style={{ fontSize: 15, color: 'var(--ink)', lineHeight: 1.7, marginBottom: 16 }}>
-              Keys are added once on this website, in your Novi account. Every desktop login under your account can then use them without ever seeing the key itself.
+              Add your AI key once on this website. Your individual account uses it directly in the desktop app. Enterprise desktop accounts inherit keys from their organization.
             </p>
             <div style={{ border: '1px solid var(--line)', borderRadius: 8, padding: '24px', background: 'var(--card)', marginBottom: 20 }}>
               <h4 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600 }}>On this website:</h4>
@@ -954,7 +954,7 @@ export default function ApiGuideClient() {
             <div style={{ border: '1px solid var(--line)', borderRadius: 8, padding: '24px', background: 'var(--card)', marginBottom: 20 }}>
               <h4 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 600 }}>In the desktop app:</h4>
               <ol style={{ paddingLeft: 20, margin: 0, fontSize: 14, color: 'var(--ink)', lineHeight: 1.8 }}>
-                <li>Sign in with your desktop login. Create one under <b>User management</b> in your Novi account if you have not yet.</li>
+                <li>Individuals: sign in with the same username and password you use on this website. Enterprise members: use the desktop login your organization creates under <b>User management</b>.</li>
                 <li>Open <b>Settings</b>, then <b>API management</b>. Your account&apos;s keys are listed there.</li>
                 <li>Select the key you want to use, one per provider. Click <b>Refresh</b> if a key you just added is not shown yet.</li>
                 <li>Choose the model when you start a session.</li>
@@ -994,7 +994,7 @@ export default function ApiGuideClient() {
           }}>
             <div>
               <div style={{ fontWeight: 600, fontSize: 16 }}>Ready to start?</div>
-              <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>Add your key in your Novi account, then download the app. No account yet? Request access first.</div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>Add your key in your Novi account, then download the app. No account yet? Create an individual account, or contact us for enterprise setup.</div>
             </div>
             <div style={{ display: 'flex', gap: 12 }}>
               <Link href="/download" className="btn dark" style={{ textDecoration: 'none' }}>

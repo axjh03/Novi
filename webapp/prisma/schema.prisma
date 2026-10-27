@@ -14,7 +14,7 @@ model AccessAccount {
   username     String @unique
   name         String
   passwordHash String
-  role         String // ADMIN | STANDALONE | CORP | SUBCORP | LICENSE
+  role         String // ADMIN | INDIVIDUAL | CORP | SUBCORP | LICENSE | STANDALONE (legacy team)
   status       String @default("ACTIVE") // ACTIVE | SUSPENDED | DELETED
   parentId     String?
   parent       AccessAccount? @relation("AccountTree", fields: [parentId], references: [id], onDelete: Restrict)
@@ -34,6 +34,7 @@ model AccessLicense {
   key       String @unique
   ownerId   String
   owner     AccessAccount @relation("LicenseOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  // Individuals own and use the license themselves; enterprise licenses bind to a child desktop account.
   accountId String? @unique
   account   AccessAccount? @relation("LicenseAccount", fields: [accountId], references: [id], onDelete: Restrict)
   status    String @default("ACTIVE") // ACTIVE | TERMINATED

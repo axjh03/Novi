@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
-import { activity, revealCredential, credentialModels, desktop, login, mutate, state } from '@/lib/access';
+import { activity, revealCredential, credentialModels, desktop, login, register, mutate, state } from '@/lib/access';
 import { AccessError } from '@/lib/access-policy';
 import { getReleaseStatus, triggerRelease, manageReleaseArtifacts } from '@/lib/release-manager';
 import { handleFileExplorerAdmin, handleFileExplorerClient } from '@/lib/remote-file-explorer';
@@ -64,10 +64,12 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
       } else {
         throw new AccessError('Not found.', 404);
       }
-    } else*/ if (path.join('/') === 'login' && req.method === 'POST') {
-      const result = await login(body, req);
-      const response = NextResponse.json({ data: body.audience === 'desktop' ? result : { user: result.user } });
-      if (body.audience !== 'desktop') {
+    } else*/ if (['login', 'register'].includes(path.join('/')) && req.method === 'POST') {
+      const signup = path[0] === 'register';
+      const result = signup ? await register(body, req) : await login(body, req);
+      const desktopLogin = !signup && body.audience === 'desktop';
+      const response = NextResponse.json({ data: desktopLogin ? result : { user: result.user } });
+      if (!desktopLogin) {
         const isHttps = req.url.startsWith('https://') || req.headers.get('x-forwarded-proto') === 'https';
         response.cookies.set('astra_session', result.token, {
           httpOnly: true,

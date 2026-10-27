@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { ArrowUpRight, BookOpen, Download, Gift, KeyRound, Layers, Menu, UserRound, X } from 'lucide-react';
+import { ArrowUpRight, BookOpen, Download, Gift, KeyRound, Layers, Menu, Plus, UserRound, X } from 'lucide-react';
 import { SITE_LINKS, type SiteLinkId } from '@/lib/site';
 
 const navigationIcons = { features: Layers, 'how-it-works': BookOpen, download: Download, referral: Gift, 'setup-guide': KeyRound };
@@ -10,13 +10,13 @@ const navigationIcons = { features: Layers, 'how-it-works': BookOpen, download: 
 export interface PublicNavbarProps {
   active?: SiteLinkId;
   onSignIn?: () => void;
+  onSignUp?: () => void;
 }
 
-export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
+export default function PublicNavbar({ active, onSignIn, onSignUp }: PublicNavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const closeMenu = () => setMenuOpen(false);
-  // Sign-in is for Novi account owners; the main action for everyone else is requesting access.
   const signIn = (mobile: boolean) => onSignIn ? (
     <button type="button" className="public-nav-signin public-nav-item" aria-label="Sign in" onClick={() => { closeMenu(); onSignIn(); }} style={mobile ? { padding: '10px 12px', fontSize: 15, textAlign: 'left' } : undefined}><UserRound size={17} aria-hidden="true" /><span className="public-nav-text">Sign in</span></button>
   ) : (
@@ -26,7 +26,7 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
   return (
     <header className="public-nav-shell">
       <nav className="public-nav" aria-label="Main">
-        <Link href="/" className="brand" onClick={closeMenu} style={{ textDecoration: 'none', color: 'inherit' }}>
+        <Link href="/" className="brand" onClick={event => { closeMenu(); if (location.pathname === '/') event.preventDefault(); }} style={{ textDecoration: 'none', color: 'inherit' }}>
           <img
             src="/logo.svg"
             alt="Novi"
@@ -56,6 +56,7 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
             </Link>
           ); })}
           {signIn(false)}
+          <Link href="/#signup" className="public-nav-signin public-nav-item" aria-label="Create account" onClick={event => { closeMenu(); if (onSignUp) { event.preventDefault(); onSignUp(); } }}><Plus size={17} aria-hidden="true" /><span className="public-nav-text">Create account</span></Link>
           <Link href="/get-access" className="btn dark" aria-current={active === 'get-access' ? 'page' : undefined} style={{ textDecoration: 'none' }}>
             Pricing & plans <ArrowUpRight size={15} />
           </Link>
@@ -102,6 +103,7 @@ export default function PublicNavbar({ active, onSignIn }: PublicNavbarProps) {
             </Link>
           ); })}
           {signIn(true)}
+          <Link href="/#signup" className="public-nav-signin" onClick={event => { closeMenu(); if (onSignUp) { event.preventDefault(); onSignUp(); } }} style={{ padding: '10px 12px', fontSize: 15 }}>Create an individual account</Link>
 
           <div style={{ paddingTop: 8, borderTop: '1px solid var(--line)' }}>
             <Link

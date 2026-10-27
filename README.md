@@ -1,38 +1,55 @@
 # Novi
 
-A managed Electron AI workspace with a separate Novi web portal for accounts, licenses, and provider keys. Desktop access uses a username and password assigned to a licensed account. There is no public sign-up.
+A desktop AI workspace and a separate web portal for access management. People use Novi to work with AI, documents, audio, and local projects. Individuals can register on the website; desktop use requires an active license and a configured AI connection.
 
-## Mask and terminal controls
+![Animated overview: portal, desktop, and AI provider](docs/request-flow.gif)
 
-In **Settings › General › Mask**, turn on **Mask Novi**, choose a window name, and optionally pick an application or an image with **Choose icon…**. Click **Save mask settings**. This device setting also applies before sign-in and to newly opened windows. Turn Mask off to restore the usual titles and icons. Windows cannot be minimized while Transparent mode is enabled. A masked window has no taskbar entry, so after minimizing it, open Novi again to bring it back. The Windows taskbar and macOS Dock can be hidden; Linux desktop support varies. This does not hide processes from Task Manager, Activity Monitor, system tools, or change the installed executable's identity. File icon extraction can return a generic icon; PNG/ICO files provide a predictable alternative on Windows/Linux.
+The portal controls **who can use Novi and which features they can access**. The desktop app provides the workspace and sends AI requests to the selected provider. The animation is a simplified overview; the diagrams below show the trust boundaries and data paths.
 
-In an installed build, **Settings › General › Terminal command** shows whether the terminal command is missing, current, or needs updating. Use **Install terminal command**, **Update terminal command**, or **Add command to PATH** as shown. Novi adds its command directory to the Windows user PATH or your bash/zsh/sh/fish profile and refreshes the status. Open a new terminal afterwards; some terminal apps must be fully quit and reopened. Existing terminal processes retain their old environment. **Check again** refreshes the status:
+**Start here:** [Run locally](#run) · [Business flow](#how-the-product-fits-together) · [Code map](#code-map-for-new-developers-and-agents) · [Web portal guide](webapp/README.md) · [Data and privacy](#where-data-lives) · [Verification](#verification-and-current-limits)
 
-```sh
-novi start # Launch or restore the main window, including while masked
-novi show  # Show/restore Novi, or launch it if it is not running
-novi stop  # Quit all windows through normal shutdown cleanup
+## How the product fits together
+
+```mermaid
+flowchart LR
+    Person[Individual or team] --> Portal[Web portal: accounts, licenses, keys]
+    Admin[Admin] --> Portal
+    Portal --> DB[(PostgreSQL)]
+    Person --> Desktop[Electron desktop workspace]
+    Desktop -->|sign-in, license, heartbeat, credentials| Portal
+    Desktop -->|prompts and selected context| AI[AI provider]
+    Desktop -->|history and local files| Disk[(Device storage)]
 ```
 
-To use the command immediately after installation in an already-open shell:
+1. An individual signs up or an administrator creates an account. An active license determines desktop access and plan features. Enterprise and legacy team accounts follow the owner hierarchy described in the [portal guide](webapp/README.md#account-rules).
+2. The owner configures provider credentials in the portal. After desktop sign-in, the access service supplies eligible credentials to Electron's main process; the renderer receives connection metadata.
+3. A user chooses a model and can start a conversation, load context documents, listen to audio, or use plan-dependent tools. The desktop sends selected content to the chosen AI provider. Local Coding works on a captured project snapshot and produces proposals, not edits to the original project.
+4. The desktop checks in periodically. Revocation and license changes are applied through the access service. History and related workspace data live on the device; the web database stores access-management data.
 
-```sh
-# bash, zsh, sh, dash, or ksh (current shell only)
-export PATH="$HOME/.local/bin:$PATH"
-hash -r
+## Code map for new developers and agents
 
-# fish (current shell only)
-fish_add_path "$HOME/.local/bin"
+| Area | Start here | Responsibility |
+| --- | --- | --- |
+| Desktop lifecycle | [main.ts](src/main/main.ts) | Electron startup, windows, permissions, and renderer network boundary. |
+| Desktop bridge | [preload.ts](src/main/preload.ts), [handlers.ts](src/main/ipc/handlers.ts), [types.ts](src/shared/types.ts) | Named renderer API, IPC validation and shared contracts. Follow a call through all three when changing the bridge. |
+| Desktop interface | [renderer source](src/renderer/src) | React pages, components, hooks, UI state and capture flows. |
+| Desktop behavior | [main services](src/main/services) | Authentication, provider requests, storage, sessions, audio, local coding, and platform integrations. |
+| Shared rules | [shared](src/shared) | Types, provider definitions, plans and session modes used across boundaries. |
+| Website and backend | [webapp](webapp/README.md) | Next.js pages, access API, Prisma schema and migrations. |
+| Checks | [tests](tests), [webapp/tests](webapp/tests) | Desktop service and UI checks; portal access, route and release checks. |
+
+```mermaid
+flowchart LR
+    UI[React renderer] -->|window.novi| Preload[Preload bridge]
+    Preload -->|IPC| Handlers[Validated IPC handlers]
+    Handlers --> Services[Main-process services]
+    Services --> Portal[Access API]
+    Services --> Provider[AI provider]
+    Services --> Storage[Local storage / OS]
 ```
 
-```powershell
-# Windows PowerShell: reload persisted machine and user PATH for this shell
-$env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
-```
+For a change, trace the UI action through the preload contract, IPC handler, service and shared types; update the corresponding tests. Access and feature rules also cross into the portal and [shared plans](src/shared/plans.ts). Start with existing behavior and tests, and treat the source and migrations as authoritative when documentation differs. The [architecture notes](docs/existing-architecture.md) describe an earlier baseline and are historical, not a current specification.
 
-For Windows Command Prompt, reopen the terminal app, or use `set "PATH=%APPDATA%\Novi\bin;%PATH%"` for that shell. Novi cannot refresh the environment of an existing parent shell. **Check again** checks installation; it does not reload your terminal. Automatic Unix profile setup follows your configured shell; a different shell may need its own PATH setup.
-
-The launcher requires no separate Node.js installation. Use **Update terminal command** if you move Novi or its AppImage. With a built development checkout, use `npx electron . start` and `npx electron . stop`. Commands address the instance using the same user-data directory (`NOVI_DATA_DIR`, if set). Stopping an already stopped app does not open a window. **Quit Novi** is in **Settings › General › Data & account**; quitting stops active work, and unsent text is not saved. While you are signed in, Novi asks before closing its window (the close button, Alt+F4, Ctrl+W or Cmd+W, or the taskbar), quitting from Settings, or signing out. `novi stop`, the Quit shortcut (Cmd+Q on macOS, Ctrl+Q on Linux), updates and shutting down the computer quit without asking.
 
 ## Run
 
@@ -70,6 +87,38 @@ npm run test:desktop # Build and exercise the real Electron app with a local API
 
 `npm run build` creates runnable application assets, not an installer. Installers come from `npx electron-builder`, and the release workflow (`.github/workflows/build.yml`) builds and publishes them for macOS, Windows and Linux when a `v*` tag is pushed. Installed copies find new releases in **Settings › General › Updates**, with **Check for updates** or automatically at startup, and install them with **Update & Restart**. Installers are not code-signed. Release notes are plain text that users read in **Settings › General › Updates**: type them in the portal's release form, or, for a tag pushed from a terminal, commit them first as `release-notes/vX.Y.Z.md`. Dependencies must be downloaded by `npm install` before building.
 
+## Mask and terminal controls
+
+In **Settings › General › Mask**, turn on **Mask Novi**, choose a window name, and optionally pick an application or an image with **Choose icon…**. Click **Save mask settings**. This device setting also applies before sign-in and to newly opened windows. Turn Mask off to restore the usual titles and icons. Windows cannot be minimized while Transparent mode is enabled. A masked window has no taskbar entry, so after minimizing it, open Novi again to bring it back. The Windows taskbar and macOS Dock can be hidden; Linux desktop support varies. This does not hide processes from Task Manager, Activity Monitor, system tools, or change the installed executable's identity. File icon extraction can return a generic icon; PNG/ICO files provide a predictable alternative on Windows/Linux.
+
+In an installed build, **Settings › General › Terminal command** shows whether the terminal command is missing, current, or needs updating. Use **Install terminal command**, **Update terminal command**, or **Add command to PATH** as shown. Novi adds its command directory to the Windows user PATH or your bash/zsh/sh/fish profile and refreshes the status. Open a new terminal afterwards; some terminal apps must be fully quit and reopened. Existing terminal processes retain their old environment. **Check again** refreshes the status:
+
+```sh
+novi start # Launch or restore the main window, including while masked
+novi show  # Show/restore Novi, or launch it if it is not running
+novi stop  # Quit all windows through normal shutdown cleanup
+```
+
+To use the command immediately after installation in an already-open shell:
+
+```sh
+# bash, zsh, sh, dash, or ksh (current shell only)
+export PATH="$HOME/.local/bin:$PATH"
+hash -r
+
+# fish (current shell only)
+fish_add_path "$HOME/.local/bin"
+```
+
+```powershell
+# Windows PowerShell: reload persisted machine and user PATH for this shell
+$env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+```
+
+For Windows Command Prompt, reopen the terminal app, or use `set "PATH=%APPDATA%\Novi\bin;%PATH%"` for that shell. Novi cannot refresh the environment of an existing parent shell. **Check again** checks installation; it does not reload your terminal. Automatic Unix profile setup follows your configured shell; a different shell may need its own PATH setup.
+
+The launcher requires no separate Node.js installation. Use **Update terminal command** if you move Novi or its AppImage. With a built development checkout, use `npx electron . start` and `npx electron . stop`. Commands address the instance using the same user-data directory (`NOVI_DATA_DIR`, if set). Stopping an already stopped app does not open a window. **Quit Novi** is in **Settings › General › Data & account**; quitting stops active work, and unsent text is not saved. While you are signed in, Novi asks before closing its window (the close button, Alt+F4, Ctrl+W or Cmd+W, or the taskbar), quitting from Settings, or signing out. `novi stop`, the Quit shortcut (Cmd+Q on macOS, Ctrl+Q on Linux), updates and shutting down the computer quit without asking.
+
 ## First launch
 
 ### Context sessions
@@ -97,12 +146,12 @@ Conversations, attachments, and the full text of loaded reference documents are 
 PDF support requires `npm install` to install `pdfjs-dist` and its platform dependencies. If it is missing, TXT sessions still work and PDF loading explains the install requirement. If a context request fails or is stopped, **Retry session setup** sends the same loaded documents and instructions again. End the session to choose different files or another model. Calibration is independent of context: enabling Eye Track starts the 25-target calibration; ending a context session also stops its tracking/HUD.
 
 1. Open the web portal at `http://localhost:3000`. Local setup writes generated passwords to the ignored `webapp/.env.access` file.
-2. Sign in as `admin` with `ADMIN_PASSWORD`. Create a standalone account or corporation; corporations can create sub-corporations.
-3. Issue a license to a standalone or sub-corporation owner, on the Core, Pro, Ultimate or Lifetime plan. That owner creates a desktop account and permanently binds the license.
+2. Sign in as `admin` with `ADMIN_PASSWORD`. Create an individual or enterprise account; enterprises can create groups. Individuals can also register themselves on the website.
+3. Issue a Core, Pro, Ultimate, or Lifetime license. An individual uses one account and password on web and desktop; the license attaches directly to that account. Enterprise groups create managed desktop accounts and bind their team licenses as before.
 4. As the owner, add provider keys and model IDs in **API management**.
 5. In Electron, sign in with the licensed desktop username and password. Open **Settings › API Management** to enable and select inherited connections.
 
-Optional seeded desktop accounts are `standalone.desktop` and `studio.desktop`, using `DEMO_PASSWORD`. Portal sample owners are `standalone`, `corporation`, and `subcorp`. See [webapp/README.md](webapp/README.md) for the role matrix, schema, API, and deployment instructions.
+The optional seeded individual `individual` works on both web and desktop with `DEMO_PASSWORD`. Enterprise/legacy desktop accounts are `standalone.desktop` and `studio.desktop`; portal team owners are `standalone` (legacy), `corporation`, and `subcorp`. See [webapp/README.md](webapp/README.md) for the role matrix, schema, API, and deployment instructions.
 
 The desktop reads `NOVI_ACCESS_URL` from its launch environment (defaults to `http://localhost:3000`). On PowerShell: `$env:NOVI_ACCESS_URL='https://your-access-server.example'`. Production servers require HTTPS. **Sign out** is in **Settings › General › Data & account**. Signing out releases the account immediately; crashed devices lose their lease after 90 seconds. If the server becomes unreachable, the session stays open and local features keep working; sending to an AI provider needs the server. After 90 seconds offline, Novi shows a reconnecting notice. Only a server rejection (revocation, password reset, license termination, another device signing in, or the 8-hour sign-in limit) ends the session.
 

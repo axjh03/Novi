@@ -91,20 +91,20 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
     <main className={styles.main}>
       <header className={styles.hero}>
         <span className={styles.eyebrow}>YOUR WORKSPACE, READY TO GO</span>
-        <h1>Make room for<br /><em>a little backup.</em></h1>
-        <p>Get Novi for your desktop. Choose your platform, install the app, and sign in with your desktop login.</p>
+        <h1>Get Novi.<br /><em>Get live interview answers.</em></h1>
+        <p>Get Novi for your desktop. Choose your platform, install the app, and sign in with your individual account or enterprise desktop login.</p>
         <div className={styles.releaseMeta}><span className={styles.version}>Novi {release.version}</span><span>Build {release.buildNumber}</span><span>Released {release.releaseDate}</span>{live && <span className={styles.live}><Check size={13} />Release verified</span>}</div>
       </header>
       {checkedDevice && !detectedOS && <div className={styles.deviceNote}>Browsing on a phone, tablet, or another system? Choose the computer you’ll install Novi on. These installers are for desktop computers.</div>}
       <PlatformFlipGrid release={release} siteOrigin={siteOrigin} detectedOS={detectedOS} copiedMirror={copied} copyMirrorUrl={copyText} />
       <p className={styles.copyStatus} role="status">{copyError || (copied ? 'Copied to clipboard.' : '')}</p>
-      <section className={styles.steps} aria-label="Get started"><article><span>01</span><h2>Choose your installer</h2><p>Pick your operating system and processor. All available packages are listed below.</p></article><article><span>02</span><h2>Install Novi</h2><p>Open the downloaded package and follow the installation steps for your computer.</p></article><article><span>03</span><h2>Sign in & settle in</h2><p>Use your desktop login. <Link href="/api-keys">Follow the setup guide <ArrowUpRight size={13} /></Link></p></article></section>
+      <section className={styles.steps} aria-label="Get started"><article><span>01</span><h2>Choose your installer</h2><p>Pick your operating system and processor. All available packages are listed below.</p></article><article><span>02</span><h2>Install Novi</h2><p>Open the downloaded package and follow the installation steps for your computer.</p></article><article><span>03</span><h2>Sign in & settle in</h2><p>Individuals use the same web login; enterprise members use their assigned desktop login. <Link href="/api-keys">Follow the setup guide <ArrowUpRight size={13} /></Link></p></article></section>
       <details className={styles.allDownloads}>
         <summary><span><strong>All downloads</strong><small>Every architecture, package, and direct release link</small></span><Download size={20} /></summary>
         <div className={styles.assetList}>{assets.filter(asset => release.downloads[asset.key] && release.fileNames[asset.key]).map(asset => <div className={styles.assetRow} key={asset.key}><div><strong>{asset.label} <span className={styles.format}>{asset.format}</span></strong><code>{release.fileNames[asset.key]}</code></div><div className={styles.assetActions}><button aria-label={`Copy ${asset.label} ${asset.format} download link`} onClick={() => void copyText(release.downloads[asset.key]!, asset.key)}>{copied === asset.key ? <Check size={16} /> : <Copy size={16} />}Copy link</button><a href={release.downloads[asset.key]} download><Download size={16} />Download</a></div></div>)}</div>
       </details>
       <div className={styles.releaseLinks}><a href={`${repo}/tag/${release.releaseTag}`} target="_blank" rel="noreferrer">Release notes · {release.releaseTag} <ArrowUpRight size={14} /></a><a href={repo} target="_blank" rel="noreferrer">Previous releases <ArrowUpRight size={14} /></a></div>
-      <section className={styles.access}><ShieldCheck size={28} /><div><h2>Your desktop login is your way in.</h2><p>Create a desktop login from your Novi account, then use it in the app. New here? Choose a plan to get started.</p></div><Link href="/get-access">Get access <ArrowUpRight size={16} /></Link></section>
+      <section className={styles.access}><ShieldCheck size={28} /><div><h2>One individual login. Web and desktop.</h2><p>Individuals can create an account themselves and use it in the app after license activation. Enterprise teams keep their managed desktop accounts.</p></div><Link href="/#signup">Create an account <ArrowUpRight size={16} /></Link></section>
     </main>
     <SiteFooter />
   </div>;

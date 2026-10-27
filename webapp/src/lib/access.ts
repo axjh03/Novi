@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from './db';
 import { canResetPassword } from './access-permissions';
 import { activityEvents } from './activity-events';
-import { AccessError, durationDate, licenseKey, password, plan, providers, roles, string, validParent } from './access-policy';
+import { AccessError, durationDate, licenseKey, password, plan, providers, roles, string, username, validParent } from './access-policy';
 import { readToken, seal, tokenFor, unseal } from './access-security';
 import { LIFETIME_EXPIRY, PLAN_FEATURES, PLAN_NAMES, PLANS_HEADER, type LicensePlan } from '../../../src/shared/plans';
 import { listModels } from '../../../src/main/services/models';
@@ -26,9 +26,10 @@ async function chain(db: DB, account: AccessAccount) {
 }
 async function eligible(db: DB, account: AccessAccount) {
   const parents = await chain(db, account);
-  if (account.role !== 'LICENSE' || !['STANDALONE', 'SUBCORP'].includes(parents[1]?.role)) throw new AccessError('Ineligible account. Use a licensed desktop account provided by your standalone owner or sub-corporation.', 403);
+  const individual = account.role === 'INDIVIDUAL' && !account.parentId;
+  if (!individual && (account.role !== 'LICENSE' || !['STANDALONE', 'SUBCORP'].includes(parents[1]?.role))) throw new AccessError('Ineligible account. Use your licensed individual account or the desktop account provided by your organization.', 403);
   const license = await db.accessLicense.findUnique({ where: { accountId: account.id } });
-  if (!license || license.ownerId !== account.parentId || license.status !== 'ACTIVE' || license.expiresAt <= new Date()) throw new AccessError('Your license is expired or terminated. Contact your administrator.', 403);
+  if (!license || license.ownerId !== (individual ? account.id : account.parentId) || license.status !== 'ACTIVE' || license.expiresAt <= new Date()) throw new AccessError(individual ? 'Your individual account needs an active license. Sign in on the Novi website to arrange access or renewal.' : 'Your license is expired or terminated. Contact your administrator.', 403);
   return license;
 }
 /**
@@ -39,6 +40,10 @@ async function eligible(db: DB, account: AccessAccount) {
  */
 function planExpiry(licensePlan: LicensePlan, duration: unknown, unit: unknown) {
   return licensePlan === 'LIFETIME' ? LIFETIME_EXPIRY : durationDate(new Date(), duration, unit);
+}
+async function issueLicense(db: DB, owner: AccessAccount, licensePlan: LicensePlan, duration: unknown, unit: unknown) {
+  if (owner.role === 'INDIVIDUAL' && await db.accessLicense.findUnique({ where: { accountId: owner.id } })) throw new AccessError('This individual already has a license. Renew it or change its plan instead.', 409);
+  return db.accessLicense.create({ data: { key: licenseKey(), ownerId: owner.id, accountId: owner.role === 'INDIVIDUAL' ? owner.id : null, plan: licensePlan, expiresAt: planExpiry(licensePlan, duration, unit) } });
 }
 /**
  * Refuses a desktop app that does not enforce plans when its license is on Core, Pro or Lifetime.
@@ -94,9 +99,22 @@ function clientIp(req?: Request) {
  * @param now   the time of this attempt, used when the counter is created.
  * @throws AccessError 429 "Too many sign-in attempts..." once the count goes past `limit`.
  */
-async function countAttempt(key: string, limit: number, now: Date) {
+async function countAttempt(key: string, limit: number, now: Date, message = 'Too many sign-in attempts. Try again in 15 minutes.') {
   const attempt = await prisma.loginThrottle.upsert({ where: { key }, create: { key, expiresAt: new Date(+now + 900_000) }, update: { count: { increment: 1 } } });
-  if (attempt.count > limit) throw new AccessError('Too many sign-in attempts. Try again in 15 minutes.', 429);
+  if (attempt.count > limit) throw new AccessError(message, 429);
+}
+export async function register(body: Record<string, unknown>, req: Request) {
+  const now = new Date();
+  await prisma.loginThrottle.deleteMany({ where: { expiresAt: { lt: now } } });
+  await countAttempt(`signup:${clientIp(req) || 'unknown'}`, 5, now, 'Too many account creation attempts. Try again in 15 minutes.');
+  const data = { username: username(body.username), name: string(body.name, 'name'), passwordHash: await bcrypt.hash(password(body.password), 12), role: 'INDIVIDUAL' };
+  // Public signup always creates an unlicensed individual, regardless of supplied role or parent fields.
+  return prisma.$transaction(async db => {
+    const account = await db.accessAccount.create({ data, select: publicAccount });
+    const session = await db.accessSession.create({ data: { accountId: account.id, audience: 'portal', expiresAt: new Date(+now + 8 * 60 * 60 * 1000) } });
+    await audit(db, account.id, 'ACCOUNT_CREATED', account.id);
+    return { token: tokenFor(account.id, session.id, 'portal'), user: { id: account.id, username: account.username, name: account.name, role: account.role } };
+  });
 }
 export async function login(body: Record<string, unknown>, req?: Request) {
   const username = string(body.username, 'username', 64).toLowerCase();
@@ -168,6 +186,7 @@ export async function authenticate(req: Request, db: DB = prisma) {
   return { account: session.account, session };
 }
 async function visibleIds(db: DB, actor: AccessAccount) {
+  if (actor.role === 'INDIVIDUAL') return [actor.id];
   const accounts = await db.accessAccount.findMany({ select: { id: true, parentId: true } });
   if (actor.role === 'ADMIN') return accounts.map(a => a.id);
   const ids = new Set([actor.id]);
@@ -266,7 +285,8 @@ export async function desktop(req: Request) {
   }
   const parents = await chain(prisma, account);
   // Keys saved for providers since removed from the catalog are skipped instead of failing every desktop refresh.
-  const credentials = await prisma.managedCredential.findMany({ where: { ownerId: { in: parents.slice(1).map(a => a.id) }, provider: { in: Object.keys(providers) } } });
+  const credentialOwners = account.role === 'INDIVIDUAL' ? [account] : parents.slice(1);
+  const credentials = await prisma.managedCredential.findMany({ where: { ownerId: { in: credentialOwners.map(a => a.id) }, provider: { in: Object.keys(providers) } } });
   const ipAddress = clientIp(req);
   await prisma.accessSession.update({ where: { id: session.id }, data: { lastSeenAt: new Date(), ...(ipAddress ? { ipAddress } : {}) } });
   // `features` is what the app unlocks; it is derived here so the plan table can change without a desktop release.
@@ -285,7 +305,7 @@ export async function mutate(req: Request, resource: string, id: string | undefi
     const needAdmin = () => { if (!admin) throw new AccessError('Administrator access required.', 403); };
     const owner = async (ownerId: unknown) => {
       const user = await db.accessAccount.findUnique({ where: { id: string(ownerId, 'owner') } });
-      if (!user || !ids.includes(user.id) || !['STANDALONE', 'SUBCORP'].includes(user.role)) throw new AccessError('Choose a standalone or sub-corporation owner.', 403);
+      if (!user || !ids.includes(user.id) || !['INDIVIDUAL', 'STANDALONE', 'SUBCORP'].includes(user.role)) throw new AccessError('Choose an individual or team license owner.', 403);
       await chain(db, user); return user;
     };
     if (resource === 'accounts' && !id && req.method === 'POST') {
@@ -296,9 +316,7 @@ export async function mutate(req: Request, resource: string, id: string | undefi
       if (!validParent(role, parent?.role) || (parentId && !parent)) throw new AccessError('Invalid parent for this account type.');
       if (!admin && !(parentId === actor.id && ((actor.role === 'CORP' && role === 'SUBCORP') || (['STANDALONE', 'SUBCORP'].includes(actor.role) && role === 'LICENSE')))) throw new AccessError('You cannot create this account.', 403);
       if (parent) await chain(db, parent);
-      const username = string(body.username, 'username', 64).toLowerCase();
-      if (!/^[a-z0-9][a-z0-9_.-]{2,63}$/.test(username)) throw new AccessError('Use 3–64 letters, numbers, dots, underscores or hyphens.');
-      const created = await db.accessAccount.create({ data: { username, name: string(body.name, 'name'), role, parentId, passwordHash: await bcrypt.hash(password(body.password), 12) }, select: publicAccount });
+      const created = await db.accessAccount.create({ data: { username: username(body.username), name: string(body.name, 'name'), role, parentId, passwordHash: await bcrypt.hash(password(body.password), 12) }, select: publicAccount });
       if (role === 'LICENSE') {
         const result = await db.accessLicense.updateMany({ where: { id: string(body.licenseId, 'license'), ownerId: parentId!, accountId: null, status: 'ACTIVE', expiresAt: { gt: new Date() } }, data: { accountId: created.id } });
         if (result.count !== 1) throw new AccessError('Choose an unused, active license belonging to this parent. A license can never be reassigned.');
@@ -321,7 +339,7 @@ export async function mutate(req: Request, resource: string, id: string | undefi
         if (target.status === 'DELETED') throw new AccessError('Deleted accounts cannot be restored.');
         const data: Prisma.AccessAccountUpdateInput = {};
         if (body.name !== undefined) data.name = string(body.name, 'name');
-        if (body.username !== undefined) { const name = string(body.username, 'username', 64).toLowerCase(); if (!/^[a-z0-9][a-z0-9_.-]{2,63}$/.test(name)) throw new AccessError('Invalid username.'); data.username = name; }
+        if (body.username !== undefined) data.username = username(body.username);
         if (body.password !== undefined) data.passwordHash = await bcrypt.hash(password(body.password), 12);
         if (body.status !== undefined) { if (!['ACTIVE', 'SUSPENDED'].includes(String(body.status))) throw new AccessError('Invalid status.'); data.status = String(body.status); }
         await db.accessAccount.update({ where: { id }, data });
@@ -331,7 +349,11 @@ export async function mutate(req: Request, resource: string, id: string | undefi
       await audit(db, actor.id, req.method === 'DELETE' ? 'ACCOUNT_DELETED' : body.password ? 'PASSWORD_RESET' : 'ACCOUNT_UPDATED', id); return {};
     }
     if (resource === 'sessions' && id && req.method === 'DELETE') {
-      needAdmin(); await db.accessSession.updateMany({ where: { id }, data: { revokedAt: new Date(), activeSlot: null } });
+      if (!admin) {
+        const target = await db.accessSession.findUnique({ where: { id } });
+        if (actor.role !== 'INDIVIDUAL' || target?.accountId !== actor.id || target.audience !== 'desktop') throw new AccessError('You cannot end this session.', 403);
+      }
+      await db.accessSession.updateMany({ where: { id }, data: { revokedAt: new Date(), activeSlot: null } });
       await audit(db, actor.id, 'SESSION_ENDED', id); return {};
     }
     if (resource === 'licenses') {
@@ -339,14 +361,14 @@ export async function mutate(req: Request, resource: string, id: string | undefi
       if (req.method === 'POST' && !id) {
         const target = await owner(body.ownerId);
         const licensePlan = plan(body.plan);
-        const license = await db.accessLicense.create({ data: { key: licenseKey(), ownerId: target.id, plan: licensePlan, expiresAt: planExpiry(licensePlan, body.duration, body.unit) } });
+        const license = await issueLicense(db, target, licensePlan, body.duration, body.unit);
         await audit(db, actor.id, 'LICENSE_ISSUED', license.id); return license;
       }
       if (req.method === 'PATCH' && id) {
         const license = await db.accessLicense.findUniqueOrThrow({ where: { id } });
         if (body.action === 'terminate') {
           await db.accessLicense.update({ where: { id }, data: { status: 'TERMINATED' } });
-          if (license.accountId) await db.accessSession.updateMany({ where: { accountId: license.accountId }, data: { revokedAt: new Date(), activeSlot: null } });
+          if (license.accountId) await db.accessSession.updateMany({ where: { accountId: license.accountId, audience: 'desktop' }, data: { revokedAt: new Date(), activeSlot: null } });
         } else if (body.action === 'renew') {
           if (license.status === 'TERMINATED') throw new AccessError('Terminated licenses cannot be renewed or reused.');
           if (license.plan === 'LIFETIME') throw new AccessError('Lifetime licenses never expire, so there is nothing to renew.');
@@ -364,7 +386,7 @@ export async function mutate(req: Request, resource: string, id: string | undefi
         await audit(db, actor.id, body.action === 'renew' ? 'LICENSE_RENEWED' : body.action === 'plan' ? 'LICENSE_PLAN_CHANGED' : 'LICENSE_TERMINATED', id); return {};
       }
     }
-    if (resource === 'credentials' && ['STANDALONE', 'CORP', 'SUBCORP'].includes(actor.role)) {
+    if (resource === 'credentials' && ['INDIVIDUAL', 'STANDALONE', 'CORP', 'SUBCORP'].includes(actor.role)) {
       const existing = id ? await db.managedCredential.findFirst({ where: { id, ownerId: actor.id } }) : null;
       if (id && !existing) throw new AccessError('Credential not found.', 404);
       if (req.method === 'DELETE' && id) { await db.managedCredential.delete({ where: { id } }); await audit(db, actor.id, 'API_KEY_REMOVED', id); return {}; }
@@ -388,6 +410,12 @@ export async function mutate(req: Request, resource: string, id: string | undefi
         planExpiry(requestPlan, body.duration, body.unit); // validates the term; Lifetime has none
         const quantity = Number(body.quantity);
         if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) throw new AccessError('Request between 1 and 100 licenses.');
+        if (target.role === 'INDIVIDUAL') {
+          if (quantity !== 1) throw new AccessError('An individual account uses one license. Choose enterprise access for a team.');
+          await db.$queryRaw`SELECT "id" FROM "AccessAccount" WHERE "id" = ${target.id} FOR UPDATE`;
+          if (await db.accessLicense.findUnique({ where: { accountId: target.id } })) throw new AccessError('You already have a license. Contact the developer to renew it or change its plan.', 409);
+          if (await db.licenseRequest.findFirst({ where: { ownerId: target.id, status: 'PENDING' } })) throw new AccessError('Your license request is already awaiting review. Contact the developer to change it.', 409);
+        }
         const term = requestPlan === 'LIFETIME' ? { duration: 0, unit: 'LIFETIME' } : { duration: Number(body.duration), unit: String(body.unit) };
         const request = await db.licenseRequest.create({ data: { ownerId: target.id, quantity, plan: requestPlan, ...term } });
         await audit(db, actor.id, 'LICENSES_REQUESTED', request.id); return request;
@@ -400,9 +428,10 @@ export async function mutate(req: Request, resource: string, id: string | undefi
         const claimed = await db.licenseRequest.updateMany({ where: { id, status: 'PENDING' }, data: { status: String(body.status) } });
         if (claimed.count !== 1) throw new AccessError('This request has already been processed.');
         if (body.status === 'APPROVED') {
-          await owner(request.ownerId);
+          const target = await owner(request.ownerId);
+          if (target.role === 'INDIVIDUAL' && request.quantity !== 1) throw new AccessError('An individual account uses one license.');
           const requestPlan = plan(request.plan);
-          for (let i = 0; i < request.quantity; i++) await db.accessLicense.create({ data: { key: licenseKey(), ownerId: request.ownerId, plan: requestPlan, expiresAt: planExpiry(requestPlan, request.duration, request.unit) } });
+          for (let i = 0; i < request.quantity; i++) await issueLicense(db, target, requestPlan, request.duration, request.unit);
         }
         await audit(db, actor.id, `REQUEST_${body.status}`, id); return {};
       }
