@@ -57,7 +57,7 @@ function WorkspacePreview() {
                 <pre className={styles.codePreview} aria-label="Example JavaScript answer"><code>{previewCode.map((line, index) => <span className={styles.codeLine} key={index}><span aria-hidden="true">{index + 1}</span><span>{line}</span></span>)}</code></pre>
                 <div className={styles.answerMeta}><span><Check size={12} aria-hidden="true" />Explanation</span><span>O(n) time</span><span>O(n) space</span></div>
               </> : mode === 0 ? <>
-                <div className={styles.previewDocuments}><span><FileText size={14} aria-hidden="true" />Résumé</span><span><FileText size={14} aria-hidden="true" />Project notes</span></div>
+                <div className={styles.previewDocuments}><span><FileText size={14} aria-hidden="true" />Resume</span><span><FileText size={14} aria-hidden="true" />Project notes</span></div>
                 <p className={styles.previewText}>{selected.feature.text}</p>
               </> : <>
                 <div className={styles.architecture} aria-label="Illustrative architecture: client to API to database"><span>Client</span><ArrowRight size={16} aria-hidden="true" /><span>API</span><ArrowRight size={16} aria-hidden="true" /><span>Database</span></div>
@@ -69,7 +69,7 @@ function WorkspacePreview() {
         </div>
         <div className={styles.previewFooter}><span><ShieldCheck size={12} aria-hidden="true" />Your choice of AI provider</span><span>Desktop workspace</span></div>
       </div>
-      <div className={styles.contextFloat} aria-hidden="true"><span><FileText size={17} /></span><div><strong>Your context, connected.</strong><small>Résumé · Notes · Screenshots</small></div><Check size={14} /></div>
+      <div className={styles.contextFloat} aria-hidden="true"><span><FileText size={17} /></span><div><strong>Your context, connected.</strong><small>Resume · Notes · Screenshots</small></div><Check size={14} /></div>
       <div className={styles.audioFloat} aria-hidden="true"><AudioLines size={17} /><span>Listening & transcription</span><span className={styles.miniWave}>{Array.from({ length: 9 }, (_, index) => <i key={index} />)}</span></div>
     </div>
   );
@@ -83,7 +83,8 @@ export default function PublicLanding({ onSignIn, onSignUp }: { onSignIn: () => 
         <section className={styles.hero} aria-labelledby="landing-title">
           <div className={styles.heroCopy}>
             <span className={styles.heroEyebrow}><span aria-hidden="true" />THE INTERVIEW CHEAT CODE<ChevronRight size={13} aria-hidden="true" /></span>
-            <h1 id="landing-title">Fuck LeetCode.<br />Fuck HackerRank.<br />Fuck Assessment.<br /><em>Fuck it <abbr title="Random Access Wisdom">RAW</abbr>.</em></h1>
+            <h1 id="landing-title">Fuck LeetCode.<br />Fuck HackerRank.<br />Fuck Assessment.<br /><em>Fuck it RAW.</em></h1>
+            <p className={styles.rawMeaning}>(Random Access Wisdom)</p>
             <p className={styles.heroLead}>Novi is an AI interview cheating app. Capture a live question from your screen or audio and get answers, code, and explanations during the interview. Behavioral round, technical screen, or another surprise follow-up: get the answer when you need it.</p>
             <div className={styles.actions}>
               <Link className={styles.primaryLink} href="/#signup" onClick={event => { event.preventDefault(); onSignUp(); }}>Create your account <ArrowUpRight size={17} aria-hidden="true" /></Link>
@@ -111,7 +112,7 @@ export default function PublicLanding({ onSignIn, onSignUp }: { onSignIn: () => 
               <article className={styles.feature} key={title}>
                 <div className={styles.featureTop}><span className={styles.featureIcon}><Icon size={22} strokeWidth={1.5} aria-hidden="true" /></span><span className={styles.planLabel}>{label}</span></div>
                 <h3>{title}</h3><p>{text}</p>
-                {index === 0 && <div className={styles.contextArt} aria-hidden="true"><span><FileText size={16} />Résumé<Check size={12} /></span><span><FileText size={16} />Job description<Check size={12} /></span><span><FileText size={16} />Project notes<Check size={12} /></span><span className={styles.artConnector} /><span className={styles.contextCore}><Sparkles size={20} /></span></div>}
+                {index === 0 && <div className={styles.contextArt} aria-hidden="true"><span><FileText size={16} />Resume<Check size={12} /></span><span><FileText size={16} />Job description<Check size={12} /></span><span><FileText size={16} />Project notes<Check size={12} /></span><span className={styles.artConnector} /><span className={styles.contextCore}><Sparkles size={20} /></span></div>}
                 {index === 1 && <div className={styles.waveArt} aria-hidden="true">{Array.from({ length: 30 }, (_, i) => <i key={i} />)}</div>}
                 <span className={styles.featureIndex} aria-hidden="true">0{index + 1}</span>
               </article>

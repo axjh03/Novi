@@ -38,7 +38,7 @@ export default function FeaturesPage() {
           <figure className={styles.loadout}>
             <div className={styles.orbit} aria-hidden="true" />
             <div className={styles.stack} aria-hidden="true">
-              <div className={styles.backPanel}><FileText size={20} /><span>YOUR CONTEXT</span><strong>The résumé. The role. The receipts.</strong></div>
+              <div className={styles.backPanel}><FileText size={20} /><span>YOUR CONTEXT</span><strong>The resume. The role. The receipts.</strong></div>
               <div className={styles.mainPanel}>
                 <div className={styles.panelBar}><span><i /><i /><i /></span><span>novi / locked in</span><Layers size={15} /></div>
                 <div className={styles.panelContent}><span className={styles.live}><span />Your interview workspace</span><strong>“Okay, now explain why.”</strong><div className={styles.sampleAnswer}><Sparkles size={22} /><p>The approach. The trade-offs.<br />The follow-up you saw coming.</p></div><div className={styles.answerLines}><i /><i /><i /></div></div>

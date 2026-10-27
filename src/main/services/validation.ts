@@ -115,7 +115,7 @@ export function connectionInput(value: unknown): ConnectionInput {
 export function sendInput(value: unknown): SendInput {
   const input = object(value);
   const content = text(input.content, 'message', 100_000, true);
-  if (!Array.isArray(input.imageIds) || input.imageIds.length > 6) throw new UserError('Attach up to 6 images per message.');
+  if (!Array.isArray(input.imageIds)) throw new UserError('Choose images to attach.');
   const imageIds = input.imageIds.map((id) => text(id, 'image ID', 100));
   if (!content && !imageIds.length) throw new UserError('Write a message or attach an image.');
   if (input.appMode !== undefined && !isAppMode(input.appMode)) throw new UserError('Choose a valid mode.');

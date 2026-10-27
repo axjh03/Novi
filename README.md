@@ -261,7 +261,7 @@ To add a managed provider, extend the web catalog in `webapp/src/lib/access-poli
 - IPC requires the app's trusted top-level renderer URL. Inputs and per-account ownership are checked in main.
 - Content Security Policy, blocked navigation/popups/webviews, denied permissions, and blocked external renderer networking.
 - Markdown HTML is disabled. Remote Markdown images are not fetched, and response links are rendered as inert text so model output cannot trigger network requests.
-- Images are filtered by extension, signature, and native decoding. Up to six PNG/JPEG/WEBP images per message; 8 MB and 40 megapixels per image.
+- PNG/JPEG/WEBP uploads are checked by extension, signature, and native decoding. Multiple images can be attached; each imported file must be 8 MB or smaller and under 40 megapixels.
 - Messages and image data go directly to the selected provider when sending. Novi has no analytics, cloud storage, or background uploads. The chosen provider's own retention policy still applies.
 - To shorten the wait for an answer, Novi opens a connection to the selected provider shortly before a likely request (while you type, take a screenshot, stop listening, or send). This is an unauthenticated `GET …/models` request that carries no API key, message, or file content.
 - Technical development logs contain operation/error categories, not provider response bodies or credentials.

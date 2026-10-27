@@ -247,8 +247,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
       } else if (action.type === 'submit-prompt') {
         void submit();
       } else if (action.type === 'capture-and-send') {
-        if (!busy && !attaching && !sending.current && images.length < 6) void unwrap(window.novi.captureScreen()).then((image) => submit(undefined, false, image)).catch((cause) => setError(errorText(cause)));
-        else if (images.length >= 6) setError('Attach up to 6 images per message.');
+        if (!busy && !attaching && !sending.current) void unwrap(window.novi.captureScreen()).then((image) => submit(undefined, false, image)).catch((cause) => setError(errorText(cause)));
       } else if (action.type === 'delete-last-snapshot') {
         setImages((prev) => prev.slice(0, -1));
       } else if (action.type === 'stop-generation') {
@@ -270,9 +269,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
     try {
       if (files?.some((file) => !/\.(png|jpe?g|webp)$/i.test(file.name)))
         throw new Error('Only PNG, JPG, JPEG, and WEBP images are supported.');
-      if (files && images.length + files.length > 6) throw new Error('Attach up to 6 images per message.');
       const added = await unwrap(files ? window.novi.dropImages(files) : window.novi.pickImages());
-      if (images.length + added.length > 6) throw new Error('Attach up to 6 images per message.');
       setImages((current) => [...current, ...added]);
       textarea.current?.focus();
     } catch (error) {

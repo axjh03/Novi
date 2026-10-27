@@ -26,7 +26,7 @@ async function main() {
     await page.goto('/');
     assert.equal(await page.title(), 'NOVI');
     assert.equal(await page.locator('#landing-title').innerText(), 'Fuck LeetCode.\nFuck HackerRank.\nFuck Assessment.\nFuck it RAW.');
-    assert.equal(await page.locator('#landing-title abbr').getAttribute('title'), 'Random Access Wisdom');
+    assert(await page.getByText('(Random Access Wisdom)', { exact: true }).isVisible());
     const body = await page.locator('body').innerText();
     for (const removed of ['macOS · Windows · Linux', 'Bring your own AI provider', 'Your context. A clearer next step.', 'Bring the backup']) assert(!body.includes(removed));
     assert(await page.getByRole('button', { name: 'YouTube demo coming soon', exact: true }).isDisabled());
@@ -40,7 +40,7 @@ async function main() {
     const rows = testimonials.getByRole('region');
     assert.equal(await rows.count(), 2);
     assert.deepEqual(await rows.locator(':scope > div').evaluateAll(tracks => tracks.map(track => getComputedStyle(track).animationDirection)), ['normal', 'reverse']);
-    await testimonials.getByRole('button', { name: 'Pause scrolling', exact: true }).click();
+    await testimonials.getByRole('button', { name: 'Pause', exact: true }).click();
     assert.deepEqual(await rows.locator(':scope > div').evaluateAll(tracks => tracks.map(track => getComputedStyle(track).animationPlayState)), ['paused', 'paused']);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     assert.deepEqual(await rows.locator(':scope > div').evaluateAll(tracks => tracks.map(track => getComputedStyle(track).animationName)), ['none', 'none']);

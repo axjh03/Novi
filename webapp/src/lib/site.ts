@@ -17,7 +17,7 @@ export const JOURNEY = [
 
 export const CORE_FEATURES = [
   'Behavioral interview and technical screen modes',
-  'Résumé, job description, and document context',
+  'Resume, job description, and document context',
   'Screenshots and audio transcription',
   'Transparent overlay and click-through controls',
   'Local conversation history and your choice of AI provider',

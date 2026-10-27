@@ -1,7 +1,7 @@
 import { AudioLines, BookOpen, Code2, Eye, FileText, FolderOpen, Keyboard, Layers, MessageSquare, Monitor, Network, Palette, ScanLine, ShieldCheck, Smartphone } from 'lucide-react';
 
 export const FEATURES = [
-  { group: 'context', icon: FileText, title: 'Answers with your context', text: 'Bring your résumé, the job description, and project notes into the conversation. Prepare introductions, explain your experience, and work through follow-ups with the details that matter.', label: 'Every plan' },
+  { group: 'context', icon: FileText, title: 'Answers with your context', text: 'Bring your resume, the job description, and project notes into the conversation. Prepare introductions, explain your experience, and work through follow-ups with the details that matter.', label: 'Every plan' },
   { group: 'context', icon: AudioLines, title: 'Listening & transcription', text: 'Turn microphone or system audio into text so you can work with the question as it is asked. Choose local transcription or a supported provider to fit your setup.', label: 'Every plan' },
   { group: 'context', icon: ScanLine, title: 'Screenshot understanding', text: 'Capture a question, diagram, or error from your screen and attach it to the conversation. Ask about the exact problem in front of you without retyping it.', label: 'Every plan' },
   { group: 'technical', icon: Code2, title: 'A dedicated coding assistant', text: 'Work through algorithms, SQL, and technical problems with readable code, explanations, complexity analysis, and edge cases. Continue the conversation as the requirements change.', label: 'Pro and above' },

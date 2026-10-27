@@ -17,7 +17,9 @@ test('provider boundaries reject unsafe endpoints and malformed inputs', () => {
   assert.equal(settings.displayName, 'Ada');
   assert.throws(() => connectionInput({ ...settings.connection, ai: { ...settings.connection!.ai, provider: 'other' } }));
   assert.throws(() => sendInput({ conversationId: null, content: '', imageIds: [] }));
-  assert.throws(() => sendInput({ conversationId: null, content: 'hi', imageIds: Array(7).fill('id') }));
+  const imageIds = Array.from({ length: 7 }, (_, i) => `image-${i}`);
+  assert.deepEqual(sendInput({ conversationId: null, content: '', imageIds }).imageIds, imageIds);
+  for (const invalid of [null, 'image-1', [null], ['']]) assert.throws(() => sendInput({ conversationId: null, content: 'hi', imageIds: invalid }));
   assert.equal(conversationTitle('  Explain\n  this React error '), 'Explain this React error');
   assert.equal(conversationTitle(''), 'Image conversation');
 });

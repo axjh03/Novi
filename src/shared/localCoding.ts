@@ -23,7 +23,6 @@ export const LOCAL_CODING_LIMITS = {
   maxReadLines: 600,
   maxReadCharacters: 80_000,
   maxProposalBytes: 4 * 1024 * 1024,
-  maxImages: 6,
   maxContextMessages: 12,
 } as const;
 

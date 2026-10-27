@@ -8,7 +8,7 @@ import styles from './how-it-works.module.css';
 
 export const metadata: Metadata = {
   title: 'How it works: Your interview cheat code | Novi',
-  description: 'Your interview cheat code: bring your résumé, capture the question, and get live AI answers, code, and follow-ups. Get set up. Chase the bag.',
+  description: 'Your interview cheat code: bring your resume, capture the question, and get live AI answers, code, and follow-ups. Get set up. Chase the bag.',
 };
 
 const faqs = [
@@ -28,7 +28,7 @@ export default function HowItWorksPage() {
           <div className={styles.heroCopy}>
             <span className={styles.eyebrow}>THE INTERVIEW CHEAT CODE</span>
             <h1>Cheat the interview.<br /><em>Chase the bag.</em></h1>
-            <p>We help you cheat in interviews. For real. Bring your résumé, grab the question, and get the answer, the code, and the explanation for the follow-up they absolutely did not need to ask.</p>
+            <p>We help you cheat in interviews. For real. Bring your resume, grab the question, and get the answer, the code, and the explanation for the follow-up they absolutely did not need to ask.</p>
             <a className={styles.heroAction} href="#setup">Show me the cheat code <ArrowRight size={17} aria-hidden="true" /></a>
             <span className={styles.platforms}>Built for macOS, Windows &amp; Linux</span>
           </div>
@@ -37,7 +37,7 @@ export default function HowItWorksPage() {
             <div className={styles.workspacePreview} aria-hidden="true">
               <div className={styles.windowBar}><span className={styles.windowDots}><i /><i /><i /></span><span>novi / live interview answers</span><Layers size={14} /></div>
               <div className={styles.previewBody}>
-                <div className={styles.previewSidebar}><span>CONTEXT</span><FileText size={20} /><span>Résumé</span><Code2 size={20} /><span>Projects</span><AudioLines size={20} /><span>Audio</span></div>
+                <div className={styles.previewSidebar}><span>CONTEXT</span><FileText size={20} /><span>Resume</span><Code2 size={20} /><span>Projects</span><AudioLines size={20} /><span>Audio</span></div>
                 <div className={styles.previewChat}>
                   <span className={styles.previewMode}><span />Technical interview</span>
                   <div className={styles.question}>“Walk me through your project.” Bro, I’m cooked.</div>
@@ -46,7 +46,7 @@ export default function HowItWorksPage() {
                 </div>
               </div>
             </div>
-            <div className={styles.floatingContext} aria-hidden="true"><span className={styles.floatIcon}><FileText size={20} /></span><div><strong>Your résumé = the lore</strong><span>Résumé + project notes</span></div><Check size={15} /></div>
+            <div className={styles.floatingContext} aria-hidden="true"><span className={styles.floatIcon}><FileText size={20} /></span><div><strong>Your resume = the lore</strong><span>Resume + project notes</span></div><Check size={15} /></div>
             <div className={styles.floatingAudio} aria-hidden="true"><AudioLines size={26} /><div><strong>Catch the question</strong><span>Audio → transcription</span></div></div>
             <figcaption>Illustrative session · A live question becomes an answer</figcaption>
           </figure>
@@ -65,16 +65,16 @@ export default function HowItWorksPage() {
 
         <section className={styles.section} id="session" aria-labelledby="session-title">
           <span className={styles.eyebrow}>02 / ENTER THE INTERVIEW</span><h2 id="session-title">Round 6-7? For real?</h2>
-          <p className={styles.lead}>Six rounds. Seven rounds. 6-7. At this point the hiring process has more lore than your résumé. Load your context once, bring in each question, and keep answers tied to your experience.</p>
+          <p className={styles.lead}>Six rounds. Seven rounds. 6-7. At this point the hiring process has more lore than your resume. Load your context once, bring in each question, and keep answers tied to your experience.</p>
           <div className={styles.sessionFlow} aria-hidden="true">
-            <div className={styles.documentStack}><div><FileText size={18} /><span>Project notes</span></div><div><FileText size={18} /><span>Job description</span></div><div><FileText size={18} /><span>Your résumé</span><Check size={14} /></div></div>
+            <div className={styles.documentStack}><div><FileText size={18} /><span>Project notes</span></div><div><FileText size={18} /><span>Job description</span></div><div><FileText size={18} /><span>Your resume</span><Check size={14} /></div></div>
             <div className={styles.flowConnector}><span>ADD CONTEXT</span><ArrowRight size={18} /></div>
             <div className={styles.noviCore}><Sparkles size={30} strokeWidth={1.5} /><strong>novi.</strong><span>Live answers</span></div>
             <div className={styles.flowConnector}><span>GET AN ANSWER</span><ArrowRight size={18} /></div>
             <div className={styles.responsePreview}><MessageSquare size={20} /><strong>Less brain freeze.<br />More “I’ve got this.”</strong><span className={styles.answerLine} /><span className={styles.answerLine} /><span className={styles.responseTag}>Context → question → follow-up</span></div>
           </div>
           <ol className={styles.phases}>
-            <li><span className={styles.tag}>01 / DROP THE LORE</span><h3>Your résumé is the cheat sheet.</h3><p>Add your résumé, job description, and project notes so Novi has your actual context. Pick your interview mode. Check your mic, screen capture permissions, and provider connection. Technical difficulties are a terrible opening bit.</p></li>
+            <li><span className={styles.tag}>01 / DROP THE LORE</span><h3>Your resume is the cheat sheet.</h3><p>Add your resume, job description, and project notes so Novi has your actual context. Pick your interview mode. Check your mic, screen capture permissions, and provider connection. Technical difficulties are a terrible opening bit.</p></li>
             <li><span className={styles.tag}>02 / SEND THE QUESTION</span><h3>They ask. You see the answer.</h3><p>Type the question, attach a screenshot, or bring in transcribed audio. Ask Novi for an answer, a code explanation, or a way through the problem. “Let’s do a quick technical exercise” just got less fucking terrifying.</p></li>
             <li><span className={styles.tag}>03 / HANDLE THE FOLLOW-UP</span><h3>Keep the plot armor on.</h3><p>They ask “why?” Keep the same conversation going for trade-offs, edge cases, and explanations. Check the details before using the answer. Your saved history is there for the next round of this apparently endless boss fight.</p></li>
           </ol>
@@ -84,7 +84,7 @@ export default function HowItWorksPage() {
           <span className={styles.eyebrow}>03 / CHOOSE YOUR TOOLS</span><h2 id="tools-title">Fuck the whiteboard panic.</h2>
           <p className={styles.lead}>Recruiter small talk? Behavioral lore dump? A surprise algorithm? Pick the mode for the round you’re in and get the kind of answer you need.</p>
           <div className={styles.toolGroups}>
-            <article><div className={styles.conversationArt} aria-hidden="true"><div><AudioLines size={24} /><span>“Tell me about a time…”</span></div><div><Sparkles size={20} /><span>Your project notes have entered the chat.</span></div><span className={styles.modePill}>Chat · Recruiter · Technical · Behavioral</span></div><span className={styles.tag}>EVERY PLAN</span><h3>“Tell me about yourself” insurance</h3><p>Chat handles general questions. Recruiter mode helps with intros and role fit. Technical mode tackles fundamentals and project deep dives. Behavioral mode turns your own experience into a story with a point. Main-character energy, supporting evidence included.</p><ul><li>Résumé and document context</li><li>Screenshots and audio transcription</li><li>Local conversation history</li></ul></article>
+            <article><div className={styles.conversationArt} aria-hidden="true"><div><AudioLines size={24} /><span>“Tell me about a time…”</span></div><div><Sparkles size={20} /><span>Your project notes have entered the chat.</span></div><span className={styles.modePill}>Chat · Recruiter · Technical · Behavioral</span></div><span className={styles.tag}>EVERY PLAN</span><h3>“Tell me about yourself” insurance</h3><p>Chat handles general questions. Recruiter mode helps with intros and role fit. Technical mode tackles fundamentals and project deep dives. Behavioral mode turns your own experience into a story with a point. Main-character energy, supporting evidence included.</p><ul><li>Resume and document context</li><li>Screenshots and audio transcription</li><li>Local conversation history</li></ul></article>
             <article><div className={styles.codeArt} aria-hidden="true"><div className={styles.codeWindow}><span><Code2 size={15} /> The algorithm side quest</span><code><span>function</span> solve(question) {'{'}<br />&nbsp; understand(question);<br />&nbsp; explore(tradeoffs);<br />&nbsp; <span>return</span> nextStep;<br />{'}'}</code></div><span className={styles.codeBadge}><Layers size={16} />Architecture + reasoning</span></div><span className={styles.tag}>PRO, ULTIMATE &amp; LIFETIME</span><h3>The technical round can catch these hands</h3><p>Bring the coding problem and work through solutions, complexity, and edge cases. Use System Design for architecture and trade-offs. Add a local project for code-aware questions. When “one quick question” becomes a distributed system, Novi can outline the architecture and explain the trade-offs.</p><ul><li>Readable code and explanations</li><li>Architecture diagrams and design reasoning</li><li>Read-only project search and change proposals</li></ul></article>
           </div>
           <ul className={styles.tools}>

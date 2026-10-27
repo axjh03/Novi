@@ -14,6 +14,8 @@ async function main() {
   writeFileSync(join(source, 'brief.txt'), 'SESSION_SOURCE: Project Cedar uses blue buttons.');
   const imagePath = join(directory, 'sample.png');
   writeFileSync(imagePath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==', 'base64'));
+  const imagePaths = [imagePath, ...Array.from({ length: 6 }, (_, i) => join(directory, `sample-${i + 2}.png`))];
+  for (const path of imagePaths.slice(1)) writeFileSync(path, readFileSync(imagePath));
   const requests: Array<{ messages: Array<{ content: unknown }>; model: string }> = [];
   let rejectPing = false, rejectSetup = true, pings = 0, confirmedAt = 0, contextSentAt = 0, diagramRequests = 0;
   const server = createServer(async (request, response) => {
@@ -215,11 +217,12 @@ async function main() {
     assert(readFileSync(join(env.NOVI_DATA_DIR, 'data.json'), 'utf8').includes('SESSION_SOURCE'));
     const isolation = await page.evaluate(() => ({ node: 'require' in window, process: 'process' in window }));
     assert.deepEqual(isolation, { node: false, process: false });
-    await app.evaluate(({ dialog }, imagePath) => {
-      dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [imagePath] })) as typeof dialog.showOpenDialog;
-    }, imagePath);
+    await app.evaluate(({ dialog }, imagePaths) => {
+      dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: imagePaths })) as typeof dialog.showOpenDialog;
+    }, imagePaths);
     await tray.getByRole('button', { name: /Attach image/ }).click();
     await tray.getByRole('button', { name: 'Remove sample.png' }).waitFor();
+    assert.equal(await tray.getByRole('button', { name: /^Remove sample.*\.png$/ }).count(), imagePaths.length);
     await tray.getByLabel('Message Novi').fill('What color should this button be?');
     await tray.getByRole('button', { name: 'Attach controls', exact: true }).click();
     await page.getByLabel('Message Novi').waitFor();
@@ -234,6 +237,9 @@ async function main() {
     assert.match(JSON.stringify(requests[1]), /SESSION_SOURCE/);
     assert.match(JSON.stringify(requests[1]), /CUSTOM_CONSTRAINT/);
     assert.match(JSON.stringify(requests[1]), /data:image\/png;base64/);
+    const sentContent = requests[1].messages.at(-1)!.content;
+    assert(Array.isArray(sentContent));
+    assert.equal(sentContent.filter(part => part.type === 'image_url').length, imagePaths.length, 'all seven images reach the provider');
     // Hold both listening transitions: typed questions must remain sendable while speech is busy.
     await app.evaluate(({ ipcMain }) => {
       ipcMain.removeHandler('interview-start'); ipcMain.removeHandler('interview-stop');
@@ -305,7 +311,7 @@ async function main() {
     assert.equal(afterNewSession.value.contextSession, null);
     assert.deepEqual(afterNewSession.value.conversations, savedBeforeNewSession);
     assert(!existsSync(summary));
-    assert.equal(readdirSync(join(env.NOVI_DATA_DIR, 'images')).length, 1);
+    assert.equal(readdirSync(join(env.NOVI_DATA_DIR, 'images')).length, imagePaths.length);
     assert.match(readFileSync(join(env.NOVI_DATA_DIR, 'data.json'), 'utf8'), /What color should this button be\?/);
     assert.match(readFileSync(join(source, 'brief.txt'), 'utf8'), /SESSION_SOURCE/);
     assert.equal(await page.getByLabel('Message Novi').count(), 0);

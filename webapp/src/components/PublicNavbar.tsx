@@ -2,10 +2,11 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { ArrowUpRight, BookOpen, Download, Gift, KeyRound, Layers, Menu, Plus, UserRound, X } from 'lucide-react';
+import { ArrowUpRight, BookOpen, CreditCard, Download, Gift, KeyRound, Layers, Menu, X } from 'lucide-react';
 import { SITE_LINKS, type SiteLinkId } from '@/lib/site';
 
-const navigationIcons = { features: Layers, 'how-it-works': BookOpen, download: Download, referral: Gift, 'setup-guide': KeyRound };
+const navigationIcons = { features: Layers, 'how-it-works': BookOpen, download: Download, referral: Gift, 'setup-guide': KeyRound, 'get-access': CreditCard };
+const navigationLinks = [...SITE_LINKS, { id: 'get-access', href: '/get-access', label: 'Pricing & plans' }] as const;
 
 export interface PublicNavbarProps {
   active?: SiteLinkId;
@@ -18,9 +19,14 @@ export default function PublicNavbar({ active, onSignIn, onSignUp }: PublicNavba
 
   const closeMenu = () => setMenuOpen(false);
   const signIn = (mobile: boolean) => onSignIn ? (
-    <button type="button" className="public-nav-signin public-nav-item" aria-label="Sign in" onClick={() => { closeMenu(); onSignIn(); }} style={mobile ? { padding: '10px 12px', fontSize: 15, textAlign: 'left' } : undefined}><UserRound size={17} aria-hidden="true" /><span className="public-nav-text">Sign in</span></button>
+    <button type="button" className={`btn${mobile ? ' full' : ''}`} onClick={() => { closeMenu(); onSignIn(); }}>Log in</button>
   ) : (
-    <Link href="/#signin" className="public-nav-signin public-nav-item" aria-label="Sign in" onClick={closeMenu} style={mobile ? { padding: '10px 12px', fontSize: 15 } : undefined}><UserRound size={17} aria-hidden="true" /><span className="public-nav-text">Sign in</span></Link>
+    <Link href="/#signin" className={`btn${mobile ? ' full' : ''}`} onClick={closeMenu}>Log in</Link>
+  );
+  const signUp = (mobile: boolean) => onSignUp ? (
+    <button type="button" className={`btn dark${mobile ? ' full' : ''}`} onClick={() => { closeMenu(); onSignUp(); }}>Sign up<ArrowUpRight size={15} aria-hidden="true" /></button>
+  ) : (
+    <Link href="/#signup" className={`btn dark${mobile ? ' full' : ''}`} onClick={closeMenu}>Sign up<ArrowUpRight size={15} aria-hidden="true" /></Link>
   );
 
   return (
@@ -39,7 +45,7 @@ export default function PublicNavbar({ active, onSignIn, onSignUp }: PublicNavba
 
         {/* Desktop Links */}
         <div className="public-nav-links">
-          {SITE_LINKS.map(link => { const Icon = navigationIcons[link.id]; return (
+          {navigationLinks.map(link => { const Icon = navigationIcons[link.id]; return (
             <Link
               key={link.id}
               href={link.href}
@@ -56,10 +62,7 @@ export default function PublicNavbar({ active, onSignIn, onSignUp }: PublicNavba
             </Link>
           ); })}
           {signIn(false)}
-          <Link href="/#signup" className="public-nav-signin public-nav-item" aria-label="Create account" onClick={event => { closeMenu(); if (onSignUp) { event.preventDefault(); onSignUp(); } }}><Plus size={17} aria-hidden="true" /><span className="public-nav-text">Create account</span></Link>
-          <Link href="/get-access" className="btn dark" aria-current={active === 'get-access' ? 'page' : undefined} style={{ textDecoration: 'none' }}>
-            Pricing & plans <ArrowUpRight size={15} />
-          </Link>
+          {signUp(false)}
         </div>
 
         {/* Mobile Burger Toggle Button */}
@@ -81,7 +84,7 @@ export default function PublicNavbar({ active, onSignIn, onSignUp }: PublicNavba
           id="public-mobile-menu"
           className="mobile-nav-drawer"
         >
-          {SITE_LINKS.map(link => { const Icon = navigationIcons[link.id]; return (
+          {navigationLinks.map(link => { const Icon = navigationIcons[link.id]; return (
             <Link
               key={link.id}
               href={link.href}
@@ -102,26 +105,7 @@ export default function PublicNavbar({ active, onSignIn, onSignUp }: PublicNavba
               <Icon size={17} strokeWidth={1.7} aria-hidden="true" /><span className="public-nav-text">{link.label}</span>
             </Link>
           ); })}
-          {signIn(true)}
-          <Link href="/#signup" className="public-nav-signin" onClick={event => { closeMenu(); if (onSignUp) { event.preventDefault(); onSignUp(); } }} style={{ padding: '10px 12px', fontSize: 15 }}>Create an individual account</Link>
-
-          <div style={{ paddingTop: 8, borderTop: '1px solid var(--line)' }}>
-            <Link
-              href="/get-access"
-              onClick={closeMenu}
-              className="btn dark full"
-              style={{
-                width: '100%',
-                justifyContent: 'center',
-                padding: '12px 16px',
-                fontSize: 14,
-                display: 'inline-flex',
-                textDecoration: 'none',
-              }}
-            >
-              Pricing & plans <ArrowUpRight size={16} />
-            </Link>
-          </div>
+          <div className="public-nav-auth">{signIn(true)}{signUp(true)}</div>
         </div>
       )}
     </header>

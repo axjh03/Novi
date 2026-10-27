@@ -23,7 +23,7 @@ export class ImageService {
   }
   import(paths: unknown): ImageAttachment[] {
     const user = this.storage.current();
-    if (!Array.isArray(paths) || !paths.length || paths.length > 6 || paths.some((path) => typeof path !== 'string')) throw new UserError('Choose between 1 and 6 images.');
+    if (!Array.isArray(paths) || !paths.length || paths.some((path) => typeof path !== 'string')) throw new UserError('Choose one or more images.');
     if (this.pending.size + paths.length > 60) throw new UserError('Too many unused attachments. Sign out and back in to clear them.');
     // Validate the whole selection before creating any local copies.
     const files = paths.map((path: string) => {
