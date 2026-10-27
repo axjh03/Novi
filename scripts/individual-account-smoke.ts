@@ -40,7 +40,8 @@ async function main() {
     const rows = testimonials.getByRole('region');
     assert.equal(await rows.count(), 2);
     assert.deepEqual(await rows.locator(':scope > div').evaluateAll(tracks => tracks.map(track => getComputedStyle(track).animationDirection)), ['normal', 'reverse']);
-    await testimonials.getByRole('button', { name: 'Pause', exact: true }).click();
+    assert.equal(await testimonials.getByRole('button').count(), 0);
+    await rows.first().focus();
     assert.deepEqual(await rows.locator(':scope > div').evaluateAll(tracks => tracks.map(track => getComputedStyle(track).animationPlayState)), ['paused', 'paused']);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     assert.deepEqual(await rows.locator(':scope > div').evaluateAll(tracks => tracks.map(track => getComputedStyle(track).animationName)), ['none', 'none']);

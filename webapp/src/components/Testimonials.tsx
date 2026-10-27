@@ -1,7 +1,4 @@
-'use client';
-
-import { useState } from 'react';
-import { Pause, Play, Quote } from 'lucide-react';
+import { Quote } from 'lucide-react';
 import styles from './Testimonials.module.css';
 
 // These are illustrative identities and quotes, pending approved customer feedback.
@@ -17,10 +14,9 @@ const samples = [
 ];
 
 export default function Testimonials() {
-  const [paused, setPaused] = useState(false);
   return <section className={styles.section} aria-labelledby="testimonials-title" aria-describedby="testimonials-disclosure">
-    <div className={styles.heading}><div><span className={styles.eyebrow}>OUR TESTIMONIALS</span><h2 id="testimonials-title">Real feedback from job seekers.</h2><p id="testimonials-disclosure"><strong>Sample content.</strong> Illustrative quotes and names for this layout preview. Approved customer feedback will replace these cards.</p></div><button type="button" className={styles.pause} aria-pressed={paused} onClick={() => setPaused(!paused)}>{paused ? <Play size={14} aria-hidden="true" /> : <Pause size={14} aria-hidden="true" />}{paused ? 'Play' : 'Pause'}</button></div>
-    <div className={styles.rows} data-paused={paused}>
+    <div className={styles.heading}><span className={styles.eyebrow}>OUR TESTIMONIALS</span><h2 id="testimonials-title">Real feedback from job seekers.</h2><p id="testimonials-disclosure"><strong>Sample content.</strong> Illustrative quotes and names for this layout preview. Approved customer feedback will replace these cards.</p></div>
+    <div className={styles.rows}>
       {[samples.slice(0, 4), samples.slice(4)].map((row, index) => <div className={styles.row} key={index} tabIndex={0} role="region" aria-label={`Testimonial row ${index + 1}, scrolls ${index === 0 ? 'left' : 'right'}`}>
         <div className={`${styles.track} ${index === 1 ? styles.reverse : ''}`}>
           {[false, true].map(duplicate => <div className={styles.group} key={String(duplicate)} aria-hidden={duplicate || undefined}>

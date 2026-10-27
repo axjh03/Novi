@@ -200,4 +200,4 @@ The access integration test uses an isolated temporary database and covers role/
 
 ## Landing-page previews
 
-The developer demo is a disabled YouTube placeholder for a planned 15-minute feature and Listening walkthrough. Add the real video URL before enabling playback. Testimonial rows currently show clearly labeled illustrative names and quotes; replace them with approved customer feedback before presenting them as real reviews. Surnames are masked before rendering, and the rows support pause and reduced motion.
+The developer demo is a disabled YouTube placeholder for a planned 15-minute feature and Listening walkthrough. Add the real video URL before enabling playback. Testimonial rows currently show clearly labeled illustrative names and quotes; replace them with approved customer feedback before presenting them as real reviews. Surnames are masked before rendering, and the rows pause on hover or keyboard focus and respect reduced-motion settings.
