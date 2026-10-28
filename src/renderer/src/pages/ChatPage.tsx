@@ -28,6 +28,7 @@ import { useLocalCodingProject } from '../hooks/useLocalCodingProject';
 import { ENGINES, type LocalCodingMessage } from '../../../shared/localCoding';
 import { lockedMessage } from '../../../shared/plans';
 import { PlanLock } from '../components/PlanLock';
+import { ANSWER_STYLES } from '../../../shared/interviewProfile';
 
 // Each mode has its own icon so the tray can show only the active mode's name.
 const MODE_ICONS: Record<AppMode, LucideIcon> = {
@@ -52,12 +53,14 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     void unwrap(window.novi.setWorkspaceDocked(true)).catch(console.error);
     return () => { void unwrap(window.novi.setWorkspaceDocked(false)).catch(console.error); };
   }, []);
-  const [{ transparent }] = useStealthState();
+  const [{ transparent, clickThrough, clickThroughShortcut }] = useStealthState();
   // The ready check shows until it is dismissed or the first message is sent.
   const [readyDismissed, setReadyDismissed] = useState(false), [sentInSession, setSentInSession] = useState(false);
   const {
     appMode,
     setAppMode,
+    answerStyle,
+    setAnswerStyle,
     allows,
     behavioralFramework,
     setBehavioralFramework,
@@ -305,6 +308,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             </div>
           )}
         <TrayPortal detached={trayDetached} onClosed={() => setTrayDetached(false)}>
+          {transparent && clickThrough && <p className="tray-input-hint" role="status">Clicks pass through · Press <kbd>{clickThroughShortcut}</kbd> to type</p>}
           {practice.active && <PracticeCoach state={practice.state} voiced={practice.voiced} listenKey={listenKey}
             onTypeInstead={practice.typeInstead} onRemove={() => void removePractice()} onEnd={practice.cancel} />}
           {syncingModel && <div className="tray-status" role="status">Saving model selection…</div>}
@@ -320,7 +324,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
           )}
           <Composer
             toolbar={<>
-            <TrayMenu className="tray-mode-menu" label="Change conversation mode" title={<ModeIcon size={14} />}>
+            <TrayMenu className="tray-mode-menu" label="Change conversation mode" title={<><ModeIcon size={14} /><span>{SESSION_MODES.find(mode => mode.id === appMode)?.name}</span></>}>
             <nav className="chat-mode-tabs" aria-label="Conversation mode">
               {SESSION_MODES.map(({ id: mode, name: label }) => {
                 const Icon = MODE_ICONS[mode];
@@ -335,6 +339,13 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
               ); })}
             </nav>
             {appMode === 'behavioral' && <BehavioralModeHUD framework={behavioralFramework} onSelectFramework={setBehavioralFramework} />}
+            </TrayMenu>
+            <TrayMenu className="tray-answer-menu" label="Answer style" title={<MessageSquare size={14} />}>
+              <div className="tray-menu-heading">Answer style · change any time</div>
+              <div className="chat-mode-tabs" role="group" aria-label="Answer style">
+                {ANSWER_STYLES.map(style => <button type="button" key={style.id} className="mode-tab-btn" aria-pressed={answerStyle === style.id} title={style.description}
+                  onClick={event => { setAnswerStyle(style.id); const menu = event.currentTarget.closest('details'); if (menu) { menu.open = false; menu.querySelector('summary')?.focus(); } }}><span>{style.name}</span></button>)}
+              </div>
             </TrayMenu>
             <TrayMenu className="tray-model-menu" label="Model settings" title={<Brain size={14} />}>
             {localMode ? (

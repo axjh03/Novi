@@ -14,8 +14,11 @@ import { useStealthState } from '../hooks/useStealth';
 
 import { isAppMode } from '../../../shared/sessionModes';
 import { fallbackMode, type Feature } from '../../../shared/plans';
+import type { AnswerStyle } from '../../../shared/interviewProfile';
 
 interface AppModeContextType {
+  answerStyle: AnswerStyle | undefined;
+  setAnswerStyle: (style: AnswerStyle) => void;
   /** The current mode; always one the license's plan includes. */
   appMode: AppMode;
   /** Switches mode. Modes the plan doesn't include are ignored (their buttons explain the lock instead). */
@@ -56,6 +59,8 @@ interface ProviderProps {
 }
 
 export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: ProviderProps) {
+  const [answerStyle, setAnswerStyle] = useState<AnswerStyle | undefined>(snapshot?.contextSession?.interview?.answerStyle);
+  useEffect(() => { setAnswerStyle(snapshot?.contextSession?.interview?.answerStyle); }, [snapshot?.contextSession?.id]);
   // 0. License plan: what the signed-in license unlocks (src/shared/plans.ts).
   const features = snapshot?.user?.features;
   const allows = useCallback((feature: Feature) => !features || features.includes(feature), [features]);
@@ -283,6 +288,8 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
   return (
     <AppModeContext.Provider
       value={{
+        answerStyle,
+        setAnswerStyle,
         appMode,
         setAppMode,
         allows,

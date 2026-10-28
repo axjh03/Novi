@@ -94,16 +94,18 @@ test('a request becomes a pinned, validated iteration; explanation-only answers 
   assert.equal(env.conversation().messages.at(-1)!.localCoding?.state, 'needs-information');
 });
 
-test('Local Coding inherits session answer instructions and vocabulary', async t => {
+test('Local Coding inherits session instructions and applies the current speaking style inside its JSON output', async t => {
   const env = await setup(t);
   const instructions = 'Vocabulary: Use familiar words and short sentences.';
   const context = { session: { status: 'ready' }, savedContext: { instructions, summary: '', documents: [] } };
   const chat = new ChatService(env.storage, {}, { commit() {} }, context, env.service);
   env.agent.answers.push(task => {
     assert.match(task.prompt, /Session instructions:\nVocabulary: Use familiar words and short sentences/);
+    assert.match(task.instructions, /\[pause\]/);
+    assert.match(task.instructions, /keep the required JSON schema/);
     return answer([]);
   });
-  await chat.send({ appMode: 'local-coding', conversationId: env.conversation().id, content: 'Explain the project.', imageIds: [], localCoding: { baseVersionId: env.service.state(env.projectId).selectedVersionId } }, () => {});
+  await chat.send({ appMode: 'local-coding', answerStyle: 'spoken', conversationId: env.conversation().id, content: 'Explain the project.', imageIds: [], localCoding: { baseVersionId: env.service.state(env.projectId).selectedVersionId } }, () => {});
   assert.equal(env.conversation().context?.instructions, instructions);
   assert.equal(env.conversation().messages.at(-1)!.status, 'complete');
 });

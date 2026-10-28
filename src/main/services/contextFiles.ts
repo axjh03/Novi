@@ -63,7 +63,7 @@ export async function readContextFolders(paths: string[]): Promise<Array<{ path:
         const rel = relative(root, resolved);
         if (rel.startsWith('..') || isAbsolute(rel)) throw new UserError('A file points outside the selected folder.');
         if (entry.isDirectory()) { await walk(path, depth + 1); continue; }
-        if (!entry.isFile() || !['.txt', '.pdf'].includes(extname(path).toLowerCase()) || seen.has(resolved)) continue;
+        if (!entry.isFile() || !['.txt', '.pdf', '.md', '.markdown'].includes(extname(path).toLowerCase()) || seen.has(resolved)) continue;
         seen.add(resolved);
         const stat = await lstat(resolved);
         if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 10 * 1024 * 1024) throw new UserError('Each context file must be a regular file under 10 MB.');
@@ -85,6 +85,6 @@ export async function readContextFolders(paths: string[]): Promise<Array<{ path:
     await walk(root, 0);
     if (documents.length) result.push({ path: root, name: basename(root), documents });
   }
-  if (!result.length) throw new UserError('No readable TXT or PDF files were found in these folders.');
+  if (!result.length) throw new UserError('No readable TXT, Markdown or PDF files were found in these folders.');
   return result;
 }

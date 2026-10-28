@@ -1,7 +1,8 @@
 import type { LocalAISetup, LocalModelStatus } from './localAI';
 import type { DebugState } from './debug';
-import type { InterviewEvent, InterviewFrame, InterviewSession, InterviewStart } from './interview';
+import type { InterviewEvent, InterviewFrame, InterviewSession, InterviewStart, ListeningSource } from './interview';
 import type { Feature } from './plans';
+import type { AnswerStyle, InterviewProfile, ProfileResearch, ProfileResearchInput } from './interviewProfile';
 import type { BrowseResult, EngineId, EngineModel, EngineReadiness, FileReview, LocalCodingBinding, LocalCodingMessage, LocalCodingRequest, ProjectState, RefreshDecision, RefreshResult, SourcePreview, ChangeOperation } from './localCoding';
 export type SupportedProviderKind = 'openai' | 'anthropic' | 'gemini';
 export type ProviderKind = SupportedProviderKind | 'compatible';
@@ -12,8 +13,9 @@ export const DEFAULT_TRANSPARENT_SHORTCUT = isMacPlatform ? 'Option+Control+T' :
 /** The earlier Windows/Linux default; many keyboards have no Home or PageUp key, so saved copies move to the current default. */
 export const LEGACY_TRANSPARENT_SHORTCUT = 'Home+PageUp';
 export type AppMode = 'normal' | 'coding' | 'behavioral' | 'recruiter' | 'technical' | 'system-design' | 'local-coding';
+export interface CompanionState { mode: AppMode; availableModes: AppMode[]; busy: boolean; listening: boolean; source: ListeningSource }
 export type BehavioralFramework = 'smart' | 'star' | 'car' | 'par' | 'soar';
-export type VocabularyLevel = 'plain' | 'everyday' | 'technical';
+export type VocabularyLevel = 'plain' | 'simple' | 'everyday' | 'professional' | 'technical';
 export const DEFAULT_CODING_SHORTCUT = 'Alt+C';
 export const DEFAULT_BEHAVIORAL_SHORTCUT = 'Alt+B';
 export const DEFAULT_SCREENSHOT_SHORTCUT = 'Alt+3';
@@ -78,10 +80,11 @@ export interface SessionProfile {
   role: string;
   purpose: string;
   vocabulary?: VocabularyLevel;
+  interview?: InterviewProfile;
   fields: Array<{ label: string; value: string }>;
   folders: Array<{ name: string; path: string }>;
 }
-export interface SessionProfileInput { name: string; folderIds: string[]; mode: AppMode; framework: BehavioralFramework; company: string; role: string; purpose: string; vocabulary?: VocabularyLevel; fields: Array<{ label: string; value: string }> }
+export interface SessionProfileInput { name: string; folderIds: string[]; mode: AppMode; framework: BehavioralFramework; company: string; role: string; purpose: string; vocabulary?: VocabularyLevel; interview?: InterviewProfile; fields: Array<{ label: string; value: string }> }
 export interface ProviderConnection extends AIProviderConfig { id: string; name: string; managed?: boolean; ownerName?: string; enabled?: boolean }
 export interface ConnectionInput { id?: string; name: string; ai: AIProviderConfig; apiKey?: string }
 export interface ModelOption { id: string; name: string }
@@ -114,11 +117,11 @@ export interface ChatLatency {
   requestMessages?: number;
   usage?: TokenUsage;
 }
-export interface SavedContext { instructions: string; summary: string; documents: Array<{ name: string; content: string }> }
+export interface SavedContext { instructions: string; summary: string; documents: Array<{ name: string; content: string }>; interview?: InterviewProfile }
 export interface Conversation { id: string; title: string; createdAt: number; updatedAt: number; messages: ChatMessage[]; context?: SavedContext; pinnedContext?: string; localCoding?: LocalCodingBinding }
 export interface ContextFolder { id: string; name: string; files: string[]; characters: number }
-export interface ContextInput { folderIds?: string[]; purpose?: string; company?: string; role?: string; vocabulary?: VocabularyLevel; fields?: Array<{ label: string; value: string }>; empty?: boolean }
-export interface ContextSession { id: string; connection: ProviderConnection; status: 'pending' | 'loading' | 'ready' | 'error' | 'ending'; summaryReady: boolean; isEmpty?: boolean }
+export interface ContextInput { folderIds?: string[]; purpose?: string; company?: string; role?: string; vocabulary?: VocabularyLevel; interview?: InterviewProfile; fields?: Array<{ label: string; value: string }>; empty?: boolean }
+export interface ContextSession { id: string; connection: ProviderConnection; status: 'pending' | 'loading' | 'ready' | 'error' | 'ending'; summaryReady: boolean; isEmpty?: boolean; interview?: InterviewProfile }
 /** Login fields restored only to the trusted main window. Passwords use the OS secure store. */
 export interface SavedCredentials { username: string; password?: string; passwordSavingAvailable: boolean; passwordError?: string }
 /** Access server reachability. `connectionLost` means offline long enough to tell the user. */
@@ -145,7 +148,7 @@ export interface SettingsInput {
   autoStartEmptySession?: boolean;
   localASRModelId?: string;
 }
-export interface SendInput { appMode?: AppMode; behavioralFramework?: BehavioralFramework; conversationId: string | null; content: string; imageIds: string[]; sentAt?: number; compactContext?: boolean; pinnedContext?: string; localCoding?: { baseVersionId: string; reconcile?: { fromVersionId: string; fileIds: string[] } } }
+export interface SendInput { appMode?: AppMode; behavioralFramework?: BehavioralFramework; answerStyle?: AnswerStyle; conversationId: string | null; content: string; imageIds: string[]; sentAt?: number; compactContext?: boolean; pinnedContext?: string; localCoding?: { baseVersionId: string; reconcile?: { fromVersionId: string; fileIds: string[] } } }
 export type ChatEvent =
   | { type: 'started'; conversation: Conversation }
   | { type: 'delta'; conversationId: string; messageId: string; text: string }
@@ -235,6 +238,8 @@ export interface NoviAPI {
   deleteLocalModel(id: string): Promise<Result<LocalModelStatus>>;
   onLocalModelProgress(callback: (status: LocalModelStatus) => void): () => void;
   pickContextFolders(): Promise<Result<ContextFolder[]>>;
+  researchProfile(input: ProfileResearchInput): Promise<Result<ProfileResearch>>;
+  exportInterviewSkills(input: { interview: InterviewProfile; vocabulary: VocabularyLevel }): Promise<Result<boolean>>;
   startContext(input: ContextInput): Promise<Result<Snapshot>>;
   startEmptySession(): Promise<Result<Snapshot>>;
   saveSessionProfile(input: SessionProfileInput): Promise<Result<Snapshot>>;
@@ -322,6 +327,7 @@ export interface NoviAPI {
   setAutoSmart(enabled: boolean): Promise<Result<import('./windowLayout').SmartPlacementState>>;
   onSmartPlacement(callback: (state: import('./windowLayout').SmartPlacementState) => void): () => void;
   reportConversationScroll(position: number, scrollable: boolean): Promise<Result<void>>;
+  reportCompanionState(state: CompanionState | null): Promise<Result<void>>;
   sampleBackgroundPalette(opacity: number): Promise<Result<import('./appearance').SmartPalette>>;
   captureScreen(): Promise<Result<ImageAttachment>>;
   saveAudioRecording(input: { base64: string; mimeType?: string; filename?: string }): Promise<Result<{ id: string; path: string; name: string }>>;

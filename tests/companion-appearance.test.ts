@@ -3,6 +3,27 @@ import { test } from 'node:test';
 import { PassThrough } from 'node:stream';
 import { RemoteCompanionService } from '../src/main/services/remoteCompanion';
 
+test('companion state follows desktop mode, input and generation state and validates reports', async () => {
+  const actions: unknown[] = [];
+  const service = new RemoteCompanionService({} as any, () => ({ isDestroyed: () => false, webContents: { send: (...args: unknown[]) => actions.push(args) } }) as any);
+  const state = { mode: 'system-design', availableModes: ['normal', 'system-design'], busy: true, listening: true, source: 'both' };
+  service.setDesktopState(state);
+  assert.deepEqual(service['desktopState'], state);
+  assert.equal(service['currentMode'], 'system-design');
+  for (const patch of [{ mode: 'invalid' }, { availableModes: ['invalid'] }, { availableModes: 'normal' }, { busy: 1 }, { listening: 'yes' }, { source: 'invalid' }]) {
+    assert.throws(() => service.setDesktopState({ ...state, ...patch }), /Invalid companion state/);
+    assert.deepEqual(service['desktopState'], state);
+  }
+  state.availableModes.push('coding');
+  assert.deepEqual(service['desktopState']!.availableModes, ['normal', 'system-design'], 'the report is copied');
+  await assert.rejects(service['executeAction']('set-app-mode', 'coding'), /not available on your plan/);
+  assert.equal(actions.length, 0);
+  await service['executeAction']('set-app-mode', 'normal');
+  assert.deepEqual(actions.at(-1), ['global-action', { type: 'set-app-mode', payload: 'normal' }]);
+  service.setDesktopState(null);
+  assert.equal(service['desktopState'], null);
+});
+
 test('phone controls dispatch bounded commands through the authenticated handler', async () => {
   const actions: unknown[] = [];
   const service = new RemoteCompanionService({ getState: () => ({ transparent: true, clickThrough: false }) } as any,
@@ -30,7 +51,11 @@ test('phone controls dispatch bounded commands through the authenticated handler
     assert.match(page.body, /windowPreview/);
     assert.match(page.body, /autoDetect/);
     assert.doesNotMatch(page.body, /rewindow-row|mockupPad|resizePad|↑ Up|↓ Down/);
-    assert.match(page.body, /SS &amp; Send/);
+    assert.match(page.body, /Snap \+ send/);
+    assert.match(page.body, /<select id="sessionMode"/);
+    assert.match(page.body, /System Design/);
+    assert.match(page.body, /Local Coding/);
+    assert.match(page.body, /Enable desktop input/);
     assert(!page.body.includes(token!));
     assert.equal((await request('/api/action', 1, false)).status, 401);
     assert.equal(actions.length, 0);

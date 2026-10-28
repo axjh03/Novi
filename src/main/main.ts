@@ -1,8 +1,8 @@
-import { app, BrowserWindow, session, desktopCapturer, dialog } from 'electron';
+import { app, BrowserWindow, session, desktopCapturer, dialog, screen } from 'electron';
 import { join, resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { MAIN_WINDOW_MIN } from './services/workspace';
+import { MAIN_WINDOW_MIN, normalBounds } from './services/workspace';
 import { AppMask } from './services/appMask';
 import { appCommand } from './services/appCommand';
 
@@ -26,8 +26,9 @@ const command = appCommand(process.argv, app.isPackaged);
 const iconPath = app.isPackaged ? join(process.resourcesPath, 'icon.png') : join(__dirname, '../../build/icon.png');
 
 function createWindow() {
+  const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
   const window = new BrowserWindow({
-    width: 1200, height: 800, minWidth: MAIN_WINDOW_MIN.width, minHeight: MAIN_WINDOW_MIN.height,
+    ...normalBounds(area), minWidth: Math.min(MAIN_WINDOW_MIN.width, area.width), minHeight: Math.min(MAIN_WINDOW_MIN.height, area.height),
     alwaysOnTop: true,
     title: 'Novi',
     skipTaskbar: mask?.settings.enabled,

@@ -22,10 +22,18 @@ export function TrayPortal({ children, detached = false, onClosed }: { children:
   const [{ transparent, clickThrough }] = useStealthState();
 
   useLayoutEffect(() => {
+    const moveControls = (target: HTMLElement | null) => {
+      if (!target) return;
+      const input = root.querySelector('textarea');
+      const start = input?.selectionStart ?? 0, end = input?.selectionEnd ?? 0;
+      target.append(root);
+      input?.focus({ preventScroll: true });
+      input?.setSelectionRange(start, end);
+    };
     // Menus register dismissal on their current document; close them before moving.
     root.querySelectorAll<HTMLDetailsElement>('details[open]').forEach(menu => { menu.open = false; });
     if (!detached) {
-      attached.current?.append(root);
+      moveControls(attached.current);
       setTray(null);
       return;
     }
@@ -36,7 +44,7 @@ export function TrayPortal({ children, detached = false, onClosed }: { children:
     const doc = trayWindow.document;
     let closing = false, reported = false, lastHeight = 0, timer = 0;
     doc.title = 'Novi';
-    doc.body.append(root);
+    moveControls(doc.body);
 
     // The tray inherits this page's origin, base URL and CSP, so copied styles load as they do here.
     const syncStyles = () => {
@@ -107,7 +115,7 @@ export function TrayPortal({ children, detached = false, onClosed }: { children:
     const reportClosed = () => {
       if (closing || reported) return;
       reported = true;
-      attached.current?.append(root);
+      moveControls(attached.current);
       setTray(null);
       closedRef.current();
     };
@@ -127,7 +135,7 @@ export function TrayPortal({ children, detached = false, onClosed }: { children:
       contentObserver.disconnect();
       resizeObserver.disconnect();
       window.removeEventListener('pagehide', closeTray);
-      attached.current?.append(root);
+      moveControls(attached.current);
       closeTray();
     };
   }, [detached, root]);

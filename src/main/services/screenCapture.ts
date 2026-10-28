@@ -2,8 +2,8 @@ import { BrowserWindow, desktopCapturer, screen, systemPreferences, type Rectang
 
 let captureQueue: Promise<unknown> = Promise.resolve();
 
-export function captureScreenBuffer(getMainWindow?: () => BrowserWindow | null, targetDisplayId?: number | null, sampleBounds?: Rectangle, restoreFocus = true): Promise<Buffer> {
-  const capture = captureQueue.then(() => captureScreen(getMainWindow, targetDisplayId, sampleBounds, restoreFocus));
+export function captureScreenBuffer(getMainWindow?: () => BrowserWindow | null, targetDisplayId?: number | null, sampleBounds?: Rectangle): Promise<Buffer> {
+  const capture = captureQueue.then(() => captureScreen(getMainWindow, targetDisplayId, sampleBounds));
   captureQueue = capture.catch(() => {});
   return capture;
 }
@@ -12,7 +12,6 @@ async function captureScreen(
   getMainWindow?: () => BrowserWindow | null,
   targetDisplayId?: number | null,
   sampleBounds?: Rectangle,
-  restoreFocus = true,
 ): Promise<Buffer> {
   if (sampleBounds && process.platform === 'darwin' && systemPreferences.getMediaAccessStatus('screen') !== 'granted') {
     throw new Error('Allow Screen Recording for Novi before enabling Smart colors.');
@@ -28,6 +27,8 @@ async function captureScreen(
       wasFocused: win.isFocused(),
       contentProtected: cp,
     });
+  }
+  for (const win of allWindows) {
     // Set content protection so OS window manager / DWM natively excludes it from capture
     if (!sampleBounds) try { win.setContentProtection(true); } catch {}
     // Windows excludes protected windows natively. Else briefly clear their opacity for background sampling without changing focus.
@@ -98,13 +99,16 @@ async function captureScreen(
     for (const [win, state] of savedState.entries()) {
       if (!win.isDestroyed()) {
         try {
-          if (!sampleBounds || process.platform === 'linux') { if (restoreFocus) win.show(); else win.showInactive(); }
+          if (!sampleBounds || process.platform === 'linux') win.showInactive();
           win.setOpacity(state.opacity);
           if (!sampleBounds) try { win.setContentProtection(state.contentProtected); } catch {}
-          if ((!sampleBounds || process.platform === 'linux') && state.wasFocused) {
-            win.focus();
-          }
         } catch {}
+      }
+    }
+    // Restore focus last: showing a viewer after the input tray used to take its keyboard focus.
+    for (const [win, state] of savedState) {
+      if (state.wasFocused && !win.isDestroyed() && (!sampleBounds || process.platform === 'linux')) {
+        try { win.focus(); } catch {}
       }
     }
   }

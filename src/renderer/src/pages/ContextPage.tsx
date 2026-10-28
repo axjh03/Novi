@@ -1,116 +1,101 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Bookmark, Check, Cpu, FastForward, FileText, FolderOpen, Pencil, Play, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bookmark, Check, Cpu, Download, FastForward, FileText, FolderOpen, MessageSquare, Pencil, Play, Sparkles, Trash2, X } from 'lucide-react';
 import type { AppMode, ContextFolder, SessionProfile, Snapshot, VocabularyLevel } from '../../../shared/types';
 import { activeConnection } from '../../../shared/providers';
+import { ANSWER_STYLES, DEFAULT_INTERVIEW_PROFILE, INTERVIEW_DOMAINS, interviewSkill, profileFileKind, wordCount, type InterviewProfile, type ProfileResearch } from '../../../shared/interviewProfile';
 import { Brand } from '../components/Brand';
 import { ProviderPicker } from '../components/chat/ProviderPicker';
+import { InterviewModelSuggestions } from '../components/InterviewModelSuggestions';
 import { SettingsPage } from './SettingsPage';
 import { SessionPreflight } from '../components/SessionPreflight';
 import { BehavioralModeHUD } from '../components/BehavioralModeHUD';
 import { errorText, unwrap } from '../services/api';
 import { continueFromGetReady, getReadyContinued } from '../services/readiness';
-import { SESSION_ROLES, defaultPurpose, presetFields } from '../context/sessionPresets';
-
+import { defaultPurpose } from '../context/sessionPresets';
 import { useAppMode } from '../context/AppModeContext';
-import { SESSION_MODES, VOCABULARY_LEVELS, modeInstructions } from '../../../shared/sessionModes';
+import { SESSION_MODES, VOCABULARY_LEVELS } from '../../../shared/sessionModes';
 import { fallbackMode, lockedMessage } from '../../../shared/plans';
 import { PlanLock } from '../components/PlanLock';
 
-type Section = 'model' | 'sources' | 'brief';
-type Field = { label: string; value: string };
-type Applied = { role: number; preset: number } | null;
+const STEPS = [
+  { id: 'sources', name: 'Load profile', Icon: FolderOpen },
+  { id: 'brief', name: 'Instructions', Icon: FileText },
+  { id: 'style', name: 'Answer style', Icon: MessageSquare },
+  { id: 'model', name: 'Model', Icon: Cpu },
+] as const;
+type Section = typeof STEPS[number]['id'];
+const modeName = (mode: AppMode) => SESSION_MODES.find(item => item.id === mode)?.name ?? mode;
 
-/** The display name of a session type, for example 'coding' => "Coding". */
-const modeName = (mode: AppMode) => SESSION_MODES.find((item) => item.id === mode)?.name ?? mode;
-/** "1 folder" / "3 folders". */
-const folderCount = (count: number) => `${count} ${count === 1 ? 'folder' : 'folders'}`;
-
-/**
- * Session setup: the screen shown after Get ready and before a session starts.
- *
- * Three steps, all rendered at once and shown one at a time (so nothing typed is lost when switching):
- *   1. Model: choose the AI connection and model. Saved profiles can be started from here in one click.
- *      "Start an empty chat instead" skips setup entirely.
- *   2. Documents (optional): load folders of resumes, job descriptions or notes.
- *   3. Instructions: purpose (auto-suggested), session type, company and role, and optional presets.
- *      "More options" holds the four detailed answer instructions and Save profile.
- *
- * Start stays pressable even when something is missing: it then jumps to the missing item instead
- * of doing nothing, which helps when someone is nervous and can't see why nothing happens.
- *
- * Get ready (SessionPreflight) is shown first, once per launch per account. After that, ending a
- * session comes straight back here, and the "Run Get ready" button in the header opens Get ready
- * again (with today's results filled in), so its checks can be repeated between sessions.
- *
- * @param state     the current app snapshot (signed-in user, settings, profiles).
- * @param onSaved   called with the new snapshot whenever main-process state changes (session started, profile saved...).
- * @param onSignOut passed through to Settings, which is where Sign out lives.
- */
+/** One candidate folder, followed by interview preferences, speaking style and model selection. */
 export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; onSaved: (state: Snapshot) => void; onSignOut: () => void }) {
   const { setAppMode, allows, behavioralFramework, setBehavioralFramework } = useAppMode();
-  const [startMode, setStartMode] = useState<AppMode | null>(null);
   const [settings, setSettings] = useState(false);
   const [preflightDone, setPreflightDone] = useState(() => getReadyContinued(state.user!.id));
-  const [section, setActiveSection] = useState<Section>('model');
+  const [section, setActiveSection] = useState<Section>('sources');
   const [direction, setDirection] = useState('forward');
-  const sectionIndex = ['model', 'sources', 'brief'].indexOf(section);
-  function setSection(next: Section) {
-    setDirection(['model', 'sources', 'brief'].indexOf(next) < sectionIndex ? 'backward' : 'forward');
-    setActiveSection(next);
-  }
+  const index = STEPS.findIndex(step => step.id === section);
+  function setSection(next: Section) { setDirection(STEPS.findIndex(step => step.id === next) < index ? 'backward' : 'forward'); setActiveSection(next); }
   const [folders, setFolders] = useState<ContextFolder[]>([]);
-  // The purpose follows the session type, preset, company and role until the user writes their own.
-  const [purpose, setPurpose] = useState(''), [purposeEdited, setPurposeEdited] = useState(false);
-  const [company, setCompany] = useState(''), [targetRole, setTargetRole] = useState('');
+  const [loadedSavedProfile, setLoadedSavedProfile] = useState(false);
+  const [interview, setInterview] = useState<InterviewProfile>({ ...DEFAULT_INTERVIEW_PROFILE });
+  const updateInterview = (patch: Partial<InterviewProfile>) => setInterview(current => ({ ...current, ...patch }));
   const [vocabulary, setVocabulary] = useState<VocabularyLevel>('everyday');
-  const vocabularyIndex = VOCABULARY_LEVELS.findIndex((level) => level.id === vocabulary);
-  // The profile name follows company and role (or the purpose) until the user types their own.
+  const vocabularyIndex = VOCABULARY_LEVELS.findIndex(level => level.id === vocabulary);
+  const [startMode, setStartMode] = useState<AppMode | null>(null);
+  const [company, setCompany] = useState(''), [targetRole, setTargetRole] = useState('');
+  const [purpose, setPurpose] = useState(''), [purposeEdited, setPurposeEdited] = useState(false);
+  const purposeValue = purposeEdited ? purpose : defaultPurpose(startMode, { company, role: targetRole });
+  const [fields, setFields] = useState(['Role / perspective', 'Level / experience', 'Output format', 'Additional instructions'].map(label => ({ label, value: '' })));
+  const [research, setResearch] = useState<ProfileResearch | null>(null);
+  const [busy, setBusy] = useState(false), [checking, setChecking] = useState(false), [researching, setResearching] = useState(false), [error, setError] = useState('');
+  const [modelReady, setModelReady] = useState(false);
   const [profileName, setProfileName] = useState(''), [profileNameEdited, setProfileNameEdited] = useState(false);
   const [profileNotice, setProfileNotice] = useState(''), [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [fields, setFields] = useState<Field[]>(['Role / perspective', 'Level / experience', 'Output format', 'Additional instructions'].map((label) => ({ label, value: '' })));
-  const [roleIndex, setRoleIndex] = useState(SESSION_ROLES.length - 1);
-  // Only an applied preset shows as selected; Undo restores what applying it replaced.
-  const [applied, setApplied] = useState<Applied>(null);
-  const [undo, setUndo] = useState<{ fields: Field[]; startMode: AppMode | null; applied: Applied } | null>(null);
-  const [presetNotice, setPresetNotice] = useState('');
-  const moreOptions = useRef<HTMLDetailsElement>(null), purposeInput = useRef<HTMLTextAreaElement>(null), modeOptions = useRef<HTMLDivElement>(null);
-  const role = SESSION_ROLES[roleIndex];
-  const appliedPreset = applied ? SESSION_ROLES[applied.role].presets[applied.preset] : null;
-  const [busy, setBusy] = useState(false), [error, setError] = useState('');
-  const [modelReady, setModelReady] = useState(false), [checking, setChecking] = useState(false);
+  const purposeInput = useRef<HTMLTextAreaElement>(null), modeOptions = useRef<HTMLDivElement>(null);
   const attempt = useRef(0);
   useEffect(() => () => { attempt.current++; }, []);
   const connection = activeConnection(state.settings!);
-  // The Purpose actually used: the user's own text once they have typed in the field, otherwise the suggestion.
-  const purposeValue = purposeEdited ? purpose : defaultPurpose(startMode, { company, role: targetRole, preset: appliedPreset });
-  // The Instructions step is complete when there is a purpose and a session type.
-  const briefReady = Boolean(purposeValue.trim() && startMode);
-  // Start really starts only on the Instructions step, with a working model and a complete brief.
-  const canStart = !busy && modelReady && briefReady && section === 'brief';
-  // What still blocks Start, in the order it appears on the page.
-  const missing = !modelReady ? 'model' : purposeEdited && !purposeValue.trim() ? 'purpose' : !startMode ? 'mode' : !purposeValue.trim() ? 'purpose' : null;
-  // The short hint shown next to the step's main button, saying what is still needed ('' when nothing).
-  const needs = section === 'model' ? (modelReady ? '' : 'Choose a model to continue')
-    : section === 'brief' ? ({ model: 'Choose a model first', purpose: 'Add a purpose', mode: 'Choose a session type' } as const)[missing!] ?? '' : '';
+  const files = folders.flatMap(folder => folder.files);
+  const hasJobDescription = Boolean(interview.jobDescriptionUrl.trim() || interview.jobDescriptionText.trim() || files.some(file => ['Job description', 'Profile bundle'].includes(profileFileKind(file))));
+  const profileReady = loadedSavedProfile || hasJobDescription;
+  const briefReady = Boolean(startMode && purposeValue.trim() && wordCount(interview.additionalContext) <= 100);
+  const canStart = !busy && profileReady && briefReady && modelReady && section === 'model';
   const profiles = state.settings!.sessionProfiles || [];
-  // The name Save profile will use: the user's own once typed, otherwise "<company> <role>" or the purpose (max 60 characters).
-  const nameForProfile = profileNameEdited ? profileName : ([company.trim(), targetRole.trim()].filter(Boolean).join(' ') || purposeValue.trim()).replace(/\s+/g, ' ').slice(0, 60);
-  // A saved profile with the same name (case-insensitive); saving then updates it instead of adding a copy.
-  const existingProfile = profiles.find((profile) => profile.name.toLowerCase() === nameForProfile.trim().toLowerCase());
+  const nameForProfile = profileNameEdited ? profileName : ([folders[0]?.name, company, targetRole].filter(Boolean).join(' · ') || purposeValue).replace(/\s+/g, ' ').slice(0, 60);
+  const existingProfile = profiles.find(profile => profile.name.toLowerCase() === nameForProfile.trim().toLowerCase());
+  const missing = !profileReady ? 'profile' : !startMode ? 'mode' : !purposeValue.trim() ? 'purpose' : wordCount(interview.additionalContext) > 100 ? 'notes' : !modelReady ? 'model' : null;
 
-  /** Opens the folder picker and loads the chosen folders' documents. Keeps the current list if the user cancels. */
   async function loadFolders() {
     setBusy(true); setError('');
-    try { const loaded = await unwrap(window.novi.pickContextFolders()); if (loaded.length) setFolders(loaded); }
-    catch (err) { setError(errorText(err)); }
+    try {
+      const loaded = await unwrap(window.novi.pickContextFolders());
+      if (loaded.length) { setFolders(loaded); setLoadedSavedProfile(false); setResearch(null); }
+    } catch (cause) { setError(errorText(cause)); }
     finally { setBusy(false); }
   }
-
-  /**
-   * "Start an empty chat instead": checks the AI connection, then starts a session with no documents
-   * and no instructions, in Chat mode (Technical on Core, which doesn't include Chat).
-   * `attempt` guards against a slow reply landing after the user has already done something else.
-   */
+  async function generateResearch() {
+    if (!connection?.model || !modelReady) { setError('Choose a model for auto generation, then return to your instructions.'); setSection('model'); return; }
+    const current = ++attempt.current;
+    setBusy(true); setResearching(true); setError('');
+    try {
+      const result = await unwrap(window.novi.researchProfile({ folderIds: folders.map(folder => folder.id), jobDescriptionUrl: interview.jobDescriptionUrl, companyUrl: interview.companyUrl, jobDescriptionText: interview.jobDescriptionText }));
+      if (current !== attempt.current) return;
+      setResearch(result);
+      if (result.company) setCompany(result.company);
+      if (result.role) setTargetRole(result.role);
+      updateInterview({ domain: result.domain, companyBrief: result.summary, jobDescriptionText: result.jobDescriptionText || interview.jobDescriptionText });
+    } catch (cause) { if (current === attempt.current) setError(errorText(cause)); }
+    finally { if (current === attempt.current) { setBusy(false); setResearching(false); } }
+  }
+  async function prepareProfile(profile: InterviewProfile, sources: ContextFolder[], employer: string, role: string) {
+    if (!profile.jobDescriptionUrl.trim() || profile.jobDescriptionText.trim() || sources.some(folder => folder.files.some(file => ['Job description', 'Profile bundle'].includes(profileFileKind(file))))) return { interview: profile, company: employer, role };
+    setResearching(true);
+    const result = await unwrap(window.novi.researchProfile({ folderIds: sources.map(folder => folder.id), jobDescriptionUrl: profile.jobDescriptionUrl, companyUrl: profile.companyUrl, jobDescriptionText: '' }));
+    if (!result.jobDescriptionText.trim()) throw new Error('The job description URL could not be read. Paste its text or load job-description.pdf / .txt before starting.');
+    const ready = { ...profile, jobDescriptionText: result.jobDescriptionText, companyBrief: profile.companyBrief || result.summary };
+    setResearch(result); setInterview(ready); setCompany(employer || result.company); setTargetRole(role || result.role);
+    return { interview: ready, company: employer || result.company, role: role || result.role };
+  }
   async function startEmpty() {
     if (busy || !modelReady) return;
     const current = ++attempt.current;
@@ -120,310 +105,138 @@ export function ContextPage({ state, onSaved, onSignOut }: { state: Snapshot; on
       if (current !== attempt.current) return;
       setChecking(false);
       const next = await unwrap(window.novi.startEmptySession());
-      setAppMode(fallbackMode(state.user?.features));
-      onSaved(next);
-    } catch (err) { if (current === attempt.current) setError(errorText(err)); }
+      setAppMode(fallbackMode(state.user?.features)); onSaved(next);
+    } catch (cause) { if (current === attempt.current) setError(errorText(cause)); }
     finally { if (current === attempt.current) { setBusy(false); setChecking(false); } }
   }
-
-  /**
-   * Starts the session: checks the AI connection first (so a broken key fails here, with the setup
-   * still on screen), then sends the documents, purpose, company, role and instructions to the main
-   * process and switches to the chosen session type.
-   */
   async function start() {
     if (!canStart || !startMode) return;
-    // Only if the plan changed while this screen was open; the buttons never select a locked mode.
     if (!allows(startMode)) { setError(lockedMessage(startMode)); return; }
     const current = ++attempt.current;
     setBusy(true); setChecking(true); setError('');
     try {
+      const prepared = await prepareProfile(interview, folders, company, targetRole);
+      setResearching(false);
+      if (current !== attempt.current) return;
       await unwrap(window.novi.testConnection());
       if (current !== attempt.current) return;
       setChecking(false);
-      const next = await unwrap(window.novi.startContext({ folderIds: folders.map((f) => f.id), purpose: purposeValue.trim(), company, role: targetRole, vocabulary, fields }));
-      setAppMode(startMode);
-      onSaved(next);
-    } catch (err) { if (current === attempt.current) setError(errorText(err)); }
-    finally { if (current === attempt.current) { setBusy(false); setChecking(false); } }
+      const next = await unwrap(window.novi.startContext({ folderIds: folders.map(folder => folder.id), purpose: (purposeEdited ? purposeValue : defaultPurpose(startMode, prepared)).trim(), ...prepared, vocabulary, fields }));
+      setAppMode(startMode); onSaved(next);
+    } catch (cause) { if (current === attempt.current) setError(errorText(cause)); }
+    finally { if (current === attempt.current) { setBusy(false); setChecking(false); setResearching(false); } }
   }
-
-  /**
-   * Called when Start is pressed while something is missing. Start looks disabled in that state but
-   * stays pressable, and this takes the user to the first missing thing instead of doing nothing:
-   * the Model step, the Purpose field, or the session type buttons (scrolled into view and focused).
-   */
   function showMissing() {
+    if (missing === 'profile') { setSection('sources'); setError('Add a job description URL, paste its text, or include job-description.pdf / .txt in your profile folder.'); return; }
     if (missing === 'model') { setSection('model'); return; }
-    const target = missing === 'purpose' ? purposeInput.current : modeOptions.current?.querySelector('button');
-    target?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    target?.focus({ preventScroll: true });
+    setSection('brief');
+    setError(missing === 'notes' ? 'Keep your additional context to 100 words.' : missing === 'mode' ? 'Choose a starting session type.' : 'Add a purpose.');
+    window.setTimeout(() => { const target = missing === 'purpose' ? purposeInput.current : modeOptions.current?.querySelector('button'); target?.focus(); }, 0);
   }
-
-  /**
-   * Picks a session type by hand. That replaces what a preset chose, so preset Undo is no longer offered.
-   * A type the plan doesn't include is not selected; the footer says which plans include it.
-   */
-  function chooseMode(mode: AppMode) {
-    if (!allows(mode)) { setError(lockedMessage(mode)); return; }
-    setError(''); setStartMode(mode); setUndo(null);
-  }
-
-  /** Changes one of the four answer-instruction fields. Editing by hand also clears the preset notice and its Undo. */
-  function editField(index: number, patch: Partial<Field>) {
-    setPresetNotice(''); setUndo(null);
-    setFields((items) => items.map((field, i) => i === index ? { ...field, ...patch } : field));
-  }
-
-  /**
-   * Applies a preset as soon as it is clicked (no separate Apply button):
-   * - remembers the current fields, session type and preset so Undo can restore them;
-   * - fills the answer instructions from the preset, but keeps the user's own Experience and
-   *   Additional instructions when they already wrote something there;
-   * - sets the session type the preset belongs to;
-   * - says what changed and opens More options so the filled-in fields are visible.
-   */
-  function applyPreset(index: number) {
-    const preset = role.presets[index];
-    if (!allows(preset.mode)) { setError(lockedMessage(preset.mode)); return; }
-    setError('');
-    setUndo({ fields, startMode, applied });
-    // Experience and additional instructions are the user's own; keep them when they exist.
-    setFields(presetFields(role, preset).map((field, i) => i === 1 || i === 3 ? { ...field, value: fields[i].value || field.value } : field));
-    setStartMode(preset.mode);
-    setApplied({ role: roleIndex, preset: index });
-    setPresetNotice(`Applied ${preset.name}: session type set to ${modeName(preset.mode)}, and answer instructions filled in under More options.`);
-    if (moreOptions.current) moreOptions.current.open = true;
-  }
-
-  /** Puts back exactly what the last preset replaced (fields, session type, selected preset). */
-  function undoPreset() {
-    if (!undo) return;
-    setFields(undo.fields); setStartMode(undo.startMode); setApplied(undo.applied);
-    setUndo(null); setPresetNotice('Preset undone.');
-  }
-
-  /**
-   * Saves the current setup (model, folders, session type, framework, company, role, purpose and
-   * instructions) as a named profile, or updates the profile with the same name. Only allowed when
-   * the setup could be started, so a saved profile is always complete.
-   */
   async function saveProfile() {
-    const name = nameForProfile.trim();
-    if (!canStart || !startMode || !name) return;
+    if (!canStart || !startMode || !nameForProfile.trim()) return;
     setBusy(true); setError(''); setProfileNotice('');
     try {
-      const next = await unwrap(window.novi.saveSessionProfile({ name, folderIds: folders.map((f) => f.id), mode: startMode, framework: behavioralFramework, company, role: targetRole, purpose: purposeValue.trim(), vocabulary, fields }));
-      onSaved(next);
-      setProfileName(name); setProfileNameEdited(true);
-      setProfileNotice(`${existingProfile ? 'Updated' : 'Saved'} “${name}”. Next time, start it from the Model step in one click.`);
-    } catch (err) { setError(errorText(err)); }
+      onSaved(await unwrap(window.novi.saveSessionProfile({ name: nameForProfile.trim(), folderIds: folders.map(folder => folder.id), mode: startMode, framework: behavioralFramework, company, role: targetRole, purpose: purposeValue.trim(), vocabulary, interview, fields })));
+      setProfileNotice(`${existingProfile ? 'Updated' : 'Saved'} “${nameForProfile.trim()}”. Load it from the first step next time.`);
+    } catch (cause) { setError(errorText(cause)); }
     finally { setBusy(false); }
   }
-
-  /** Deletes a saved profile (after the inline "Delete?" confirmation). */
   async function deleteProfile(id: string) {
     setBusy(true); setError('');
     try { onSaved(await unwrap(window.novi.deleteSessionProfile(id))); setConfirmDelete(null); }
-    catch (err) { setError(errorText(err)); }
+    catch (cause) { setError(errorText(cause)); }
+    finally { setBusy(false); }
+  }
+  async function applyProfile(profile: SessionProfile, startNow: boolean) {
+    if (busy) return;
+    if (!allows(profile.mode)) { setError(lockedMessage(profile.mode)); return; }
+    const current = ++attempt.current;
+    setBusy(true); setError(''); setProfileNotice(''); setConfirmDelete(null); setResearch(null);
+    setCompany(profile.company); setTargetRole(profile.role); setPurpose(profile.purpose); setPurposeEdited(true);
+    setVocabulary(profile.vocabulary ?? 'everyday'); setInterview({ ...DEFAULT_INTERVIEW_PROFILE, ...profile.interview });
+    setFields(profile.fields.map(field => ({ ...field }))); setStartMode(profile.mode);
+    setProfileName(profile.name); setProfileNameEdited(true);
+    try {
+      if (profile.framework !== behavioralFramework) await setBehavioralFramework(profile.framework);
+      if (current !== attempt.current) return;
+      if (connection?.id !== profile.connectionId || connection.model !== profile.model) {
+        onSaved(await unwrap(window.novi.selectConnection(profile.connectionId, profile.model)));
+        if (current !== attempt.current) return;
+      }
+      const loaded = await unwrap(window.novi.loadSessionProfileFolders(profile.id));
+      if (current !== attempt.current) return;
+      setFolders(loaded); setLoadedSavedProfile(true);
+      if (!startNow) { setSection('brief'); setProfileNotice(`Loaded “${profile.name}”. Review your preferences before starting.`); return; }
+      const prepared = profile.interview ? await prepareProfile(profile.interview, loaded, profile.company, profile.role) : { company: profile.company, role: profile.role };
+      if (current !== attempt.current) return;
+      setResearching(false); setChecking(true); await unwrap(window.novi.testConnection());
+      if (current !== attempt.current) return;
+      setChecking(false);
+      const next = await unwrap(window.novi.startContext({ folderIds: loaded.map(folder => folder.id), purpose: profile.purpose, vocabulary: profile.vocabulary, ...prepared, fields: profile.fields }));
+      setAppMode(profile.mode); onSaved(next);
+    } catch (cause) { if (current === attempt.current) { setSection('sources'); setError(errorText(cause)); } }
+    finally { if (current === attempt.current) { setBusy(false); setChecking(false); setResearching(false); } }
+  }
+  async function exportSkills() {
+    setBusy(true); setError('');
+    try { if (await unwrap(window.novi.exportInterviewSkills({ interview, vocabulary }))) setProfileNotice('Exported a separate SKILL.md for each of the seven session types.'); }
+    catch (cause) { setError(errorText(cause)); }
     finally { setBusy(false); }
   }
 
-  /**
-   * Fills the whole setup from a saved profile.
-   *
-   * Steps, in order: behavioral framework, model (switching connection if needed), document folders
-   * (a profile without folders loads none), then either shows the Instructions step for review
-   * (startNow false) or checks the connection and starts the session exactly as Start would (startNow true).
-   *
-   * If a step fails, the error is shown on the step where it happened (`reached`), and folders that
-   * no longer have readable files are reported instead of failing the whole profile.
-   */
-  async function applyProfile(profile: SessionProfile, startNow: boolean) {
-    if (busy) return;
-    // A profile saved on a plan that included its session type, before a downgrade.
-    if (!allows(profile.mode)) { setError(lockedMessage(profile.mode)); return; }
-    const current = ++attempt.current;
-    const stale = () => current !== attempt.current;
-    let reached: Section = 'model';
-    setBusy(true); setError(''); setProfileNotice(''); setPresetNotice(''); setConfirmDelete(null);
-    setCompany(profile.company); setTargetRole(profile.role); setPurpose(profile.purpose); setPurposeEdited(true);
-    setVocabulary(profile.vocabulary ?? 'everyday');
-    setFields(profile.fields.map((field) => ({ ...field }))); setStartMode(profile.mode); setApplied(null); setUndo(null);
-    setProfileName(profile.name); setProfileNameEdited(true);
-    try {
-      // Saved before anything else so its settings update cannot land after the session starts.
-      if (profile.framework !== behavioralFramework) await setBehavioralFramework(profile.framework);
-      if (stale()) return;
-      const connection = activeConnection(state.settings!);
-      if (connection?.id !== profile.connectionId || connection.model !== profile.model) {
-        try { const next = await unwrap(window.novi.selectConnection(profile.connectionId, profile.model)); if (stale()) return; onSaved(next); }
-        catch (cause) { throw new Error(`This profile’s model (${profile.model}) isn’t available. ${errorText(cause)} Choose a model, then save the profile again.`); }
-      }
-      reached = 'sources';
-      const loaded = await unwrap(window.novi.loadSessionProfileFolders(profile.id));
-      if (stale()) return;
-      setFolders(loaded);
-      reached = 'brief';
-      const skipped = profile.folders.length - loaded.length;
-      const note = skipped ? ` ${skipped} saved ${skipped === 1 ? 'folder has' : 'folders have'} no readable files now.` : '';
-      if (!startNow) { setSection('brief'); setProfileNotice(`Loaded “${profile.name}”.${note} Review it, then start the session.`); return; }
-      setChecking(true);
-      await unwrap(window.novi.testConnection());
-      if (stale()) return;
-      setChecking(false);
-      const next = await unwrap(window.novi.startContext({ folderIds: loaded.map((f) => f.id), purpose: profile.purpose, company: profile.company, role: profile.role, vocabulary: profile.vocabulary, fields: profile.fields }));
-      setAppMode(profile.mode);
-      onSaved(next);
-    } catch (err) {
-      if (stale()) return;
-      setSection(reached);
-      setError(errorText(err));
-    } finally { if (!stale()) { setBusy(false); setChecking(false); } }
-  }
-
   if (settings) return <SettingsPage state={state} onSaved={onSaved} onBack={() => setSettings(false)} onSignOut={onSignOut} onCleared={() => {}} />;
-  if (!preflightDone) return <SessionPreflight state={state}
-    onContinue={() => { continueFromGetReady(state.user!.id); setPreflightDone(true); }}
-    onChooseModel={() => { setSection('model'); continueFromGetReady(state.user!.id); setPreflightDone(true); }}
-    onSettings={() => setSettings(true)} />;
-  return <main className="context-page" data-direction={direction}>
-    <header className="context-header">
-      <div className="context-header-identity"><Brand /></div>
-      <div className="context-header-actions">
-        {/* Get ready only opens by itself once per launch; this brings it back (the ready card and practice coach point here).
-            Its Continue button returns to this setup, and everything typed here is kept because this page stays mounted. */}
-        <button className="text-button" disabled={busy} onClick={() => setPreflightDone(false)}>Run Get ready</button>
-        {/* Sign out lives in Settings › General › Data & account, away from the button people use most here. */}
-        <button className="text-button" disabled={busy} onClick={() => setSettings(true)}>Settings</button>
-      </div>
-    </header>
-
+  if (!preflightDone) return <SessionPreflight state={state} onContinue={() => { continueFromGetReady(state.user!.id); setPreflightDone(true); }} onChooseModel={() => { setSection('model'); continueFromGetReady(state.user!.id); setPreflightDone(true); }} onSettings={() => setSettings(true)} />;
+  return <main className="context-page interview-setup" data-direction={direction}>
+    <header className="context-header"><div className="context-header-identity"><Brand /></div><div className="context-header-actions"><button className="text-button" disabled={busy} onClick={() => setPreflightDone(false)}>Run Get ready</button><button className="text-button" disabled={busy} onClick={() => setSettings(true)}>Settings</button></div></header>
     <div className="context-workspace">
-      <aside className="context-rail">
-        <div className="context-rail-title"><h1>Session setup</h1>
-          <div className="context-setup-progress" role="progressbar" aria-label="Session setup step" aria-valuemin={1} aria-valuemax={3} aria-valuenow={sectionIndex + 1}><span style={{ width: `${(sectionIndex + 1) / 3 * 100}%` }} /></div>
-          <span className="context-step-count">STEP 0{sectionIndex + 1} / 03</span>
-        </div>
-        <nav className="context-section-nav" aria-label="Session setup">
-          {([
-            ['model', 'Model', Cpu, modelReady],
-            ['sources', 'Documents', FolderOpen, folders.length > 0],
-            ['brief', 'Instructions', FileText, briefReady],
-          ] as const).map(([id, label, Icon, done]) => <button key={id} id={`context-tab-${id}`} type="button" aria-current={section === id ? 'step' : undefined} aria-controls={`context-panel-${id}`} className={`context-nav-item ${section === id ? 'active' : ''}`} disabled={busy || (id !== 'model' && !modelReady)} onClick={() => setSection(id)}>
-            <Icon size={16} /><span>{label}</span>{done && <Check className="context-nav-check" size={14} aria-label="Complete" />}
-          </button>)}
-        </nav>
+      <aside className="context-rail"><div className="context-rail-title"><h1>Session setup</h1><div className="context-setup-progress" role="progressbar" aria-label="Session setup step" aria-valuemin={1} aria-valuemax={4} aria-valuenow={index + 1}><span style={{ width: `${(index + 1) / 4 * 100}%` }} /></div><span className="context-step-count">STEP 0{index + 1} / 04</span></div>
+        <nav className="context-section-nav" aria-label="Session setup">{STEPS.map(({ id, name, Icon }) => <button key={id} id={`context-tab-${id}`} type="button" aria-current={section === id ? 'step' : undefined} aria-controls={`context-panel-${id}`} className={`context-nav-item ${section === id ? 'active' : ''}`} disabled={busy} onClick={() => setSection(id)}><Icon size={16} /><span>{name}</span>{(id === 'sources' ? profileReady : id === 'brief' ? briefReady : id === 'style' ? Boolean(startMode) : modelReady) && <Check className="context-nav-check" size={14} aria-label="Complete" />}</button>)}</nav>
       </aside>
-
       <div className="context-main-panel">
-        <section id="context-panel-model" aria-labelledby="context-tab-model" className="context-panel-content" hidden={section !== 'model'}>
-          <div className="context-panel-heading"><div className="context-panel-icon"><Cpu size={19} /></div><div><span className="context-overline">STEP 1 OF 3</span><h2>Choose a model</h2></div></div>
-          {profiles.length ? <div className="profile-list" role="group" aria-label="Saved profiles">
-            <h3><Bookmark size={14} />Saved profiles</h3>
-            {profiles.map((profile) => <div className="profile-card" key={profile.id}>
-              <div className="profile-card-text"><strong title={profile.name}>{profile.name}</strong>
-                <span>{modeName(profile.mode)}{!allows(profile.mode) && <PlanLock feature={profile.mode} />} · {profile.model} · {profile.folders.length ? folderCount(profile.folders.length) : 'No documents'}</span></div>
-              {confirmDelete === profile.id
-                ? <div className="profile-card-actions"><span>Delete?</span><button type="button" className="danger-button" disabled={busy} onClick={() => void deleteProfile(profile.id)}>Delete</button><button type="button" className="text-button" disabled={busy} onClick={() => setConfirmDelete(null)}>Keep</button></div>
-                : <div className="profile-card-actions">
-                  <button type="button" className="primary" disabled={busy} aria-label={`Start ${profile.name}`} onClick={() => void applyProfile(profile, true)}><Play size={14} />Start</button>
-                  <button type="button" className="text-button" disabled={busy} aria-label={`Edit ${profile.name}`} onClick={() => void applyProfile(profile, false)}><Pencil size={14} />Edit</button>
-                  <button type="button" className="icon-button" disabled={busy} aria-label={`Delete ${profile.name}`} title="Delete profile" onClick={() => setConfirmDelete(profile.id)}><Trash2 size={14} /></button>
-                </div>}
-            </div>)}
-          </div> : null}
-          <div className="context-control-block"><ProviderPicker state={state} disabled={busy} onSaved={onSaved} onError={setError} onReady={setModelReady} />
-            {!connection && <p className="managed-note">No enabled connection is available. Enable one in Settings.</p>}
-          </div>
-          <div className="context-skip">
-            <button type="button" className="text-button" disabled={busy || !modelReady} onClick={() => void startEmpty()}><FastForward size={15} />Start an empty chat instead</button>
-          </div>
-        </section>
-
         <section id="context-panel-sources" aria-labelledby="context-tab-sources" className="context-panel-content" hidden={section !== 'sources'}>
-          <div className="context-panel-heading"><div className="context-panel-icon"><FolderOpen size={19} /></div><div><span className="context-overline">STEP 2 OF 3 · OPTIONAL</span><h2>Add documents</h2></div></div>
-          <div className="context-sources-toolbar"><button className="secondary" disabled={busy || !connection} onClick={() => void loadFolders()}><FolderOpen size={15} />{busy ? 'Working…' : folders.length ? 'Replace folders' : 'Choose folders'}</button><span>TXT and PDF · up to 30 files / 50 MB total</span></div>
-          <p className="muted">Loaded reference text is sent to your AI provider and saved in local conversation history as unencrypted text. Ending a session keeps that history; delete its conversations or clear history to remove the saved references.</p>
-          <div className="context-folder-list">
-            {folders.length ? folders.map((folder) => <div className="context-folder" key={folder.id}><div className="context-folder-row"><FolderOpen size={16} /><strong title={folder.name}>{folder.name}</strong><span>{folder.files.length} files · {folder.characters.toLocaleString()} chars</span><button className="icon-button" disabled={busy} aria-label={`Remove ${folder.name}`} onClick={() => setFolders((items) => items.filter((f) => f.id !== folder.id))}><X size={14} /></button></div><details><summary>Included files</summary><ul>{folder.files.map((file) => <li key={file}>{file}</li>)}</ul></details></div>) : <div className="context-empty-sources"><FolderOpen size={25} /><strong>No documents yet</strong></div>}
+          <div className="context-panel-heading"><div className="context-panel-icon"><FolderOpen size={19} /></div><div><span className="context-overline">STEP 1 OF 4</span><h2>Load your profile</h2><p>Start with the job description, then add the background you want Novi to use.</p></div></div>
+          <div className="interview-form">
+            <label>Job description URL<input type="url" maxLength={2000} value={interview.jobDescriptionUrl} disabled={busy} placeholder="https://company.com/careers/your-role" onChange={event => updateInterview({ jobDescriptionUrl: event.target.value })} /></label>
+            <details className="interview-details"><summary>Paste the job description instead</summary><label>Job description text<textarea maxLength={20_000} value={interview.jobDescriptionText} disabled={busy} placeholder="Paste the role, responsibilities and requirements…" onChange={event => updateInterview({ jobDescriptionText: event.target.value })} /></label></details>
+            <div className="interview-profile-load"><div><h3>One folder. Your background.</h3><p>Name it <code>Firstname Lastname/</code>. Add <code>resume.pdf</code> and <code>job-description.pdf</code> or <code>.txt</code>. Extra notes are optional.</p></div><button type="button" className="secondary" disabled={busy} onClick={() => void loadFolders()}><FolderOpen size={15} />{folders.length ? 'Replace profile folder' : 'Load profile'}</button></div>
+            <details className="interview-details"><summary>Folder and file naming guide</summary><pre className="profile-folder-guide">{'Firstname Lastname/\n  resume.pdf\n  job-description.txt\n  projects.md       (optional)\n  company.txt       (optional)\n  notes.md         (optional)'}</pre><p className="muted">PDF, TXT and Markdown · up to 30 files / 50 MB. A single <code>profile.md</code> can contain Resume, Job description and Projects sections. Names classify files; your originals stay in place.</p></details>
+            <div className="context-folder-list">{folders.map(folder => <div className="context-folder" key={folder.id}><div className="context-folder-row"><FolderOpen size={16} /><strong title={folder.name}>{folder.name}</strong><span>{folder.files.length} files</span><button type="button" className="icon-button" aria-label={`Remove ${folder.name}`} disabled={busy} onClick={() => setFolders(current => current.filter(item => item.id !== folder.id))}><X size={14} /></button></div><ul className="profile-file-list" aria-label={`${folder.name} classified files`}>{folder.files.map(file => <li key={file}><FileText size={14} /><span>{file.startsWith(folder.name + '/') ? file.slice(folder.name.length + 1) : file}</span><small>{profileFileKind(file)}</small></li>)}</ul></div>)}</div>
+            <details className="interview-details"><summary>Where your profile is used</summary><p className="muted">Loaded text goes to your selected AI model when you generate a briefing or start a session. It is saved in local conversation history as unencrypted text. Delete those conversations or clear history to remove the saved references.</p></details>
+            {profiles.length > 0 && <section className="profile-list" role="group" aria-label="Saved profiles"><h3><Bookmark size={14} />Saved interview setups</h3>{profiles.map(profile => <div className="profile-card" key={profile.id}><div className="profile-card-text"><strong>{profile.name}</strong><span>{modeName(profile.mode)} · {profile.model}</span></div>{confirmDelete === profile.id ? <div className="profile-card-actions"><span>Delete?</span><button type="button" className="danger-button" disabled={busy} onClick={() => void deleteProfile(profile.id)}>Delete</button><button type="button" className="text-button" disabled={busy} onClick={() => setConfirmDelete(null)}>Keep</button></div> : <div className="profile-card-actions"><button type="button" className="primary" disabled={busy} aria-label={`Start ${profile.name}`} onClick={() => void applyProfile(profile, true)}><Play size={14} />Start</button><button type="button" className="text-button" disabled={busy} aria-label={`Edit ${profile.name}`} onClick={() => void applyProfile(profile, false)}><Pencil size={14} />Review</button><button type="button" className="icon-button" aria-label={`Delete ${profile.name}`} disabled={busy} onClick={() => setConfirmDelete(profile.id)}><Trash2 size={14} /></button></div>}</div>)}</section>}
           </div>
         </section>
-
         <section id="context-panel-brief" aria-labelledby="context-tab-brief" className="context-panel-content" hidden={section !== 'brief'}>
-          <div className="context-panel-heading"><div className="context-panel-icon"><FileText size={19} /></div><div><span className="context-overline">STEP 3 OF 3</span><h2>Set instructions</h2></div></div>
-          <div className="context-brief-editor">
-            <label htmlFor="context-purpose">Purpose <span>Required</span></label>
-            <textarea id="context-purpose" ref={purposeInput} required maxLength={2000} value={purposeValue} disabled={busy}
-              onChange={(e) => { setPurpose(e.target.value); setPurposeEdited(true); }} placeholder="Choose a session type below and this fills in, or write your own." />
-            {purposeEdited && startMode && <button type="button" className="text-button" disabled={busy} onClick={() => setPurposeEdited(false)}>Use suggested purpose</button>}
-
-            <fieldset className="context-presets" disabled={busy}><legend>Session type <span>Required</span></legend>
-              <div ref={modeOptions} className="context-preset-options context-mode-options">{SESSION_MODES.map((mode) => {
-                const locked = !allows(mode.id);
-                return <button type="button" key={mode.id} className={locked ? 'plan-locked' : undefined} aria-pressed={startMode === mode.id} aria-disabled={locked || undefined} title={locked ? lockedMessage(mode.id) : undefined} onClick={() => chooseMode(mode.id)}><strong>{mode.name}{locked && <PlanLock feature={mode.id} />}</strong><span>{mode.description}</span></button>;
-              })}</div>
-              {startMode && startMode !== 'normal' && <details className="context-preset-preview"><summary>How AI will answer</summary><p>{modeInstructions(startMode)}</p></details>}
-              {startMode === 'behavioral' && <div className="context-framework"><span>Answer framework</span><BehavioralModeHUD framework={behavioralFramework} onSelectFramework={(framework) => void setBehavioralFramework(framework)} /></div>}
-            </fieldset>
-
-            <fieldset className="context-presets context-vocabulary" disabled={busy}>
-              <legend>Answer vocabulary</legend>
-              <label htmlFor="context-vocabulary">Word choice: <strong>{VOCABULARY_LEVELS[vocabularyIndex].name}</strong></label>
-              <input id="context-vocabulary" type="range" min={0} max={VOCABULARY_LEVELS.length - 1} step={1} value={vocabularyIndex}
-                aria-valuetext={VOCABULARY_LEVELS[vocabularyIndex].name} aria-describedby="context-vocabulary-description"
-                onChange={(event) => setVocabulary(VOCABULARY_LEVELS[Number(event.target.value)].id)} />
-              <div className="context-vocabulary-labels" aria-hidden="true">{VOCABULARY_LEVELS.map((level) => <span key={level.id}>{level.name}</span>)}</div>
-              <p id="context-vocabulary-description" className="muted">{VOCABULARY_LEVELS[vocabularyIndex].instructions}</p>
-            </fieldset>
-
-            <div className="context-brief-row">
-              <label>Company <span>Optional</span><input maxLength={120} value={company} disabled={busy} onChange={(e) => setCompany(e.target.value)} placeholder="e.g. Acme" /></label>
-              <label>Role you’re interviewing for <span>Optional</span><input maxLength={120} value={targetRole} disabled={busy} onChange={(e) => setTargetRole(e.target.value)} placeholder="e.g. Software Engineer II" /></label>
-            </div>
-
-            <fieldset className="context-presets" disabled={busy}>
-              <legend>Presets <span>Optional</span></legend>
-              <label htmlFor="context-preset-role">Role type</label>
-              <select id="context-preset-role" value={roleIndex} onChange={(event) => setRoleIndex(Number(event.target.value))}>
-                {SESSION_ROLES.map((item, index) => <option key={item.name} value={index}>{item.name}</option>)}
-              </select>
-              <div className="context-preset-options" role="group" aria-label={`${role.name} presets`}>
-                {role.presets.map((item, index) => {
-                  const locked = !allows(item.mode);
-                  return <button type="button" key={item.name} className={locked ? 'plan-locked' : undefined} aria-pressed={applied?.role === roleIndex && applied.preset === index} aria-disabled={locked || undefined} title={locked ? lockedMessage(item.mode) : undefined} onClick={() => applyPreset(index)}>
-                    <strong>{item.name}{locked && <PlanLock feature={item.mode} />}</strong><span>{item.description}</span>
-                  </button>;
-                })}
-              </div>
-              <div className="context-preset-notice" role="status">{presetNotice}{undo && <button type="button" className="text-button" onClick={undoPreset}>Undo</button>}</div>
-            </fieldset>
-
-            <details ref={moreOptions} className="custom-fields-accordion"><summary>More options</summary>
-              <div className="context-fields">{fields.map((field, index) => <div className="context-field" key={index}><input aria-label={`Instruction ${index + 1} name`} maxLength={80} value={field.label} disabled={busy} onChange={(e) => editField(index, { label: e.target.value })} /><textarea aria-label={`${field.label || `Instruction ${index + 1}`} details`} maxLength={2000} value={field.value} disabled={busy} onChange={(e) => editField(index, { value: e.target.value })} placeholder="Add a detail…" /></div>)}</div>
-              <fieldset className="profile-save" disabled={busy}>
-                <legend>Save as a profile</legend>
-                <div className="profile-save-row">
-                  <input aria-label="Profile name" maxLength={60} value={nameForProfile} placeholder="e.g. Acme SWE round 2" onChange={(e) => { setProfileName(e.target.value); setProfileNameEdited(true); setProfileNotice(''); }} />
-                  <button type="button" className="secondary" disabled={!canStart || !nameForProfile.trim()} onClick={() => void saveProfile()}><Bookmark size={14} />{existingProfile ? 'Update profile' : 'Save profile'}</button>
-                </div>
-                <span className="context-preset-notice" role="status">{profileNotice}</span>
-              </fieldset>
-            </details>
+          <div className="context-panel-heading"><div className="context-panel-icon"><FileText size={19} /></div><div><span className="context-overline">STEP 2 OF 4</span><h2>Make it fit your interview</h2></div></div>
+          <div className="interview-form">
+            <fieldset className="context-presets context-vocabulary" disabled={busy}><legend>Experience</legend><label htmlFor="interview-experience">Years of experience: <strong>{interview.experienceYears}</strong></label><input id="interview-experience" type="range" min={0} max={15} step={1} value={interview.experienceYears} aria-valuetext={interview.experienceYears === 0 ? 'Entry level, 0 years' : `${interview.experienceYears} years`} onChange={event => updateInterview({ experienceYears: Number(event.target.value) })} /><div className="context-vocabulary-labels" aria-hidden="true"><span>0 · Entry level</span><span>15 years</span></div><p className="muted">Sets the depth of explanations. Your resume supplies the facts.</p></fieldset>
+            <div className="interview-domain-row"><label>Domain<select value={interview.domain} disabled={busy} onChange={event => updateInterview({ domain: event.target.value as InterviewProfile['domain'] })}>{INTERVIEW_DOMAINS.map(domain => <option key={domain.id} value={domain.id}>{domain.name}</option>)}</select></label><button type="button" className="secondary" disabled={busy} onClick={() => void generateResearch()}><Sparkles size={14} />Detect from job description</button></div>
+            <fieldset className="context-presets context-vocabulary" disabled={busy}><legend>Vocabulary complexity</legend><label htmlFor="context-vocabulary">Word choice: <strong>{vocabularyIndex + 1} / 5 · {VOCABULARY_LEVELS[vocabularyIndex].name}</strong></label><input id="context-vocabulary" type="range" min={1} max={5} step={1} value={vocabularyIndex + 1} aria-valuetext={`${vocabularyIndex + 1} of 5, ${VOCABULARY_LEVELS[vocabularyIndex].name}`} aria-describedby="context-vocabulary-description" onChange={event => setVocabulary(VOCABULARY_LEVELS[Number(event.target.value) - 1].id)} /><div className="context-vocabulary-labels" aria-hidden="true"><span>1 · Plain</span><span>3 · Everyday</span><span>5 · Technical</span></div><p id="context-vocabulary-description" className="muted">{VOCABULARY_LEVELS[vocabularyIndex].instructions}</p></fieldset>
+            <fieldset className="context-presets" disabled={busy}><legend>Starting session type</legend><p className="muted">You can change the mode during the session.</p><div ref={modeOptions} className="context-preset-options context-mode-options">{SESSION_MODES.map(mode => { const locked = !allows(mode.id); return <button type="button" key={mode.id} className={locked ? 'plan-locked' : undefined} aria-pressed={startMode === mode.id} aria-disabled={locked || undefined} title={locked ? lockedMessage(mode.id) : undefined} onClick={() => { if (locked) setError(lockedMessage(mode.id)); else { setStartMode(mode.id); setError(''); } }}><strong>{mode.name}{locked && <PlanLock feature={mode.id} />}</strong><span>{mode.description}</span></button>; })}</div>{startMode === 'behavioral' && <BehavioralModeHUD framework={behavioralFramework} onSelectFramework={framework => void setBehavioralFramework(framework)} />}</fieldset>
+            <label>Purpose<textarea ref={purposeInput} required maxLength={2000} value={purposeValue} disabled={busy} placeholder="Choose a session type to suggest a purpose, or write your own." onChange={event => { setPurpose(event.target.value); setPurposeEdited(true); }} /></label>{purposeEdited && <button type="button" className="text-button" disabled={busy} onClick={() => setPurposeEdited(false)}>Use suggested purpose</button>}
+            <div className="context-brief-row"><label>Company<input maxLength={120} value={company} disabled={busy} onChange={event => setCompany(event.target.value)} /></label><label>Target role<input maxLength={120} value={targetRole} disabled={busy} onChange={event => setTargetRole(event.target.value)} /></label></div>
+            <section className="interview-research"><h3>Company & role briefing</h3><label>Company or team URL<input type="url" maxLength={2000} value={interview.companyUrl} disabled={busy} placeholder="https://company.com/about" onChange={event => updateInterview({ companyUrl: event.target.value })} /></label><button type="button" className="secondary" disabled={busy} onClick={() => void generateResearch()}><Sparkles size={14} />{researching ? 'Researching…' : 'Auto generate briefing'}</button><div className="interview-research-model"><span>{connection?.model ? `${connection.name} · ${connection.model}` : 'Choose a model to generate a briefing'}</span><button type="button" className="text-button" disabled={busy} onClick={() => setSection('model')}>Change model</button></div><p className="muted">Uses public pages and your profile with the selected AI model. Review the result; unavailable facts stay marked as unknown.</p><label>Company, role, team & values<textarea maxLength={4000} value={interview.companyBrief} disabled={busy} placeholder="Generate a short briefing, or add verified details yourself." onChange={event => updateInterview({ companyBrief: event.target.value })} /></label>{research && <div className="interview-research-sources"><p role="status">{research.sources.length ? `Read ${research.sources.length} public ${research.sources.length === 1 ? 'page' : 'pages'}.` : 'Generated from your profile text; no public pages were read.'}</p>{research.warnings.map(warning => <p className="muted" key={warning}>{warning}</p>)}{research.sources.length > 0 && <details><summary>Sources</summary><ul>{research.sources.map(source => <li key={source.url}><span>{source.title}</span><code>{source.url}</code></li>)}</ul></details>}</div>}</section>
+            <label>Anything else Novi should know? <span className="muted">Up to 100 words</span><textarea maxLength={4000} value={interview.additionalContext} disabled={busy} onChange={event => updateInterview({ additionalContext: event.target.value })} /><small className={wordCount(interview.additionalContext) > 100 ? 'error' : 'muted'}>{wordCount(interview.additionalContext)} / 100 words</small></label>
+          </div>
+        </section>
+        <section id="context-panel-style" aria-labelledby="context-tab-style" className="context-panel-content" hidden={section !== 'style'}>
+          <div className="context-panel-heading"><div className="context-panel-icon"><MessageSquare size={19} /></div><div><span className="context-overline">STEP 3 OF 4</span><h2>How should answers sound?</h2><p>Choose a starting style. Switch between these in the chat controls at any time.</p></div></div>
+          <div className="interview-form"><div className="context-preset-options interview-answer-styles" role="group" aria-label="Answer style">{ANSWER_STYLES.map(style => <button type="button" key={style.id} disabled={busy} aria-pressed={interview.answerStyle === style.id} onClick={() => updateInterview({ answerStyle: style.id })}><strong>{style.name}</strong><span>{style.description}</span></button>)}</div>
+            <details className="interview-details"><summary>Preview generated SKILL.md</summary><pre className="profile-skill-preview">{interviewSkill(startMode ?? fallbackMode(state.user?.features), interview, vocabulary)}</pre></details><button type="button" className="secondary" disabled={busy} onClick={() => void exportSkills()}><Download size={14} />Export speaking skills</button><p className="muted">A separate SKILL.md for recruiter calls, technical screens, coding, system design, behavioral interviews, local coding and chat. Each includes your preferences and rules against inventing experience.</p>
+            <details className="interview-details"><summary>Additional answer instructions</summary><div className="context-fields">{fields.map((field, fieldIndex) => <label key={fieldIndex}>{field.label}<textarea aria-label={`${field.label} details`} maxLength={2000} value={field.value} disabled={busy} onChange={event => setFields(current => current.map((item, i) => i === fieldIndex ? { ...item, value: event.target.value } : item))} /></label>)}</div></details>
+          </div>
+        </section>
+        <section id="context-panel-model" aria-labelledby="context-tab-model" className="context-panel-content" hidden={section !== 'model'}>
+          <div className="context-panel-heading"><div className="context-panel-icon"><Cpu size={19} /></div><div><span className="context-overline">STEP 4 OF 4</span><h2>Choose your model</h2><p>Keep the model you prefer, or try a suggestion for this session.</p></div></div>
+          <div className="context-control-block"><ProviderPicker state={state} disabled={busy} onSaved={onSaved} onError={setError} onReady={setModelReady} />{!connection && <p className="managed-note">Enable a connection in Settings to choose a model.</p>}</div>
+          {section === 'model' && <InterviewModelSuggestions state={state} mode={startMode ?? fallbackMode(state.user?.features)} disabled={busy} onSaved={onSaved} onError={setError} onSelecting={setBusy} />}
+          <div className="interview-form"><div className="interview-review" aria-label="Session review"><span>{folders[0]?.name || (loadedSavedProfile ? 'Saved profile' : hasJobDescription ? 'Job description loaded' : 'No profile yet')}</span><span>{startMode ? modeName(startMode) : 'Choose a session type'}</span><span>{interview.experienceYears} years · {INTERVIEW_DOMAINS.find(domain => domain.id === interview.domain)!.name}</span><span>{vocabularyIndex + 1}/5 vocabulary · {ANSWER_STYLES.find(style => style.id === interview.answerStyle)!.name}</span></div>
+            <fieldset className="profile-save" disabled={busy}><legend>Save this interview setup</legend><div className="profile-save-row"><input aria-label="Profile name" maxLength={60} value={nameForProfile} placeholder="Firstname Lastname · role" onChange={event => { setProfileName(event.target.value); setProfileNameEdited(true); setProfileNotice(''); }} /><button type="button" className="secondary" disabled={!canStart || !nameForProfile.trim()} onClick={() => void saveProfile()}><Bookmark size={14} />{existingProfile ? 'Update profile' : 'Save profile'}</button></div></fieldset>
+            <details className="interview-details"><summary>Start without interview setup</summary><button type="button" className="text-button" disabled={busy || !modelReady} onClick={() => void startEmpty()}><FastForward size={15} />Start an empty chat instead</button></details>
           </div>
         </section>
       </div>
     </div>
-
-    <footer className="context-footer">
-      <div className="context-footer-status" role="status">{error ? <span className="error" role="alert">{error}</span> : checking ? 'Checking connection…' : busy ? 'Working…' : ''}</div>
-      <div className="context-footer-actions">
-        {needs && !busy && <span className="context-needs">{needs}</span>}
-        {section !== 'model' && <button type="button" className="text-button" disabled={busy} onClick={() => setSection(section === 'brief' ? 'sources' : 'model')}><ArrowLeft size={15} />Back</button>}
-        {section === 'brief'
-          ? <button type="button" className="primary context-start" aria-disabled={!canStart || undefined} disabled={busy} onClick={() => canStart ? void start() : showMissing()}><Play size={15} />{busy ? 'Starting…' : 'Start session'}</button>
-          : <button type="button" className="primary context-start" disabled={busy || !modelReady} onClick={() => setSection(section === 'model' ? 'sources' : 'brief')}>Next<ArrowRight size={15} /></button>}
-      </div>
-    </footer>
+    <footer className="context-footer"><div className="context-footer-status" role="status">{error ? <span className="error" role="alert">{error}</span> : researching ? 'Reading profile and public sources…' : checking ? 'Checking connection…' : busy ? 'Working…' : profileNotice}</div><div className="context-footer-actions">{section !== 'sources' && <button type="button" className="text-button" disabled={busy} onClick={() => setSection(STEPS[index - 1].id)}><ArrowLeft size={15} />Back</button>}{section === 'model' ? <button type="button" className="primary context-start" aria-disabled={!canStart || undefined} disabled={busy} onClick={() => canStart ? void start() : showMissing()}><Play size={15} />{checking ? 'Checking…' : 'Start session'}</button> : <button type="button" className="primary context-start" disabled={busy} onClick={() => { if ((section === 'sources' && !profileReady) || (section === 'brief' && !briefReady)) showMissing(); else { setError(''); setSection(STEPS[index + 1].id); } }}>Next<ArrowRight size={15} /></button>}</div></footer>
   </main>;
 }

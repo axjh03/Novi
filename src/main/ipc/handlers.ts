@@ -12,7 +12,9 @@ import { connectionInput, externalUrl, object, sendInput, settingsInput, text, U
 import { ConnectionService } from '../services/connections';
 import { listModels, testConnection } from '../services/models';
 import { OverlayService } from '../services/overlay';
-import { ContextService, sessionBrief } from '../services/context';
+import { ContextService, interviewProfile, sessionBrief } from '../services/context';
+import { researchProfile } from '../services/profileResearch';
+import { interviewSkill } from '../../shared/interviewProfile';
 import { StealthService } from '../services/stealth';
 import { AudioService, decodeAudio } from '../services/audio';
 import { captureScreenBuffer } from '../services/screenCapture';
@@ -23,12 +25,12 @@ import { detectHardware, ModelManager } from '../services/localModels.mjs';
 import { InterviewService } from '../services/interviewService';
 import { RemoteCompanionService } from '../services/remoteCompanion';
 import { ConnectionWarmer, warmupUrl } from '../services/connectionWarmup';
-import { WorkspaceService } from '../services/workspace';
+import { viewerBounds, WorkspaceService } from '../services/workspace';
 import { LocalCodingService } from '../services/localCoding';
 import { activeConnection } from '../../shared/providers';
-import { isAppMode } from '../../shared/sessionModes';
+import { isAppMode, SESSION_MODES, VOCABULARY_LEVELS } from '../../shared/sessionModes';
 import { dirname, join } from 'node:path';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import type { AppMask } from '../services/appMask';
 import { AppCommandService } from '../services/appCommand';
@@ -91,7 +93,7 @@ export function registerIPC(
         if (!window || window.isDestroyed()) throw new UserError('Open Novi before using AutoDetect.');
         const display = screen.getDisplayMatching(window.getBounds());
         const owner = placementOwner(), bounds = window.getBounds();
-        const png = await captureScreenBuffer(getMainWindow, display.id, undefined, false);
+        const png = await captureScreenBuffer(getMainWindow, display.id);
         const image = nativeImage.createFromBuffer(png);
         if (image.isEmpty()) throw new UserError('The desktop screenshot was empty. Check screen recording access and try AutoDetect again.');
         const size = image.getSize(), area = display.workArea;
@@ -274,7 +276,7 @@ export function registerIPC(
           // Local only and self-expiring; must take effect before the next key press.
           'suspend-shortcuts',
           // Best effort and frequent: must never refresh, or sign out on, the managed session.
-          'warm-connection', 'smart-placement-state', 'smart-placement-enable', 'conversation-scroll-state'
+          'warm-connection', 'smart-placement-state', 'smart-placement-enable', 'conversation-scroll-state', 'companion-desktop-state'
         ];
         if (!publicChannels.includes(channel)) {
           const accessStart = performance.now();
@@ -359,6 +361,10 @@ export function registerIPC(
     const input = object(value);
     get().remoteCompanion.setConversationScroll(input.position, input.scrollable);
   });
+  handle('companion-desktop-state', (value, event) => {
+    if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the chat window can report companion state.');
+    get().remoteCompanion.setDesktopState(value);
+  });
   handle('get-saved-credentials', (_value, event) => {
     fromMain(event);
     if (get().auth.signedIn) throw new UserError('Saved credentials are available only while signed out.');
@@ -417,8 +423,36 @@ export function registerIPC(
     if (get().context.session) throw new UserError('End your session before loading folders.');
     const window = BrowserWindow.fromWebContents(event.sender);
     if (!window) throw new UserError('Application window is unavailable.');
-    const result = await dialog.showOpenDialog(window, { title: 'Load context folders', properties: ['openDirectory', 'multiSelections'] });
+    const result = await dialog.showOpenDialog(window, { title: 'Load candidate profile folder', properties: ['openDirectory', 'multiSelections'] });
     return result.canceled ? [] : get().context.loadFolders(result.filePaths);
+  });
+  handle('research-profile', async (value, event) => {
+    fromMain(event); requireNoContext();
+    const { context, storage, chat, connections } = get();
+    chat.assertIdle();
+    const input = object(value), account = storage.current();
+    const documents = context.loadedDocuments(input.folderIds);
+    const connection = activeConnection(account.settings);
+    if (!connection?.model || connection.enabled === false) throw new UserError('Choose a model in the Model step before using auto generation.');
+    const result = await researchProfile({ folderIds: input.folderIds as string[], jobDescriptionUrl: text(input.jobDescriptionUrl, 'job description URL', 2000, true), companyUrl: text(input.companyUrl, 'company URL', 2000, true), jobDescriptionText: text(input.jobDescriptionText, 'job description', 20_000, true) }, documents, connection, connections.resolveKey({ id: connection.id, name: connection.name, ai: connection }));
+    if (storage.current() !== account || context.session) throw new UserError('Your session changed. Generate the briefing again.');
+    return result;
+  });
+  handle('export-interview-skills', async (value, event) => {
+    fromMain(event);
+    const input = object(value), profile = interviewProfile(input.interview);
+    const vocabulary = VOCABULARY_LEVELS.find(level => level.id === input.vocabulary)?.id;
+    if (!vocabulary) throw new UserError('Choose a vocabulary level.');
+    const window = getMainWindow();
+    if (!window) throw new UserError('Application window is unavailable.');
+    const result = await dialog.showOpenDialog(window, { title: 'Export interview speaking skills', properties: ['openDirectory', 'createDirectory'] });
+    if (result.canceled || !result.filePaths.length) return false;
+    const directory = mkdtempSync(join(result.filePaths[0], 'Novi interview skills-'));
+    for (const mode of SESSION_MODES) {
+      mkdirSync(join(directory, mode.id));
+      writeFileSync(join(directory, mode.id, 'SKILL.md'), interviewSkill(mode.id, profile, vocabulary), { mode: 0o600, flag: 'wx' });
+    }
+    return true;
   });
   handle('start-context', async (value) => {
     const { chat, storage, connections, context } = get();
@@ -852,11 +886,10 @@ export function registerIPC(
     const main = getMainWindow();
     if (!main) return;
     const area = screen.getDisplayMatching(main.getBounds()).workArea;
-    const width = Math.min(430, area.width);
-    const height = Math.min(700, area.height);
+    const bounds = viewerBounds(area, main.getBounds());
     const viewer = new BrowserWindow({
-      x: area.x, y: area.y + Math.round((area.height - height) / 2), width, height,
-      minWidth: 300, minHeight: 240, show: false, frame: false, resizable: true, title: 'Novi Viewer',
+      ...bounds,
+      minWidth: Math.min(300, bounds.width), minHeight: Math.min(240, bounds.height), show: false, frame: false, resizable: true, title: 'Novi Viewer',
       transparent: true, backgroundColor: '#00000000', autoHideMenuBar: true,
       webPreferences: { preload: preloadPath, contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true },
     });

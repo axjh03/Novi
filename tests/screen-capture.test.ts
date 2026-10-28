@@ -12,6 +12,7 @@ test('background sampling crops the display, serializes captures, and restores w
   const display = { id: 2, bounds: area, scaleFactor: 1 };
   let opacity = 0.8, visible = true, protection = true, focused = true, fail = false, inFlight = 0, peak = 0, inactiveShows = 0;
   const cropped: unknown[] = [];
+  let windows: any[];
   const win = {
     isDestroyed: () => false, isVisible: () => visible, isFocused: () => focused,
     isContentProtected: () => protection, getOpacity: () => opacity,
@@ -26,8 +27,9 @@ test('background sampling crops the display, serializes captures, and restores w
     crop(bounds: unknown) { cropped.push(bounds); return thumbnail; },
     resize: () => thumbnail, toPNG: () => Buffer.from('sample'),
   };
+  windows = [win];
   require.cache[electronPath]!.exports = {
-    BrowserWindow: { getAllWindows: () => [win] },
+    BrowserWindow: { getAllWindows: () => windows },
     screen: { getAllDisplays: () => [display], getPrimaryDisplay: () => display, getDisplayMatching: () => display },
     systemPreferences: { getMediaAccessStatus: () => 'granted' },
     desktopCapturer: { async getSources() {
@@ -50,11 +52,26 @@ test('background sampling crops the display, serializes captures, and restores w
     fail = false;
     assert.equal((await sample()).toString(), 'sample', 'a failed sample does not block later screenshots');
     focused = false;
-    await captureScreenBuffer(() => win as any, 2, undefined, false);
+    inactiveShows = 0;
+    await captureScreenBuffer(() => win as any, 2);
     assert.equal(inactiveShows, 1, 'automatic placement restores the window without activating it');
     assert.equal(focused, false, 'automatic screenshots leave focus with the user’s work');
     focused = true;
-    await captureScreenBuffer(() => win as any, 2, undefined, false);
+    await captureScreenBuffer(() => win as any, 2);
     assert.equal(focused, true, 'typing in Novi keeps its original focus after the screenshot');
+
+    let focusOwner: string | null = 'tray';
+    const calls: string[] = [];
+    windows = ['tray', 'main', 'viewer'].map(name => ({
+      isDestroyed: () => false, isVisible: () => true, isFocused: () => focusOwner === name,
+      isContentProtected: () => false, getOpacity: () => 1, setContentProtection() {}, setOpacity() {},
+      // Hiding the input may activate another Novi window before that window is hidden too.
+      hide() { if (focusOwner === name) focusOwner = name === 'tray' ? 'main' : null; },
+      show() { focusOwner = name; }, showInactive() { calls.push(name); },
+      focus() { focusOwner = name; calls.push('focus:' + name); }, getBounds: () => display.bounds,
+    }));
+    await captureScreenBuffer(() => windows[1] as any);
+    assert.equal(focusOwner, 'tray', 'a screenshot with an open viewer restores keyboard focus to the input tray');
+    assert.deepEqual(calls, ['tray', 'main', 'viewer', 'focus:tray']);
   } finally { require.cache[electronPath]!.exports = original; }
 });

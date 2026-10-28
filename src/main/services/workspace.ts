@@ -11,15 +11,30 @@ const TRAY_GAP = 12;
 const TRAY_MIN_HEIGHT = 48;
 const TRAY_INITIAL_HEIGHT = 190;
 // Below this much free space beside the panel, the tray centers on the screen and may overlap it.
-const TRAY_MIN_SPACE = 424;
+const TRAY_MIN_SPACE = TRAY_MIN_WIDTH + 2 * TRAY_GAP;
 const NORMAL_SIZE = { width: 1200, height: 800 };
 /** The main window can shrink to 25% of its original minimum size. */
 export const MAIN_WINDOW_MIN = { width: 213, height: 150 };
 
-/** The output panel: full height on the right edge, 35% of the screen, at least 213 and at most 1000 px wide. */
+/** Leave a little desktop visible at startup, including on scaled laptop displays. */
+export function normalBounds(area: Rectangle): Rectangle {
+  const width = Math.min(NORMAL_SIZE.width, Math.round(area.width * 0.9));
+  const height = Math.min(NORMAL_SIZE.height, Math.round(area.height * 0.9));
+  return { x: Math.round(area.x + (area.width - width) / 2), y: Math.round(area.y + (area.height - height) / 2), width, height };
+}
+
+/** A readable output column, aligned to the right of the working display. */
 export function dockedBounds(area: Rectangle): Rectangle {
-  const width = Math.min(area.width, Math.max(MAIN_WINDOW_MIN.width, Math.min(1000, Math.round(area.width * 0.35))));
+  const width = Math.min(area.width, Math.max(420, Math.min(1000, Math.round(area.width * 0.35))));
   return { x: area.x + area.width - width, y: area.y, width, height: area.height };
+}
+
+export function viewerBounds(area: Rectangle, panel: Rectangle): Rectangle {
+  const gap = Math.min(16, Math.round(area.width * 0.02));
+  const available = panel.x - area.x - gap * 2;
+  const width = Math.min(Math.max(360, Math.round(area.width * 0.46)), 800, available >= 300 ? available : area.width - gap * 2);
+  const height = Math.min(900, Math.round(area.height * 0.78));
+  return { x: area.x + gap, y: area.y + Math.round((area.height - height) / 2), width, height };
 }
 
 /** The tray: top-center of the screen, shifted left only as far as needed to clear the docked panel. */
@@ -92,7 +107,7 @@ export class WorkspaceService {
     return {
       ...bounds, show: false, frame: false, transparent: true, backgroundColor: '#00000000', hasShadow: false,
       alwaysOnTop: true,
-      resizable: true, minWidth: TRAY_MIN_WIDTH, minHeight: TRAY_MIN_HEIGHT, minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true,
+      resizable: true, minWidth: Math.min(TRAY_MIN_WIDTH, bounds.width), minHeight: TRAY_MIN_HEIGHT, minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true,
       // Stays above other apps in both normal and transparent modes.
       title: 'Novi', autoHideMenuBar: true,
     };
@@ -163,10 +178,7 @@ export class WorkspaceService {
     const area = screen.getDisplayMatching(window.getBounds()).workArea;
     window.setMinimumSize(Math.min(MAIN_WINDOW_MIN.width, area.width), Math.min(MAIN_WINDOW_MIN.height, area.height));
     if (this.dockedState) window.setBounds(dockedBounds(area));
-    else {
-      const width = Math.min(NORMAL_SIZE.width, area.width), height = Math.min(NORMAL_SIZE.height, area.height);
-      window.setBounds({ x: Math.round(area.x + (area.width - width) / 2), y: Math.round(area.y + (area.height - height) / 2), width, height });
-    }
+    else window.setBounds(normalBounds(area));
     if (this.tray && !this.tray.isDestroyed()) {
       this.tray.setBounds(this.trayPlacement(TRAY_INITIAL_HEIGHT, TRAY_WIDTH));
       this.showTray();
@@ -219,8 +231,7 @@ export class WorkspaceService {
     let bounds = saved?.bounds;
     if (!bounds || !screen.getAllDisplays().some((display) => intersects(display.workArea, bounds!))) {
       const area = screen.getDisplayMatching(window.getBounds()).workArea;
-      const width = Math.min(NORMAL_SIZE.width, area.width), height = Math.min(NORMAL_SIZE.height, area.height);
-      bounds = { x: Math.round(area.x + (area.width - width) / 2), y: Math.round(area.y + (area.height - height) / 2), width, height };
+      bounds = normalBounds(area);
     }
     window.setBounds(bounds);
     if (saved) window.setMinimumSize(saved.minimum[0], saved.minimum[1]);

@@ -8,7 +8,7 @@ import { ImagePreview } from './Message';
 import { useAppMode } from '../../context/AppModeContext';
 import { AudioMeter } from '../AudioMeter';
 import { TrayMenu } from '../TrayMenu';
-import { DRAW_DIAGRAM_PROMPT } from '../../../../shared/sessionModes';
+import { DRAW_DIAGRAM_PROMPT, SESSION_MODES } from '../../../../shared/sessionModes';
 import { CloudListening } from '../../services/cloudListening';
 import { InterviewAudio } from '../../services/interviewAudio';
 
@@ -62,7 +62,13 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
     consumePendingAttachment,
     captureScreenshot,
     appMode,
+    allows,
   } = useAppMode();
+
+  useEffect(() => {
+    void window.novi.reportCompanionState({ mode: appMode, availableModes: SESSION_MODES.filter(mode => allows(mode.id)).map(mode => mode.id), busy, listening: localActive, source }).catch(() => {});
+  }, [appMode, allows, busy, localActive, source]);
+  useEffect(() => () => { void window.novi.reportCompanionState(null).catch(() => {}); }, []);
 
   useEffect(() => { textRef.current = text; }, [text]);
   // Fit the box to its text, including text set by code (sending clears it; transcripts and restores fill it).

@@ -12,6 +12,7 @@ async function main() {
   const source = join(directory, 'references');
   mkdirSync(source);
   writeFileSync(join(source, 'brief.txt'), 'SESSION_SOURCE: Project Cedar uses blue buttons.');
+  writeFileSync(join(source, 'job-description.txt'), 'Cedar seeks a software engineer to build accessible interfaces.');
   const imagePath = join(directory, 'sample.png');
   writeFileSync(imagePath, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==', 'base64'));
   const imagePaths = [imagePath, ...Array.from({ length: 6 }, (_, i) => join(directory, `sample-${i + 2}.png`))];
@@ -124,6 +125,7 @@ async function main() {
     await page.getByRole('heading', { name: 'Microphone sound test' }).waitFor();
     assert.equal(await page.locator('.device-tests .settings-section').count(), 4);
     await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Session setup', exact: true }).getByRole('button', { name: /^Model/ }).click();
     await page.getByLabel('Choose model', { exact: true }).selectOption('test-model');
     assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), 'test-model');
     assert.equal(await page.getByLabel('Message Novi').count(), 0);
@@ -131,29 +133,27 @@ async function main() {
     await app.evaluate(({ dialog }, source) => {
       dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [source] })) as typeof dialog.showOpenDialog;
     }, source);
-    await page.getByRole('button', { name: 'Next', exact: true }).click();
-    await page.getByRole('button', { name: 'Choose folders' }).click();
+    await page.getByRole('navigation', { name: 'Session setup', exact: true }).getByRole('button', { name: /^Load profile/ }).click();
+    await page.locator('#context-panel-sources').getByRole('button', { name: 'Load profile', exact: true }).click();
+    await page.getByRole('list', { name: /classified files/ }).waitFor();
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.getByLabel('Purpose').fill('Review the Cedar interface.');
-    assert.equal(await page.getByRole('group', { name: 'Any role presets', exact: true }).getByRole('button').count(), 7);
+    await page.getByRole('slider', { name: /Years of experience/ }).focus();
+    await page.keyboard.press('End');
+    assert.equal(await page.getByRole('slider', { name: /Years of experience/ }).getAttribute('aria-valuenow') ?? await page.getByRole('slider', { name: /Years of experience/ }).inputValue(), '15');
+    await page.getByLabel('Domain', { exact: true }).selectOption('backend');
     await page.getByRole('slider', { name: /Word choice/ }).focus();
     await page.keyboard.press('Home');
-    assert.equal(await page.getByRole('slider', { name: /Word choice/ }).getAttribute('aria-valuetext'), 'Plain');
-    for (const label of ['Software Engineer', 'Data Analyst', 'Data Scientist', 'Data Engineer']) {
-      await page.getByLabel('Role type', { exact: true }).selectOption({ label });
-      assert.equal(await page.getByRole('group', { name: `${label} presets`, exact: true }).getByRole('button').count(), 4);
-    }
-    await page.getByLabel('Role type', { exact: true }).selectOption({ label: 'Software Engineer' });
-    // A preset applies on click: it sets the session type and fills the instructions, which can be undone.
-    await page.getByRole('button', { name: /Coding interview Approach/ }).click();
-    assert.equal(await page.getByRole('button', { name: /Coding interview Approach/ }).getAttribute('aria-pressed'), 'true');
-    assert.equal(await page.locator('.context-mode-options').getByRole('button', { name: /^Code/ }).getAttribute('aria-pressed'), 'true');
-    assert.match(await page.getByLabel('Output format details').inputValue(), /time and space complexity/);
+    assert.equal(await page.getByRole('slider', { name: /Word choice/ }).getAttribute('aria-valuetext'), '1 of 5, Plain');
+    assert.equal(await page.getByLabel('Role type', { exact: true }).count(), 0, 'old role presets are removed');
+    await page.locator('.context-mode-options').getByRole('button', { name: /^Code/ }).click();
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await page.getByRole('button', { name: /^Spoken \+ pauses/ }).click();
+    await page.getByText('Additional answer instructions', { exact: true }).click();
+    await page.getByLabel('Output format details').fill('Include time and space complexity.');
     await page.getByLabel('Additional instructions details').fill('CUSTOM_CONSTRAINT: Explain jargon in plain English.');
-    await page.getByLabel('Role type', { exact: true }).selectOption({ label: 'Data Analyst' });
-    assert.equal(await page.getByLabel('Additional instructions details').inputValue(), 'CUSTOM_CONSTRAINT: Explain jargon in plain English.', 'browsing presets preserves edits');
-    assert.equal(await page.getByLabel('Purpose').inputValue(), 'Review the Cedar interface.');
     await page.getByLabel('Role / perspective details').fill('Keep the answer concise.');
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.getByLabel('Profile name', { exact: true }).fill('Cedar plain');
     await page.getByRole('button', { name: 'Save profile', exact: true }).click();
     await page.getByRole('status').filter({ hasText: 'Saved “Cedar plain”' }).waitFor();
@@ -163,6 +163,9 @@ async function main() {
       return result.value.settings?.sessionProfiles?.find(profile => profile.name === 'Cedar plain');
     });
     assert.equal(profile?.vocabulary, 'plain');
+    assert.equal(profile?.interview?.experienceYears, 15);
+    assert.equal(profile?.interview?.domain, 'backend');
+    assert.equal(profile?.interview?.answerStyle, 'spoken');
     rejectPing = true;
     await page.getByRole('button', { name: 'Start session', exact: true }).click();
     await page.getByRole('alert').filter({ hasText: 'Your API key was rejected' }).waitFor();
@@ -227,11 +230,15 @@ async function main() {
     await tray.getByRole('button', { name: 'Attach controls', exact: true }).click();
     await page.getByLabel('Message Novi').waitFor();
     assert.equal(await page.getByLabel('Message Novi').inputValue(), 'What color should this button be?');
+    assert.equal(await page.getByLabel('Message Novi').evaluate(el => el.ownerDocument.activeElement === el), true, 'attaching controls restores typing focus');
     await page.getByRole('button', { name: 'Remove sample.png' }).waitFor();
+    await page.getByLabel('Message Novi').evaluate(el => (el as HTMLTextAreaElement).setSelectionRange(5, 5));
     const detachedAgain = windowAt('about:blank');
     await page.getByRole('button', { name: 'Detach controls', exact: true }).click();
     tray = await detachedAgain;
     await tray.getByLabel('Message Novi').waitFor();
+    assert.equal(await tray.getByLabel('Message Novi').evaluate(el => el.ownerDocument.activeElement === el), true, 'detaching controls restores typing focus');
+    assert.equal(await tray.getByLabel('Message Novi').evaluate(el => (el as HTMLTextAreaElement).selectionStart), 5, 'moving controls preserves the text cursor');
     await tray.getByRole('button', { name: 'Send message' }).click();
     await page.getByText('Your button should be blue.', { exact: true }).waitFor();
     assert.match(JSON.stringify(requests[1]), /SESSION_SOURCE/);
@@ -305,7 +312,7 @@ async function main() {
     await page.getByRole('alertdialog', { name: 'End context session' }).getByRole('button', { name: 'End session', exact: true }).click();
     await page.getByRole('heading', { name: 'Session setup' }).waitFor();
     const setupSteps = page.getByRole('navigation', { name: 'Session setup' });
-    for (const name of ['Model', 'Documents', 'Instructions']) await setupSteps.getByRole('button', { name }).waitFor();
+    for (const name of ['Load profile', 'Instructions', 'Answer style', 'Model']) await setupSteps.getByRole('button', { name }).waitFor();
     const afterNewSession = await page.evaluate(() => window.novi.session());
     assert(afterNewSession.ok);
     assert.equal(afterNewSession.value.contextSession, null);
@@ -316,17 +323,18 @@ async function main() {
     assert.match(readFileSync(join(source, 'brief.txt'), 'utf8'), /SESSION_SOURCE/);
     assert.equal(await page.getByLabel('Message Novi').count(), 0);
     assert.equal(trayCount(), 0, 'ending the session closes the tray');
-    assert.equal(await page.getByRole('button', { name: 'Start an empty chat instead', exact: true }).count(), 1);
+    assert.equal(await page.getByRole('button', { name: 'Start an empty chat instead', exact: true }).count(), 0, 'empty chat stays under the final model step');
     await page.getByRole('button', { name: 'Edit Cedar plain', exact: true }).click();
-    assert.equal(await page.getByRole('slider', { name: /Word choice/ }).getAttribute('aria-valuetext'), 'Plain', 'saved profiles restore vocabulary');
-    await page.getByRole('navigation', { name: 'Session setup', exact: true }).getByRole('button', { name: /^Model/ }).click();
+    assert.equal(await page.getByRole('slider', { name: /Word choice/ }).getAttribute('aria-valuetext'), '1 of 5, Plain', 'saved profiles restore vocabulary');
     for (const mode of ['Recruiter Call', 'Technical Phone/Video Screen', 'Behavioral Interview', 'System Design', 'Code', 'Chat']) {
-      await page.getByRole('button', { name: 'Next', exact: true }).click();
+      await page.getByRole('navigation', { name: 'Session setup', exact: true }).getByRole('button', { name: /^Load profile/ }).click();
       await app.evaluate(({ dialog }, source) => { dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [source] })) as typeof dialog.showOpenDialog; }, source);
-      await page.getByRole('button', { name: /^(Choose|Replace) folders$/ }).click();
+      await page.locator('#context-panel-sources').getByRole('button', { name: /^(Load profile|Replace profile folder)$/ }).click();
       await page.getByRole('button', { name: 'Next', exact: true }).click();
       await page.getByLabel('Purpose').fill('Review Cedar');
       await page.locator('.context-mode-options').getByRole('button', { name: new RegExp('^' + mode) }).click();
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
       await page.getByRole('button', { name: 'Start session', exact: true }).click();
       tray = await trayPage();
       await tray.getByLabel('Change conversation mode', { exact: true }).click();
@@ -336,6 +344,8 @@ async function main() {
       await page.getByRole('alertdialog', { name: 'End context session' }).getByRole('button', { name: 'End session', exact: true }).click();
       await page.getByRole('heading', { name: 'Session setup' }).waitFor();
     }
+    await page.getByRole('navigation', { name: 'Session setup', exact: true }).getByRole('button', { name: /^Model/ }).click();
+    await page.getByText('Start without interview setup', { exact: true }).click();
     await page.getByRole('button', { name: 'Start an empty chat instead', exact: true }).click();
     tray = await trayPage();
     await tray.getByLabel('Change conversation mode', { exact: true }).click();

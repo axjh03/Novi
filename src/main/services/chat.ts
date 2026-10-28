@@ -1,4 +1,5 @@
 import { modeInstructions } from '../../shared/sessionModes';
+import { answerStyleInstructions } from '../../shared/interviewProfile';
 import { DIAGRAM_SYNTAX } from '../../shared/diagrams';
 import { randomUUID } from 'node:crypto';
 import type { ChatEvent, ChatMessage, ChatLatency, SendInput } from '../../shared/types';
@@ -81,6 +82,7 @@ export class ChatService {
       ...requestHistory(conversation.messages, input.compactContext),
     ];
     const instructions = [modeInstructions(input.appMode ?? 'normal', input.behavioralFramework),
+      input.answerStyle || context?.interview?.answerStyle ? answerStyleInstructions(input.answerStyle ?? context!.interview!.answerStyle) : '',
       conversation.pinnedContext ? `User-pinned constraints (retain verbatim):\n${conversation.pinnedContext}` : '',
       input.compactContext ? 'Some older turns and source passages may be omitted. Do not infer missing facts from an overview. Ask for full context if needed.' : '',
     ].filter(Boolean).join('\n\n');
@@ -167,6 +169,7 @@ export class ChatService {
     emit({ type: 'started', conversation });
     try {
       await this.localCoding.run({
+        answerStyle: input.answerStyle ?? conversation.context?.interview?.answerStyle,
         conversation, user: userMessage, assistant, baseVersionId: input.localCoding.baseVersionId, reconcile: input.localCoding.reconcile, imageIds: input.imageIds,
         signal: controller.signal, emit, save: () => this.storage.save(),
       });

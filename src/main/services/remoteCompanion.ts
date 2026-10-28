@@ -1,5 +1,5 @@
-import { isAppMode } from '../../shared/sessionModes';
-import type { AppMode } from '../../shared/types';
+import { isAppMode, SESSION_MODES } from '../../shared/sessionModes';
+import type { AppMode, CompanionState } from '../../shared/types';
 import http from 'node:http';
 import os from 'node:os';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
@@ -70,6 +70,7 @@ export class RemoteCompanionService {
   private tunnelLoading = false;
 
   private conversationScroll = { position: 1, scrollable: false };
+  private desktopState: CompanionState | null = null;
   constructor(stealth: StealthService, getWindow: () => BrowserWindow | null, private smartPlacement?: SmartPlacementService, private getUsername: () => string = () => '') {
     this.stealth = stealth;
     this.getWindow = getWindow;
@@ -77,6 +78,14 @@ export class RemoteCompanionService {
   setConversationScroll(position: unknown, scrollable: unknown) {
     if (typeof position !== 'number' || !Number.isFinite(position) || position < 0 || position > 1 || typeof scrollable !== 'boolean') throw new Error('Invalid conversation scroll position.');
     this.conversationScroll = { position, scrollable };
+  }
+  setDesktopState(value: unknown) {
+    if (value === null) { this.desktopState = null; return; }
+    const state = value as CompanionState | undefined;
+    if (!state || !isAppMode(state.mode) || !Array.isArray(state.availableModes) || state.availableModes.length > SESSION_MODES.length || !state.availableModes.every(isAppMode) ||
+      typeof state.busy !== 'boolean' || typeof state.listening !== 'boolean' || !['system', 'microphone', 'both'].includes(state.source)) throw new Error('Invalid companion state.');
+    this.desktopState = { mode: state.mode, availableModes: [...state.availableModes], busy: state.busy, listening: state.listening, source: state.source };
+    this.currentMode = state.mode;
   }
   private windowLayout() {
     const win = this.getWindow(), sc = getScreen();
@@ -306,6 +315,7 @@ export class RemoteCompanionService {
         transparent: stealthState.transparent,
         clickThrough: stealthState.clickThrough,
         currentMode: this.currentMode,
+        desktopState: this.desktopState,
         currentAudioSource: this.currentAudioSource,
         hostname: os.hostname(),
         platform: process.platform,
@@ -335,6 +345,7 @@ export class RemoteCompanionService {
             transparent: stealthState.transparent,
             clickThrough: stealthState.clickThrough,
             currentMode: this.currentMode,
+            desktopState: this.desktopState,
             currentAudioSource: this.currentAudioSource,
             windowLayout: this.windowLayout(), conversationScroll: this.conversationScroll, smartPlacement: this.smartPlacement?.snapshot(),
           }));
@@ -413,6 +424,7 @@ export class RemoteCompanionService {
 
       case 'set-app-mode':
         if (isAppMode(payload)) {
+          if (this.desktopState && !this.desktopState.availableModes.includes(payload)) throw new Error('This mode is not available on your plan.');
           this.currentMode = payload;
           win.webContents.send('global-action', { type: 'set-app-mode', payload });
         }
@@ -509,6 +521,10 @@ export class RemoteCompanionService {
   }
 
   private renderMobileAppHTML(): string {
+    const icon = (path: string) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${path}"/></svg>`;
+    const send = icon('M12 19V5m-6 6 6-6 6 6');
+    const camera = icon('M14 4h-4L8 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-4ZM16 13a4 4 0 1 1-8 0 4 4 0 0 1 8 0');
+    const mic = icon('M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0Zm-3 5v2a6 6 0 0 0 12 0v-2m-6 8v4m-3 0h6');
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -521,30 +537,44 @@ export class RemoteCompanionService {
   <title>Novi</title>
   <style>
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    :root { color-scheme: dark; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #171717; color: #eee; }
-    body { margin: 0; padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); overscroll-behavior-y: contain; }
+    :root { color-scheme: dark; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #111214; color: #f0f0f3; -webkit-text-size-adjust: 100%; }
+    body { margin: 0; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); overscroll-behavior-y: contain; }
     button, select, input { font: inherit; }
     button { cursor: pointer; touch-action: manipulation; transition: background 160ms, transform 160ms, opacity 160ms; }
     button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid #99caff; outline-offset: 3px; }
     button:active { transform: scale(.97); }
-    button:disabled { opacity: .45; }
-    .app-container { max-width: 460px; margin: 0 auto; }
-    .header-compact { display: flex; align-items: center; min-height: 28px; padding: 2px 4px 8px; }
-    .account-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; color: #ccc; }
+    button:disabled { opacity: .4; cursor: default; }
+    svg { width: 19px; height: 19px; flex: none; }
+    [hidden] { display: none !important; }
+    .app-container { max-width: 480px; margin: 0 auto; }
+    .header-compact { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 20px; }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .brand-mark { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid #3b3b44; border-radius: 11px; font-size: 21px; font-weight: 600; background: #222329; }
+    .brand strong { display: block; font-size: 16px; font-weight: 600; letter-spacing: -.3px; }
+    .brand small { color: #a0a1ac; font-size: 11px; }
+    .connection { display: grid; justify-items: end; gap: 4px; min-width: 0; }
+    .connection-status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #a0a1ac; }
+    .connection-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #a0a1ac; }
+    .connection-status[data-connected=true]::before { background: #8dc9a7; }
+    .account-name { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; color: #a0a1ac; }
     .connection-error { margin: 0 0 10px; padding: 9px 11px; border: 1px solid #70433e; border-radius: 6px; background: #32201e; color: #ffb4ab; font-size: 11px; line-height: 1.5; }
-    .controls-grid { display: grid; grid-template-areas: 'hero' 'mode' 'layout' 'reading' 'snapshot' 'audio' 'visibility'; gap: 10px; }
-    .hero-row { grid-area: hero; display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 6px; }
-    .hero-btn, .stop-btn, .ctrl-btn, .mode-tab-btn { min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid #404040; border-radius: 6px; background: #272727; color: #eee; font-size: 12px; }
-    .hero-btn { background: #dceaff; border-color: #dceaff; color: #182434; font-weight: 600; }
-    .stop-btn { color: #ffb4ab; }
-    .mode-segment { grid-area: mode; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px; background: #202020; border-radius: 6px; }
-    .mode-tab-btn { border-color: transparent; background: transparent; min-height: 34px; padding: 6px 10px; color: #aaa; }
-    .mode-tab-btn.active, .ctrl-btn.active-state { background: #353535; color: #fff; }
-    .button-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-    .layout-controls { grid-area: layout; display: grid; grid-template-columns: minmax(0, 1fr) 56px; gap: 10px; align-items: stretch; }
-    .section-box { min-width: 0; padding: 12px; background: #202020; border-radius: 8px; display: grid; align-content: start; gap: 10px; }
-    .section-label { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 11px; color: #bbb; font-weight: 500; }
-    .section-label > span:last-child:not(:first-child) { font-size: 10px; color: #888; }
+    .controls-grid { display: grid; grid-template-areas: 'mode' 'hero' 'snapshot' 'audio' 'layout' 'reading' 'visibility'; gap: 12px; }
+    .hero-row { grid-area: hero; display: grid; grid-template-columns: minmax(0, 1fr) 88px; gap: 8px; }
+    .hero-btn, .stop-btn, .ctrl-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; min-height: 46px; padding: 10px 12px; border: 1px solid #35363e; border-radius: 10px; background: #1e1f24; color: #e5e5ec; font-size: 12px; line-height: 1.3; }
+    .hero-btn { min-height: 52px; background: #dcd8fa; border-color: #dcd8fa; color: #252035; font-size: 14px; font-weight: 600; }
+    .stop-btn { color: #f1afad; }
+    .mode-segment { grid-area: mode; display: flex; align-items: center; gap: 10px; padding: 4px 0 12px; border-bottom: 1px solid #2b2c32; }
+    .mode-segment label { display: flex; align-items: center; gap: 8px; color: #a0a1ac; font-size: 12px; }
+    select { min-width: 0; min-height: 44px; padding: 8px; border: 1px solid #35363e; border-radius: 8px; background: #1e1f24; color: #e5e5ec; font-size: 16px; }
+    #sessionMode { flex: 1; width: 0; margin-left: auto; }
+    .ctrl-btn.active-state { background: #2c2a3c; border-color: #827aaf; color: #e6e0ff; }
+    .button-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .layout-controls { grid-area: layout; display: grid; grid-template-columns: minmax(0, 1fr) 56px; gap: 8px; align-items: stretch; }
+    .section-box { min-width: 0; padding: 14px; background: #191a1f; border: 1px solid #2c2d34; border-radius: 12px; display: grid; align-content: start; gap: 14px; }
+    .section-label { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 11px; color: #c6c6cf; font-weight: 500; }
+    .section-label > span { display: inline-flex; align-items: center; gap: 7px; }
+    .section-label > span:last-child:not(:first-child) { font-size: 10px; color: #a0a1ac; }
+    .section-label svg { width: 15px; height: 15px; }
     .window-pad { --screen-aspect: 1.7778; position: relative; width: min(100%, calc(180px * var(--screen-aspect))); aspect-ratio: var(--screen-aspect); margin: auto; background: #121212; border: 1px solid #383838; border-radius: 4px; touch-action: none; }
     .window-preview { position: absolute; left: 65%; top: 0; width: 35%; height: 100%; display: grid; place-items: center; min-width: 0; border: 1px solid #91bfff; border-radius: 3px; background: #99caff20; color: #b8d7ff; cursor: grab; touch-action: none; user-select: none; }
     .window-preview > span { font-size: 10px; pointer-events: none; }
@@ -558,27 +588,33 @@ export class RemoteCompanionService {
     .window-handle[data-edge='nw'], .window-handle[data-edge='se'] { cursor: nwse-resize; }
     .window-handle[data-edge='ne'], .window-handle[data-edge='sw'] { cursor: nesw-resize; }
     .placement-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .placement-tools .ctrl-btn { min-height: 34px; padding: 6px 10px; font-size: 11px; }
+    .placement-tools .ctrl-btn { padding: 8px 10px; font-size: 11px; }
     .auto-smart { display: flex; align-items: center; gap: 5px; color: #bbb; font-size: 11px; white-space: nowrap; }
-    .placement-note { margin: 0; color: #999; font-size: 10px; line-height: 1.45; }
+    .auto-smart input { accent-color: #b8b0e9; width: 18px; height: 18px; }
+    .placement-note { margin: 0; color: #a0a1ac; font-size: 10px; line-height: 1.5; }
     .placement-note.error { color: #ffb4ab; }
     .scroll-section { padding: 10px 4px; justify-items: center; }
     .scroll-section .section-label { font-size: 10px; }
-    .scroll-slider { --scroll-position: 1; position: relative; width: 44px; height: 172px; min-height: 120px; border-radius: 22px; touch-action: none; user-select: none; -webkit-user-select: none; cursor: ns-resize; }
+    .scroll-slider { --scroll-position: 1; position: relative; width: 44px; height: 178px; min-height: 120px; border-radius: 22px; touch-action: none; user-select: none; -webkit-user-select: none; cursor: ns-resize; }
     .scroll-track { position: absolute; inset: 18px 20px; overflow: hidden; border-radius: 4px; background: #3b3b3b; pointer-events: none; }
     .scroll-fill { display: block; width: 100%; height: calc(var(--scroll-position) * 100%); background: #8eb8e6; }
     .scroll-thumb { position: absolute; top: calc((100% - 36px) * var(--scroll-position)); left: 10px; display: grid; place-items: center; width: 24px; height: 36px; border: 1px solid #accff7; border-radius: 10px; background: #c1d9f5; box-shadow: 0 2px 6px #0005; pointer-events: none; transition: top 120ms ease, background 160ms, box-shadow 160ms; }
     .scroll-thumb::after { content: ''; width: 10px; height: 8px; border-block: 1px solid #58799c; background: linear-gradient(#58799c,#58799c) center / 10px 1px no-repeat; }
     .scroll-slider.is-dragging .scroll-thumb { background: #fff; box-shadow: 0 0 0 5px #99caff20; transition: background 160ms, box-shadow 160ms; }
     .scroll-slider[aria-disabled=true] { opacity: .3; cursor: default; }
-    .scroll-label { color: #888; font-size: 9px; }
-    .reading-controls { grid-area: reading; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid #333; }
-    .reading-controls .ctrl-btn { min-height: 34px; padding: 5px 13px; }
+    .scroll-label { color: #a0a1ac; font-size: 9px; }
+    .reading-controls { grid-area: reading; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 0 12px; border-bottom: 1px solid #2b2c32; }
+    .reading-controls .ctrl-btn { padding: 8px 13px; }
     .snapshot-controls { grid-area: snapshot; } .audio-controls { grid-area: audio; } .visibility-controls { grid-area: visibility; }
+    .snapshot-controls { grid-template-columns: 1fr 1fr 46px; }
+    .audio-controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 0 0 4px; }
+    .audio-controls select { width: 100%; font-size: 16px; }
+    .input-note { margin: -4px 0 0; color: #a0a1ac; font-size: 11px; line-height: 1.5; }
+    .visibility-controls .ctrl-btn { flex-wrap: wrap; gap: 6px; }
     @media (orientation: landscape) and (min-width: 600px) {
       .app-container { max-width: 920px; }
       .header-compact { padding-bottom: 8px; }
-      .controls-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-areas: 'hero mode' 'layout reading' 'layout snapshot' 'layout audio' 'layout visibility'; align-items: start; gap: 8px 14px; }
+      .controls-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-areas: 'mode hero' 'layout snapshot' 'layout audio' 'layout reading' 'layout visibility'; align-items: start; gap: 10px 16px; }
       .window-pad { width: min(100%, calc(130px * var(--screen-aspect))); }
       .layout-controls { height: 100%; }
       .reading-controls { padding-top: 0; }
@@ -589,37 +625,53 @@ export class RemoteCompanionService {
 </head>
 <body>
   <div class="app-container">
-    <header class="header-compact"><span id="accountName" class="account-name"></span></header>
+    <header class="header-compact">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">N</span><div><strong>Novi</strong><small>Phone companion</small></div></div>
+      <div class="connection"><span id="connectionStatus" class="connection-status" role="status">Connecting…</span><span id="accountName" class="account-name"></span></div>
+    </header>
     <p id="connectionError" class="connection-error" role="alert" hidden></p>
 
     <div class="controls-grid">
-      <!-- 1. HERO: SEND PROMPT & STOP GENERATION IN SAME LINE -->
-      <div class="hero-row">
-        <button type="button" class="hero-btn" onclick="triggerAction('send-prompt')">
-          <span>Send prompt</span>
-        </button>
-        <button type="button" class="stop-btn" onclick="triggerAction('stop-generation')">
-          <span>Stop generate</span>
-        </button>
-        <button type="button" class="ctrl-btn" onclick="triggerAction('capture-and-send')">SS &amp; Send</button>
+      <div class="mode-segment">
+        <label for="sessionMode">${icon('M4 4h16v12H8l-4 4Z')}Mode</label>
+        <select id="sessionMode" onchange="triggerAction('set-app-mode', this.value)" disabled>
+          ${SESSION_MODES.map(mode => `<option value="${mode.id}">${mode.name}</option>`).join('')}
+        </select>
       </div>
 
-      <!-- 2. MODE SELECTION (CHAT / CODE / INTERVIEW) -->
-      <div class="mode-segment">
-        <button type="button" id="tabChat" class="mode-tab-btn active" onclick="triggerAction('set-app-mode', 'normal')">
-          <span>Chat</span>
+      <div class="hero-row">
+        <button type="button" id="sendPrompt" class="hero-btn" onclick="triggerAction('send-prompt')" disabled>
+          ${send}<span>Send prompt</span>
         </button>
-        <button type="button" id="tabCode" class="mode-tab-btn" onclick="triggerAction('set-app-mode', 'coding')">
-          <span>Code</span>
+        <button type="button" id="stopGeneration" class="stop-btn" onclick="triggerAction('stop-generation')" disabled>
+          ${icon('M6 6h12v12H6Z')}<span>Stop</span>
         </button>
-        <button type="button" id="tabInterview" class="mode-tab-btn" onclick="triggerAction('set-app-mode', 'behavioral')">
-          <span>Interview</span>
+      </div>
+
+      <div class="button-row snapshot-controls">
+        <button type="button" id="takeSnapshot" class="ctrl-btn" onclick="triggerAction('capture-screen')" disabled>
+          ${camera}<span>Snapshot</span>
         </button>
+        <button type="button" id="captureSend" class="ctrl-btn" onclick="triggerAction('capture-and-send')" disabled>${send}<span>Snap + send</span></button>
+        <button type="button" id="deleteSnapshot" class="ctrl-btn" aria-label="Remove last snapshot" title="Remove last snapshot" onclick="triggerAction('delete-last-snapshot')" disabled>
+          ${icon('M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7')}
+        </button>
+      </div>
+
+      <div class="button-row audio-controls">
+        <button type="button" id="listenButton" class="ctrl-btn" aria-pressed="false" onclick="triggerAction('toggle-listening', document.getElementById('listeningMode').value)" disabled>
+          ${mic}<span id="listenText">Start listening</span>
+        </button>
+        <select id="listeningMode" aria-label="Audio input" onchange="triggerAction('set-listening-mode', this.value)" disabled>
+          <option value="system">System audio</option>
+          <option value="both">Mic + system audio</option>
+          <option value="microphone">Mic only</option>
+        </select>
       </div>
 
       <div class="layout-controls">
         <section class="section-box window-section" aria-label="Desktop window layout">
-          <div class="section-label"><span>Window layout</span><span>Move center · resize edges</span></div>
+          <div class="section-label"><span>${icon('M3 4h18v13H3Zm5 17h8m-4-4v4')}Desktop window</span><span>Drag to arrange</span></div>
           <div class="window-pad" id="windowPad">
             <div class="window-preview" id="windowPreview" tabindex="0" role="group" aria-label="Desktop window position and size">
               <span>Novi</span>
@@ -629,8 +681,8 @@ export class RemoteCompanionService {
               <button class="window-handle" type="button" data-edge="sw" aria-label="Resize bottom left corner"></button><button class="window-handle" type="button" data-edge="se" aria-label="Resize bottom right corner"></button>
             </div>
           </div>
-          <div class="placement-tools"><button type="button" class="ctrl-btn" id="autoDetect" onclick="triggerAction('auto-detect')">✦ AutoDetect</button><label class="auto-smart"><input id="autoSmart" type="checkbox" onchange="triggerAction('auto-smart', this.checked)" />Auto Smart</label></div>
-          <p class="placement-note" id="placementStatus">Screenshots go to your selected AI model. Auto Smart is off.</p>
+          <div class="placement-tools"><button type="button" class="ctrl-btn" id="autoDetect" onclick="triggerAction('auto-detect')">${icon('m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z')}<span id="autoDetectText">Find space</span></button><label class="auto-smart"><input id="autoSmart" type="checkbox" onchange="triggerAction('auto-smart', this.checked)" />Auto Smart</label></div>
+          <p class="placement-note" id="placementStatus">AI placement shares a screenshot with your model.</p>
         </section>
         <section class="section-box scroll-section" aria-label="Conversation scroll">
           <span class="section-label">Scroll</span><span class="scroll-label">Top</span>
@@ -638,41 +690,19 @@ export class RemoteCompanionService {
           <span class="scroll-label">Latest</span>
         </section>
       </div>
-      <div class="reading-controls"><span class="section-label">Size</span><div class="button-row">
+      <div class="reading-controls"><span class="section-label">Desktop text</span><div class="button-row">
         <button type="button" class="ctrl-btn" aria-label="Decrease desktop interface size" onclick="triggerAction('change-reading-size', -1)">A− Smaller</button>
         <button type="button" class="ctrl-btn" aria-label="Increase desktop interface size" onclick="triggerAction('change-reading-size', 1)">A+ Larger</button>
       </div></div>
 
-      <!-- 5. SNAPSHOT CONTROLS -->
-      <div class="button-row snapshot-controls">
-        <button type="button" class="ctrl-btn" onclick="triggerAction('capture-screen')">
-          <span>Take Snapshot</span>
-        </button>
-        <button type="button" class="ctrl-btn" onclick="triggerAction('delete-last-snapshot')">
-          <span>Delete Last</span>
-        </button>
-      </div>
-
-      <!-- 6. LIVE LISTENING -->
-      <div class="button-row audio-controls">
-        <button type="button" class="ctrl-btn" onclick="triggerAction('toggle-listening', document.getElementById('listeningMode').value)">
-          <span>Start / stop listening</span>
-        </button>
-        <select id="listeningMode" class="ctrl-btn" aria-label="Audio input" onchange="triggerAction('set-listening-mode', this.value)">
-          <option value="system">System audio</option>
-          <option value="both">Mic + system audio</option>
-          <option value="microphone">Mic only</option>
-        </select>
-      </div>
-
-      <!-- 7. TRANSPARENT & INTERACTIVE TOGGLES (WITH CONFIRM ON NON-TRANSPARENT) -->
       <div class="button-row visibility-controls">
-        <button type="button" id="btnGhost" class="ctrl-btn" onclick="toggleTransparentSafe()">
-          <span id="txtGhost">Transparent</span>
+        <button type="button" id="btnGhost" class="ctrl-btn" aria-pressed="false" onclick="toggleTransparentSafe()">
+          ${icon('M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12m13 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0')}<span id="txtGhost">Transparency off</span>
         </button>
-        <button type="button" id="btnInteract" class="ctrl-btn" onclick="triggerAction('toggle-clickthrough')">
-          <span id="txtInteract">Interactive</span>
+        <button type="button" id="btnInteract" class="ctrl-btn" aria-pressed="false" onclick="triggerAction('toggle-clickthrough')" disabled>
+          ${icon('m4 3 16 9-8 1-4 7Z')}<span id="txtInteract">Desktop input on</span>
         </button>
+        <p id="inputNote" class="input-note" style="grid-column: 1 / -1">Clicks and typing go to Novi.</p>
       </div>
     </div>
   </div>
@@ -723,9 +753,10 @@ export class RemoteCompanionService {
         });
         const data = await res.json();
         if (data.ok) {
+          reportConnectionError('');
           updateUI(data);
         } else {
-          reportConnectionError(data.error || 'Action unavailable');
+          reportConnectionError(data.error || 'Action unavailable', false);
         }
       } catch (err) {
         reportConnectionError('Desktop unavailable. Reconnect using the link in Novi.');
@@ -842,9 +873,17 @@ export class RemoteCompanionService {
       if (!(event.key in positions)) return;
       event.preventDefault(); queueScroll(positions[event.key]);
     });
-    function reportConnectionError(message) {
+    function reportConnectionError(message, disconnected = true) {
       const note = document.getElementById('connectionError');
       note.textContent = message; note.hidden = !message;
+      const connection = document.getElementById('connectionStatus');
+      if (!message || disconnected) {
+        connection.textContent = message ? 'Disconnected' : 'Connected';
+        connection.dataset.connected = String(!message);
+      }
+      if (message && disconnected) {
+        for (const id of ['sendPrompt', 'stopGeneration', 'captureSend', 'takeSnapshot', 'deleteSnapshot', 'listenButton', 'listeningMode', 'sessionMode']) document.getElementById(id).disabled = true;
+      }
     }
 
     // 7. REALTIME STATUS SYNC
@@ -864,36 +903,45 @@ export class RemoteCompanionService {
       if (status.smartPlacement) {
         const smart = status.smartPlacement, button = document.getElementById('autoDetect'), note = document.getElementById('placementStatus');
         document.getElementById('autoSmart').checked = smart.enabled;
-        button.disabled = smart.busy; button.textContent = smart.busy ? 'Finding space…' : '✦ AutoDetect';
+        button.disabled = smart.busy; document.getElementById('autoDetectText').textContent = smart.busy ? 'Finding…' : 'Find space';
         note.className = 'placement-note' + (smart.error ? ' error' : '');
-        note.textContent = smart.error || smart.reason || (smart.enabled ? 'Auto Smart on. Stable screen changes are analyzed by your AI model.' : 'Screenshots go to your selected AI model. Auto Smart is off.');
+        note.textContent = smart.error || smart.reason || (smart.enabled ? 'Auto Smart on · screenshots go to your AI model.' : 'AI placement shares a screenshot with your model.');
         button.title = smart.shortcutRegistered ? 'Shortcut: ' + smart.shortcut : 'AutoDetect shortcut is unavailable; use this button.';
       }
       isTransparent = Boolean(status.transparent);
       const btnGhost = document.getElementById('btnGhost');
       const txtGhost = document.getElementById('txtGhost');
-      if (status.transparent) {
-        btnGhost.classList.add('active-state');
-        txtGhost.innerText = 'Transparent: ON';
-      } else {
-        btnGhost.classList.remove('active-state');
-        txtGhost.innerText = 'Transparent: OFF';
-      }
+      btnGhost.classList.toggle('active-state', isTransparent);
+      btnGhost.setAttribute('aria-pressed', String(isTransparent));
+      txtGhost.textContent = isTransparent ? 'Transparency on' : 'Transparency off';
 
       const btnInteract = document.getElementById('btnInteract');
       const txtInteract = document.getElementById('txtInteract');
-      if (status.clickThrough) {
-        btnInteract.classList.add('active-state');
-        txtInteract.innerText = 'Pass-Through';
-      } else {
-        btnInteract.classList.remove('active-state');
-        txtInteract.innerText = 'Interactive';
-      }
+      btnInteract.disabled = !isTransparent;
+      btnInteract.classList.toggle('active-state', !status.clickThrough && isTransparent);
+      btnInteract.setAttribute('aria-pressed', String(!status.clickThrough));
+      txtInteract.textContent = status.clickThrough ? 'Enable desktop input' : 'Desktop input on';
+      document.getElementById('inputNote').textContent = status.clickThrough ? 'Clicks pass through Novi. Enable desktop input to type.' : 'Clicks and typing go to Novi.';
 
-      if (status.currentMode) {
-        document.getElementById('tabChat').classList.toggle('active', status.currentMode === 'normal');
-        document.getElementById('tabCode').classList.toggle('active', status.currentMode === 'coding');
-        document.getElementById('tabInterview').classList.toggle('active', status.currentMode === 'behavioral');
+      const desktop = status.desktopState;
+      const mode = document.getElementById('sessionMode');
+      mode.value = desktop ? desktop.mode : status.currentMode || 'normal';
+      mode.disabled = !desktop;
+      for (const option of mode.options) option.disabled = !desktop || !desktop.availableModes.includes(option.value);
+      document.getElementById('sendPrompt').disabled = !desktop || desktop.busy;
+      document.getElementById('captureSend').disabled = !desktop || desktop.busy;
+      document.getElementById('stopGeneration').disabled = !desktop || !desktop.busy;
+      for (const id of ['takeSnapshot', 'deleteSnapshot', 'listenButton']) document.getElementById(id).disabled = !desktop;
+      const listening = Boolean(desktop && desktop.listening);
+      const listenButton = document.getElementById('listenButton');
+      listenButton.classList.toggle('active-state', listening);
+      listenButton.setAttribute('aria-pressed', String(listening));
+      document.getElementById('listenText').textContent = listening ? 'Stop listening' : 'Start listening';
+      const audio = document.getElementById('listeningMode');
+      audio.disabled = !desktop || listening;
+      if (desktop) audio.value = desktop.source;
+      if (!desktop) {
+        document.getElementById('connectionStatus').textContent = 'No active chat';
       }
     }
 

@@ -129,7 +129,6 @@ export class StealthService {
   }
 
   getState(): StealthState {
-    this.numLock = this.readNumLock();
     return {
       transparent: this.transparent,
       numLock: this.numLock,

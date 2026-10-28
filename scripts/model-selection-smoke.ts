@@ -45,7 +45,7 @@ async function main() {
         isWindowMaximized: async () => ok(false),
         listModels: async () => fixture.discoveryFails ? { ok: false, error: 'Cannot load models. Try again.' } : ok([{ id: 'gemini-chat', name: 'Gemini Chat' }, { id: 'gemini-other', name: 'Gemini Other' }]),
         selectConnection: async (id: string, model?: string) => { state.settings!.activeConnectionId = id; if (model) state.settings!.connections[0].model = model; return ok(structuredClone(state)); },
-        pickContextFolders: async () => ok([{ id: 'folder', name: 'Reference', files: ['test.txt'], characters: 20 }]),
+        pickContextFolders: async () => ok([{ id: 'folder', name: 'Reference', files: ['job-description.txt'], characters: 20 }]),
         testConnection: async () => {
           if (fixture.reject) return { ok: false, error: 'Your API key was rejected.' };
           if (fixture.modelNotFound && state.settings!.connections[0].model === 'gemini-chat') return { ok: false, error: 'Google (Gemini) model request failed (HTTP 404): Google could not find or serve the selected Gemini model.' };
@@ -68,22 +68,20 @@ async function main() {
     assert.equal(await page.getByRole('button', { name: 'Retry microphone', exact: true }).count(), 1);
     await page.getByText(/^Microphone failed/).waitFor();
     await page.getByRole('button', { name: 'Continue anyway', exact: true }).click();
+    const setup = page.getByRole('navigation', { name: 'Session setup', exact: true });
+    await setup.getByRole('button', { name: /^Model/ }).click();
     await page.getByText('The previous model is unavailable. Choose a model from the list.').waitFor();
     assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), '');
     assert.equal(await page.getByRole('option', { name: 'gemini3.8', exact: true }).count(), 0);
-    assert(await page.getByRole('button', { name: 'Next', exact: true }).isDisabled());
-    assert(await page.getByRole('button', { name: 'Instructions', exact: true }).isDisabled());
-    assert.equal(await page.locator('#context-panel-brief').isVisible(), false, 'later steps stay hidden until reached');
-    assert.equal(await page.getByRole('button', { name: 'Start session', exact: true }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Start session', exact: true }).getAttribute('aria-disabled'), 'true');
     await page.getByLabel('Choose model', { exact: true }).selectOption('gemini-chat');
+    await setup.getByRole('button', { name: /^Load profile/ }).click();
+    await page.locator('#context-panel-sources').getByRole('button', { name: 'Load profile', exact: true }).click();
     await page.getByRole('button', { name: 'Next', exact: true }).click();
-    assert(!(await page.getByRole('button', { name: 'Next', exact: true }).isDisabled()), 'documents are optional');
-    await page.getByRole('button', { name: 'Choose folders', exact: true }).click();
-    await page.getByRole('button', { name: 'Next', exact: true }).click();
-    assert(await page.getByRole('button', { name: 'Start session', exact: true }).isDisabled());
     await page.getByLabel('Purpose').fill('Review the reference');
-    assert(await page.getByRole('button', { name: 'Start session', exact: true }).isDisabled());
     await page.getByRole('button', { name: /^Chat General questions/ }).click();
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.getByRole('button', { name: 'Start session', exact: true }).click();
     await page.getByRole('alert').filter({ hasText: 'Your API key was rejected.' }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Cancel start' }).count(), 0);
@@ -97,7 +95,7 @@ async function main() {
     await page.evaluate(() => { (window as any).fixture.discoveryFails = true; });
     await page.getByRole('button', { name: 'Refresh models', exact: true }).click();
     await page.getByText('Cannot load models. Try again.', { exact: true }).waitFor();
-    assert(await page.getByRole('button', { name: 'Next', exact: true }).isDisabled());
+    assert.equal(await page.getByRole('button', { name: 'Start session', exact: true }).getAttribute('aria-disabled'), 'true');
     await page.evaluate(() => { (window as any).fixture.discoveryFails = false; });
     await page.getByRole('button', { name: 'Refresh models', exact: true }).click();
     await page.waitForFunction(() => !(document.querySelector('select[aria-label="Choose model"]') as HTMLSelectElement).disabled);

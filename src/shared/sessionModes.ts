@@ -3,7 +3,9 @@ import { DIAGRAM_SYNTAX } from './diagrams';
 
 export const VOCABULARY_LEVELS: ReadonlyArray<{ id: VocabularyLevel; name: string; instructions: string }> = [
   { id: 'plain', name: 'Plain', instructions: 'Use familiar words and short sentences. Explain technical terms in everyday language when they are needed. Keep the reasoning and technical detail appropriate to the question and role.' },
+  { id: 'simple', name: 'Simple', instructions: 'Use simple conversational words. Introduce essential technical terms with a short, concrete explanation.' },
   { id: 'everyday', name: 'Everyday', instructions: 'Use natural, conversational language. Include common professional terms and briefly explain unfamiliar ones. Keep answers easy to say aloud.' },
+  { id: 'professional', name: 'Professional', instructions: 'Use confident professional language and common domain vocabulary. Keep sentences clear and explain less familiar concepts briefly.' },
   { id: 'technical', name: 'Technical', instructions: 'Use precise professional and technical vocabulary appropriate to the question and target role. Explain rare terms on first use. Keep sentences clear and avoid inflated or needlessly complex wording.' },
 ];
 

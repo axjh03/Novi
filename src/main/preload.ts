@@ -61,6 +61,8 @@ const api: NoviAPI = {
     return () => { ipcRenderer.removeListener('local-model-progress', listener); };
   },
   pickContextFolders: () => ipcRenderer.invoke('pick-context-folders'),
+  researchProfile: input => ipcRenderer.invoke('research-profile', input),
+  exportInterviewSkills: input => ipcRenderer.invoke('export-interview-skills', input),
   startContext: (input) => ipcRenderer.invoke('start-context', input),
   startEmptySession: () => ipcRenderer.invoke('start-empty-session'),
   saveSessionProfile: (input) => ipcRenderer.invoke('save-session-profile', input),
@@ -168,6 +170,7 @@ const api: NoviAPI = {
   setAutoSmart: enabled => ipcRenderer.invoke('smart-placement-enable', enabled),
   onSmartPlacement: callback => { const listener = (_event: Electron.IpcRendererEvent, state: import('../shared/windowLayout').SmartPlacementState) => callback(state); ipcRenderer.on('smart-placement-state', listener); return () => ipcRenderer.removeListener('smart-placement-state', listener); },
   reportConversationScroll: (position, scrollable) => ipcRenderer.invoke('conversation-scroll-state', { position, scrollable }),
+  reportCompanionState: state => ipcRenderer.invoke('companion-desktop-state', state),
   sampleBackgroundPalette: (opacity) => ipcRenderer.invoke('sample-background-palette', { opacity }),
   captureScreen: () => ipcRenderer.invoke('capture-screen'),
   saveAudioRecording: (input: any) => ipcRenderer.invoke('save-audio-recording', input),

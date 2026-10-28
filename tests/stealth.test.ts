@@ -98,6 +98,22 @@ function fakeWindow(url = 'file:///app/index.html', raised: string[] = [], name 
   return window;
 }
 
+test('status polling cannot swallow a Num Lock change before click-through is updated', () => {
+  const main = fakeWindow();
+  const stealth = new StealthService(() => main, undefined, () => [main]);
+  let numLock = false;
+  (stealth as any).getKeyStateFn = () => numLock ? 1 : 0;
+  try {
+    stealth.setTransparent(true);
+    assert.equal(main.state.ignored, true);
+    numLock = true;
+    stealth.getState();
+    (stealth as any).checkNumLockChange();
+    assert.equal(stealth.getState().clickThrough, false);
+    assert.equal(main.state.ignored, false, 'Num Lock still enables typing after phone status polling');
+  } finally { stealth.cleanup(); }
+});
+
 test('transparent mode leaves the eye-tracking overlay in charge of its own clicks and stacking', () => {
   const main = fakeWindow(), overlay = fakeWindow('file:///app/index.html#/overlay');
   overlay.state.ignored = true; overlay.state.onTop = true; overlay.state.level = 'screen-saver';

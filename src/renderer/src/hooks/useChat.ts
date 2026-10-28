@@ -5,7 +5,7 @@ import { errorText, unwrap } from '../services/api';
 import { useAppMode } from '../context/AppModeContext';
 
 export function useChat(initial: Conversation[]) {
-  const { appMode, behavioralFramework } = useAppMode();
+  const { appMode, behavioralFramework, answerStyle } = useAppMode();
   const [conversations, setConversations] = useState(initial);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false), [activeId, setActiveId] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export function useChat(initial: Conversation[]) {
     setError(''); setBusy(true);
     sent.current = performance.now(); firstWord.current = false;
     try {
-      await unwrap(window.novi.send({ ...input, appMode, behavioralFramework, conversationId: selectedId, sentAt: Date.now() }));
+      await unwrap(window.novi.send({ ...input, appMode, behavioralFramework, ...(answerStyle ? { answerStyle } : {}), conversationId: selectedId, sentAt: Date.now() }));
       return true;
     }
     catch (error) { setError(errorText(error)); return false; }

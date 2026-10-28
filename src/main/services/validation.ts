@@ -1,4 +1,5 @@
 import { isAppMode } from '../../shared/sessionModes';
+import { isAnswerStyle } from '../../shared/interviewProfile';
 import { isShortcut, sameShortcut } from '../../shared/shortcuts';
 import { DEFAULT_CLICK_THROUGH_SHORTCUT, DEFAULT_TRANSPARENT_SHORTCUT, type ConnectionInput, type ProviderKind, type SettingsInput, type SendInput } from '../../shared/types';
 import { PROVIDERS } from '../../shared/providers.ts';
@@ -119,6 +120,7 @@ export function sendInput(value: unknown): SendInput {
   const imageIds = input.imageIds.map((id) => text(id, 'image ID', 100));
   if (!content && !imageIds.length) throw new UserError('Write a message or attach an image.');
   if (input.appMode !== undefined && !isAppMode(input.appMode)) throw new UserError('Choose a valid mode.');
+  if (input.answerStyle !== undefined && !isAnswerStyle(input.answerStyle)) throw new UserError('Choose a valid answer style.');
   if (input.behavioralFramework !== undefined && !['smart', 'star', 'car', 'par', 'soar'].includes(String(input.behavioralFramework))) throw new UserError('Choose a valid interview framework.');
   if (input.compactContext !== undefined && typeof input.compactContext !== 'boolean') throw new UserError('Choose a valid context option.');
   return {
@@ -128,6 +130,7 @@ export function sendInput(value: unknown): SendInput {
     ...(typeof input.sentAt === 'number' && Number.isFinite(input.sentAt) ? { sentAt: input.sentAt } : {}),
     conversationId: input.conversationId === null ? null : text(input.conversationId, 'conversation ID', 100),
     ...(input.appMode === undefined ? {} : { appMode: input.appMode as SendInput['appMode'] }),
+    ...(input.answerStyle === undefined ? {} : { answerStyle: input.answerStyle }),
     ...(input.behavioralFramework === undefined ? {} : { behavioralFramework: input.behavioralFramework as SendInput['behavioralFramework'] }),
     ...(input.localCoding === undefined ? {} : { localCoding: localCodingInput(input.localCoding) }),
   };
