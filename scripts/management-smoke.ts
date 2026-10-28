@@ -40,6 +40,24 @@ async function main() {
   try {
     await mkdir('.test-data', { recursive: true });
     await page.goto(process.env.MANAGEMENT_URL || 'http://localhost:3000');
+    await page.getByRole('button', { name: 'Switch to light mode' }).waitFor();
+    assert.equal(await page.locator('.sidebar .avatar, .topbar .avatar, .workspace-label').count(), 0);
+    await page.getByRole('button', { name: 'Switch to light mode' }).click();
+    await page.locator('.workspace[data-theme="light"]').waitFor();
+    assert.equal(await page.locator('.workspace').evaluate(el => getComputedStyle(el).colorScheme), 'light');
+    assert.equal(await page.locator('.sidebar').evaluate(el => getComputedStyle(el).backgroundColor), 'rgb(255, 255, 255)');
+    await page.screenshot({ path: '.test-data/workspace-light-desktop.png', fullPage: true });
+    await page.reload();
+    await page.getByRole('button', { name: 'Switch to dark mode' }).waitFor();
+    assert.equal(await page.locator('.workspace').getAttribute('data-theme'), 'light', 'theme survives reload');
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({ path: '.test-data/workspace-light-mobile.png', fullPage: true });
+    await page.getByRole('button', { name: 'Switch to dark mode' }).click();
+    await page.locator('.workspace[data-theme="dark"]').waitFor();
+    await page.reload();
+    await page.getByRole('button', { name: 'Switch to light mode' }).waitFor();
+    await page.setViewportSize({ width: 1440, height: 1100 });
     await page.getByRole('button', { name: 'Licenses', exact: true }).click();
     await page.getByText('1–20 of 47', { exact: true }).waitFor();
     assert.equal(await page.locator('.license-row').count(), 20);
@@ -212,8 +230,14 @@ async function main() {
     await page.getByLabel('Search licenses').fill('TEST-0000');
     assert.equal(await page.getByRole('button', { name: /^Request renewal for/ }).count(), 0, 'terminated licenses cannot be renewed');
     assert.equal(mutations.length, writesBeforePreview, 'checkout and renewal previews never charge or mutate access');
+    await page.addInitScript(() => {
+      Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('Storage is disabled', 'SecurityError'); } });
+    });
+    await page.reload();
+    await page.getByRole('button', { name: 'Switch to light mode' }).click();
+    await page.locator('.workspace[data-theme="light"]').waitFor();
     assert.deepEqual(errors, []);
-    console.log('License and activity UI checks passed, including admin issue/renew, owner requests, checkout/renewal handoff, and mobile layouts.');
+    console.log('Workspace theme, license and activity UI checks passed, including saved themes, disabled storage, and mobile layouts.');
   } catch (error) {
     console.error({ errors, page: (await page.locator('body').innerText()).slice(-2500) });
     await page.screenshot({ path: '.test-data/management-failure.png', fullPage: true });
