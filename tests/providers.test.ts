@@ -193,7 +193,7 @@ test('discovery uses native pagination, excludes unsupported modalities, and pre
 
 test('connection check requires a listed model and a successful reply without sending context', async t => {
   const config = { ...newConnection('gemini').ai, model: 'gemini-chat' };
-  let status = 200, listed = true, calls = 0;
+  let status = 200, listed = true, calls = 0, reply = 'OK';
   t.mock.method(globalThis, 'fetch', async (url: string, options: RequestInit) => {
     assert.equal((options.headers as Record<string, string>)['x-goog-api-key'], 'test-key');
     if (url.includes('/models?')) return Response.json({ models: [{ name: `models/${listed ? config.model : 'other'}`, supportedGenerationMethods: ['generateContent'] }] });
@@ -201,7 +201,7 @@ test('connection check requires a listed model and a successful reply without se
     assert.match(url, /gemini-chat:streamGenerateContent/);
     assert.deepEqual(JSON.parse(String(options.body)), { contents: [{ role: 'user', parts: [{ text: 'Connection check. Reply only OK.' }] }] });
     if (status !== 200) return Response.json({ error: {} }, { status });
-    return sse({ candidates: [{ content: { parts: [{ text: 'OK' }] }, finishReason: 'STOP' }] });
+    return sse({ candidates: [{ content: { parts: [{ text: reply }] }, finishReason: 'STOP' }] });
   });
   await testConnection(config, 'test-key');
   assert.equal(calls, 1);
@@ -215,6 +215,8 @@ test('connection check requires a listed model and a successful reply without se
   listed = false;
   await assert.rejects(() => testConnection(config, 'test-key'), /no longer available/);
   assert.equal(calls, 4, 'an unlisted model is never called');
+  listed = true; status = 200; reply = '';
+  await assert.rejects(() => testConnection(config, 'test-key'), /returned no text/);
   await assert.rejects(() => testConnection({ ...config, model: '' }, 'test-key'), /Choose a model/);
 });
 

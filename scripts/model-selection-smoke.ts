@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 import type { NoviAPI, Snapshot } from '../src/shared/types';
+import { DEFAULT_INTERVIEW_PROFILE, type ProfileResearchInput } from '../src/shared/interviewProfile';
 
 // Run after npm run build. Uses the installed Edge browser and a mocked IPC boundary.
 async function main() {
@@ -20,16 +21,16 @@ async function main() {
       assert(file.startsWith(root + sep));
       return route.fulfill({ body: readFileSync(file), contentType: ({ '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' } as Record<string, string>)[extname(file)] || 'application/octet-stream' });
     });
-    await page.addInitScript(() => {
+    await page.addInitScript(defaultInterview => {
       (window as any).__name = (value: unknown) => value;
       const ok = <T,>(value: T) => ({ ok: true as const, value });
       const state: Snapshot = {
         user: { id: 'user', name: 'Test user', email: 'test', managed: true }, credentialIds: ['key'], conversations: [],
-        settings: { displayName: 'Test user', theme: 'light', clickThroughShortcut: 'Alt+Shift+I', onboardingComplete: true, activeConnectionId: 'key', connections: [
+        settings: { displayName: 'Test user', theme: 'light', clickThroughShortcut: 'Alt+Shift+I', checkUpdatesAtStartup: false, onboardingComplete: true, activeConnectionId: 'key', sessionProfiles: [{ id: 'saved', name: 'Saved interview', updatedAt: 1, connectionId: 'key', model: 'gemini-3.1-pro-preview', mode: 'normal', framework: 'smart', company: 'Acme', role: 'Developer', purpose: 'Review saved interview', vocabulary: 'everyday', interview: { ...defaultInterview, jobDescriptionText: 'Saved job description' }, fields: Array.from({ length: 4 }, () => ({ label: '', value: '' })), folders: [] }], connections: [
           { id: 'key', name: 'Google key', provider: 'gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini3.8', stream: true, managed: true, ownerName: 'Owner' },
         ] },
       };
-      const fixture = { reject: true, modelNotFound: false, discoveryFails: false, starts: 0, confirmed: 0, started: 0 };
+      const fixture = { reject: true, modelNotFound: false, discoveryFails: false, starts: 0, confirmed: 0, started: 0, research: [] as string[], startedModel: '' };
       Object.assign(window, { fixture });
       window.novi = {
         session: async () => ok(structuredClone(state)),
@@ -37,7 +38,7 @@ async function main() {
         localAISetup: async () => ok({ models: [], selectedASR: 'auto' }),
         getCodeViewerBlocks: async () => ok([{ id: 'long', label: 'Long code', language: 'typescript', code: 'const value = 1;\n'.repeat(300) }]),
         onCodeViewerBlocks: () => () => {}, onReviewTarget: () => () => {}, getReviewTarget: async () => ok(null),
-        onSessionEnded: () => () => {}, onAccessStatus: () => () => {}, onStealthState: () => () => {},
+        onSessionEnded: () => () => {}, onAccessStatus: () => () => {}, onPlanChanged: () => () => {}, onStealthState: () => () => {},
         onGlobalAction: () => () => {}, onCodeViewerClosed: () => () => {},
         setCodeViewerVisible: async () => ok(undefined),
         getMonitors: async () => ok([]), getWorkingMonitor: async () => ok({ workingMonitorId: null }),
@@ -46,29 +47,39 @@ async function main() {
         listModels: async () => fixture.discoveryFails ? { ok: false, error: 'Cannot load models. Try again.' } : ok([{ id: 'gemini-chat', name: 'Gemini Chat' }, { id: 'gemini-other', name: 'Gemini Other' }]),
         selectConnection: async (id: string, model?: string) => { state.settings!.activeConnectionId = id; if (model) state.settings!.connections[0].model = model; return ok(structuredClone(state)); },
         pickContextFolders: async () => ok([{ id: 'folder', name: 'Reference', files: ['job-description.txt'], characters: 20 }]),
+        loadSessionProfileFolders: async () => ok([]),
+        testInternet: async () => ok('25 ms response · 20.0 Mbps sample download'),
+        researchProfile: async (input: ProfileResearchInput) => {
+          fixture.research.push(input.jobDescriptionText);
+          await new Promise(resolve => setTimeout(resolve, input.jobDescriptionText.includes('Slow') ? 2000 : 400));
+          return ok({ company: input.jobDescriptionText.includes('NewCo') ? 'NewCo' : 'Acme', role: 'Backend developer', domain: 'backend', vocabulary: 'technical', experienceYears: 5, companyUrl: '', companyValues: 'Customer care', summary: 'Company overview\nAcme builds developer tools.\n\nRole\nBuild Java services.', jobDescriptionText: input.jobDescriptionText, sources: [], warnings: [] });
+        },
         testConnection: async () => {
           if (fixture.reject) return { ok: false, error: 'Your API key was rejected.' };
           if (fixture.modelNotFound && state.settings!.connections[0].model === 'gemini-chat') return { ok: false, error: 'Google (Gemini) model request failed (HTTP 404): Google could not find or serve the selected Gemini model.' };
           fixture.confirmed = Date.now(); return ok(undefined);
         },
-        startContext: async () => { fixture.starts++; fixture.started = Date.now(); return { ok: false, error: 'TEST_SESSION_STARTED' }; },
+        startContext: async () => { fixture.starts++; fixture.started = Date.now(); fixture.startedModel = state.settings!.connections[0].model; return { ok: false, error: 'TEST_SESSION_STARTED' }; },
       } as unknown as NoviAPI;
-    });
+    }, DEFAULT_INTERVIEW_PROFILE);
     await page.goto('http://novi.test/index.html');
     await page.getByRole('heading', { name: 'Get ready' }).waitFor();
     // Nothing has passed yet: the way forward stays reachable and names what is missing.
     assert.equal(await page.getByRole('button', { name: 'Continue to session setup' }).count(), 0);
+    await page.waitForFunction(() => Boolean(document.querySelector('.preflight-actions .primary:not(:disabled)')));
     assert(await page.getByRole('button', { name: 'Continue anyway', exact: true }).isEnabled());
-    await page.getByText(/not checked\. Features that rely on them may not work\./).waitFor();
+    await page.getByRole('status').filter({ hasText: /\d+ not checked/ }).first().waitFor();
     await page.evaluate(() => { Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: async () => { throw new DOMException('Microphone permission denied', 'NotAllowedError'); } }, configurable: true }); });
     await page.getByRole('button', { name: 'Check microphone', exact: true }).click();
     await page.getByText(/^Microphone access is blocked\./).waitFor();
     await page.getByText('Details', { exact: true }).click();
     await page.getByText('NotAllowedError: Microphone permission denied', { exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Retry microphone', exact: true }).count(), 1);
-    await page.getByText(/^Microphone failed/).waitFor();
+    assert.equal(await page.locator('.get-ready-check.failed').filter({ hasText: 'Microphone' }).count(), 1);
     await page.getByRole('button', { name: 'Continue anyway', exact: true }).click();
     const setup = page.getByRole('navigation', { name: 'Session setup', exact: true });
+    assert.equal(await setup.getByRole('button', { name: /^Model/ }).getByLabel('Complete').count(), 0, 'an unvisited model step is not complete');
+    assert.equal(await page.locator('.context-footer').getByRole('button', { name: 'Start an empty chat', exact: true }).count(), 1);
     await setup.getByRole('button', { name: /^Model/ }).click();
     await page.getByText('The previous model is unavailable. Choose a model from the list.').waitFor();
     assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), '');
@@ -76,7 +87,28 @@ async function main() {
     assert.equal(await page.getByRole('button', { name: 'Start session', exact: true }).getAttribute('aria-disabled'), 'true');
     await page.getByLabel('Choose model', { exact: true }).selectOption('gemini-chat');
     await setup.getByRole('button', { name: /^Load profile/ }).click();
+    await page.getByRole('button', { name: /^Your background/ }).click();
     await page.locator('#context-panel-sources').getByRole('button', { name: 'Load profile', exact: true }).click();
+    await page.getByRole('button', { name: 'About company', exact: true }).click();
+    await page.getByLabel('Job description', { exact: true }).fill('Acme needs a backend developer.');
+    await page.getByLabel('Job description', { exact: true }).fill('Acme needs a backend developer with 5 years of Java.');
+    await page.getByRole('status').filter({ hasText: 'Loading description and company details…' }).first().waitFor();
+    await page.waitForFunction(() => (document.querySelector('input[maxlength="120"]') as HTMLInputElement)?.value === 'Acme');
+    assert.equal(await page.getByRole('slider', { name: /Years of experience/ }).inputValue(), '5');
+    assert.equal(await page.getByRole('slider', { name: /Word choice/ }).inputValue(), '5');
+    await page.screenshot({ path: '/tmp/novi-profile-setup.png' });
+    await page.getByLabel('Company values & culture', { exact: true }).fill('Edited values');
+    await page.waitForTimeout(1100);
+    assert.equal(await page.getByLabel('Company values & culture', { exact: true }).inputValue(), 'Edited values', 'manual edits do not trigger regeneration');
+    assert.equal((await page.evaluate(() => (window as any).fixture.research)).length, 1, 'typing is debounced into one analysis');
+    await page.getByRole('button', { name: 'Regenerate', exact: true }).click();
+    await page.waitForFunction(() => (document.querySelector('textarea[maxlength="2000"]') as HTMLTextAreaElement)?.value === 'Customer care');
+    await page.getByLabel('Job description', { exact: true }).fill('Slow Acme role');
+    await page.getByRole('status').filter({ hasText: 'Loading description and company details…' }).first().waitFor();
+    await page.getByLabel('Job description', { exact: true }).fill('NewCo backend role');
+    await page.waitForFunction(() => (document.querySelector('input[maxlength="120"]') as HTMLInputElement)?.value === 'NewCo');
+    await page.waitForTimeout(700);
+    assert.equal(await page.getByLabel('Company', { exact: true }).inputValue(), 'NewCo', 'an earlier in-flight analysis cannot overwrite a new description');
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.getByLabel('Purpose').fill('Review the reference');
     await page.getByRole('button', { name: /^Chat General questions/ }).click();
@@ -90,6 +122,7 @@ async function main() {
     await page.getByRole('alert').filter({ hasText: 'TEST_SESSION_STARTED' }).waitFor();
     const result = await page.evaluate(() => (window as any).fixture);
     assert.equal(result.starts, 1);
+    assert.equal(result.startedModel, 'gemini-chat');
     assert(result.started >= result.confirmed);
     await page.getByRole('button', { name: /^Model( Complete)?$/ }).click();
     await page.evaluate(() => { (window as any).fixture.discoveryFails = true; });
@@ -115,19 +148,29 @@ async function main() {
     await page.getByRole('button', { name: /^Instructions( Complete)?$/ }).click();
     await page.evaluate(() => { (window as any).fixture.modelNotFound = true; });
     await page.getByRole('button', { name: 'Run Get ready', exact: true }).click();
-    await page.getByRole('button', { name: 'Check ai connection', exact: true }).click();
+    await page.getByRole('button', { name: /^(Check|Check again|Retry) ai connection$/ }).click();
     await page.getByText(/Google \(Gemini\) model request failed \(HTTP 404\)/).waitFor();
     await page.getByRole('button', { name: 'Choose another model', exact: true }).click();
     await page.locator('#context-panel-model').waitFor({ state: 'visible' });
     await page.getByLabel('Choose model', { exact: true }).selectOption('gemini-other');
     await page.getByRole('button', { name: 'Run Get ready', exact: true }).click();
-    await page.getByRole('button', { name: 'Retry ai connection', exact: true }).click();
+    await page.getByRole('button', { name: /^(Retry|Check again) ai connection$/ }).click();
     await page.getByText('Google key · gemini-other answered', { exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Choose another model', exact: true }).count(), 0);
     await page.getByRole('button', { name: 'Continue anyway', exact: true }).click();
     await page.waitForFunction(() => !(document.querySelector('select[aria-label="Choose model"]') as HTMLSelectElement | null)?.disabled);
     assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), 'gemini-other');
     assert.equal(await page.getByLabel('Purpose').inputValue(), 'Review the reference');
+    await setup.getByRole('button', { name: /^Load profile/ }).click();
+    await page.getByRole('button', { name: /^Your background/ }).click();
+    await page.getByRole('button', { name: 'Edit Saved interview', exact: true }).click();
+    await setup.getByRole('button', { name: /^Model/ }).click();
+    await page.waitForFunction(() => !(document.querySelector('select[aria-label="Choose model"]') as HTMLSelectElement)?.disabled);
+    assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), 'gemini-other', 'a saved profile never replaces the selected model with its old Gemini model');
+    await page.screenshot({ path: '/tmp/novi-session-model.png' });
+    await page.getByRole('button', { name: 'Start session', exact: true }).click();
+    await page.getByRole('alert').filter({ hasText: 'TEST_SESSION_STARTED' }).waitFor();
+    assert.equal(await page.evaluate(() => (window as any).fixture.startedModel), 'gemini-other');
     console.log('Model UI passed: invalid legacy model, live dropdown, failed ping, immediate startup, discovery failure and retry, Run Get ready.');
     console.log('Gemini 404 recovery passed: choose another model, preserve setup, and verify its reply.');
     await page.goto('http://novi.test/index.html#/code-viewer');

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, AudioLines, Check, Cpu, HardDrive, Loader2, Mic, Monitor, ShieldCheck, Volume2, X } from 'lucide-react';
+import { ArrowRight, AudioLines, Check, Cpu, HardDrive, Loader2, Mic, Monitor, ShieldCheck, Volume2, Wifi, X } from 'lucide-react';
 import type { Snapshot } from '../../../shared/types';
 import { activeConnection } from '../../../shared/providers';
 import { selectedSpeechModel, type LocalAISetup } from '../../../shared/localAI';
@@ -12,13 +12,14 @@ import { AudioMeter } from './AudioMeter';
 // What to do while each check runs.
 const PROMPTS: Record<ReadinessCheck, string> = {
   storage: 'Checking that Novi can save your settings…',
+  internet: 'Checking internet response time and download speed…',
   ai: 'Checking your AI connection…',
   speech: 'Checking speech files. Missing files download now.',
   microphone: 'Say something now. Testing your microphone for 3 seconds.',
   system: 'Play a video or music now. Testing system audio for 4 seconds; Novi also plays a short chime.',
   screen: 'If asked, choose the screen to share.',
 };
-const CHECK_ICONS = { storage: HardDrive, ai: Cpu, speech: AudioLines, microphone: Mic, system: Volume2, screen: Monitor };
+const CHECK_ICONS = { storage: HardDrive, internet: Wifi, ai: Cpu, speech: AudioLines, microphone: Mic, system: Volume2, screen: Monitor };
 
 /**
  * Plays a soft three-note chime (C, E, G) through the speakers during the system audio test.
@@ -46,9 +47,9 @@ function playChime(): () => void {
 /**
  * Get ready: the checks shown once per launch before session setup.
  *
- * Checks, in order: app storage, AI connection, speech files, microphone, system audio, screen
- * capture. Storage and speech files are checked quietly when the screen opens; the others need the
- * user (speaking, playing sound, or allowing screen sharing), so they run when asked.
+ * Checks, in order: app storage, internet, AI connection, speech files, microphone, system audio, screen
+ * capture. Storage, internet, AI and installed speech files are checked on entry; device tests need the
+ * user to speak, play sound or allow screen sharing, so they run when asked.
  *
  * Results are kept for the rest of the day per account (services/readiness.ts). The Continue bar
  * stays at the bottom of the screen and says what failed or wasn't checked, but never blocks:
@@ -68,7 +69,7 @@ export function SessionPreflight({ state, onContinue, onChooseModel, onSettings 
   const [error, setError] = useState('');
   const capture = useRef<InterviewAudio | null>(null), mounted = useRef(false);
   // Stores one check's result (saved for the day) and updates the screen if it is still open.
-  const record = (check: ReadinessCheck, ok: boolean, detail: string, details?: string) => { const next = recordReadiness(check, { ok, detail, ...(details ? { details } : {}) }); if (mounted.current) setReadiness(next); };
+  const record = (check: ReadinessCheck, ok: boolean, detail: string, details?: string) => { if (!mounted.current) return; const next = recordReadiness(check, { ok, detail, ...(details ? { details } : {}) }); setReadiness(next); };
 
   /** Reloads the local speech setup (which models are installed) from the main process. */
   async function refreshSetup() {
@@ -78,7 +79,8 @@ export function SessionPreflight({ state, onContinue, onChooseModel, onSettings 
   }
   useEffect(() => {
     mounted.current = true;
-    // Storage and speech files can be verified quietly; the other checks need the user.
+    void (async () => { await runCheck('internet'); if (mounted.current) await runCheck('ai'); })();
+    // Connection checks run on entry; device capture waits for the user.
     void (async () => {
       const permissions = await unwrap(window.novi.checkPermissions());
       // A failure is recorded too, so Continue never sits disabled without a reason.
@@ -175,12 +177,13 @@ export function SessionPreflight({ state, onContinue, onChooseModel, onSettings 
   }
   // Which test function runs for each check id.
   const tests: Record<ReadinessCheck, () => Promise<string>> = {
-    storage: testStorage, ai: testAI, speech: testSpeech,
+    storage: testStorage, internet: () => unwrap(window.novi.testInternet()), ai: testAI, speech: testSpeech,
     microphone: () => testAudio('microphone'), system: () => testAudio('system'), screen: testScreen,
   };
 
   /** Runs one check and records pass or fail. A DeviceError's browser text is kept for the row's Details. */
   async function runCheck(check: ReadinessCheck) {
+    if (!mounted.current) return;
     setRunning(check); setError('');
     try { record(check, true, await tests[check]()); }
     catch (cause) { record(check, false, errorText(cause), cause instanceof DeviceError ? cause.details : undefined); }

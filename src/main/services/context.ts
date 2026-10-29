@@ -34,7 +34,8 @@ export function interviewProfile(value: unknown): InterviewProfile {
   if (wordCount(additionalContext) > 100) throw new UserError('Keep additional context to 100 words.');
   return { experienceYears: input.experienceYears as number, domain, answerStyle, additionalContext,
     jobDescriptionUrl: text(input.jobDescriptionUrl, 'job description URL', 2000, true), companyUrl: text(input.companyUrl, 'company URL', 2000, true),
-    jobDescriptionText: text(input.jobDescriptionText, 'job description', 20_000, true), companyBrief: text(input.companyBrief, 'company briefing', 4000, true) };
+    jobDescriptionText: text(input.jobDescriptionText, 'job description', 20_000, true), companyBrief: text(input.companyBrief, 'company briefing', 4000, true),
+    ...(input.companyValues === undefined ? {} : { companyValues: text(input.companyValues, 'company values', 2000, true) }) };
 }
 
 export class ContextService {
@@ -102,6 +103,7 @@ export class ContextService {
     if (interview?.jobDescriptionText.trim()) documents.push({ name: 'Job description (pasted)', content: interview.jobDescriptionText });
     const connection = activeConnection(user.settings);
     if (!connection?.model || connection.enabled === false) throw new UserError('Choose a provider and model before loading context.');
+    if ((input.connectionId !== undefined || input.model !== undefined) && (input.connectionId !== connection.id || input.model !== connection.model)) throw new UserError('Your selected provider or model changed. Return to the Model step and confirm your choice before starting.');
     const details = [company && `Company: ${company}`, role && `Target role: ${role}`, ...fields.filter((f) => f.value).map((f, i) => `${f.label || `Custom field ${i + 1}`}: ${f.value}`), `Vocabulary: ${VOCABULARY_LEVELS.find((level) => level.id === vocabulary)!.instructions}`, interview && interviewInstructions(interview), interview?.jobDescriptionUrl && `Job description source: ${interview.jobDescriptionUrl}`, interview?.companyUrl && `Company source: ${interview.companyUrl}`];
     const instructions = `Session purpose: ${purpose}\n${details.filter(Boolean).join('\n')}`;
     // The first message of a session asks the AI to read the user's setup. Documents are optional:

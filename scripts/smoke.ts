@@ -53,6 +53,11 @@ async function main() {
       response.end('data: ' + JSON.stringify({ choices: [{ delta: { content: 'OK' }, finish_reason: 'stop' }] }) + '\n\ndata: [DONE]\n\n');
       return;
     }
+    if (payload.messages?.some((message: { content?: unknown }) => typeof message.content === 'string' && message.content.includes('REFERENCE DATA (JSON):'))) {
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ company: 'Cedar', role: 'Software engineer', companyUrl: '', domain: 'frontend', vocabulary: 'professional', experienceYears: null, companyValues: 'Not stated', summary: 'Prepare to discuss accessible interfaces.', jobDescriptionText: '' }) } }] }));
+      return;
+    }
     if (rejectSetup) {
       rejectSetup = false;
       response.writeHead(503, { 'Content-Type': 'application/json' });
@@ -74,7 +79,14 @@ async function main() {
   env.NOVI_DATA_DIR = join(directory, 'data');
   env.NOVI_ACCESS_URL = 'http://127.0.0.1:' + address.port;
   let app: ElectronApplication | undefined;
-  const launch = () => electron.launch({ args: [resolve('out/main/main.js'), '--disable-gpu'], env, timeout: 15000 });
+  const launch = async () => {
+    const runningApp = await electron.launch({ args: [resolve('out/main/main.js'), '--disable-gpu'], env, timeout: 15000 });
+    await runningApp.evaluate(() => {
+      const original = globalThis.fetch;
+      globalThis.fetch = (async (input, options) => String(input).startsWith('https://speed.cloudflare.com/__down') ? new Response(new Uint8Array(262_144)) : original(input, options)) as typeof fetch;
+    });
+    return runningApp;
+  };
   // Controls start in the chat and can move into a separate about:blank window.
   const trayPage = async () => {
     for (let attempt = 0; attempt < 100; attempt++) {
@@ -134,10 +146,10 @@ async function main() {
       dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [source] })) as typeof dialog.showOpenDialog;
     }, source);
     await page.getByRole('navigation', { name: 'Session setup', exact: true }).getByRole('button', { name: /^Load profile/ }).click();
+    await page.getByRole('button', { name: /^Your background/ }).click();
     await page.locator('#context-panel-sources').getByRole('button', { name: 'Load profile', exact: true }).click();
-    await page.getByRole('list', { name: /classified files/ }).waitFor();
-    await page.getByRole('button', { name: 'Next', exact: true }).click();
-    await page.getByLabel('Purpose').fill('Review the Cedar interface.');
+    await page.getByRole('button', { name: 'About company', exact: true }).click();
+    await page.getByRole('button', { name: 'Regenerate', exact: true }).waitFor();
     await page.getByRole('slider', { name: /Years of experience/ }).focus();
     await page.keyboard.press('End');
     assert.equal(await page.getByRole('slider', { name: /Years of experience/ }).getAttribute('aria-valuenow') ?? await page.getByRole('slider', { name: /Years of experience/ }).inputValue(), '15');
@@ -146,13 +158,12 @@ async function main() {
     await page.keyboard.press('Home');
     assert.equal(await page.getByRole('slider', { name: /Word choice/ }).getAttribute('aria-valuetext'), '1 of 5, Plain');
     assert.equal(await page.getByLabel('Role type', { exact: true }).count(), 0, 'old role presets are removed');
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await page.getByLabel('Purpose').fill('Review the Cedar interface.');
+    await page.getByLabel(/Anything else Novi should know/).fill('Keep the answer concise. Include time and space complexity. CUSTOM_CONSTRAINT: Explain jargon in plain English.');
     await page.locator('.context-mode-options').getByRole('button', { name: /^Code/ }).click();
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.getByRole('button', { name: /^Spoken \+ pauses/ }).click();
-    await page.getByText('Additional answer instructions', { exact: true }).click();
-    await page.getByLabel('Output format details').fill('Include time and space complexity.');
-    await page.getByLabel('Additional instructions details').fill('CUSTOM_CONSTRAINT: Explain jargon in plain English.');
-    await page.getByLabel('Role / perspective details').fill('Keep the answer concise.');
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.getByLabel('Profile name', { exact: true }).fill('Cedar plain');
     await page.getByRole('button', { name: 'Save profile', exact: true }).click();
@@ -323,13 +334,17 @@ async function main() {
     assert.match(readFileSync(join(source, 'brief.txt'), 'utf8'), /SESSION_SOURCE/);
     assert.equal(await page.getByLabel('Message Novi').count(), 0);
     assert.equal(trayCount(), 0, 'ending the session closes the tray');
-    assert.equal(await page.getByRole('button', { name: 'Start an empty chat instead', exact: true }).count(), 0, 'empty chat stays under the final model step');
+    assert.equal(await page.locator('.context-footer').getByRole('button', { name: 'Start an empty chat', exact: true }).count(), 1, 'empty chat is available in the footer from the first step');
+    await page.getByRole('button', { name: /^Your background/ }).click();
     await page.getByRole('button', { name: 'Edit Cedar plain', exact: true }).click();
     assert.equal(await page.getByRole('slider', { name: /Word choice/ }).getAttribute('aria-valuetext'), '1 of 5, Plain', 'saved profiles restore vocabulary');
     for (const mode of ['Recruiter Call', 'Technical Phone/Video Screen', 'Behavioral Interview', 'System Design', 'Code', 'Chat']) {
       await page.getByRole('navigation', { name: 'Session setup', exact: true }).getByRole('button', { name: /^Load profile/ }).click();
       await app.evaluate(({ dialog }, source) => { dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [source] })) as typeof dialog.showOpenDialog; }, source);
+      await page.getByRole('button', { name: /^Your background/ }).click();
       await page.locator('#context-panel-sources').getByRole('button', { name: /^(Load profile|Replace profile folder)$/ }).click();
+      await page.getByRole('button', { name: 'About company', exact: true }).click();
+      await page.getByRole('button', { name: 'Regenerate', exact: true }).waitFor();
       await page.getByRole('button', { name: 'Next', exact: true }).click();
       await page.getByLabel('Purpose').fill('Review Cedar');
       await page.locator('.context-mode-options').getByRole('button', { name: new RegExp('^' + mode) }).click();
@@ -345,8 +360,7 @@ async function main() {
       await page.getByRole('heading', { name: 'Session setup' }).waitFor();
     }
     await page.getByRole('navigation', { name: 'Session setup', exact: true }).getByRole('button', { name: /^Model/ }).click();
-    await page.getByText('Start without interview setup', { exact: true }).click();
-    await page.getByRole('button', { name: 'Start an empty chat instead', exact: true }).click();
+    await page.getByRole('button', { name: 'Start an empty chat', exact: true }).click();
     tray = await trayPage();
     await tray.getByLabel('Change conversation mode', { exact: true }).click();
     assert.equal(await tray.getByRole('button', { name: 'Chat', exact: true }).getAttribute('aria-pressed'), 'true');

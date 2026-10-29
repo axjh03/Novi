@@ -120,7 +120,7 @@ export interface ChatLatency {
 export interface SavedContext { instructions: string; summary: string; documents: Array<{ name: string; content: string }>; interview?: InterviewProfile }
 export interface Conversation { id: string; title: string; createdAt: number; updatedAt: number; messages: ChatMessage[]; context?: SavedContext; pinnedContext?: string; localCoding?: LocalCodingBinding }
 export interface ContextFolder { id: string; name: string; files: string[]; characters: number }
-export interface ContextInput { folderIds?: string[]; purpose?: string; company?: string; role?: string; vocabulary?: VocabularyLevel; interview?: InterviewProfile; fields?: Array<{ label: string; value: string }>; empty?: boolean }
+export interface ContextInput { folderIds?: string[]; purpose?: string; company?: string; role?: string; vocabulary?: VocabularyLevel; interview?: InterviewProfile; fields?: Array<{ label: string; value: string }>; empty?: boolean; connectionId?: string; model?: string }
 export interface ContextSession { id: string; connection: ProviderConnection; status: 'pending' | 'loading' | 'ready' | 'error' | 'ending'; summaryReady: boolean; isEmpty?: boolean; interview?: InterviewProfile }
 /** Login fields restored only to the trusted main window. Passwords use the OS secure store. */
 export interface SavedCredentials { username: string; password?: string; passwordSavingAvailable: boolean; passwordError?: string }
@@ -286,6 +286,7 @@ export interface NoviAPI {
   onPlanChanged(callback: () => void): () => void;
   listModels(input: ConnectionInput): Promise<Result<ModelOption[]>>;
   testConnection(): Promise<Result<void>>;
+  testInternet(): Promise<Result<string>>;
   saveConversation(id: string): Promise<Result<void>>;
   renameConversation(id: string, title: string): Promise<Result<Conversation>>;
   deleteConversation(id: string): Promise<Result<void>>;

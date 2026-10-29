@@ -11,6 +11,7 @@ import { ChatService } from '../services/chat';
 import { connectionInput, externalUrl, object, sendInput, settingsInput, text, UserError } from '../services/validation';
 import { ConnectionService } from '../services/connections';
 import { listModels, testConnection } from '../services/models';
+import { testInternet } from '../services/internetSpeed';
 import { OverlayService } from '../services/overlay';
 import { ContextService, interviewProfile, sessionBrief } from '../services/context';
 import { researchProfile } from '../services/profileResearch';
@@ -540,6 +541,7 @@ export function registerIPC(
     return snapshot();
   });
   handle('end-context', async () => { get().storage.current(); await endContext(); return snapshot(); });
+  handle('test-internet', (_value, event) => { fromMain(event); return testInternet(); });
   handle('test-connection', async () => {
     requireNoContext(); get().chat.assertIdle();
     const { storage, connections } = get();

@@ -4075,3 +4075,31 @@ textarea { border-radius: 4px; }
 .interview-research-model { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-width: 0; font-size: 11px; color: var(--muted); }
 .interview-research-model > span { min-width: 0; overflow-wrap: anywhere; }
 .interview-research-model .text-button { padding: 2px 4px; font-size: 11px; }
+
+.profile-tabs { display: flex; gap: 20px; max-width: 780px; margin-top: 20px; border-bottom: 1px solid var(--border); }
+.profile-tabs button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; }
+.profile-tabs button[aria-pressed='true'] { border-bottom-color: var(--text); color: var(--text); }
+.profile-tabs button span { font-size: 11px; color: var(--muted); }
+.interview-form .profile-job-description { min-height: 170px; }
+.interview-form .profile-company-brief { min-height: 250px; line-height: 1.65; }
+.profile-analysis-bar, .profile-company-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.profile-analysis-bar > span, .profile-connection-status { display: flex; align-items: center; gap: 8px; font-size: 12px; line-height: 1.6; }
+.profile-analysis-bar > span > svg, .profile-connection-status > svg { flex: none; }
+.profile-analysis-bar > button { flex: none; }
+.profile-company-heading { justify-content: flex-start; }
+.profile-company-logo { width: 32px; height: 32px; object-fit: contain; border-radius: 4px; }
+.profile-detection { display: grid; gap: 20px; padding-top: 20px; border-top: 1px solid var(--border); }
+.profile-detection h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.profile-connection-status { margin: 0; color: var(--muted); }
+.context-control-block .chat-provider-picker { grid-template-columns: minmax(100px, 180px) minmax(0, 1fr) 32px; align-items: center; }
+.model-provider-name { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.context-empty-chat { flex: none; }
+.context-footer-status { flex: 1; }
+@media (max-width: 650px) {
+  .profile-analysis-bar { align-items: flex-start; }
+  .interview-setup .context-footer { flex-wrap: wrap; }
+  .interview-setup .context-footer-actions { margin-left: auto; }
+  .interview-setup .context-footer-status:not(:empty) { order: 3; flex-basis: 100%; }
+  .context-control-block .chat-provider-picker { grid-template-columns: minmax(0, 1fr) 32px; }
+  .context-control-block .chat-provider-picker > :first-child { grid-column: 1 / -1; }
+}

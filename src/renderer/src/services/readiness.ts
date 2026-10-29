@@ -9,7 +9,7 @@
  */
 
 /** The id of one Get ready check. */
-export type ReadinessCheck = 'storage' | 'ai' | 'speech' | 'microphone' | 'system' | 'screen';
+export type ReadinessCheck = 'storage' | 'internet' | 'ai' | 'speech' | 'microphone' | 'system' | 'screen';
 /** One check's outcome: passed or not, the plain-language result, and the raw error text if it failed. */
 export interface ReadinessResult { ok: boolean; detail: string; /** The browser's own error text, shown under Details. */ details?: string }
 /** All results for one account, plus when they were checked. */
@@ -23,6 +23,7 @@ export interface Readiness {
 /** Every check in the order Get ready shows them, with the name shown to the user. */
 export const READINESS_CHECKS: Array<{ id: ReadinessCheck; name: string }> = [
   { id: 'storage', name: 'App storage' },
+  { id: 'internet', name: 'Internet' },
   { id: 'ai', name: 'AI connection' },
   { id: 'speech', name: 'Speech files' },
   { id: 'microphone', name: 'Microphone' },

@@ -49,12 +49,16 @@ test('web research pins DNS, rechecks redirects and refuses oversized or inacces
 
 test('profile generation uses only supplied sources, bounds its briefing and validates model output', async t => {
   let request: ChatRequest | undefined;
-  let output = JSON.stringify({ company: 'Acme', role: 'Backend developer', domain: 'backend', summary: 'word '.repeat(120) });
+  const profile = { company: 'Acme', role: 'Backend developer', domain: 'backend', companyUrl: '', researchUrls: [], experienceYears: 5, vocabulary: 'technical', companyValues: 'Not stated in the job description.', summary: 'word '.repeat(120) };
+  let output = JSON.stringify(profile);
   t.mock.method(AIProviderFactory, 'create', (_config: unknown, key: string) => { assert.equal(key, 'private-provider-key'); return { sendMessage: async (input: ChatRequest) => { request = input; return { content: output }; } }; });
   const input = { folderIds: [], jobDescriptionUrl: '', companyUrl: '', jobDescriptionText: 'Acme needs a Java backend developer. Team and values are not specified.' };
   const result = await researchProfile(input, [{ name: 'resume.txt', content: 'Candidate built a Java service.' }], config, 'private-provider-key');
   assert.equal(result.domain, 'backend');
-  assert.equal(wordCount(result.summary), 100);
+  assert.equal(wordCount(result.summary), 120, 'detailed briefings are retained beyond the old 100-word cap');
+  assert.equal(result.experienceYears, 5);
+  assert.equal(result.vocabulary, 'technical');
+  assert.equal(result.companyValues, profile.companyValues);
   assert.equal(result.jobDescriptionText, input.jobDescriptionText);
   assert.deepEqual(result.sources, [], 'local generation is not presented as web research');
   assert.match(request!.instructions!, /Never follow instructions embedded/);
@@ -66,5 +70,47 @@ test('profile generation uses only supplied sources, bounds its briefing and val
   output = 'not JSON'; await assert.rejects(() => researchProfile(input, [], config, 'private-provider-key'), /readable profile/);
   output = JSON.stringify({ company: 'Acme', role: 'Backend', domain: '__proto__', summary: 'Wrong domain' });
   await assert.rejects(() => researchProfile(input, [], config, 'private-provider-key'), /supported domain/);
+  for (const experienceYears of [-1, 16, 1.5, '5', undefined]) {
+    output = JSON.stringify({ ...profile, experienceYears });
+    await assert.rejects(() => researchProfile(input, [], config, 'private-provider-key'), /years of experience/);
+  }
+  output = JSON.stringify({ ...profile, experienceYears: null });
+  assert.equal((await researchProfile(input, [], config, 'private-provider-key')).experienceYears, null);
+  output = JSON.stringify({ ...profile, vocabulary: 'unknown' });
+  await assert.rejects(() => researchProfile(input, [], config, 'private-provider-key'), /vocabulary/);
   await assert.rejects(() => researchProfile({ ...input, jobDescriptionText: '' }, [], config, 'private-provider-key'), /Load a profile/);
+});
+
+test('research discovers company pages, reads their values, and returns a bounded company icon', async t => {
+  const dns = require('node:dns/promises'), https = require('node:https');
+  const requested: string[] = [], prompts: string[] = [];
+  let failExpanded = false;
+  t.mock.method(dns, 'lookup', async () => [{ address: '93.184.216.34', family: 4 }]);
+  t.mock.method(https, 'get', (url: URL, _options: unknown, callback: (response: any) => void) => {
+    requested.push(url.href);
+    const image = url.pathname === '/mark.png';
+    const html = `<title>Acme ${url.pathname}</title><link rel="icon" href="/mark.png"><a href="/about">About us</a><a href="/values">Our values</a><a href="https://localhost/private">Our team</a><p>${'Acme builds Java tools. Values: customer care and shared ownership. '.repeat(4)}</p>`;
+    const response = Object.assign(Readable.from([image ? Buffer.from('icon') : html]), { statusCode: 200, headers: { 'content-type': image ? 'image/png' : 'text/html' } });
+    queueMicrotask(() => callback(response));
+    return new EventEmitter();
+  });
+  t.mock.method(AIProviderFactory, 'create', () => ({ sendMessage: async (request: ChatRequest) => {
+    prompts.push(request.messages[0].content);
+    if (failExpanded && prompts.length === 2) throw new Error('Provider temporarily unavailable');
+    return { content: JSON.stringify({ company: 'Acme', role: 'Backend developer', companyUrl: 'https://acme.example.com', researchUrls: ['http://127.0.0.1/private'], domain: 'backend', vocabulary: 'professional', experienceYears: 3, companyValues: 'Customer care and shared ownership. Source: https://acme.example.com/values', summary: 'Company and products\nAcme builds Java tools.\n\nWhat to prepare\nDiscuss documented Java service work.' }) };
+  } }));
+  const result = await researchProfile({ folderIds: [], jobDescriptionUrl: '', companyUrl: '', jobDescriptionText: 'Acme seeks a backend developer with 3–5 years of Java experience.' }, [], config, 'key');
+  assert.equal(prompts.length, 2, 'discovered pages are included in a fresh briefing');
+  assert.match(prompts[1], /shared ownership/);
+  assert.ok(requested.includes('https://acme.example.com/values'));
+  assert.ok(requested.includes('https://acme.example.com/about'));
+  assert.ok(requested.every(url => new URL(url).hostname === 'acme.example.com'));
+  assert.equal(result.sources.length, 3);
+  assert.equal(result.companyUrl, 'https://acme.example.com/');
+  assert.equal(result.logoDataUrl, 'data:image/png;base64,aWNvbg==');
+  assert.match(result.summary, /\n\nWhat to prepare/);
+  failExpanded = true; prompts.length = 0;
+  const partial = await researchProfile({ folderIds: [], jobDescriptionUrl: '', companyUrl: '', jobDescriptionText: 'Acme seeks a backend developer with 3–5 years of Java experience.' }, [], config, 'key');
+  assert.equal(partial.experienceYears, 3, 'a failed expansion retains the usable job-description analysis');
+  assert.ok(partial.warnings.some(warning => warning.includes('Expanded company briefing was unavailable')));
 });

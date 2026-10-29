@@ -119,6 +119,7 @@ const api: NoviAPI = {
   setModelRole: (id, role, model) => ipcRenderer.invoke('set-model-role', { id, role, model }),
   listModels: (input) => ipcRenderer.invoke('list-models', input),
   testConnection: () => ipcRenderer.invoke('test-connection'),
+  testInternet: () => ipcRenderer.invoke('test-internet'),
   saveConversation: id => ipcRenderer.invoke('save-conversation', id),
   renameConversation: (id, title) => ipcRenderer.invoke('rename-conversation', { id, title }),
   deleteConversation: (id) => ipcRenderer.invoke('delete-conversation', id),
