@@ -5,8 +5,11 @@ export const VOCABULARY_LEVELS: ReadonlyArray<{ id: VocabularyLevel; name: strin
   { id: 'plain', name: 'Plain', instructions: 'Use familiar words and short sentences. Explain technical terms in everyday language when they are needed. Keep the reasoning and technical detail appropriate to the question and role.' },
   { id: 'simple', name: 'Simple', instructions: 'Use simple conversational words. Introduce essential technical terms with a short, concrete explanation.' },
   { id: 'everyday', name: 'Everyday', instructions: 'Use natural, conversational language. Include common professional terms and briefly explain unfamiliar ones. Keep answers easy to say aloud.' },
-  { id: 'professional', name: 'Professional', instructions: 'Use confident professional language and common domain vocabulary. Keep sentences clear and explain less familiar concepts briefly.' },
-  { id: 'technical', name: 'Technical', instructions: 'Use precise professional and technical vocabulary appropriate to the question and target role. Explain rare terms on first use. Keep sentences clear and avoid inflated or needlessly complex wording.' },
+  { id: 'intern', name: 'Intern', instructions: 'Introduce essential domain vocabulary with definitions and concrete examples. This label describes wording, not the candidate’s actual job or experience.' },
+  { id: 'junior', name: 'Junior', instructions: 'Use practical working vocabulary. Connect the main concepts and briefly explain less common terms. Do not imply the candidate has held a junior role.' },
+  { id: 'professional', name: 'Senior', instructions: 'Use confident professional language and common domain vocabulary. Explain trade-offs clearly and define less familiar concepts briefly. This wording preference is not evidence of senior-level experience.' },
+  { id: 'technical', name: 'Nerd', instructions: 'Use precise technical vocabulary, implementation details and relevant terminology. Explain rare terms on first use. Keep sentences clear and avoid needlessly complex wording.' },
+  { id: 'cracked', name: 'CRACKED', instructions: 'Use expert-level domain vocabulary, precise mechanisms, edge cases and useful formal notation. Assume familiarity with standard terminology, but define niche terms when needed. Favor exact explanations over buzzwords; never invent experience or sacrifice clarity.' },
 ];
 
 export const SESSION_MODES: Array<{ id: AppMode; name: string; description: string; instructions: string }> = [

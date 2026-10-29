@@ -15,7 +15,7 @@ export const LEGACY_TRANSPARENT_SHORTCUT = 'Home+PageUp';
 export type AppMode = 'normal' | 'coding' | 'behavioral' | 'recruiter' | 'technical' | 'system-design' | 'local-coding';
 export interface CompanionState { mode: AppMode; availableModes: AppMode[]; busy: boolean; listening: boolean; source: ListeningSource }
 export type BehavioralFramework = 'smart' | 'star' | 'car' | 'par' | 'soar';
-export type VocabularyLevel = 'plain' | 'simple' | 'everyday' | 'professional' | 'technical';
+export type VocabularyLevel = 'plain' | 'simple' | 'everyday' | 'intern' | 'junior' | 'professional' | 'technical' | 'cracked';
 export const DEFAULT_CODING_SHORTCUT = 'Alt+C';
 export const DEFAULT_BEHAVIORAL_SHORTCUT = 'Alt+B';
 export const DEFAULT_SCREENSHOT_SHORTCUT = 'Alt+3';
@@ -66,6 +66,7 @@ export interface AppSettings {
   localASRModelId?: string;
   modelRoles?: Record<string, { fast?: string; deep?: string }>;
   sessionProfiles?: SessionProfile[];
+  customAnswerStyle?: string;
 }
 /** A saved session setup that can be started again in one click. Folder paths come from folders the user chose. */
 export interface SessionProfile {
@@ -128,6 +129,7 @@ export interface SavedCredentials { username: string; password?: string; passwor
 export interface AccessStatus { offline: boolean; connectionLost: boolean }
 export interface Snapshot { user: User | null; settings: AppSettings | null; credentialIds: string[]; conversations: Conversation[]; contextSession?: ContextSession | null; access?: AccessStatus }
 export interface SettingsInput {
+  customAnswerStyle?: string;
   displayName: string;
   theme: AppSettings['theme'];
   clickThroughShortcut: string;

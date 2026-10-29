@@ -59,8 +59,8 @@ function playChime(): () => void {
  * @param onChooseModel opens session setup's model step to repair a failed AI check.
  * @param onSettings opens Settings (for fixing a device or connection).
  */
-export function SessionPreflight({ state, onContinue, onChooseModel, onSettings }: {
-  state: Snapshot; onContinue: () => void; onChooseModel: () => void; onSettings: () => void;
+export function SessionPreflight({ state, onContinue, onChooseModel, onSettings, embedded = false }: {
+  state: Snapshot; onContinue: () => void; onChooseModel: () => void; onSettings: () => void; embedded?: boolean;
 }) {
   const settings = state.settings!;
   const [readiness, setReadiness] = useState<Readiness | null>(() => loadReadiness(state.user!.id));
@@ -214,12 +214,13 @@ export function SessionPreflight({ state, onContinue, onChooseModel, onSettings 
     : ready ? `Everything passed${ranAt ? ` · checked at ${ranAt}` : ''}.`
     : [failed ? `${failed} failed` : '', unchecked ? `${unchecked} not checked` : ''].filter(Boolean).join(' · ');
 
-  return <main className={`session-preflight get-ready ${ready ? 'is-ready' : ''}`}>
-    <header className="get-ready-header">
+  const Container = embedded ? 'section' : 'main';
+  return <Container className={`session-preflight get-ready ${ready ? 'is-ready' : ''}${embedded ? ' system-check-embedded' : ''}`}>
+    {!embedded && <header className="get-ready-header">
       <ShieldCheck size={26} aria-hidden="true" />
-      <div><h1>Get ready</h1><p>Check your connection and devices before starting.</p></div>
+      <div><h1>System Check</h1><p>Check your connection and devices before starting.</p></div>
       <span className="get-ready-count">{checked} / {READINESS_CHECKS.length} checked</span>
-    </header>
+    </header>}
     <div className="get-ready-toolbar">
       <span className="get-ready-summary" role="status">
         {running ? PROMPTS[running]
@@ -255,8 +256,8 @@ export function SessionPreflight({ state, onContinue, onChooseModel, onSettings 
     {error && <p className="error" role="alert">{error}</p>}
     <div className="preflight-actions">
       <p role="status">{busy ? 'Checking…' : continueStatus}</p>
-      <div><button className="secondary" disabled={busy} onClick={onSettings}>Settings and full tests</button>
-        <button className="primary" disabled={busy || !storageReady} onClick={onContinue}>{ready ? 'Continue to session setup' : 'Continue anyway'}<ArrowRight size={16} /></button></div>
+      {!embedded && <div><button className="secondary" disabled={busy} onClick={onSettings}>Settings and full tests</button>
+        <button className="primary" disabled={busy || !storageReady} onClick={onContinue}>{ready ? 'Continue to session setup' : 'Continue anyway'}<ArrowRight size={16} /></button></div>}
     </div>
-  </main>;
+  </Container>;
 }

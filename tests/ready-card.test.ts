@@ -13,7 +13,7 @@ const card = () => renderToStaticMarkup(createElement(ReadyCard, {
 // The tests share readiness.ts's in-memory results, so they run in order: nothing, one failure, all passing.
 test('the ready card names unchecked items and says how to test them, instead of an impossible tooltip', () => {
   const html = card();
-  assert.match(html, /<p class="ready-note">Not ready yet: Internet, AI connection, Speech files, Microphone, System audio, Screen capture\. After this session, choose Run Get ready on session setup to test them\.<\/p>/);
+  assert.match(html, /<p class="ready-note">Not ready yet: Internet, AI connection, Speech files, Microphone, System audio, Screen capture\. After this session, choose System Check on session setup to test them\.<\/p>/);
   assert.doesNotMatch(html, /End the session/);
   assert.match(html, /Before you start/);
 });
@@ -23,7 +23,7 @@ test('one item left gives a singular note, and failure details stay on the chip'
     ? { ok: false, detail: 'No sound detected.' }
     : { ok: true, detail: 'Fine' });
   const html = card();
-  assert.match(html, /Not ready yet: System audio\. After this session, choose Run Get ready on session setup to test it\./);
+  assert.match(html, /Not ready yet: System audio\. After this session, choose System Check on session setup to test it\./);
   assert.match(html, /<li class="failed" title="No sound detected\.">/);
 });
 

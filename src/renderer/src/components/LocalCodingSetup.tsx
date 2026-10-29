@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Check, Code2, Download, FileText, FolderOpen, FolderPlus, Loader2, Lock, Play, RefreshCw, Terminal, Trash2, X } from 'lucide-react';
+import { ArrowUp, Check, Download, FileText, FolderOpen, FolderPlus, Loader2, Lock, Play, RefreshCw, Terminal, Trash2, X } from 'lucide-react';
 import { ENGINES, type EngineId, type EngineModel, type EngineReadiness, type EngineUpdate, type SourcePreview } from '../../../shared/localCoding';
 import type { ProviderConnection, Snapshot } from '../../../shared/types';
 import { errorText, unwrap } from '../services/api';
 import { LocalFileExplorer } from './LocalFileExplorer';
 import { lockedMessage } from '../../../shared/plans';
 import { PlanLock } from './PlanLock';
+import codexLogo from '../assets/brands/codex.svg';
+import claudeLogo from '../assets/brands/claude.svg';
+import geminiLogo from '../assets/brands/gemini.svg';
+
+const agentLogos = { codex: codexLogo, claude: claudeLogo, antigravity: geminiLogo };
 
 const size = (bytes: number) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
@@ -221,7 +226,7 @@ function EngineStatusRow({ item, connections, managed, onInstalled }: { item: En
     : sameProvider.every(connection => connection.enabled === false) ? `Select your ${spec.connectionLabel} connection above.`
     : item.problem;
   return <li className={`agent-row is-${state} ${busy ? 'is-busy' : ''}`} aria-label={item.label} aria-busy={!!busy}>
-    <span className="studio-avatar" aria-hidden="true"><Code2 size={20} /></span>
+    <span className="studio-avatar agent-brand" aria-hidden="true"><img src={agentLogos[item.engine]} alt="" width={26} height={26} /></span>
     <div className="agent-body"><div className="agent-head">
       <strong>{item.label}</strong>{item.installedVersion && <span className="agent-version" title={item.installedVersion}>v{item.installedVersion.replace(/-(win32|linux|darwin)-.*$/, '')}</span>}
       {item.installedVersion && <span className="agent-status">{state === 'ready' ? <><Check size={11} aria-hidden="true" />Ready</> : 'Key needed'}</span>}

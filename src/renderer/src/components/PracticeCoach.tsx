@@ -21,7 +21,7 @@ export function PracticeCoach({ state, voiced, listenKey, onTypeInstead, onRemov
     case 'send': text = state.failed
       ? 'That didn’t send. Check the message below, then press Enter to try again.'
       : state.filled
-        ? voiced && !state.typed ? `Novi didn’t hear it through ${source}, so the question is typed in for you. Press Enter to send. After this session, choose Run Get ready on session setup to test ${source}.` : 'The question is typed in for you. Press Enter to send.'
+        ? voiced && !state.typed ? `Novi didn’t hear it through ${source}, so the question is typed in for you. Press Enter to send. After this session, choose System Check on session setup to test ${source}.` : 'The question is typed in for you. Press Enter to send.'
         : 'Check the question in the message box, then press Enter to send.'; break;
     case 'answer': text = 'Novi is answering in the panel on the right. Glance there to read it.'; break;
     case 'done': text = `That’s the whole loop: ${listenKey} to listen, ${listenKey} to stop, Enter to send, then read the panel.`; break;

@@ -343,7 +343,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             <TrayMenu className="tray-answer-menu" label="Answer style" title={<MessageSquare size={14} />}>
               <div className="tray-menu-heading">Answer style · change any time</div>
               <div className="chat-mode-tabs" role="group" aria-label="Answer style">
-                {ANSWER_STYLES.map(style => <button type="button" key={style.id} className="mode-tab-btn" aria-pressed={answerStyle === style.id} title={style.description}
+                {ANSWER_STYLES.filter(style => style.id !== 'custom' || state.contextSession?.interview?.customAnswerStyle || config.customAnswerStyle).map(style => <button type="button" key={style.id} className="mode-tab-btn" aria-pressed={answerStyle === style.id} title={style.description}
                   onClick={event => { setAnswerStyle(style.id); const menu = event.currentTarget.closest('details'); if (menu) { menu.open = false; menu.querySelector('summary')?.focus(); } }}><span>{style.name}</span></button>)}
               </div>
             </TrayMenu>

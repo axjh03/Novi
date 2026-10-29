@@ -238,7 +238,7 @@ export function registerIPC(
     });
     return { user, settings: account.settings, credentialIds: account.settings.connections.filter((c) => credentials.has(user.id, c)).map((c) => c.id), conversations: get().storage.conversations, contextSession: get().context.session, access };
   }
-  const debugChannels = new Set(['send', 'stop', 'repair-diagram', 'test-connection', 'list-models', 'initialize-context', 'start-context', 'start-empty-session', 'local-coding-start', 'local-coding-models', 'local-coding-install', 'local-coding-check-login', 'local-coding-refresh', 'transcribe-audio']);
+  const debugChannels = new Set(['send', 'stop', 'repair-diagram', 'research-profile', 'test-connection', 'list-models', 'initialize-context', 'start-context', 'start-empty-session', 'local-coding-start', 'local-coding-models', 'local-coding-install', 'local-coding-check-login', 'local-coding-refresh', 'transcribe-audio']);
   const handle = (channel: string, callback: (value: unknown, event: Electron.IpcMainInvokeEvent, timing: ChatLatency) => unknown) => {
     const execute = async (event: Electron.IpcMainInvokeEvent, value: unknown) => {
       const receivedAt = Date.now();
@@ -434,9 +434,9 @@ export function registerIPC(
     const input = object(value), account = storage.current();
     const documents = context.loadedDocuments(input.folderIds);
     const connection = activeConnection(account.settings);
-    if (!connection?.model || connection.enabled === false) throw new UserError('Choose a model in the Model step before using auto generation.');
+    if (!connection?.model || connection.enabled === false) throw new UserError('Choose a model in the Model step before using Fetch.');
     const result = await researchProfile({ folderIds: input.folderIds as string[], jobDescriptionUrl: text(input.jobDescriptionUrl, 'job description URL', 2000, true), companyUrl: text(input.companyUrl, 'company URL', 2000, true), jobDescriptionText: text(input.jobDescriptionText, 'job description', 20_000, true) }, documents, connection, connections.resolveKey({ id: connection.id, name: connection.name, ai: connection }));
-    if (storage.current() !== account || context.session) throw new UserError('Your session changed. Generate the briefing again.');
+    if (storage.current() !== account || context.session) throw new UserError('Your session changed. Click Fetch again.');
     return result;
   });
   handle('export-interview-skills', async (value, event) => {
@@ -543,10 +543,10 @@ export function registerIPC(
   handle('end-context', async () => { get().storage.current(); await endContext(); return snapshot(); });
   handle('test-internet', (_value, event) => { fromMain(event); return testInternet(); });
   handle('test-connection', async () => {
-    requireNoContext(); get().chat.assertIdle();
-    const { storage, connections } = get();
+    get().chat.assertIdle();
+    const { storage, connections, context } = get();
     const settings = storage.current().settings;
-    const connection = settings.connections.find(c => c.id === settings.activeConnectionId);
+    const connection = context.currentConnection() ?? settings.connections.find(c => c.id === settings.activeConnectionId);
     if (!connection) throw new UserError('Choose a provider and model first.');
     debug.identify({ connectionId: connection.id, model: connection.model });
     await testConnection({ ...connection }, connections.resolveKey({ id: connection.id, name: connection.name, ai: connection }));

@@ -7,7 +7,7 @@ import { ANSWER_STYLES, DEFAULT_INTERVIEW_PROFILE, INTERVIEW_DOMAINS, answerStyl
 import { SESSION_MODES, VOCABULARY_LEVELS } from '../src/shared/sessionModes';
 import { interviewProfile, ContextService, sessionBrief } from '../src/main/services/context';
 import { readContextFolders } from '../src/main/services/contextFiles';
-import { sendInput } from '../src/main/services/validation';
+import { sendInput, settingsInput } from '../src/main/services/validation';
 import { Storage } from '../src/main/services/storage';
 import { LocalAuthService } from '../src/main/services/auth';
 import { ChatService } from '../src/main/services/chat';
@@ -17,8 +17,8 @@ const fields = ['Role / perspective', 'Level / experience', 'Output format', 'Ad
 
 test('profile filenames classify candidate evidence without confusing job requirements with experience', () => {
   for (const [file, kind] of [['Ada Lovelace/resume.pdf', 'Resume'], ['cv.txt', 'Resume'], ['job_description.PDF', 'Job description'], ['JD.txt', 'Job description'], ['profile.md', 'Profile bundle'], ['skills/SKILL.md', 'Speaking skill'], ['company.txt', 'Company'], ['projects.md', 'Projects'], ['notes.md', 'Reference']]) assert.equal(profileFileKind(file), kind);
-  assert.equal(VOCABULARY_LEVELS.length, 5);
-  assert.deepEqual(VOCABULARY_LEVELS.map(level => level.id), ['plain', 'simple', 'everyday', 'professional', 'technical']);
+  assert.equal(VOCABULARY_LEVELS.length, 8);
+  assert.deepEqual(VOCABULARY_LEVELS.map(level => level.name), ['Plain', 'Simple', 'Everyday', 'Intern', 'Junior', 'Senior', 'Nerd', 'CRACKED']);
   assert.equal(wordCount('  two\n words  '), 2);
 });
 
@@ -31,6 +31,10 @@ test('profile preferences validate experience, domain, style and the 100-word ad
   assert.throws(() => interviewProfile({ ...DEFAULT_INTERVIEW_PROFILE, companyValues: 'x'.repeat(2001) }), /company values/);
   const { companyValues: _values, ...legacy } = DEFAULT_INTERVIEW_PROFILE;
   assert.equal(interviewProfile(legacy).companyValues, undefined, 'older saved profiles still load');
+  assert.throws(() => interviewProfile({ ...DEFAULT_INTERVIEW_PROFILE, answerStyle: 'custom' }), /Paste your custom answer style/);
+  assert.throws(() => interviewProfile({ ...DEFAULT_INTERVIEW_PROFILE, customAnswerStyle: 'x'.repeat(4001) }), /custom answer style/);
+  const custom = interviewProfile({ ...DEFAULT_INTERVIEW_PROFILE, answerStyle: 'custom', customAnswerStyle: 'Lead with one example.' });
+  assert.match(interviewSkill('technical', custom, 'cracked'), /Lead with one example/);
   for (const vocabulary of VOCABULARY_LEVELS) assert.equal(sessionBrief({ purpose: 'Interview', fields, vocabulary: vocabulary.id, interview: DEFAULT_INTERVIEW_PROFILE }).vocabulary, vocabulary.id);
   for (const style of ANSWER_STYLES) assert.equal(sendInput({ conversationId: null, content: 'Hi', imageIds: [], answerStyle: style.id }).answerStyle, style.id);
   assert.throws(() => sendInput({ conversationId: null, content: 'Hi', imageIds: [], answerStyle: 'unknown' }), /answer style/);
@@ -48,6 +52,7 @@ test('every session type produces its own speaking skill with candidate and corr
   assert.match(answerStyleInstructions('keywords'), /3–5 useful words/);
   assert.match(answerStyleInstructions('humanized'), /no bullets for spoken answers/);
   assert.match(answerStyleInstructions('spoken'), /complete code/);
+  assert.match(answerStyleInstructions('custom', 'Use a short example first.'), /Use a short example first/);
 });
 
 test('model suggestions use offered models, prefer saved choices, and keep unknown providers usable', () => {
@@ -71,6 +76,9 @@ test('a Markdown profile stays read-only, survives saving and drives actual requ
   await new LocalAuthService(storage).signUp('Ada', 'ada@example.test', 'test-password');
   storage.current().settings.connections = [{ id: 'local', name: 'Local', provider: 'compatible', baseUrl: 'http://localhost:1234', model: 'test', stream: false }];
   storage.current().settings.activeConnectionId = 'local';
+  Object.assign(storage.current().settings, settingsInput({ ...storage.current().settings, customAnswerStyle: 'Lead with a concrete example.' }));
+  storage.save();
+  assert.equal(new Storage(storage.directory).current().settings.customAnswerStyle, 'Lead with a concrete example.');
   storage.current().settings.onboardingComplete = true;
   const context = new ContextService(storage);
   const folders = await context.loadFolders([source]);
@@ -97,6 +105,8 @@ test('a Markdown profile stays read-only, survives saving and drives actual requ
   await chat.send({ conversationId: id, content: 'Now make it conversational.', imageIds: [], appMode: 'technical', answerStyle: 'spoken' }, () => {});
   assert.match(requests.at(-1)!.instructions!, /\[pause\]/);
   assert.match(requests.at(-1)!.instructions!, /overrides earlier presentation/);
+  await chat.send({ conversationId: id, content: 'Use my saved answer style.', imageIds: [], appMode: 'technical', answerStyle: 'custom' }, () => {});
+  assert.match(requests.at(-1)!.instructions!, /Lead with a concrete example/);
   assert.deepEqual(new Storage(storage.directory).conversations.at(-1)!.context!.interview, interview);
   assert.equal(readFileSync(join(source, 'profile.md'), 'utf8'), original);
   context.end();

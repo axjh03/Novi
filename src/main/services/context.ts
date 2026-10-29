@@ -15,7 +15,7 @@ export function sessionBrief(input: Record<string, unknown>) {
   const company = input.company === undefined ? '' : text(input.company, 'company', 120, true);
   const role = input.role === undefined ? '' : text(input.role, 'target role', 120, true);
   const vocabulary = VOCABULARY_LEVELS.find((level) => level.id === (input.vocabulary === undefined ? 'everyday' : input.vocabulary))?.id;
-  if (!vocabulary) throw new UserError('Choose a vocabulary level from 1 to 5.');
+  if (!vocabulary) throw new UserError(`Choose a vocabulary level from 1 to ${VOCABULARY_LEVELS.length}.`);
   if (!Array.isArray(input.fields) || input.fields.length !== 4) throw new UserError('Provide four optional custom fields.');
   const fields = input.fields.map((field) => {
     const v = object(field);
@@ -30,12 +30,14 @@ export function interviewProfile(value: unknown): InterviewProfile {
   const domain = INTERVIEW_DOMAINS.find(item => item.id === input.domain)?.id;
   const answerStyle = ANSWER_STYLES.find(item => item.id === input.answerStyle)?.id;
   if (!domain || !answerStyle) throw new UserError('Choose a domain and answer style.');
+  const customAnswerStyle = input.customAnswerStyle === undefined ? undefined : text(input.customAnswerStyle, 'custom answer style', 4000, true);
+  if (answerStyle === 'custom' && !customAnswerStyle) throw new UserError('Paste your custom answer style before starting.');
   const additionalContext = text(input.additionalContext, 'additional context', 4000, true);
   if (wordCount(additionalContext) > 100) throw new UserError('Keep additional context to 100 words.');
   return { experienceYears: input.experienceYears as number, domain, answerStyle, additionalContext,
     jobDescriptionUrl: text(input.jobDescriptionUrl, 'job description URL', 2000, true), companyUrl: text(input.companyUrl, 'company URL', 2000, true),
     jobDescriptionText: text(input.jobDescriptionText, 'job description', 20_000, true), companyBrief: text(input.companyBrief, 'company briefing', 4000, true),
-    ...(input.companyValues === undefined ? {} : { companyValues: text(input.companyValues, 'company values', 2000, true) }) };
+    ...(input.companyValues === undefined ? {} : { companyValues: text(input.companyValues, 'company values', 2000, true) }), ...(customAnswerStyle === undefined ? {} : { customAnswerStyle }) };
 }
 
 export class ContextService {

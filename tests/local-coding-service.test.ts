@@ -108,6 +108,9 @@ test('Local Coding inherits session instructions and applies the current speakin
   await chat.send({ appMode: 'local-coding', answerStyle: 'spoken', conversationId: env.conversation().id, content: 'Explain the project.', imageIds: [], localCoding: { baseVersionId: env.service.state(env.projectId).selectedVersionId } }, () => {});
   assert.equal(env.conversation().context?.instructions, instructions);
   assert.equal(env.conversation().messages.at(-1)!.status, 'complete');
+  env.storage.current().settings.customAnswerStyle = 'Start with one example.';
+  env.agent.answers.push(task => { assert.match(task.instructions, /Start with one example/); return answer([]); });
+  await chat.send({ appMode: 'local-coding', answerStyle: 'custom', conversationId: env.conversation().id, content: 'Explain again.', imageIds: [], localCoding: { baseVersionId: env.service.state(env.projectId).selectedVersionId } }, () => {});
 });
 
 test('an agent cannot be uninstalled while a Local Coding task uses it', async t => {

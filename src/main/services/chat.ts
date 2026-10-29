@@ -82,7 +82,7 @@ export class ChatService {
       ...requestHistory(conversation.messages, input.compactContext),
     ];
     const instructions = [modeInstructions(input.appMode ?? 'normal', input.behavioralFramework),
-      input.answerStyle || context?.interview?.answerStyle ? answerStyleInstructions(input.answerStyle ?? context!.interview!.answerStyle) : '',
+      input.answerStyle || context?.interview?.answerStyle ? answerStyleInstructions(input.answerStyle ?? context!.interview!.answerStyle, context?.interview?.customAnswerStyle || user.settings.customAnswerStyle) : '',
       conversation.pinnedContext ? `User-pinned constraints (retain verbatim):\n${conversation.pinnedContext}` : '',
       input.compactContext ? 'Some older turns and source passages may be omitted. Do not infer missing facts from an overview. Ask for full context if needed.' : '',
     ].filter(Boolean).join('\n\n');

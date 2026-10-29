@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { ArrowLeft, Check, Cpu, KeyRound, LogOut, Mic, Power, SlidersHorizontal, Terminal, Trash2, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, Check, Cpu, KeyRound, LogOut, Mic, Power, ShieldCheck, SlidersHorizontal, Terminal, Trash2, type LucideIcon } from 'lucide-react';
 import { DEFAULT_AUDIO_RECORD_SHORTCUT, DEFAULT_BEHAVIORAL_SHORTCUT, DEFAULT_CLICK_THROUGH_SHORTCUT, DEFAULT_CODING_SHORTCUT, DEFAULT_SCREENSHOT_SHORTCUT, DEFAULT_TRANSPARENT_SHORTCUT, type SettingsInput, type Snapshot } from '../../../shared/types';
 import { ShortcutField } from '../components/ShortcutField';
 import { ProviderManager } from '../components/ProviderManager';
@@ -9,6 +9,7 @@ import { SettingsAppPrivacy } from '../components/SettingsAppPrivacy';
 import { DebugPanel } from '../components/DebugPanel';
 import { SmartPlacementControls } from '../components/SmartPlacementControls';
 import { LocalAISetup } from '../components/LocalAISetup';
+import { SessionPreflight } from '../components/SessionPreflight';
 import { EngineReadinessList } from '../components/LocalCodingSetup';
 import { endingWarning } from '../components/TitleBar';
 import { errorText, unwrap } from '../services/api';
@@ -25,9 +26,9 @@ const shortcuts = [
 ] as const;
 
 interface Props { state: Snapshot; onSaved: (state: Snapshot) => void; onBack: () => void; onSignOut: () => void; onCleared: () => void; onDebugEnabledChange?: (enabled: boolean) => void }
-type Tab = 'general' | 'devices' | 'api' | 'local-ai' | 'debug';
-const tabs: Array<[Tab, string, LucideIcon]> = [['general', 'General', SlidersHorizontal], ['api', 'API Management', KeyRound], ['local-ai', 'Local AI', Cpu], ['devices', 'Audio & Camera', Mic], ['debug', 'Debug', Terminal]];
-const tabDescriptions = { general: 'Account, appearance and keyboard shortcuts.', api: 'Manage your AI connections and coding tools.', 'local-ai': 'Speech models and transcription on this computer.', devices: 'Check your microphone, system audio and camera.', debug: 'Choose whether diagnostics appear in chat.' };
+type Tab = 'general' | 'devices' | 'api' | 'local-ai' | 'system-check' | 'debug';
+const tabs: Array<[Tab, string, LucideIcon]> = [['general', 'General', SlidersHorizontal], ['api', 'API Management', KeyRound], ['local-ai', 'Local AI', Cpu], ['system-check', 'System Check', ShieldCheck], ['devices', 'Audio & Camera', Mic], ['debug', 'Debug', Terminal]];
+const tabDescriptions = { general: 'Account, appearance and keyboard shortcuts.', api: 'Manage your AI connections and coding tools.', 'local-ai': 'Private transcription. Powered by your computer.', 'system-check': 'Check your internet, AI connection and devices.', devices: 'Check your microphone, system audio and camera.', debug: 'Choose whether diagnostics appear in chat.' };
 const themes = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']] as const;
 
 export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared, onDebugEnabledChange }: Props) {
@@ -111,7 +112,8 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared, onD
         </nav>
         </aside>
         <div className="settings-detail" key={tab}>
-        <header className="settings-detail-heading"><h2>{tabs.find(([id]) => id === tab)![1]}</h2><p>{tabDescriptions[tab]}</p></header>
+        {tab !== 'local-ai' && <header className="settings-detail-heading"><h2>{tabs.find(([id]) => id === tab)![1]}</h2><p>{tabDescriptions[tab]}</p></header>}
+        {tab === 'system-check' && <SessionPreflight embedded state={state} onContinue={onBack} onChooseModel={() => setTab('api')} onSettings={() => setTab('devices')} />}
         {tab === 'local-ai' && <LocalAISetup onSettingsSaved={(updated, modelId) => {
           onSaved(updated);
           setValue(current => ({ ...current, localASRModelId: modelId }));

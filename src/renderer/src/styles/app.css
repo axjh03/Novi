@@ -2835,7 +2835,7 @@ html.transparent-mode #root {
 .context-section-nav { display: grid; gap: 3px; }
 .context-nav-item { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 39px; padding: 0 11px; border-radius: 7px; color: var(--muted); text-align: left; font-size: 12px; transition: background 180ms ease, color 180ms ease, box-shadow 180ms ease; }
 .context-nav-item:hover { background: var(--hover); color: var(--text); }
-.context-nav-item.active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: inset 2px 0 var(--button); }
+.context-nav-item.active { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: none; }
 .context-nav-check { margin-left: auto; color: var(--accent); animation: setupCheck 280ms ease both; }
 .context-main-panel { min-width: 0; min-height: 0; overflow: hidden; }
 .context-panel-content { height: 100%; overflow-y: auto; padding: 34px clamp(24px, 5vw, 64px); }
@@ -4076,10 +4076,6 @@ textarea { border-radius: 4px; }
 .interview-research-model > span { min-width: 0; overflow-wrap: anywhere; }
 .interview-research-model .text-button { padding: 2px 4px; font-size: 11px; }
 
-.profile-tabs { display: flex; gap: 20px; max-width: 780px; margin-top: 20px; border-bottom: 1px solid var(--border); }
-.profile-tabs button { display: inline-flex; align-items: center; gap: 8px; padding: 10px 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; }
-.profile-tabs button[aria-pressed='true'] { border-bottom-color: var(--text); color: var(--text); }
-.profile-tabs button span { font-size: 11px; color: var(--muted); }
 .interview-form .profile-job-description { min-height: 170px; }
 .interview-form .profile-company-brief { min-height: 250px; line-height: 1.65; }
 .profile-analysis-bar, .profile-company-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -4103,3 +4099,12 @@ textarea { border-radius: 4px; }
   .context-control-block .chat-provider-picker { grid-template-columns: minmax(0, 1fr) 32px; }
   .context-control-block .chat-provider-picker > :first-child { grid-column: 1 / -1; }
 }
+
+.custom-answer-style { display: grid; gap: 12px; }
+.custom-answer-style textarea { min-height: 180px; }
+.custom-answer-style > button { justify-self: start; }
+
+.system-check-embedded { max-width: none; padding: 0; overflow: visible; }
+
+.agent-brand { background: #fff; }
+.agent-brand img { display: block; object-fit: contain; }

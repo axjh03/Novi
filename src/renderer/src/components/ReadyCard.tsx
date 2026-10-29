@@ -8,7 +8,7 @@ import { READINESS_CHECKS, readReadiness } from '../services/readiness';
  * wasn't checked. The words "ready", "needs attention" and "not checked" are read out to screen
  * readers but hidden on screen to keep the chips small, so when anything isn't passing a visible
  * note names those checks and says how to test them: Get ready can't be reached during a session,
- * but session setup has a "Run Get ready" button. The note replaces an older tooltip that told
+ * but session setup has a "System Check" button. The note replaces an older tooltip that told
  * people to do something impossible, and that keyboard and touch users never saw anyway.
  *
  * @param transparent       whether Transparent mode is on (shown as its own chip).
@@ -45,7 +45,7 @@ export function ReadyCard({ transparent, listenKey, snapshotKey, practiceDisable
         <ShieldCheck size={13} aria-hidden="true" />Hidden from screen share<span className="ready-chip-status">: {transparent ? 'on' : 'off'}</span>
       </li>
     </ul>
-    {pending.length > 0 && <p className="ready-note">Not ready yet: {pending.join(', ')}. After this session, choose Run Get ready on session setup to test {pending.length === 1 ? 'it' : 'them'}.</p>}
+    {pending.length > 0 && <p className="ready-note">Not ready yet: {pending.join(', ')}. After this session, choose System Check on session setup to test {pending.length === 1 ? 'it' : 'them'}.</p>}
     <p className="ready-keys"><kbd>{listenKey}</kbd> listen and stop · <kbd>Enter</kbd> send · <kbd>{snapshotKey}</kbd> snapshot</p>
     <div className="ready-practice">
       <button type="button" className="secondary" disabled={practiceDisabled} onClick={onPractice}><Play size={14} />Practice run · 1 min</button>

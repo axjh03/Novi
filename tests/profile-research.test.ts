@@ -84,13 +84,14 @@ test('profile generation uses only supplied sources, bounds its briefing and val
 test('research discovers company pages, reads their values, and returns a bounded company icon', async t => {
   const dns = require('node:dns/promises'), https = require('node:https');
   const requested: string[] = [], prompts: string[] = [];
-  let failExpanded = false;
+  let failExpanded = false, logoAvailable = true;
   t.mock.method(dns, 'lookup', async () => [{ address: '93.184.216.34', family: 4 }]);
   t.mock.method(https, 'get', (url: URL, _options: unknown, callback: (response: any) => void) => {
     requested.push(url.href);
-    const image = url.pathname === '/mark.png';
-    const html = `<title>Acme ${url.pathname}</title><link rel="icon" href="/mark.png"><a href="/about">About us</a><a href="/values">Our values</a><a href="https://localhost/private">Our team</a><p>${'Acme builds Java tools. Values: customer care and shared ownership. '.repeat(4)}</p>`;
-    const response = Object.assign(Readable.from([image ? Buffer.from('icon') : html]), { statusCode: 200, headers: { 'content-type': image ? 'image/png' : 'text/html' } });
+    const image = url.pathname === '/mark.png' || url.pathname === '/actual-logo.svg';
+    const logo = url.pathname === '/actual-logo.svg';
+    const html = `<title>Acme ${url.pathname}</title><link rel="icon" href="/mark.png"><img alt="Acme logo" src="/actual-logo.svg"><a href="/about">About us</a><a href="/values">Our values</a><a href="https://localhost/private">Our team</a><p>${'Acme builds Java tools. Values: customer care and shared ownership. '.repeat(4)}</p>`;
+    const response = Object.assign(Readable.from([image ? Buffer.from(logo ? '<svg/>' : 'icon') : html]), { statusCode: logo && !logoAvailable ? 404 : 200, headers: { 'content-type': logo ? 'image/svg+xml' : image ? 'image/png' : 'text/html' } });
     queueMicrotask(() => callback(response));
     return new EventEmitter();
   });
@@ -107,10 +108,12 @@ test('research discovers company pages, reads their values, and returns a bounde
   assert.ok(requested.every(url => new URL(url).hostname === 'acme.example.com'));
   assert.equal(result.sources.length, 3);
   assert.equal(result.companyUrl, 'https://acme.example.com/');
-  assert.equal(result.logoDataUrl, 'data:image/png;base64,aWNvbg==');
+  assert.equal(result.logoDataUrl, 'data:image/svg+xml;base64,PHN2Zy8+');
+  assert.ok(!requested.some(url => url.endsWith('/mark.png')), 'the actual logo is preferred over a favicon');
   assert.match(result.summary, /\n\nWhat to prepare/);
-  failExpanded = true; prompts.length = 0;
+  failExpanded = true; logoAvailable = false; prompts.length = 0;
   const partial = await researchProfile({ folderIds: [], jobDescriptionUrl: '', companyUrl: '', jobDescriptionText: 'Acme seeks a backend developer with 3–5 years of Java experience.' }, [], config, 'key');
+  assert.equal(partial.logoDataUrl, 'data:image/png;base64,aWNvbg==', 'an unavailable company logo falls back to its favicon');
   assert.equal(partial.experienceYears, 3, 'a failed expansion retains the usable job-description analysis');
   assert.ok(partial.warnings.some(warning => warning.includes('Expanded company briefing was unavailable')));
 });

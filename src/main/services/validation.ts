@@ -72,6 +72,7 @@ export function settingsInput(value: unknown): SettingsInput {
   if (sameShortcut(shortcut, transparentShortcut)) throw new UserError('The interaction and transparency shortcuts must be different.');
   return {
     displayName: text(input.displayName, 'display name', 60),
+    ...(input.customAnswerStyle === undefined ? {} : { customAnswerStyle: text(input.customAnswerStyle, 'custom answer style', 4000, true) }),
     theme: input.theme as SettingsInput['theme'],
     clickThroughShortcut: shortcut,
     connection: input.connection === undefined ? undefined : connectionInput(input.connection),

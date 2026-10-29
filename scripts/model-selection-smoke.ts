@@ -48,6 +48,7 @@ async function main() {
         selectConnection: async (id: string, model?: string) => { state.settings!.activeConnectionId = id; if (model) state.settings!.connections[0].model = model; return ok(structuredClone(state)); },
         pickContextFolders: async () => ok([{ id: 'folder', name: 'Reference', files: ['job-description.txt'], characters: 20 }]),
         loadSessionProfileFolders: async () => ok([]),
+        saveSettings: async (input: Parameters<NoviAPI['saveSettings']>[0]) => { Object.assign(state.settings!, input); return ok(structuredClone(state)); },
         testInternet: async () => ok('25 ms response · 20.0 Mbps sample download'),
         researchProfile: async (input: ProfileResearchInput) => {
           fixture.research.push(input.jobDescriptionText);
@@ -63,7 +64,7 @@ async function main() {
       } as unknown as NoviAPI;
     }, DEFAULT_INTERVIEW_PROFILE);
     await page.goto('http://novi.test/index.html');
-    await page.getByRole('heading', { name: 'Get ready' }).waitFor();
+    await page.getByRole('heading', { name: 'System Check' }).waitFor();
     // Nothing has passed yet: the way forward stays reachable and names what is missing.
     assert.equal(await page.getByRole('button', { name: 'Continue to session setup' }).count(), 0);
     await page.waitForFunction(() => Boolean(document.querySelector('.preflight-actions .primary:not(:disabled)')));
@@ -87,25 +88,28 @@ async function main() {
     assert.equal(await page.getByRole('button', { name: 'Start session', exact: true }).getAttribute('aria-disabled'), 'true');
     await page.getByLabel('Choose model', { exact: true }).selectOption('gemini-chat');
     await setup.getByRole('button', { name: /^Load profile/ }).click();
-    await page.getByRole('button', { name: /^Your background/ }).click();
     await page.locator('#context-panel-sources').getByRole('button', { name: 'Load profile', exact: true }).click();
-    await page.getByRole('button', { name: 'About company', exact: true }).click();
     await page.getByLabel('Job description', { exact: true }).fill('Acme needs a backend developer.');
     await page.getByLabel('Job description', { exact: true }).fill('Acme needs a backend developer with 5 years of Java.');
+    await page.waitForTimeout(1100);
+    assert.equal((await page.evaluate(() => (window as any).fixture.research)).length, 0, 'pasting never starts an AI request');
+    await page.getByRole('button', { name: 'Fetch', exact: true }).click();
     await page.getByRole('status').filter({ hasText: 'Loading description and company details…' }).first().waitFor();
     await page.waitForFunction(() => (document.querySelector('input[maxlength="120"]') as HTMLInputElement)?.value === 'Acme');
     assert.equal(await page.getByRole('slider', { name: /Years of experience/ }).inputValue(), '5');
-    assert.equal(await page.getByRole('slider', { name: /Word choice/ }).inputValue(), '5');
+    assert.equal(await page.getByRole('slider', { name: /Word choice/ }).inputValue(), '7');
     await page.screenshot({ path: '/tmp/novi-profile-setup.png' });
     await page.getByLabel('Company values & culture', { exact: true }).fill('Edited values');
     await page.waitForTimeout(1100);
     assert.equal(await page.getByLabel('Company values & culture', { exact: true }).inputValue(), 'Edited values', 'manual edits do not trigger regeneration');
-    assert.equal((await page.evaluate(() => (window as any).fixture.research)).length, 1, 'typing is debounced into one analysis');
-    await page.getByRole('button', { name: 'Regenerate', exact: true }).click();
+    assert.equal((await page.evaluate(() => (window as any).fixture.research)).length, 1, 'only Fetch starts analysis');
+    await page.getByRole('button', { name: 'Fetch', exact: true }).click();
     await page.waitForFunction(() => (document.querySelector('textarea[maxlength="2000"]') as HTMLTextAreaElement)?.value === 'Customer care');
     await page.getByLabel('Job description', { exact: true }).fill('Slow Acme role');
+    await page.getByRole('button', { name: 'Fetch', exact: true }).click();
     await page.getByRole('status').filter({ hasText: 'Loading description and company details…' }).first().waitFor();
     await page.getByLabel('Job description', { exact: true }).fill('NewCo backend role');
+    await page.getByRole('button', { name: 'Fetch', exact: true }).click();
     await page.waitForFunction(() => (document.querySelector('input[maxlength="120"]') as HTMLInputElement)?.value === 'NewCo');
     await page.waitForTimeout(700);
     assert.equal(await page.getByLabel('Company', { exact: true }).inputValue(), 'NewCo', 'an earlier in-flight analysis cannot overwrite a new description');
@@ -113,6 +117,10 @@ async function main() {
     await page.getByLabel('Purpose').fill('Review the reference');
     await page.getByRole('button', { name: /^Chat General questions/ }).click();
     await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await page.getByRole('button', { name: /^Custom Your own/ }).click();
+    await page.getByLabel('Your custom answer style').fill('Lead with one practical example.');
+    await page.getByRole('button', { name: 'Save locally', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Custom answer style saved locally.' }).waitFor();
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.getByRole('button', { name: 'Start session', exact: true }).click();
     await page.getByRole('alert').filter({ hasText: 'Your API key was rejected.' }).waitFor();
@@ -135,8 +143,8 @@ async function main() {
     assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), 'gemini-chat');
     // Get ready opens by itself once per launch; session setup's "Run Get ready" brings it back with
     // today's results (the microphone failure above), and Continue returns to setup with nothing lost.
-    await page.getByRole('button', { name: 'Run Get ready', exact: true }).click();
-    await page.getByRole('heading', { name: 'Get ready' }).waitFor();
+    await page.getByRole('button', { name: 'System Check', exact: true }).click();
+    await page.getByRole('heading', { name: 'System Check' }).waitFor();
     await page.getByText(/^Microphone access is blocked\./).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Retry microphone', exact: true }).count(), 1);
     await page.getByRole('button', { name: 'Continue anyway', exact: true }).click();
@@ -147,13 +155,13 @@ async function main() {
     // A listed model can still reject generation. Recovery must open the model step even from Instructions.
     await page.getByRole('button', { name: /^Instructions( Complete)?$/ }).click();
     await page.evaluate(() => { (window as any).fixture.modelNotFound = true; });
-    await page.getByRole('button', { name: 'Run Get ready', exact: true }).click();
+    await page.getByRole('button', { name: 'System Check', exact: true }).click();
     await page.getByRole('button', { name: /^(Check|Check again|Retry) ai connection$/ }).click();
     await page.getByText(/Google \(Gemini\) model request failed \(HTTP 404\)/).waitFor();
     await page.getByRole('button', { name: 'Choose another model', exact: true }).click();
     await page.locator('#context-panel-model').waitFor({ state: 'visible' });
     await page.getByLabel('Choose model', { exact: true }).selectOption('gemini-other');
-    await page.getByRole('button', { name: 'Run Get ready', exact: true }).click();
+    await page.getByRole('button', { name: 'System Check', exact: true }).click();
     await page.getByRole('button', { name: /^(Retry|Check again) ai connection$/ }).click();
     await page.getByText('Google key · gemini-other answered', { exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Choose another model', exact: true }).count(), 0);
@@ -162,7 +170,6 @@ async function main() {
     assert.equal(await page.getByLabel('Choose model', { exact: true }).inputValue(), 'gemini-other');
     assert.equal(await page.getByLabel('Purpose').inputValue(), 'Review the reference');
     await setup.getByRole('button', { name: /^Load profile/ }).click();
-    await page.getByRole('button', { name: /^Your background/ }).click();
     await page.getByRole('button', { name: 'Edit Saved interview', exact: true }).click();
     await setup.getByRole('button', { name: /^Model/ }).click();
     await page.waitForFunction(() => !(document.querySelector('select[aria-label="Choose model"]') as HTMLSelectElement)?.disabled);

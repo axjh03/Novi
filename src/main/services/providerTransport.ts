@@ -2,6 +2,13 @@ import type { AIProviderConfig } from '../../shared/types';
 import { PROVIDERS } from '../../shared/providers.ts';
 import { UserError } from './validation.ts';
 import { debug } from './debug';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { curlFetch } from './curlFetch';
+
+const curlFallback = new AsyncLocalStorage<() => void>();
+export function withCurlFallback<T>(operation: () => Promise<T>, onFallback: () => void): Promise<T> {
+  return curlFallback.run(onFallback, operation);
+}
 
 export const endpoint = (config: AIProviderConfig) => config.provider === 'compatible' ? config.baseUrl : PROVIDERS[config.provider].baseUrl;
 export function authHeaders(config: AIProviderConfig, key: string): Record<string, string> {
@@ -51,9 +58,15 @@ export async function providerFetch(url: string, config: AIProviderConfig, key: 
       ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal,
     });
   } catch (error) {
-    debug.event(signal.aborted ? 'Provider request cancelled or timed out' : 'Provider connection failed', { elapsedMs: Date.now() - started, error: error instanceof Error ? error.name : 'Unknown error' }, signal.aborted ? 'warning' : 'error');
+    const cause = error instanceof Error && error.cause && typeof error.cause === 'object' && 'code' in error.cause ? error.cause.code : '';
+    const code = typeof cause === 'string' && /^[A-Z_]{1,60}$/.test(cause) ? cause : 'UNKNOWN';
+    debug.event(signal.aborted ? 'Provider request cancelled or timed out' : 'Provider connection failed', { elapsedMs: Date.now() - started, error: error instanceof Error ? error.name : 'Unknown error', code }, signal.aborted ? 'warning' : 'error');
     if (signal.aborted) throw error;
-    throw new UserError('Unable to connect to the AI provider.');
+    const retry = curlFallback.getStore();
+    if (!retry) throw new UserError(`Unable to connect to ${PROVIDERS[config.provider].name} (${destination.hostname}). Check your network, proxy or firewall. (${code})`);
+    retry(); debug.event('Retrying provider request through cURL', { provider: config.provider, host: destination.hostname });
+    try { response = await curlFetch(url, { 'Content-Type': 'application/json', ...authHeaders(config, key) }, signal, body); }
+    catch (failure) { throw new UserError(`The AI connection failed and the cURL fallback failed. ${failure instanceof UserError ? failure.message : 'Check your network and try Fetch again.'}`); }
   }
   debug.event('Provider returned HTTP headers', { status: response.status, elapsedMs: Date.now() - started, streaming: Boolean(response.headers.get('content-type')?.includes('text/event-stream')) }, response.ok ? 'info' : 'error');
   if (!response.ok) {

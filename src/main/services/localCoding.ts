@@ -454,7 +454,7 @@ export class LocalCodingService {
       const agent = this.agents[binding.engine];
       let denied = 0;
       const attempt = (promptText: string) => agent.run({
-        model: binding.model, effort: model.highestEffort, instructions: [ENGINE_INSTRUCTIONS, input.answerStyle ? `Apply the following speaking preference only inside the summary and approach text fields; keep the required JSON schema and evidence intact.\n${answerStyleInstructions(input.answerStyle)}` : ''].filter(Boolean).join('\n\n'), prompt: promptText, images,
+        model: binding.model, effort: model.highestEffort, instructions: [ENGINE_INSTRUCTIONS, input.answerStyle ? `Apply the following speaking preference only inside the summary and approach text fields; keep the required JSON schema and evidence intact.\n${answerStyleInstructions(input.answerStyle, conversation.context?.interview?.customAnswerStyle || this.deps.storage.current().settings.customAnswerStyle)}` : ''].filter(Boolean).join('\n\n'), prompt: promptText, images,
         schema: PROPOSAL_SCHEMA as unknown as Record<string, unknown>,
         tools: {
           list: (args) => { debug.event('Tool: list snapshot files'); return reader.list(args); },
