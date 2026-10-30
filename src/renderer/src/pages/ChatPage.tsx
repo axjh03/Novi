@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Award, Brain, Code2, ExternalLink, FolderCode, History, Image, Lock, Menu, MessageSquare, Network, PanelBottom, Phone, Settings, Video, X, type LucideIcon } from 'lucide-react';
+import { Award, Brain, Code2, ExternalLink, FolderCode, History, Image, Lock, Menu, MessageSquare, Network, PanelBottom, Phone, Settings, Video, X, Zap, type LucideIcon } from 'lucide-react';
 import type { AppMode, ModelOption, Snapshot } from '../../../shared/types';
 import { Sidebar } from '../components/chat/Sidebar';
 import { Composer } from '../components/chat/Composer';
@@ -281,6 +281,27 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const readyCard = !readyDismissed && !sentInSession && !practice.active && !localMode && <ReadyCard transparent={transparent} listenKey={listenKey} snapshotKey={config.screenshotShortcut || 'Alt+3'}
     practiceDisabled={contextBusy || chat.busy || ending} onPractice={startPractice} onDismiss={() => setReadyDismissed(true)} />;
 
+  const conversation = <>
+{localMode && !localBinding ? (
+            contextBusy ? <div className="empty-state"><p>Local Coding is available once the session finishes loading.</p></div>
+              : !modern && localSetup
+          ) : chat.selected ? (
+            <div className="conversation-scroll" ref={scroll} onScroll={() => { const el = scroll.current!; atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }}>
+              <div className="messages">
+                {localMode && localBinding && !chat.selected.messages.length && <p className="lc-empty">Ask about {localBinding.name} in the message box. Answers explain the code; changes come back as proposals you can open, compare and copy. Your files are never changed.</p>}
+                {chat.selected.messages.map((message) => (
+                  <Message key={message.id} message={message} onOpenFile={openLocalFile} debugEnabled={!modern && debugEnabled} readOnly={modern}
+                    generating={chat.busy && chat.activeId === chat.selectedId && message.id === chat.selected!.messages.at(-1)?.id} />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="empty-state">
+              <h1>{modern ? contextBusy ? 'Preparing your session…' : 'Ready when you are.' : welcome}</h1>
+            </div>
+          )}
+  </>;
+
   return (
     <div className={`chat-layout ${modern ? 'modern-layout' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       {!modern && sidebar}
@@ -297,24 +318,8 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
           {!modern && readyCard}
           {!modern && localHistory}
           {!modern && appMode === 'system-design' && <button type="button" className="secondary" onClick={() => void unwrap(window.novi.setCodeViewerVisible(true)).then(() => unwrap(window.novi.updateCodeViewer(diagramBlocks(chat.selected?.messages || [])))).catch((error) => chat.setError(errorText(error)))}>Open diagrams · saved with this conversation</button>}
-          {localMode && !localBinding ? (
-            contextBusy ? <div className="empty-state"><p>Local Coding is available once the session finishes loading.</p></div>
-              : !modern && localSetup
-          ) : chat.selected ? (
-            <div className="conversation-scroll" ref={scroll} onScroll={() => { const el = scroll.current!; atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }}>
-              <div className="messages">
-                {localMode && localBinding && !chat.selected.messages.length && <p className="lc-empty">Ask about {localBinding.name} in the message box. Answers explain the code; changes come back as proposals you can open, compare and copy. Your files are never changed.</p>}
-                {chat.selected.messages.map((message, index) => (
-                  <Message key={message.id} message={message} onOpenFile={openLocalFile} debugEnabled={!modern && debugEnabled} readOnly={modern}
-                    generating={chat.busy && chat.activeId === chat.selectedId && index === chat.selected!.messages.length - 1} />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="empty-state">
-              <h1>{modern ? contextBusy ? 'Preparing your session…' : 'Ready when you are.' : welcome}</h1>
-            </div>
-          )}
+          {!modern && conversation}
+          {modern && <div className="modern-dashboard">{sidebar}<button type="button" className="primary" onClick={() => void window.novi.workspaceAction('show')}>Show Live Insights</button></div>}
         <TrayPortal detached={modern || (trayDetached && !settings)} modern={modern} panel={settings ? <div ref={setSettingsHost} /> : localMode && !localBinding && !contextBusy ? localSetup : undefined}
           onPanelClose={settings ? () => setSettingsCloseRequest(value => value + 1) : undefined}
           onClosed={() => { setTrayDetached(false); if (modern) setInterfaceStyle('classic'); }}>
@@ -334,8 +339,15 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
           )}
           <Composer
             compact={modern}
+            insights={conversation}
+            onEnd={modern ? () => setConfirmEnd(true) : undefined}
             suspended={settings && !modern}
+            smartControl={modern && !localMode && <button type="button" className="composer-quick-btn" aria-label="Smart mode" aria-pressed={Boolean(roles?.deep && connection?.model === roles.deep)}
+              disabled={sidebarBusy || syncingModel || !roles?.deep || !roles?.fast}
+              title={roles?.deep && roles?.fast ? 'Switch between configured Deep and Fast models' : 'Configure Fast and Deep models in Model roles to enable Smart mode'}
+              onClick={() => void handleModelChange(connection!.id, connection?.model === roles?.deep ? roles!.fast : roles!.deep)}><Zap size={14} />Smart</button>}
             toolbar={<>
+
             <TrayMenu className="tray-mode-menu" label="Change conversation mode" title={<><ModeIcon size={14} /><span>{SESSION_MODES.find(mode => mode.id === appMode)?.name}</span></>}>
             <nav className="chat-mode-tabs" aria-label="Conversation mode">
               {SESSION_MODES.map(({ id: mode, name: label }) => {

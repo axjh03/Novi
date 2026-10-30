@@ -114,3 +114,18 @@ test('only the tray window name is allowed', () => {
   assert(TRAY_NAME.test('novi-tray-ff72774b-0c3b-44cc-a57f-e74345ee346c'));
   for (const name of ['', 'novi-tray-', 'novi-tray-x', '_blank', 'novi-tray-ff72774b-0c3b-44cc-a57f-e74345ee346c-extra']) assert(!TRAY_NAME.test(name), name);
 });
+
+test('hiding the widget preserves its window and leaves dashboard recovery when a shortcut is unavailable', async () => {
+  const { WorkspaceService } = await import('../src/main/services/workspace.ts');
+  let visible = true, closed = false;
+  const main = { webContents: { send() {} }, isVisible: () => visible, hide: () => { visible = false; }, show: () => { visible = true; }, close: () => { closed = true; } };
+  const workspace = new WorkspaceService(() => main as never);
+  workspace.action('dashboard');
+  assert.equal(visible, false);
+  workspace.action('dashboard');
+  assert.equal(visible, true);
+  workspace.action('dashboard');
+  workspace.action('hide');
+  assert.equal(visible, true, 'dashboard remains a recovery path when the global shortcut is unavailable');
+  assert.equal(closed, false, 'hide never closes the renderer that owns capture');
+});

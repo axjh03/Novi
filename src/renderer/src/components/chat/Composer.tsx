@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type Form
 import { ArrowUp, Brain, Camera, ChevronUp, ImagePlus, Keyboard, Loader2, Mic, Network, SlidersHorizontal, Square, X } from 'lucide-react';
 import type { ImageAttachment } from '../../../../shared/types';
 import type { InterviewEvent, ListeningSource, TranscriptSegment } from '../../../../shared/interview';
-import { LiveTranscriptDraft, listeningSources } from '../../../../shared/interview';
+import { LiveTranscriptDraft, listeningSources, updateTranscript } from '../../../../shared/interview';
 import { errorText, unwrap } from '../../services/api';
 import { ImagePreview } from './Message';
 import { useAppMode } from '../../context/AppModeContext';
@@ -11,10 +11,12 @@ import { TrayMenu } from '../TrayMenu';
 import { DRAW_DIAGRAM_PROMPT, SESSION_MODES } from '../../../../shared/sessionModes';
 import { CloudListening } from '../../services/cloudListening';
 import { InterviewAudio } from '../../services/interviewAudio';
-import { Brand } from '../Brand';
+import { LiveInsights } from '../LiveInsights';
 
 interface Props {
   compact?: boolean;
+  insights?: ReactNode;
+  onEnd?: () => void;
   suspended?: boolean;
   busy: boolean;
   speechModelId?: string;
@@ -27,9 +29,13 @@ interface Props {
   onPrefillApplied?: () => void;
   placeholder?: string;
   toolbar?: ReactNode;
+  smartControl?: ReactNode;
 }
 
-export function Composer({ busy, onSend, compact = false, suspended = false, speechModelId = 'auto', onListeningChange, prefill, onPrefillApplied, placeholder, toolbar }: Props) {
+export function Composer({ busy, onSend, compact = false, suspended = false, speechModelId = 'auto', onListeningChange, prefill, onPrefillApplied, placeholder, toolbar, insights, onEnd, smartControl }: Props) {
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [insightMode, setInsightMode] = useState('Interview');
+  const [transcript, setTranscript] = useState<TranscriptSegment[]>([]);
   const [editorOpen, setEditorOpen] = useState(false);
   const [text, setText] = useState('');
   const [images, setImages] = useState<ImageAttachment[]>([]);
@@ -66,6 +72,7 @@ export function Composer({ busy, onSend, compact = false, suspended = false, spe
     consumePendingAttachment,
     captureScreenshot,
     appMode,
+    setAppMode,
     allows,
   } = useAppMode();
 
@@ -118,6 +125,7 @@ export function Composer({ busy, onSend, compact = false, suspended = false, spe
 
   function updateDraft(segment: TranscriptSegment) {
     if (!mounted.current || segment.sessionId !== sessionId.current) return;
+    setTranscript(current => updateTranscript(current, segment));
     const timing = listeningTiming.current.get(segment.source);
     const stage = segment.isFinal ? 'final' : 'partial';
     if (timing && !timing[stage]) {
@@ -136,10 +144,7 @@ export function Composer({ busy, onSend, compact = false, suspended = false, spe
       if (cloud.current) await cloud.current.stop(sessionId.current);
       else {
         const session = await unwrap(window.novi.stopInterview());
-        if (session && mounted.current) for (const segment of session.segments) {
-          textRef.current = draft.current.update(segment);
-          setText(textRef.current);
-        }
+        if (session && mounted.current) for (const segment of session.segments) updateDraft(segment);
       }
     } finally {
       localAudio.current?.close();
@@ -324,7 +329,7 @@ export function Composer({ busy, onSend, compact = false, suspended = false, spe
       setImages([]);
       // The box stays usable while the answer streams; keep the cursor there for the next question.
       textarea.current?.focus();
-      const success = await onSend(sentText, sentImages).catch((cause) => { setError(errorText(cause)); return false; });
+      const success = await onSend(compact ? `${insightMode} assistance. ${sentText}` : sentText, sentImages).catch((cause) => { setError(errorText(cause)); return false; });
       if (!success) {
         // Put the unsent message back ahead of anything typed or attached since.
         textRef.current = draft.current.restore(rawText); setText(textRef.current);
@@ -343,10 +348,9 @@ export function Composer({ busy, onSend, compact = false, suspended = false, spe
   const sendButton = busy ? <button type="button" className="send-button stop" aria-label="Stop generation" onClick={() => {
     unwrap(window.novi.stop()).catch(error => setError(errorText(error)));
     textarea.current?.focus();
-  }}><Square size={15} fill="currentColor" /></button> : <button type="submit" className="send-button" aria-label="Send message" disabled={attaching || (!text.trim() && !images.length)}><ArrowUp size={20} /></button>;
+  }}><Square size={15} fill="currentColor" /></button> : <button type="submit" className="send-button" aria-label="Send message" disabled={attaching || (!text.trim() && !images.length)}>{compact && onEnd ? <>Submit <span aria-hidden="true">↵</span></> : <ArrowUp size={20} />}</button>;
 
-  return (
-    <div className="composer-wrap">
+  const composerForm = (
       <form
         className={`composer ${dragging ? 'dragging' : ''}`}
         onSubmit={submit}
@@ -380,8 +384,8 @@ export function Composer({ busy, onSend, compact = false, suspended = false, spe
         )}
 
         {/* All tools stay above the message box. */}
-        <div className="composer-toolbar">
-          {compact && <span className="modern-brand" title="Novi"><Brand compact /></span>}
+        <div className="composer-toolbar" id="composer-tools" hidden={compact && Boolean(onEnd) && !toolsOpen}>
+
           <div className="attach-control">
             <button className="composer-quick-btn composer-attach" type="button" disabled={attaching}
               onClick={() => void attach()} aria-label="Attach image" title="Attach image">
@@ -421,7 +425,7 @@ export function Composer({ busy, onSend, compact = false, suspended = false, spe
             </div>
           </div>
           {toolbar}
-          {compact && <><button type="button" className="composer-quick-btn modern-editor-toggle" aria-label={editorOpen ? 'Collapse message box' : 'Write a message'} title={editorOpen ? 'Collapse message box' : 'Write a message'} aria-expanded={editorOpen}
+          {compact && !onEnd && <><button type="button" className="composer-quick-btn modern-editor-toggle" aria-label={editorOpen ? 'Collapse message box' : 'Write a message'} title={editorOpen ? 'Collapse message box' : 'Write a message'} aria-expanded={editorOpen}
             onClick={() => { setEditorOpen(value => !value); if (!editorOpen) window.setTimeout(() => textarea.current?.focus(), 0); }}>{editorOpen ? <ChevronUp size={16} /> : <Keyboard size={16} />}</button>{sendButton}</>}
         </div>
 
@@ -444,7 +448,7 @@ export function Composer({ busy, onSend, compact = false, suspended = false, spe
           </div>
         )}
 
-        <div className="composer-input" hidden={compact && !editorOpen}>
+        <div className="composer-input" hidden={compact && !onEnd && !editorOpen}>
         <textarea
           ref={textarea}
           aria-label="Message Novi"
@@ -469,7 +473,30 @@ export function Composer({ busy, onSend, compact = false, suspended = false, spe
 
           {!compact && sendButton}
         </div>
+        {compact && onEnd && <div className="live-composer-footer">{smartControl}
+          <button type="button" className="composer-quick-btn live-tools-toggle" aria-label="Session tools" title="Models, audio, history and settings" aria-expanded={toolsOpen} aria-controls="composer-tools" onClick={() => setToolsOpen(value => !value)}><SlidersHorizontal size={15} /></button>
+          {sendButton}
+        </div>}
       </form>
+  );
+
+  return (
+    <div className="composer-wrap" onKeyDown={event => {
+      if (compact && (event.ctrlKey || event.metaKey) && event.key === 'Enter' && !event.defaultPrevented && !event.nativeEvent.isComposing) {
+        event.preventDefault(); void submit(undefined, event.shiftKey && appMode === 'system-design');
+      }
+    }}>
+      {compact && onEnd && <LiveInsights footer={composerForm} mode={insightMode} onMode={mode => { setInsightMode(mode); if (mode !== 'Interview') setAppMode('normal'); }} transcript={transcript} listening={localActive} transitioning={localStarting || localStopping} busy={busy || attaching}
+        onAudio={() => void toggleListening()} onEnd={onEnd}
+        onWindow={action => void unwrap(window.novi.workspaceAction(action)).catch(cause => setError(errorText(cause)))}
+        onAsk={async action => {
+          if (busy || sending.current) return;
+          sending.current = true;
+          try { await onSend(`${insightMode} assistance. ${action}\n\nUse only known conversation context; state uncertainty and do not invent facts.\n${transcript.map(segment => `${segment.source === 'microphone' ? 'You' : 'Speaker'}: ${segment.text}`).join('\n')}`, []); }
+          catch (cause) { setError(errorText(cause)); }
+          finally { sending.current = false; }
+        }}>{insights}</LiveInsights>}
+      {!(compact && onEnd) && composerForm}
 
       {(error || localWarning) && (
         <div className="error composer-error" role="alert">

@@ -162,6 +162,7 @@ const api: NoviAPI = {
   maximizeWindow: () => ipcRenderer.invoke('maximize-window'),
   closeWindow: () => ipcRenderer.invoke('close-window'),
   isWindowMaximized: () => ipcRenderer.invoke('is-window-maximized'),
+  workspaceAction: (action) => ipcRenderer.invoke('workspace-action', action),
   setWorkspaceDocked: (docked, interfaceStyle = 'classic') => ipcRenderer.invoke('set-workspace-docked', { docked, interfaceStyle }),
   setTrayHeight: (height, controlsHeight) => ipcRenderer.invoke('set-tray-height', { height, controlsHeight }),
   setTrayWidth: (width, edge) => ipcRenderer.invoke('set-tray-width', { width, edge }),

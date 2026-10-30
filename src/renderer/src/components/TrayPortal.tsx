@@ -83,7 +83,7 @@ export function TrayPortal({ children, detached = false, modern = false, panel, 
       timer = 0;
       if (closing || trayWindow.closed) return;
       const shell = root.querySelector('.tray-shell');
-      if (!shell) return;
+      if (!shell || shell.classList.contains('is-hiding')) return;
       const controlsHeight = Math.ceil(root.querySelector('.tray-controls')!.getBoundingClientRect().bottom + trayWindow.scrollY);
       const controlsChanged = controlsHeight !== lastControlsHeight;
       if (controlsChanged) {
@@ -94,8 +94,8 @@ export function TrayPortal({ children, detached = false, modern = false, panel, 
       for (const element of shell.querySelectorAll('*')) {
         // Closed <details> content keeps a layout box (content-visibility: hidden); skip anything not shown.
         if (!element.checkVisibility()) continue;
-        const clipped = element.closest('.modern-panel, .modern-overlay-host, .modern-tray .tray-menu-content');
-        if (clipped && clipped !== element && !element.matches('dialog[open]')) continue;
+        const clipped = element.closest('.modern-panel, .modern-overlay-host, .modern-tray .tray-menu-content, .live-content, .live-panel-expander');
+        if (clipped && clipped !== element && !element.matches('dialog[open], .tray-menu-content')) continue;
         bottom = Math.max(bottom, element.getBoundingClientRect().bottom + trayWindow.scrollY + 4);
       }
       const height = Math.ceil(bottom);
@@ -154,6 +154,10 @@ export function TrayPortal({ children, detached = false, modern = false, panel, 
       closeTray();
     };
   }, [detached, root]);
+
+  useEffect(() => window.novi.onGlobalAction(action => {
+    if (action.type === 'workspace-visibility') root.querySelector('.modern-tray')?.classList.toggle('is-hiding', action.payload === false);
+  }), [root]);
 
   useEffect(() => {
     if (!tray || !transparent || clickThrough) return;

@@ -758,6 +758,11 @@ export function registerIPC(
     const win = BrowserWindow.fromWebContents(event.sender);
     return win?.isMaximized() ?? false;
   });
+  handle('workspace-action', (value, event) => {
+    if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can control the workspace.');
+    if (value !== 'dashboard' && value !== 'hide' && value !== 'show') throw new UserError('Invalid workspace action.');
+    workspace.action(value);
+  });
   handle('set-workspace-docked', (value, event) => {
     if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can change the layout.');
     const { docked, interfaceStyle = 'classic' } = object(value);

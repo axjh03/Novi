@@ -7,7 +7,7 @@ const electron = () => req('electron') as typeof import('electron');
 
 export const TRAY_NAME = /^novi-tray-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const TRAY_WIDTH = 600;
-const MODERN_TRAY_WIDTH = 680;
+const MODERN_TRAY_WIDTH = 490;
 const TRAY_MIN_WIDTH = 320;
 const TRAY_GAP = 12;
 const TRAY_MIN_HEIGHT = 48;
@@ -92,6 +92,9 @@ export function readingBoundsBelowControls(area: Rectangle, reader: Rectangle, c
 export class WorkspaceService {
   private tray: BrowserWindow | null = null;
   private trayShown = false;
+  private hidden = false;
+  private hideTimer: ReturnType<typeof setTimeout> | undefined;
+  private shortcutRegistered = false;
   private pendingHeight: { height: number; controlsHeight?: number } | null = null;
   private saved: { bounds: Rectangle; maximized: boolean; minimum: [number, number] } | null = null;
   private dockedState = false;
@@ -105,7 +108,27 @@ export class WorkspaceService {
 
   get docked() { return this.dockedState; }
 
+  action(action: 'dashboard' | 'hide' | 'show') {
+    const main = this.getMainWindow();
+    if (action === 'dashboard') {
+      if (main?.isVisible()) main.hide(); else main?.show();
+      return;
+    }
+    clearTimeout(this.hideTimer);
+    this.hidden = action === 'hide';
+    main?.webContents.send('global-action', { type: 'workspace-visibility', payload: !this.hidden });
+    if (this.hidden) {
+      const tray = this.tray;
+      this.hideTimer = setTimeout(() => { if (tray && !tray.isDestroyed() && this.hidden) tray.hide(); }, 170);
+      if (!this.shortcutRegistered) main?.show();
+    } else if (this.tray && !this.tray.isDestroyed()) this.tray.show();
+  }
+
   attachMain(window: BrowserWindow) {
+    const shortcut = 'CommandOrControl+\\';
+    const registered = electron().globalShortcut.register(shortcut, () => { if (this.interfaceStyle === 'modern') this.action(this.hidden ? 'show' : 'hide'); });
+    this.shortcutRegistered = registered;
+    window.on('closed', () => { if (registered) electron().globalShortcut.unregister(shortcut); });
     window.webContents.setWindowOpenHandler(({ url, frameName }) => url === 'about:blank' && TRAY_NAME.test(frameName)
       ? { action: 'allow', overrideBrowserWindowOptions: this.trayOptions() }
       : { action: 'deny' });
@@ -152,6 +175,7 @@ export class WorkspaceService {
     if (child.isDestroyed()) return;
     if (this.tray && !this.tray.isDestroyed() && this.tray !== child) this.tray.close();
     this.tray = child;
+    this.hidden = false;
     child.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     this.trayShown = false;
     child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -169,7 +193,7 @@ export class WorkspaceService {
 
   private showTray() {
     const tray = this.tray;
-    if (!tray || tray.isDestroyed() || this.trayShown) return;
+    if (!tray || tray.isDestroyed() || this.trayShown || this.hidden) return;
     this.trayShown = true;
     tray.show();
   }
@@ -225,6 +249,7 @@ export class WorkspaceService {
   }
 
   closeTray() {
+    clearTimeout(this.hideTimer);
     const tray = this.tray;
     this.tray = null;
     this.trayShown = false;
@@ -250,6 +275,7 @@ export class WorkspaceService {
     if (window.isMaximized()) window.unmaximize();
     window.setMinimumSize(Math.min(MAIN_WINDOW_MIN.width, area.width), Math.min(MAIN_WINDOW_MIN.height, area.height));
     window.setBounds(interfaceStyle === 'modern' ? modernBounds(area, this.controlsHeight) : dockedBounds(area));
+    if (interfaceStyle === 'modern') window.hide(); else window.show();
     this.placeTray(styleChanged ? interfaceStyle === 'modern' ? MODERN_TRAY_WIDTH : TRAY_WIDTH : undefined);
   }
 
@@ -271,5 +297,6 @@ export class WorkspaceService {
     window.setBounds(bounds);
     if (saved) window.setMinimumSize(saved.minimum[0], saved.minimum[1]);
     if (saved?.maximized) window.maximize();
+    window.show();
   }
 }
