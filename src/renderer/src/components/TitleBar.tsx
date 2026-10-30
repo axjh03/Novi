@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Copy, Eye, EyeOff, Lock, Minus, QrCode, Square, X } from 'lucide-react';
 import { SmartPlacementControls } from './SmartPlacementControls';
 import { useStealth } from '../hooks/useStealth';
@@ -24,6 +25,7 @@ export function endingWarning(session: boolean): string {
 }
 
 export function TitleBar({ sessionActive = false }: { sessionActive?: boolean }) {
+  const { titleBarHost, overlayHost } = useAppMode();
   const { transparent, clickThrough, clickThroughShortcut, transparentShortcut, toggleTransparent } = useStealth();
   // While its hotkey works, transparent mode is left only with that hotkey; the button shows which one.
   const transparencyLocked = transparent && Boolean(transparentShortcut);
@@ -56,9 +58,7 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
     return () => { window.clearTimeout(timer); window.removeEventListener('resize', onResize); };
   }, []);
 
-  return (
-    <>
-      <header className={`app-titlebar ${transparent ? 'transparent-titlebar' : ''}`}>
+  const header = <header className={`app-titlebar ${transparent ? 'transparent-titlebar' : ''}`}>
         <div className="titlebar-drag-region">
           <div className="titlebar-brand"><img src={logo} alt="" className="titlebar-logo-img" /><span>Novi</span></div>
         </div>
@@ -122,7 +122,8 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
         <button type="button" className="titlebar-btn close" aria-label="Close" title="Close"
           onClick={() => void unwrap(window.novi.closeWindow()).catch(console.error)}><X size={14} /></button>
       </div>
-    </header>
+    </header>;
+  const overlays = <>
     {showQRModal && <RemoteCompanionModal locked={companionLocked} onClose={() => setShowQRModal(false)} />}
     {closeRequest && <div className="session-confirm" role="alertdialog" aria-modal="true" aria-labelledby="close-confirm-title" aria-describedby="close-confirm-text"
       onKeyDown={(event) => { if (event.key === 'Escape' && !closing) setCloseRequest(null); }}>
@@ -133,6 +134,6 @@ export function TitleBar({ sessionActive = false }: { sessionActive?: boolean })
         <button type="button" className="danger-button" disabled={closing} onClick={() => void confirmClose()}>{closing ? 'Closing…' : 'Close Novi'}</button>
       </div>
     </div>}
-  </>
-  );
+  </>;
+  return <>{titleBarHost ? createPortal(header, titleBarHost) : header}{overlayHost ? createPortal(overlays, overlayHost) : overlays}</>;
 }

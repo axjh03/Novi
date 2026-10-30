@@ -321,8 +321,8 @@ export interface NoviAPI {
   closeWindow(): Promise<Result<void>>;
   isWindowMaximized(): Promise<Result<boolean>>;
   /** During a session the main window docks on the right as the output panel. */
-  setWorkspaceDocked(docked: boolean): Promise<Result<void>>;
-  setTrayHeight(height: number): Promise<Result<void>>;
+  setWorkspaceDocked(docked: boolean, interfaceStyle?: import('./appearance').InterfaceStyle): Promise<Result<void>>;
+  setTrayHeight(height: number, controlsHeight?: number): Promise<Result<void>>;
   setTrayWidth(width: number, edge: 'left' | 'right'): Promise<Result<void>>;
   resetWorkspaceSizes(): Promise<Result<void>>;
   getSmartPlacement(): Promise<Result<import('./windowLayout').SmartPlacementState>>;

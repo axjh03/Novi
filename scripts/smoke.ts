@@ -318,6 +318,7 @@ async function main() {
       if (!result.ok) throw new Error(result.error);
       return result.value.conversations;
     });
+    await page.getByRole('button', { name: 'Expand sidebar', exact: true }).click();
     await page.getByRole('button', { name: 'New session', exact: true }).click();
     await page.getByRole('alertdialog', { name: 'End context session' }).getByRole('button', { name: 'End session', exact: true }).click();
     await page.getByRole('heading', { name: 'Session setup' }).waitFor();

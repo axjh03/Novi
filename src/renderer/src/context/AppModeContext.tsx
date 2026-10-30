@@ -15,8 +15,15 @@ import { useStealthState } from '../hooks/useStealth';
 import { isAppMode } from '../../../shared/sessionModes';
 import { fallbackMode, type Feature } from '../../../shared/plans';
 import type { AnswerStyle } from '../../../shared/interviewProfile';
+import type { InterfaceStyle } from '../../../shared/appearance';
 
 interface AppModeContextType {
+  interfaceStyle: InterfaceStyle;
+  setInterfaceStyle: (style: InterfaceStyle) => void;
+  titleBarHost: HTMLDivElement | null;
+  setTitleBarHost: (host: HTMLDivElement | null) => void;
+  overlayHost: HTMLDivElement | null;
+  setOverlayHost: (host: HTMLDivElement | null) => void;
   answerStyle: AnswerStyle | undefined;
   setAnswerStyle: (style: AnswerStyle) => void;
   /** The current mode; always one the license's plan includes. */
@@ -169,6 +176,9 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
 
   // Shared appearance updates also reach the detached code and answer windows.
   const [appearance, setAppearance] = useState(readAppearance);
+  const [titleBarHost, setTitleBarHost] = useState<HTMLDivElement | null>(null);
+  const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
+  const setInterfaceStyle = useCallback((interfaceStyle: InterfaceStyle) => updateAppearance({ interfaceStyle }), []);
   const [{ transparent }] = useStealthState();
   const [smartPaletteStatus, setSmartPaletteStatus] = useState('');
   useEffect(() => subscribeAppearance(() => setAppearance(readAppearance())), []);
@@ -288,6 +298,10 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
   return (
     <AppModeContext.Provider
       value={{
+        interfaceStyle: appearance.interfaceStyle,
+        setInterfaceStyle,
+        titleBarHost, setTitleBarHost,
+        overlayHost, setOverlayHost,
         answerStyle,
         setAnswerStyle,
         appMode,

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Award, Brain, Code2, ExternalLink, FolderCode, Lock, Menu, MessageSquare, Network, PanelBottom, Phone, Video, X, type LucideIcon } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Award, Brain, Code2, ExternalLink, FolderCode, History, Image, Lock, Menu, MessageSquare, Network, PanelBottom, Phone, Settings, Video, X, type LucideIcon } from 'lucide-react';
 import type { AppMode, ModelOption, Snapshot } from '../../../shared/types';
 import { Sidebar } from '../components/chat/Sidebar';
 import { Composer } from '../components/chat/Composer';
-import { Message } from '../components/chat/Message';
+import { ImagePreview, LocalCodingResult, Message } from '../components/chat/Message';
 import { useChat } from '../hooks/useChat';
 import { activeConnection } from '../../../shared/providers';
 import { SettingsPage } from './SettingsPage';
@@ -29,6 +30,8 @@ import { ENGINES, type LocalCodingMessage } from '../../../shared/localCoding';
 import { lockedMessage } from '../../../shared/plans';
 import { PlanLock } from '../components/PlanLock';
 import { ANSWER_STYLES } from '../../../shared/interviewProfile';
+import { ModernWindowMenu } from '../components/ModernWindowMenu';
+import { SurfacePortal } from '../components/SurfacePortal';
 
 // Each mode has its own icon so the tray can show only the active mode's name.
 const MODE_ICONS: Record<AppMode, LucideIcon> = {
@@ -49,14 +52,13 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const [debugEnabled, setDebugEnabled] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [trayDetached, setTrayDetached] = useState(false);
-  useEffect(() => {
-    void unwrap(window.novi.setWorkspaceDocked(true)).catch(console.error);
-    return () => { void unwrap(window.novi.setWorkspaceDocked(false)).catch(console.error); };
-  }, []);
+  const [settingsHost, setSettingsHost] = useState<HTMLDivElement | null>(null);
+  const [settingsCloseRequest, setSettingsCloseRequest] = useState(0);
   const [{ transparent, clickThrough, clickThroughShortcut }] = useStealthState();
   // The ready check shows until it is dismissed or the first message is sent.
   const [readyDismissed, setReadyDismissed] = useState(false), [sentInSession, setSentInSession] = useState(false);
   const {
+    interfaceStyle, setInterfaceStyle, overlayHost,
     appMode,
     setAppMode,
     answerStyle,
@@ -66,6 +68,11 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     setBehavioralFramework,
     setWorkingMonitor,
   } = useAppMode();
+  const modern = interfaceStyle === 'modern';
+  useEffect(() => {
+    void unwrap(window.novi.setWorkspaceDocked(true, interfaceStyle)).catch(console.error);
+  }, [interfaceStyle]);
+  useEffect(() => () => { void unwrap(window.novi.setWorkspaceDocked(false)).catch(console.error); }, []);
   const scroll = useRef<HTMLDivElement>(null), atBottom = useRef(true);
   const deleteDialog = useRef<HTMLDialogElement>(null);
   useEffect(() => { if (deleting) deleteDialog.current?.showModal(); }, [deleting]);
@@ -246,10 +253,9 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   })();
 
-  return (
-    <div className={`chat-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      <Sidebar
-        collapsed={sidebarCollapsed}
+  const sidebar = <Sidebar
+        collapsed={!modern && sidebarCollapsed}
+        popover={modern}
         onToggle={() => setSidebarCollapsed((value) => !value)}
         conversations={chat.conversations}
         selectedId={chat.selectedId}
@@ -265,49 +271,53 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
         onRename={(id) => { chat.setError(''); setConversationName(chat.conversations.find(item => item.id === id)?.title || ''); setRenaming(id); }}
         onSave={(id) => { void unwrap(window.novi.saveConversation(id)).catch(error => chat.setError(errorText(error))); }}
         onSettings={() => { practice.cancel(); setSettings(true); setSidebarCollapsed(true); }}
-      />
+      />;
+  const settingsPage = <SettingsPage state={state} onSaved={onSaved} onBack={() => setSettings(false)} onSignOut={onSignOut} onCleared={chat.clear} onDebugEnabledChange={setDebugEnabled} closeRequest={settingsCloseRequest} />;
+  const localSetup = <LocalCodingSetup state={state} onStarted={(snapshot, conversationId) => { onSaved(snapshot); setComposerKey((key) => key + 1); chat.setSelectedId(conversationId); chat.setError(''); }} />;
+  const localHistory = localMode && localBinding && local.project && <LocalCodingHistory state={state} project={local.project} busy={chat.busy || contextBusy || ending}
+    onProject={local.setProject} onSnapshot={onSaved} onError={chat.setError}
+    onReconcile={(request) => void sendLocal(`Reconcile the proposed ${request.fromLabel} changes into the refreshed local files: ${request.files.join(', ')}.`, [], request)}
+    readyNotice={local.notice} onDismissNotice={local.clearNotice} />;
+  const readyCard = !readyDismissed && !sentInSession && !practice.active && !localMode && <ReadyCard transparent={transparent} listenKey={listenKey} snapshotKey={config.screenshotShortcut || 'Alt+3'}
+    practiceDisabled={contextBusy || chat.busy || ending} onPractice={startPractice} onDismiss={() => setReadyDismissed(true)} />;
 
-      {settings ? (
-        <SettingsPage state={state} onSaved={onSaved} onBack={() => setSettings(false)} onSignOut={onSignOut} onCleared={chat.clear} onDebugEnabledChange={setDebugEnabled} />
-      ) : (
-        <main className={`chat-main ${!chat.selected ? 'empty' : ''}`}>
-          <header className="chat-header">
+  return (
+    <div className={`chat-layout ${modern ? 'modern-layout' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      {!modern && sidebar}
+
+      {settings && !modern && <div className="settings-surface" ref={setSettingsHost} />}
+        <main className={`chat-main ${!chat.selected ? 'empty' : ''}`} hidden={settings && !modern}>
+          {!modern && <header className="chat-header">
             <div className="header-title-area">
               <span className="header-title">{chat.selected?.title || 'A new conversation'}</span>
             </div>
             <div className="session-controls"><span title="Temporary session context">{state.contextSession?.isEmpty ? 'Empty session' : state.contextSession?.summaryReady ? 'Ready' : state.contextSession?.status === 'error' ? 'Context error' : 'Loading context…'}</span><button className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button></div>
-          </header>
-          <DebugPanel compact conversationId={chat.selectedId} onEnabledChange={setDebugEnabled} />
-          {!readyDismissed && !sentInSession && !practice.active && !localMode && (
-            <ReadyCard transparent={transparent} listenKey={listenKey} snapshotKey={config.screenshotShortcut || 'Alt+3'}
-              practiceDisabled={contextBusy || chat.busy || ending} onPractice={startPractice} onDismiss={() => setReadyDismissed(true)} />
-          )}
-          {localMode && localBinding && local.project && (
-            <LocalCodingHistory state={state} project={local.project} busy={chat.busy || contextBusy || ending}
-              onProject={local.setProject} onSnapshot={onSaved} onError={chat.setError}
-              onReconcile={(request) => void sendLocal(`Reconcile the proposed ${request.fromLabel} changes into the refreshed local files: ${request.files.join(', ')}.`, [], request)}
-              readyNotice={local.notice} onDismissNotice={local.clearNotice} />
-          )}
-          {appMode === 'system-design' && <button type="button" className="secondary" onClick={() => void unwrap(window.novi.setCodeViewerVisible(true)).then(() => unwrap(window.novi.updateCodeViewer(diagramBlocks(chat.selected?.messages || [])))).catch((error) => chat.setError(errorText(error)))}>Open diagrams · saved with this conversation</button>}
+          </header>}
+          {!modern && <DebugPanel compact conversationId={chat.selectedId} onEnabledChange={setDebugEnabled} />}
+          {!modern && readyCard}
+          {!modern && localHistory}
+          {!modern && appMode === 'system-design' && <button type="button" className="secondary" onClick={() => void unwrap(window.novi.setCodeViewerVisible(true)).then(() => unwrap(window.novi.updateCodeViewer(diagramBlocks(chat.selected?.messages || [])))).catch((error) => chat.setError(errorText(error)))}>Open diagrams · saved with this conversation</button>}
           {localMode && !localBinding ? (
             contextBusy ? <div className="empty-state"><p>Local Coding is available once the session finishes loading.</p></div>
-              : <LocalCodingSetup state={state} onStarted={(snapshot, conversationId) => { onSaved(snapshot); setComposerKey((key) => key + 1); chat.setSelectedId(conversationId); chat.setError(''); }} />
+              : !modern && localSetup
           ) : chat.selected ? (
             <div className="conversation-scroll" ref={scroll} onScroll={() => { const el = scroll.current!; atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }}>
               <div className="messages">
                 {localMode && localBinding && !chat.selected.messages.length && <p className="lc-empty">Ask about {localBinding.name} in the message box. Answers explain the code; changes come back as proposals you can open, compare and copy. Your files are never changed.</p>}
                 {chat.selected.messages.map((message, index) => (
-                  <Message key={message.id} message={message} displayName={config.displayName} onOpenFile={openLocalFile} debugEnabled={debugEnabled}
+                  <Message key={message.id} message={message} onOpenFile={openLocalFile} debugEnabled={!modern && debugEnabled} readOnly={modern}
                     generating={chat.busy && chat.activeId === chat.selectedId && index === chat.selected!.messages.length - 1} />
                 ))}
               </div>
             </div>
           ) : (
             <div className="empty-state">
-              <h1>{welcome}</h1>
+              <h1>{modern ? contextBusy ? 'Preparing your session…' : 'Ready when you are.' : welcome}</h1>
             </div>
           )}
-        <TrayPortal detached={trayDetached} onClosed={() => setTrayDetached(false)}>
+        <TrayPortal detached={modern || (trayDetached && !settings)} modern={modern} panel={settings ? <div ref={setSettingsHost} /> : localMode && !localBinding && !contextBusy ? localSetup : undefined}
+          onPanelClose={settings ? () => setSettingsCloseRequest(value => value + 1) : undefined}
+          onClosed={() => { setTrayDetached(false); if (modern) setInterfaceStyle('classic'); }}>
           {transparent && clickThrough && <p className="tray-input-hint" role="status">Clicks pass through · Press <kbd>{clickThroughShortcut}</kbd> to type</p>}
           {practice.active && <PracticeCoach state={practice.state} voiced={practice.voiced} listenKey={listenKey}
             onTypeInstead={practice.typeInstead} onRemove={() => void removePractice()} onEnd={practice.cancel} />}
@@ -323,6 +333,8 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             </div>
           )}
           <Composer
+            compact={modern}
+            suspended={settings && !modern}
             toolbar={<>
             <TrayMenu className="tray-mode-menu" label="Change conversation mode" title={<><ModeIcon size={14} /><span>{SESSION_MODES.find(mode => mode.id === appMode)?.name}</span></>}>
             <nav className="chat-mode-tabs" aria-label="Conversation mode">
@@ -421,12 +433,24 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
                 locked={!allows('eye-tracking')}
               />
             </TrayMenu>
-            <button type="button" className="composer-quick-btn tray-dock-toggle"
+            {modern && <>
+              <TrayMenu label="Sessions & history" title={<History size={16} />} className="modern-session-menu">
+                {sidebar}{readyCard}{localHistory}
+                {chat.selected?.messages.filter(message => message.localCoding).map(message => <LocalCodingResult key={message.id} result={message.localCoding!} onOpenFile={openLocalFile} />)}
+                <DebugPanel compact conversationId={chat.selectedId} onEnabledChange={setDebugEnabled} />
+                {appMode === 'system-design' && <button type="button" className="text-button" onClick={() => void unwrap(window.novi.setCodeViewerVisible(true)).catch(error => chat.setError(errorText(error)))}>Open diagrams</button>}
+                <button type="button" className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button>
+              </TrayMenu>
+              {chat.selected?.messages.some(message => message.images?.length) && <TrayMenu label="Conversation attachments" title={<Image size={16} />} className="modern-attachments-menu"><div className="message-images">{chat.selected.messages.flatMap(message => message.images?.map(image => <ImagePreview key={`${message.id}:${image.id}`} image={image} />) || [])}</div></TrayMenu>}
+              <button type="button" className="composer-quick-btn" aria-label="Settings" title="Settings" aria-pressed={settings} onClick={() => settings ? setSettingsCloseRequest(value => value + 1) : setSettings(true)}><Settings size={16} /></button>
+              <ModernWindowMenu />
+            </>}
+            {!modern && <button type="button" className="composer-quick-btn tray-dock-toggle"
               aria-label={trayDetached ? 'Attach controls' : 'Detach controls'}
               title={trayDetached ? 'Attach controls to chat' : 'Detach controls into a floating window'}
               onClick={() => setTrayDetached(value => !value)}>
               {trayDetached ? <PanelBottom size={16} /> : <ExternalLink size={16} />}
-            </button>
+            </button>}
             </>}
             key={composerKey}
             speechModelId={config.localASRModelId}
@@ -443,8 +467,8 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
           />
         </TrayPortal>
         </main>
-      )}
 
+      {createPortal(<>
       {/* Every way to end a session asks first; focus starts on Keep session and Escape keeps it. */}
       {confirmEnd && <div className="session-confirm" role="alertdialog" aria-modal="true" aria-label="End context session" onKeyDown={(event) => { if (event.key === 'Escape' && !ending) setConfirmEnd(false); }}><div><h2>End this session?</h2><p>Your conversations and attachments stay saved. The temporary AI Context.md file will be removed; source folders stay in place.</p><button className="text-button" autoFocus disabled={ending} onClick={() => setConfirmEnd(false)}>Keep session</button><button className="danger-button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div></div>}
       {renaming && <dialog ref={renameDialog} className="dialog" aria-labelledby="rename-title" onCancel={() => setRenaming(null)}>
@@ -474,6 +498,8 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
           </div>
         </dialog>
       )}
+      </>, overlayHost || document.body)}
+      <SurfacePortal target={settingsHost}>{settings && settingsPage}</SurfacePortal>
 
     </div>
   );

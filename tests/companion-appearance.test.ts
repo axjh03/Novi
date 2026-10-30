@@ -28,10 +28,8 @@ test('phone controls dispatch bounded commands through the authenticated handler
   const actions: unknown[] = [];
   const service = new RemoteCompanionService({ getState: () => ({ transparent: true, clickThrough: false }) } as any,
     () => ({ isDestroyed: () => false, webContents: { send: (...args: unknown[]) => actions.push(args) } }) as any, undefined, () => 'fixture-user');
-  service.getLocalIPs = () => ['127.0.0.1'];
-  // The token exists only while the server listens.
-  const token = new URLSearchParams(new URL((await service.start(0)).bestUrl).hash.slice(1)).get('token');
-  assert.match(token!, /^[a-f0-9]{48}$/);
+  const token = 'a'.repeat(48);
+  service['token'] = token;
   try {
     const request = (path: string, payload?: unknown, authorized = true, action = 'change-reading-size') => new Promise<{ status: number; body: string }>((resolve) => {
       const req = Object.assign(new PassThrough(), { url: path, method: path === '/' ? 'GET' : 'POST',
@@ -41,10 +39,11 @@ test('phone controls dispatch bounded commands through the authenticated handler
       req.end(JSON.stringify({ action, payload }));
     });
     const page = await request('/');
-    assert(page.body.includes('A− Smaller') && page.body.includes('A+ Larger'));
+    assert.match(page.body, /aria-label="Decrease desktop interface size"/);
+    assert.match(page.body, /aria-label="Increase desktop interface size"/);
     assert.match(page.body, /conversationScroll/);
     assert.match(page.body, /role="slider"/);
-    assert.doesNotMatch(page.body, /connBadge|brand-compact|<span>Companion<\/span>/);
+    assert.doesNotMatch(page.body, /connBadge|brand-compact|header-compact|accountName|connectionStatus|Drag to arrange|A− Smaller|A\+ Larger/);
     assert(!page.body.includes('fixture-user'), 'Public HTML must not disclose the account');
     assert.equal(JSON.parse((await request('/api/status')).body).username, 'fixture-user');
     assert.equal((await request('/api/status', undefined, false)).status, 401);
@@ -76,5 +75,16 @@ test('phone controls dispatch bounded commands through the authenticated handler
     assert.deepEqual(actions.at(-1), ['global-action', { type: 'capture-and-send' }]);
     for (const payload of [{ widthRatio: -1, heightRatio: 0.5 }, { widthRatio: 0.5, heightRatio: '1' }])
       assert.equal((await request('/api/action', payload, true, 'resize-window')).status, 400);
+
+    assert.equal((await request('/api/action', 'Draft', true, 'set-prompt')).status, 400, 'typing requires an active desktop chat');
+    service.setDesktopState({ mode: 'normal', availableModes: ['normal'], busy: false, listening: false, source: 'system' });
+    for (const payload of ['', 'Question\nwith multiple lines.', 'x'.repeat(12_000)]) {
+      assert.equal((await request('/api/action', payload, true, 'set-prompt')).status, 200);
+      assert.deepEqual(actions.at(-1), ['global-action', { type: 'set-prompt', payload }]);
+    }
+    const count = actions.length;
+    for (const payload of [null, {}, 42, 'x'.repeat(12_001)]) assert.equal((await request('/api/action', payload, true, 'set-prompt')).status, 400);
+    assert.equal((await request('/api/action', 'Unauthorized draft', false, 'set-prompt')).status, 401);
+    assert.equal(actions.length, count, 'invalid and unauthorized drafts never reach the desktop');
   } finally { service.stop(); }
 });

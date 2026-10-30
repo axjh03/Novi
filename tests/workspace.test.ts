@@ -1,8 +1,22 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { clampTrayHeight, dockedBounds, MAIN_WINDOW_MIN, normalBounds, resizedTrayBounds, TRAY_NAME, trayBounds, viewerBounds } from '../src/main/services/workspace.ts';
+import { clampTrayHeight, dockedBounds, MAIN_WINDOW_MIN, modernBounds, normalBounds, readingBoundsBelowControls, resizedTrayBounds, TRAY_NAME, trayBounds, viewerBounds } from '../src/main/services/workspace.ts';
 
 const full = { x: 0, y: 0, width: 1920, height: 1040 };
+
+test('Modern places a centered reading window below its top bar and respects native minimums', () => {
+  assert.deepEqual(modernBounds(full), { x: 550, y: 96, width: 820, height: 720 });
+  assert.equal(modernBounds(full, 200).y, 224, 'initial layout also clears enlarged controls reported before docking');
+  assert.equal(trayBounds(full, null, 64, 680).x, 620, 'the Modern capsule stays centered above the reader');
+  for (const area of [full, { x: -1080, y: 40, width: 1080, height: 1880 }, { x: 1920, y: 20, width: 800, height: 600 }, { x: 0, y: 0, width: 220, height: 160 }, { x: 10, y: -120, width: 96, height: 96 }]) {
+    const bounds = modernBounds(area);
+    assert(bounds.width >= Math.min(MAIN_WINDOW_MIN.width, area.width));
+    assert(bounds.height >= Math.min(MAIN_WINDOW_MIN.height, area.height));
+    assert(bounds.x >= area.x && bounds.y >= area.y);
+    assert(bounds.x + bounds.width <= area.x + area.width);
+    assert(bounds.y + bounds.height <= area.y + area.height);
+  }
+});
 
 test('the output panel follows the display width with a readable default and a smaller manual minimum', () => {
   assert.deepEqual(MAIN_WINDOW_MIN, { width: 213, height: 150 });
@@ -29,6 +43,20 @@ test('startup and viewer bounds fit scaled, portrait, tiny and offset displays',
   }
   assert.deepEqual(normalBounds({ x: 0, y: 0, width: 800, height: 600 }), { x: 40, y: 30, width: 720, height: 540 });
   assert(viewerBounds(full, dockedBounds(full)).width > 430, 'code uses the space on a larger display');
+});
+
+test('enlarged Modern controls move the reader below them without moving separated windows', () => {
+  const reader = modernBounds(full);
+  const controls = { x: 620, y: 12, width: 680, height: 220 };
+  assert.deepEqual(readingBoundsBelowControls(full, reader, controls), { ...reader, y: 244 });
+  assert.deepEqual(readingBoundsBelowControls(full, reader, { ...controls, height: 600 }), { ...reader, y: 624, height: 404 });
+  assert.equal(readingBoundsBelowControls(full, reader, { ...controls, height: 50 }), reader);
+  assert.equal(readingBoundsBelowControls(full, reader, { ...controls, x: -1000 }), reader);
+  const small = { x: -800, y: 20, width: 800, height: 600 };
+  const resized = readingBoundsBelowControls(small, modernBounds(small), { x: -740, y: 32, width: 680, height: 360 });
+  assert(resized.y >= 404);
+  assert(resized.height >= MAIN_WINDOW_MIN.height);
+  assert(resized.y + resized.height <= small.y + small.height);
 });
 
 test('the tray sits top-center and moves left only as far as needed to clear the panel', () => {

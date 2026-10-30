@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import { ArrowLeft, Check, Cpu, KeyRound, LogOut, Mic, Power, ShieldCheck, SlidersHorizontal, Terminal, Trash2, type LucideIcon } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { ArrowLeft, Check, Cpu, KeyRound, LogOut, Mic, Palette, Power, ShieldCheck, SlidersHorizontal, Terminal, Trash2, type LucideIcon } from 'lucide-react';
 import { DEFAULT_AUDIO_RECORD_SHORTCUT, DEFAULT_BEHAVIORAL_SHORTCUT, DEFAULT_CLICK_THROUGH_SHORTCUT, DEFAULT_CODING_SHORTCUT, DEFAULT_SCREENSHOT_SHORTCUT, DEFAULT_TRANSPARENT_SHORTCUT, type SettingsInput, type Snapshot } from '../../../shared/types';
 import { ShortcutField } from '../components/ShortcutField';
 import { ProviderManager } from '../components/ProviderManager';
@@ -14,6 +14,8 @@ import { EngineReadinessList } from '../components/LocalCodingSetup';
 import { endingWarning } from '../components/TitleBar';
 import { errorText, unwrap } from '../services/api';
 import { isLicensePlan, PLAN_NAMES } from '../../../shared/plans';
+import { InterfaceStylePicker } from '../components/InterfaceStylePicker';
+import { useAppMode } from '../context/AppModeContext';
 
 // Every hotkey is recorded from the keys pressed; each must be different.
 const shortcuts = [
@@ -25,13 +27,14 @@ const shortcuts = [
   { key: 'audioRecordShortcut', label: 'System audio capture hotkey', defaultValue: DEFAULT_AUDIO_RECORD_SHORTCUT },
 ] as const;
 
-interface Props { state: Snapshot; onSaved: (state: Snapshot) => void; onBack: () => void; onSignOut: () => void; onCleared: () => void; onDebugEnabledChange?: (enabled: boolean) => void }
-type Tab = 'general' | 'devices' | 'api' | 'local-ai' | 'system-check' | 'debug';
-const tabs: Array<[Tab, string, LucideIcon]> = [['general', 'General', SlidersHorizontal], ['api', 'API Management', KeyRound], ['local-ai', 'Local AI', Cpu], ['system-check', 'System Check', ShieldCheck], ['devices', 'Audio & Camera', Mic], ['debug', 'Debug', Terminal]];
-const tabDescriptions = { general: 'Account, appearance and keyboard shortcuts.', api: 'Manage your AI connections and coding tools.', 'local-ai': 'Private transcription. Powered by your computer.', 'system-check': 'Check your internet, AI connection and devices.', devices: 'Check your microphone, system audio and camera.', debug: 'Choose whether diagnostics appear in chat.' };
+interface Props { state: Snapshot; onSaved: (state: Snapshot) => void; onBack: () => void; onSignOut: () => void; onCleared: () => void; onDebugEnabledChange?: (enabled: boolean) => void; closeRequest?: number }
+type Tab = 'general' | 'appearance' | 'devices' | 'api' | 'local-ai' | 'system-check' | 'debug';
+const tabs: Array<[Tab, string, LucideIcon]> = [['general', 'General', SlidersHorizontal], ['appearance', 'Appearance', Palette], ['api', 'API Management', KeyRound], ['local-ai', 'Local AI', Cpu], ['system-check', 'System Check', ShieldCheck], ['devices', 'Audio & Camera', Mic], ['debug', 'Debug', Terminal]];
+const tabDescriptions = { general: 'Account and keyboard shortcuts.', appearance: 'Choose your workspace and color theme.', api: 'Manage your AI connections and coding tools.', 'local-ai': 'Private transcription. Powered by your computer.', 'system-check': 'Check your internet, AI connection and devices.', devices: 'Check your microphone, system audio and camera.', debug: 'Choose whether diagnostics appear in chat.' };
 const themes = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']] as const;
 
-export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared, onDebugEnabledChange }: Props) {
+export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared, onDebugEnabledChange, closeRequest = 0 }: Props) {
+  const { interfaceStyle, setInterfaceStyle } = useAppMode();
   const [tab, setTab] = useState<Tab>('general');
   const [value, setValue] = useState<SettingsInput>({
     ...state.settings!,
@@ -48,6 +51,12 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared, onD
   });
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(false), [confirm, setConfirm] = useState(false);
   const [dirty, setDirty] = useState(false), [leaving, setLeaving] = useState(false), [accountError, setAccountError] = useState('');
+  const previousCloseRequest = useRef(closeRequest);
+  useEffect(() => {
+    if (previousCloseRequest.current === closeRequest) return;
+    previousCloseRequest.current = closeRequest;
+    if (dirty) setLeaving(true); else onBack();
+  }, [closeRequest, dirty, onBack]);
   // Which account action is waiting for confirmation: both end the session and drop unsent work.
   const [accountConfirm, setAccountConfirm] = useState<'sign-out' | 'quit' | null>(null);
 
@@ -118,6 +127,13 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared, onD
           onSaved(updated);
           setValue(current => ({ ...current, localASRModelId: modelId }));
         }} />}
+        {tab === 'appearance' && <form onSubmit={save} className="settings-appearance">
+          <fieldset disabled={busy}>
+            <section className="settings-section"><div><h2>Interface</h2><p>Two ways to work.</p></div><div className="settings-fields"><InterfaceStylePicker value={interfaceStyle} onChange={setInterfaceStyle} /><small>Interface changes apply immediately and are saved on this device. Classic is the default.</small></div></section>
+            <section className="settings-section"><div><h2>Color theme</h2><p>Match your surroundings.</p></div><div className="settings-fields"><div className="segmented settings-theme" role="group" aria-label="Theme">{themes.map(([id, label]) => <button key={id} type="button" aria-pressed={value.theme === id} className={value.theme === id ? 'active' : ''} onClick={() => change({ ...value, theme: id })}>{label}</button>)}</div></div></section>
+            {dirty && <div className="settings-save is-dirty">{error ? <div className="error" role="alert">{error}</div> : <span role="status">Unsaved theme change</span>}<button className="primary" type="submit">{busy ? 'Saving…' : 'Save changes'}</button></div>}
+          </fieldset>
+        </form>}
         {/* Tab 1: General */}
         {tab === 'general' && (
           <>
@@ -157,18 +173,6 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared, onD
                   <div className="settings-fields settings-fields-interaction">
                     {shortcuts.slice(2).map(shortcutField)}
                     <label><input type="checkbox" checked={value.saveScreenshots ?? true} onChange={(event) => change({ ...value, saveScreenshots: event.target.checked })} /> Save captured screenshots to Pictures/Novi/Screenshots</label>
-                  </div>
-                </section>
-
-                <section className="settings-section">
-                  <div>
-                    <h2>Appearance</h2>
-                    <p>Choose how Novi looks.</p>
-                  </div>
-                  <div className="settings-fields">
-                    <div className="segmented settings-theme" role="group" aria-label="Theme">
-                      {themes.map(([id, label]) => <button key={id} type="button" aria-pressed={value.theme === id} className={value.theme === id ? 'active' : ''} onClick={() => change({ ...value, theme: id })}>{label}</button>)}
-                    </div>
                   </div>
                 </section>
 

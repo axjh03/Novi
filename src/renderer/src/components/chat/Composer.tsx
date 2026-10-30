@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
-import { ArrowUp, Brain, Camera, ImagePlus, Loader2, Mic, Network, SlidersHorizontal, Square, X } from 'lucide-react';
+import { ArrowUp, Brain, Camera, ChevronUp, ImagePlus, Keyboard, Loader2, Mic, Network, SlidersHorizontal, Square, X } from 'lucide-react';
 import type { ImageAttachment } from '../../../../shared/types';
 import type { InterviewEvent, ListeningSource, TranscriptSegment } from '../../../../shared/interview';
 import { LiveTranscriptDraft, listeningSources } from '../../../../shared/interview';
@@ -11,8 +11,11 @@ import { TrayMenu } from '../TrayMenu';
 import { DRAW_DIAGRAM_PROMPT, SESSION_MODES } from '../../../../shared/sessionModes';
 import { CloudListening } from '../../services/cloudListening';
 import { InterviewAudio } from '../../services/interviewAudio';
+import { Brand } from '../Brand';
 
 interface Props {
+  compact?: boolean;
+  suspended?: boolean;
   busy: boolean;
   speechModelId?: string;
   onSend: (content: string, images: ImageAttachment[]) => Promise<boolean>;
@@ -26,7 +29,8 @@ interface Props {
   toolbar?: ReactNode;
 }
 
-export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChange, prefill, onPrefillApplied, placeholder, toolbar }: Props) {
+export function Composer({ busy, onSend, compact = false, suspended = false, speechModelId = 'auto', onListeningChange, prefill, onPrefillApplied, placeholder, toolbar }: Props) {
+  const [editorOpen, setEditorOpen] = useState(false);
   const [text, setText] = useState('');
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [error, setError] = useState('');
@@ -66,8 +70,8 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
   } = useAppMode();
 
   useEffect(() => {
-    void window.novi.reportCompanionState({ mode: appMode, availableModes: SESSION_MODES.filter(mode => allows(mode.id)).map(mode => mode.id), busy, listening: localActive, source }).catch(() => {});
-  }, [appMode, allows, busy, localActive, source]);
+    void window.novi.reportCompanionState(suspended ? null : { mode: appMode, availableModes: SESSION_MODES.filter(mode => allows(mode.id)).map(mode => mode.id), busy, listening: localActive, source }).catch(() => {});
+  }, [appMode, allows, busy, localActive, source, suspended]);
   useEffect(() => () => { void window.novi.reportCompanionState(null).catch(() => {}); }, []);
 
   useEffect(() => { textRef.current = text; }, [text]);
@@ -77,7 +81,8 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
     if (!element) return;
     element.style.height = 'auto';
     element.style.height = `${Math.min(element.scrollHeight, 180)}px`;
-  }, [text]);
+  }, [text, compact, editorOpen]);
+  useEffect(() => { if (compact && (text || images.length)) setEditorOpen(true); }, [compact, Boolean(text), Boolean(images.length)]);
   const listeningChange = useRef(onListeningChange);
   listeningChange.current = onListeningChange;
   // Stopping applies the final transcript before listening turns off, so the text here is complete.
@@ -243,7 +248,12 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
 
   // Listen for remote companion actions
   useEffect(() => {
+    if (suspended && localActive && !localTransition.current) void toggleListening();
+  }, [suspended, localActive, localStarting, localStopping]);
+
+  useEffect(() => {
     const cleanup = window.novi.onGlobalAction((action) => {
+      if (suspended) return;
       if (action.type === 'toggle-audio-record' || action.type === 'toggle-listening') {
         const next = action.payload === 'both' || action.payload === 'microphone' || action.payload === 'system' ? action.payload : source;
         if (!sessionId.current && !localTransition.current) setSource(next);
@@ -258,14 +268,14 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
         setImages((prev) => prev.slice(0, -1));
       } else if (action.type === 'stop-generation') {
         void window.novi.stop();
-      } else if (action.type === 'quick-prompt' && typeof action.payload === 'string') {
-        if (busy || sending.current) return;
+      } else if ((action.type === 'set-prompt' || action.type === 'quick-prompt') && typeof action.payload === 'string') {
+        if (action.type === 'quick-prompt' && (busy || sending.current)) return;
         draft.current.edit(action.payload); textRef.current = action.payload; setText(action.payload);
-        void submit();
+        if (action.type === 'quick-prompt') void submit();
       }
     });
     return cleanup;
-  }, [submit, onSend, images]);
+  }, [submit, onSend, images, suspended]);
 
   // Attaching and snapshots stay available while an answer streams, so the next question can be prepared.
   async function attach(files?: File[]) {
@@ -330,6 +340,11 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
     event.stopPropagation();
   }
 
+  const sendButton = busy ? <button type="button" className="send-button stop" aria-label="Stop generation" onClick={() => {
+    unwrap(window.novi.stop()).catch(error => setError(errorText(error)));
+    textarea.current?.focus();
+  }}><Square size={15} fill="currentColor" /></button> : <button type="submit" className="send-button" aria-label="Send message" disabled={attaching || (!text.trim() && !images.length)}><ArrowUp size={20} /></button>;
+
   return (
     <div className="composer-wrap">
       <form
@@ -366,6 +381,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
 
         {/* All tools stay above the message box. */}
         <div className="composer-toolbar">
+          {compact && <span className="modern-brand" title="Novi"><Brand compact /></span>}
           <div className="attach-control">
             <button className="composer-quick-btn composer-attach" type="button" disabled={attaching}
               onClick={() => void attach()} aria-label="Attach image" title="Attach image">
@@ -405,6 +421,8 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
             </div>
           </div>
           {toolbar}
+          {compact && <><button type="button" className="composer-quick-btn modern-editor-toggle" aria-label={editorOpen ? 'Collapse message box' : 'Write a message'} title={editorOpen ? 'Collapse message box' : 'Write a message'} aria-expanded={editorOpen}
+            onClick={() => { setEditorOpen(value => !value); if (!editorOpen) window.setTimeout(() => textarea.current?.focus(), 0); }}>{editorOpen ? <ChevronUp size={16} /> : <Keyboard size={16} />}</button>{sendButton}</>}
         </div>
 
         {/* Attachments Tray */}
@@ -426,7 +444,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
           </div>
         )}
 
-        <div className="composer-input">
+        <div className="composer-input" hidden={compact && !editorOpen}>
         <textarea
           ref={textarea}
           aria-label="Message Novi"
@@ -449,29 +467,7 @@ export function Composer({ busy, onSend, speechModelId = 'auto', onListeningChan
           }}
         />
 
-          {busy ? (
-            <button
-              type="button"
-              className="send-button stop"
-              aria-label="Stop generation"
-              onClick={() => {
-                unwrap(window.novi.stop()).catch((error) => setError(errorText(error)));
-                // This button disappears when the answer stops; keep the cursor in the message box.
-                textarea.current?.focus();
-              }}
-            >
-              <Square size={15} fill="currentColor" />
-            </button>
-          ) : (
-            <button
-              type="submit"
-              className="send-button"
-              aria-label="Send message"
-              disabled={attaching || (!text.trim() && !images.length)}
-            >
-              <ArrowUp size={20} />
-            </button>
-          )}
+          {!compact && sendButton}
         </div>
       </form>
 

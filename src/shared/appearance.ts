@@ -12,7 +12,9 @@ export const PALETTES = [
 
 export const MIN_READING_SIZE = 70;
 export const MAX_READING_SIZE = 200;
+export type InterfaceStyle = 'classic' | 'modern';
 export interface Appearance {
+  interfaceStyle: InterfaceStyle;
   paletteId: string;
   smart: boolean;
   opacity: number;
@@ -24,6 +26,7 @@ const bounded = (value: unknown, fallback: number, min: number, max: number) => 
 export function normalizeAppearance(value: Partial<Appearance> = {}): Appearance {
   const colors = value.smartPalette;
   return {
+    interfaceStyle: value.interfaceStyle === 'modern' ? 'modern' : 'classic',
     paletteId: PALETTES.some((palette) => palette.id === value.paletteId) ? value.paletteId! : 'midnight',
     smart: value.smart === true,
     opacity: bounded(value.opacity, 35, 20, 100),

@@ -28,6 +28,7 @@ async function main(){
   listModels:async()=>ok([{id:'test-model',name:'Test model'}]),
   localAISetup:async()=>ok({selectedASR:'auto',models:[]}),getSmartPlacement:async()=>ok(smart),
   copyText:async text=>{window.copied.push(text);return ok(undefined);},
+  setTrayHeight:async height=>{(window.trayHeights??=[]).push(height);return ok(undefined);},
  },{get(target,name){return target[name]||(String(name).startsWith('on')?()=>()=>{}:async()=>ok(undefined));}});
  function Fixture(){const[state,setState]=useState(initial);return <AppModeProvider snapshot={state} onSnapshotUpdated={setState}><div className="app-shell"><div className="app-content"><ChatPage state={state} onSaved={setState} onSignOut={()=>{}}/></div></div></AppModeProvider>};createRoot(document.getElementById('root')).render(<Fixture/>);
  `}});
@@ -38,16 +39,60 @@ async function main(){
  await page.route('https://novi.test/',route=>route.fulfill({contentType:'text/html',body:'<div id="root"></div>'}));await page.goto('https://novi.test/');
  await page.addStyleTag({content:readFileSync('src/renderer/src/styles/app.css','utf8')});await page.addScriptTag({content:bundle.outputFiles[0].text});
  await page.locator('.empty-state h1').waitFor();assert.equal(await page.locator('.empty-state p').count(),0);
+ assert.equal(await page.locator('.sidebar').count(),0,'collapsed navigation leaves no rail');
+ const layout=(await page.locator('.chat-layout').boundingBox())!,main=(await page.locator('.chat-main').boundingBox())!;
+ assert(Math.abs(layout.width-main.width)<2,'the conversation uses the full collapsed layout width');
  await page.evaluate(()=>(window as any).openChat());await page.getByText('Please explain this code.',{exact:true}).waitFor();
+ assert.equal(await page.locator('.message-heading,.message-model,.message time').count(),0,'message rows show only an icon and content');
+ await page.evaluate(()=>(window as any).chatEvent({type:'started',conversation:{id:'chat',title:'Waiting',createdAt:1,updatedAt:1,messages:[{id:'pending',role:'assistant',content:'',createdAt:1}]}}));
+ await page.getByRole('status',{name:'Novi is thinking'}).waitFor();
+ await page.getByText('“Let me take a moment to think that through.”',{exact:true}).waitFor();
+ await page.evaluate(()=>(window as any).chatEvent({type:'delta',conversationId:'chat',messageId:'pending',text:'The answer is arriving.'}));
+ await page.locator('.waiting-phrases').waitFor({state:'detached'});
+ await page.evaluate(()=>(window as any).openChat());
+ await page.getByText('Please explain this code.',{exact:true}).waitFor();
  assert.equal(await page.getByText('Response timing',{exact:true}).count(),0);assert.equal(await page.locator('.debug-chat').count(),0);
  assert.equal(await page.locator('.code-line-number').count(),5);
  await page.getByRole('button',{name:'Copy code',exact:true}).click();assert.equal(await page.evaluate(()=>(window as any).copied[0]),await page.evaluate(()=>(window as any).code));
- await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:'Debug',exact:true}).click();
+ await page.getByRole('button',{name:'Expand sidebar',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:'Debug',exact:true}).click();
  await page.getByRole('checkbox',{name:'Show debug information in chat'}).check();assert.equal(await page.locator('.debug-toolbar').count(),0,'settings only contains the debug toggle');
  await page.getByRole('button',{name:'Back',exact:true}).click();await page.getByText('Finding space for Novi',{exact:true}).waitFor();await page.getByText('Response timing',{exact:true}).waitFor();
  assert.equal(await page.locator('.debug-chat').getAttribute('open'),'');await page.getByRole('button',{name:'Clear',exact:true}).click();await page.getByText('No events recorded yet.',{exact:false}).waitFor();
  await page.screenshot({path:'.test-data/chat-v2/debug.png',fullPage:true,animations:'disabled'});
- await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:'Debug',exact:true}).click();await page.getByRole('checkbox',{name:'Show debug information in chat'}).uncheck();await page.getByRole('button',{name:'Back',exact:true}).click();
+ await page.getByRole('button',{name:'Expand sidebar',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:'Debug',exact:true}).click();await page.getByRole('checkbox',{name:'Show debug information in chat'}).uncheck();await page.getByRole('button',{name:'Back',exact:true}).click();
+ await page.getByLabel('Message Novi',{exact:true}).fill('Keep this draft through the style change.');
+ await page.getByRole('button',{name:'Expand sidebar',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();
+ await page.getByRole('button',{name:'Appearance',exact:true}).click();
+ const popupEvent=page.waitForEvent('popup');
+ await page.getByRole('group',{name:'Interface style',exact:true}).getByRole('button',{name:/^Modern/}).click();
+ const popup=await popupEvent;popup.setDefaultTimeout(12000);
+ await popup.locator('.modern-tray').waitFor();
+ await popup.getByRole('group',{name:'Interface style',exact:true}).waitFor();
+ await popup.getByRole('button',{name:'General',exact:true}).click();
+ await popup.waitForTimeout(150);
+ const shellBottom=await popup.locator('.tray-shell').evaluate(el=>Math.ceil(el.getBoundingClientRect().bottom+scrollY));
+ assert((await page.evaluate(()=>(window as any).trayHeights.at(-1)))<=shellBottom+8,'scrolling settings content must not enlarge the floating window beyond its panel');
+ await popup.getByRole('button',{name:'Appearance',exact:true}).click();
+ assert.equal(await page.locator('.chat-header,.sidebar,.composer').count(),0,'Modern leaves only responses in the main window');
+ assert.equal(await popup.getByLabel('Message Novi',{exact:true}).inputValue(),'Keep this draft through the style change.');
+ await popup.getByRole('button',{name:'Collapse message box',exact:true}).click();
+ assert.equal(await popup.getByLabel('Message Novi',{exact:true}).isVisible(),false);
+ await popup.getByRole('button',{name:'Write a message',exact:true}).click();
+ assert.equal(await popup.getByLabel('Message Novi',{exact:true}).inputValue(),'Keep this draft through the style change.');
+ await popup.getByRole('group',{name:'Theme',exact:true}).getByRole('button',{name:'Light',exact:true}).click();
+ await popup.keyboard.press('Escape');
+ await popup.getByText('You have unsaved changes.',{exact:true}).waitFor();
+ await popup.getByRole('button',{name:'Discard',exact:true}).click();
+ await popup.locator('.modern-panel').waitFor({state:'detached'});
+ await popup.getByRole('button',{name:'Settings',exact:true}).click();
+ await popup.getByRole('button',{name:'Appearance',exact:true}).click();
+ const popupClosed=popup.waitForEvent('close');
+ await popup.getByRole('group',{name:'Interface style',exact:true}).getByRole('button',{name:/^Classic/}).click();
+ await popupClosed;
+ await page.getByRole('group',{name:'Interface style',exact:true}).waitFor();
+ assert.equal(await page.getByRole('group',{name:'Interface style',exact:true}).getByRole('button',{name:/^Classic/}).getAttribute('aria-pressed'),'true');
+ await page.getByRole('button',{name:'Back',exact:true}).click();
+ assert.equal(await page.getByLabel('Message Novi',{exact:true}).inputValue(),'Keep this draft through the style change.');
  await page.waitForTimeout(150);assert.equal(await page.locator('.debug-chat,.response-latency').count(),0);
  await page.screenshot({path:'.test-data/chat-v2/chat.png',fullPage:true,animations:'disabled'});
  for(const scale of [.7,1,1.5,2]){

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { attachPrivateCursor, useStealthState } from '../hooks/useStealth';
+import { useAppMode } from '../context/AppModeContext';
 
 type TrayWindow = Window & typeof globalThis;
 
@@ -8,8 +9,10 @@ type TrayWindow = Window & typeof globalThis;
  * Moves one portal between the chat and a native window without remounting its controls.
  * Keeping the portal target preserves drafts, attachments, and active audio capture.
  */
-export function TrayPortal({ children, detached = false, onClosed }: { children: ReactNode; detached?: boolean; onClosed: () => void }) {
+export function TrayPortal({ children, detached = false, modern = false, panel, onPanelClose, onClosed }: { children: ReactNode; detached?: boolean; modern?: boolean; panel?: ReactNode; onPanelClose?: () => void; onClosed: () => void }) {
+  const { setOverlayHost } = useAppMode();
   const attached = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const [root] = useState(() => {
     const element = document.createElement('div');
     element.id = 'tray-root';
@@ -42,7 +45,7 @@ export function TrayPortal({ children, detached = false, onClosed }: { children:
     if (!opened) { closedRef.current(); return; }
     const trayWindow = opened;
     const doc = trayWindow.document;
-    let closing = false, reported = false, lastHeight = 0, timer = 0;
+    let closing = false, reported = false, lastHeight = 0, lastControlsHeight = 0, timer = 0;
     doc.title = 'Novi';
     moveControls(doc.body);
 
@@ -63,6 +66,7 @@ export function TrayPortal({ children, detached = false, onClosed }: { children:
       if (source.dataset.theme) target.dataset.theme = source.dataset.theme;
       else delete target.dataset.theme;
       target.style.cssText = source.style.cssText;
+      target.style.setProperty('--workspace-height', `${trayWindow.screen.availHeight}px`);
       doc.body.className = document.body.className;
     };
     syncStyles();
@@ -80,19 +84,30 @@ export function TrayPortal({ children, detached = false, onClosed }: { children:
       if (closing || trayWindow.closed) return;
       const shell = root.querySelector('.tray-shell');
       if (!shell) return;
+      const controlsHeight = Math.ceil(root.querySelector('.tray-controls')!.getBoundingClientRect().bottom + trayWindow.scrollY);
+      const controlsChanged = controlsHeight !== lastControlsHeight;
+      if (controlsChanged) {
+        lastControlsHeight = controlsHeight;
+        root.style.setProperty('--controls-height', `${controlsHeight}px`);
+      }
       let bottom = root.getBoundingClientRect().bottom + trayWindow.scrollY;
       for (const element of shell.querySelectorAll('*')) {
         // Closed <details> content keeps a layout box (content-visibility: hidden); skip anything not shown.
         if (!element.checkVisibility()) continue;
+        const clipped = element.closest('.modern-panel, .modern-overlay-host, .modern-tray .tray-menu-content');
+        if (clipped && clipped !== element && !element.matches('dialog[open]')) continue;
         bottom = Math.max(bottom, element.getBoundingClientRect().bottom + trayWindow.scrollY + 4);
       }
       const height = Math.ceil(bottom);
-      if (height !== lastHeight && height > 0) {
+      if ((height !== lastHeight || controlsChanged) && height > 0) {
         lastHeight = height;
-        void window.novi.setTrayHeight(height).catch(() => {});
+        void window.novi.setTrayHeight(height, shell.classList.contains('modern-tray') ? controlsHeight : undefined).catch(() => {});
       }
     };
-    const schedule = () => { if (!timer) timer = window.setTimeout(measure, 0); };
+    const schedule = () => {
+      if (root.querySelector('.modern-overlay-host')?.childElementCount) root.querySelectorAll<HTMLDetailsElement>('details[open]').forEach(menu => { menu.open = false; });
+      if (!timer) timer = window.setTimeout(measure, 0);
+    };
     const contentObserver = new MutationObserver(schedule);
     contentObserver.observe(root, { childList: true, subtree: true, attributes: true, characterData: true });
     const resizeObserver = new trayWindow.ResizeObserver(schedule);
@@ -145,10 +160,34 @@ export function TrayPortal({ children, detached = false, onClosed }: { children:
     return attachPrivateCursor(tray);
   }, [tray, transparent, clickThrough]);
 
+  useEffect(() => {
+    if (!modern || !panel || !onPanelClose || !tray) return;
+    const outside = (event: PointerEvent) => {
+      if (event.composedPath().includes(panelRef.current!)) return;
+      if (event.composedPath().includes(root.querySelector('.tray-controls')!)) return;
+      onPanelClose();
+    };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !event.defaultPrevented) onPanelClose(); };
+    document.addEventListener('pointerdown', outside);
+    tray.document.addEventListener('pointerdown', outside);
+    window.addEventListener('keydown', escape);
+    tray.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      tray.document.removeEventListener('pointerdown', outside);
+      window.removeEventListener('keydown', escape);
+      tray.removeEventListener('keydown', escape);
+    };
+  }, [modern, panel, onPanelClose, tray, root]);
+
   return <>
     <div ref={attached} className="composer-area tray-attached" hidden={detached} />
     {createPortal(<>
-      <section className="tray-shell" aria-label="Novi controls">{children}</section>
+      <section className={`tray-shell ${modern ? 'modern-tray' : ''}`} aria-label="Novi controls">
+        <div className="tray-controls">{children}</div>
+        {modern && panel && <div className="modern-panel" ref={panelRef}>{panel}</div>}
+        <div className="modern-overlay-host" ref={modern ? setOverlayHost : undefined} />
+      </section>
       {tray && <><TrayResizeGrip side="left" view={tray} /><TrayResizeGrip side="right" view={tray} /></>}
     </>, root)}
   </>;

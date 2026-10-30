@@ -4,7 +4,7 @@ import type { AccessStatus, Snapshot } from '../../shared/types';
 import { AuthPage } from './pages/AuthPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { ChatPage } from './pages/ChatPage';
-import { ContextPage } from './pages/ContextPage';
+import { SetupWorkspace } from './components/SetupWorkspace';
 import { Brand } from './components/Brand';
 import { TitleBar } from './components/TitleBar';
 import { AppModeProvider } from './context/AppModeContext';
@@ -82,7 +82,7 @@ function Application() {
           ) : state.contextSession ? (
             <ChatPage key={state.contextSession.id} state={state} onSaved={setState} onSignOut={() => void signOut()} />
           ) : (
-            <ContextPage key={state.user.id} state={state} onSaved={setState} onSignOut={() => void signOut()} />
+            <SetupWorkspace key={state.user.id} state={state} onSaved={setState} onSignOut={() => void signOut()} />
           )}
         </div>
       </div>

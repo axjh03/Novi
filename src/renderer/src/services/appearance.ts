@@ -30,6 +30,7 @@ export function subscribeAppearance(update: () => void) {
 /** Shared by main, code viewer and answer overlay; the tray copies the main document's variables. */
 export function syncAppearance() {
   const settings = readAppearance();
+  document.documentElement.dataset.interfaceStyle = settings.interfaceStyle;
   const palette = settings.smart
     ? settings.smartPalette ?? { background: '#09090b', text: '#ffffff', opacity: 85 }
     : PALETTES.find((item) => item.id === settings.paletteId)!;

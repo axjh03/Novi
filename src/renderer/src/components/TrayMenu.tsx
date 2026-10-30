@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 /** Native disclosures share one open slot and use the tray's own document for dismissal. */
-export function TrayMenu({ label, title, children, className = '' }: {
-  label: string; title: ReactNode; children: ReactNode; className?: string;
+export function TrayMenu({ label, title, children, className = '', keepMounted = false }: {
+  label: string; title: ReactNode; children: ReactNode; className?: string; keepMounted?: boolean;
 }) {
   const ref = useRef<HTMLDetailsElement>(null);
   const [open, setOpen] = useState(false);
@@ -31,6 +31,6 @@ export function TrayMenu({ label, title, children, className = '' }: {
   return <details ref={ref} name="tray-controls" className={`tray-menu ${className}`}
     onToggle={(event) => setOpen(event.currentTarget.open)}>
     <summary aria-label={label} title={label}>{title}<ChevronDown size={12} className="tray-menu-chevron" aria-hidden="true" /></summary>
-    {open && <div className="tray-menu-content">{children}</div>}
+    {(open || keepMounted) && <div className="tray-menu-content">{children}</div>}
   </details>;
 }

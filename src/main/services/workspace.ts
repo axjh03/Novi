@@ -1,11 +1,13 @@
 import type { BrowserWindow, BrowserWindowConstructorOptions, Rectangle } from 'electron';
 import { createRequire } from 'node:module';
+import type { InterfaceStyle } from '../../shared/appearance';
 
 const req = typeof require === 'function' ? require : createRequire(import.meta.url);
 const electron = () => req('electron') as typeof import('electron');
 
 export const TRAY_NAME = /^novi-tray-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const TRAY_WIDTH = 600;
+const MODERN_TRAY_WIDTH = 680;
 const TRAY_MIN_WIDTH = 320;
 const TRAY_GAP = 12;
 const TRAY_MIN_HEIGHT = 48;
@@ -27,6 +29,17 @@ export function normalBounds(area: Rectangle): Rectangle {
 export function dockedBounds(area: Rectangle): Rectangle {
   const width = Math.min(area.width, Math.max(420, Math.min(1000, Math.round(area.width * 0.35))));
   return { x: area.x + area.width - width, y: area.y, width, height: area.height };
+}
+
+/** A plain reading window below the floating controls, including on small or offset displays. */
+export function modernBounds(area: Rectangle, controlsHeight = 0): Rectangle {
+  const gap = Math.min(12, Math.floor(Math.min(area.width, area.height) / 10));
+  const width = Math.min(area.width, Math.max(Math.min(MAIN_WINDOW_MIN.width, area.width), Math.min(820, area.width - gap * 2)));
+  const minimumHeight = Math.min(MAIN_WINDOW_MIN.height, area.height);
+  const bottomGap = Math.min(gap, area.height - minimumHeight);
+  const top = Math.max(0, Math.min(Math.max(Math.min(96, Math.round(area.height * 0.18)), controlsHeight + TRAY_GAP * 2), area.height - minimumHeight - bottomGap));
+  const height = Math.min(720, area.height - top - bottomGap);
+  return { x: area.x + Math.round((area.width - width) / 2), y: area.y + top, width, height };
 }
 
 export function viewerBounds(area: Rectangle, panel: Rectangle): Rectangle {
@@ -66,13 +79,24 @@ function intersects(a: Rectangle, b: Rectangle) {
   return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 }
 
+/** Keep enlarged controls clear of the reader while leaving manually separated windows alone. */
+export function readingBoundsBelowControls(area: Rectangle, reader: Rectangle, controls: Rectangle): Rectangle {
+  if (!intersects(reader, controls)) return reader;
+  const minimumHeight = Math.min(MAIN_WINDOW_MIN.height, area.height);
+  const y = Math.max(area.y, Math.min(controls.y + controls.height + TRAY_GAP, area.y + area.height - minimumHeight));
+  const height = Math.max(minimumHeight, Math.min(reader.height, area.y + area.height - y - TRAY_GAP));
+  return { ...reader, y, height };
+}
+
 /** Docks the main window as the output panel and owns the floating input tray during a session. */
 export class WorkspaceService {
   private tray: BrowserWindow | null = null;
   private trayShown = false;
-  private pendingHeight: number | null = null;
+  private pendingHeight: { height: number; controlsHeight?: number } | null = null;
   private saved: { bounds: Rectangle; maximized: boolean; minimum: [number, number] } | null = null;
   private dockedState = false;
+  private interfaceStyle: InterfaceStyle = 'classic';
+  private controlsHeight = 0;
 
   constructor(
     private getMainWindow: () => BrowserWindow | null,
@@ -119,8 +143,8 @@ export class WorkspaceService {
     const main = this.getMainWindow();
     const mainBounds = main && !main.isDestroyed() ? main.getBounds() : null;
     const area = (mainBounds ? screen.getDisplayMatching(mainBounds) : screen.getPrimaryDisplay()).workArea;
-    const dockLeft = this.dockedState && mainBounds && intersects(mainBounds, area) ? mainBounds.x : null;
-    return trayBounds(area, dockLeft, height, width ?? (this.tray && !this.tray.isDestroyed() ? this.tray.getBounds().width : TRAY_WIDTH));
+    const dockLeft = this.dockedState && this.interfaceStyle === 'classic' && mainBounds && intersects(mainBounds, area) ? mainBounds.x : null;
+    return trayBounds(area, dockLeft, height, width ?? (this.tray && !this.tray.isDestroyed() ? this.tray.getBounds().width : this.interfaceStyle === 'modern' ? MODERN_TRAY_WIDTH : TRAY_WIDTH));
   }
 
   private adoptTray(child: BrowserWindow) {
@@ -133,12 +157,12 @@ export class WorkspaceService {
     child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     child.webContents.on('will-navigate', (event) => event.preventDefault());
     child.webContents.on('will-attach-webview', (event) => event.preventDefault());
-    child.on('closed', () => { if (this.tray === child) { this.tray = null; this.trayShown = false; } });
+    child.on('closed', () => { if (this.tray === child) { this.tray = null; this.trayShown = false; this.controlsHeight = 0; } });
     child.on('focus', () => this.bringForward(this.getMainWindow()));
     this.onTrayCreated(child);
     // The window may be adopted after the panel docked; place it against the current layout.
     this.placeTray();
-    if (this.pendingHeight !== null) { const height = this.pendingHeight; this.pendingHeight = null; this.resizeTray(height); }
+    if (this.pendingHeight !== null) { const pending = this.pendingHeight; this.pendingHeight = null; this.resizeTray(pending.height, pending.controlsHeight); }
     // Normally shown on the first size report; this covers a renderer that never reports.
     setTimeout(() => { if (this.tray === child) this.showTray(); }, 1000);
   }
@@ -150,15 +174,24 @@ export class WorkspaceService {
     tray.show();
   }
 
-  resizeTray(height: number) {
+  resizeTray(height: number, controlsHeight?: number) {
+    if (controlsHeight !== undefined) this.controlsHeight = controlsHeight;
     const tray = this.tray;
-    if (!tray || tray.isDestroyed()) { this.pendingHeight = height; return; }
+    if (!tray || tray.isDestroyed()) { this.pendingHeight = { height, controlsHeight }; return; }
     const { screen } = electron();
     const bounds = tray.getBounds();
     const area = screen.getDisplayMatching(bounds).workArea;
     const nextHeight = clampTrayHeight(area, height);
     const y = Math.max(area.y, Math.min(bounds.y, area.y + area.height - nextHeight));
     if (nextHeight !== bounds.height || y !== bounds.y) tray.setBounds({ x: bounds.x, y, width: bounds.width, height: nextHeight });
+    const main = this.getMainWindow();
+    if (this.dockedState && this.interfaceStyle === 'modern' && controlsHeight && main && !main.isDestroyed()) {
+      const reader = main.getBounds();
+      if (intersects(reader, area)) {
+        const next = readingBoundsBelowControls(area, reader, { ...bounds, y, height: controlsHeight });
+        if (next.y !== reader.y || next.height !== reader.height) main.setBounds(next);
+      }
+    }
     this.showTray();
   }
 
@@ -177,18 +210,18 @@ export class WorkspaceService {
     if (window.isMaximized()) window.unmaximize();
     const area = screen.getDisplayMatching(window.getBounds()).workArea;
     window.setMinimumSize(Math.min(MAIN_WINDOW_MIN.width, area.width), Math.min(MAIN_WINDOW_MIN.height, area.height));
-    if (this.dockedState) window.setBounds(dockedBounds(area));
+    if (this.dockedState) window.setBounds(this.interfaceStyle === 'modern' ? modernBounds(area, this.controlsHeight) : dockedBounds(area));
     else window.setBounds(normalBounds(area));
     if (this.tray && !this.tray.isDestroyed()) {
-      this.tray.setBounds(this.trayPlacement(TRAY_INITIAL_HEIGHT, TRAY_WIDTH));
+      this.tray.setBounds(this.trayPlacement(TRAY_INITIAL_HEIGHT, this.interfaceStyle === 'modern' ? MODERN_TRAY_WIDTH : TRAY_WIDTH));
       this.showTray();
     }
   }
 
-  private placeTray() {
+  private placeTray(width?: number) {
     const tray = this.tray;
     if (!tray || tray.isDestroyed()) return;
-    tray.setBounds(this.trayPlacement(tray.getBounds().height));
+    tray.setBounds(this.trayPlacement(tray.getBounds().height, width));
   }
 
   closeTray() {
@@ -199,7 +232,7 @@ export class WorkspaceService {
     if (tray && !tray.isDestroyed()) tray.close();
   }
 
-  dock(area: Rectangle) {
+  dock(area: Rectangle, interfaceStyle: InterfaceStyle = this.interfaceStyle) {
     const window = this.getMainWindow();
     if (!window || window.isDestroyed()) return;
     if (!this.dockedState) {
@@ -210,12 +243,14 @@ export class WorkspaceService {
         minimum: [minimum[0] ?? 0, minimum[1] ?? 0],
       };
     }
+    const styleChanged = this.interfaceStyle !== interfaceStyle;
     this.dockedState = true;
+    this.interfaceStyle = interfaceStyle;
     if (window.isMinimized()) window.restore();
     if (window.isMaximized()) window.unmaximize();
     window.setMinimumSize(Math.min(MAIN_WINDOW_MIN.width, area.width), Math.min(MAIN_WINDOW_MIN.height, area.height));
-    window.setBounds(dockedBounds(area));
-    this.placeTray();
+    window.setBounds(interfaceStyle === 'modern' ? modernBounds(area, this.controlsHeight) : dockedBounds(area));
+    this.placeTray(styleChanged ? interfaceStyle === 'modern' ? MODERN_TRAY_WIDTH : TRAY_WIDTH : undefined);
   }
 
   // The page closes its own tray; closing it here could race a tray it has just reopened.

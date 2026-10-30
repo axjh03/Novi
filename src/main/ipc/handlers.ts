@@ -760,14 +760,18 @@ export function registerIPC(
   });
   handle('set-workspace-docked', (value, event) => {
     if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can change the layout.');
-    if (object(value).docked === true) workspace.dock(workingDisplay().workArea);
+    const { docked, interfaceStyle = 'classic' } = object(value);
+    if (interfaceStyle !== 'classic' && interfaceStyle !== 'modern') throw new UserError('Choose Classic or Modern appearance.');
+    if (docked === true) workspace.dock(workingDisplay().workArea, interfaceStyle);
     else workspace.undock();
   });
   handle('set-tray-height', (value, event) => {
     if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can size the tray.');
     const height = Number(object(value).height);
+    const controlsHeight = object(value).controlsHeight;
     if (!Number.isFinite(height) || height <= 0 || height > 10_000) throw new UserError('Invalid tray height.');
-    workspace.resizeTray(height);
+    if (controlsHeight !== undefined && (typeof controlsHeight !== 'number' || !Number.isFinite(controlsHeight) || controlsHeight <= 0 || controlsHeight > height)) throw new UserError('Invalid controls height.');
+    workspace.resizeTray(height, controlsHeight);
   });
   handle('set-tray-width', (value, event) => {
     if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can size the tray.');

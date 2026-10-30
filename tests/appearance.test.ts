@@ -32,6 +32,9 @@ test('Smart adapts to dark, light and mixed backgrounds and stays readable betwe
 });
 
 test('appearance settings clamp text size and reject corrupt persisted values', () => {
+  assert.equal(normalizeAppearance().interfaceStyle, 'classic');
+  assert.equal(normalizeAppearance({ interfaceStyle: 'modern' }).interfaceStyle, 'modern');
+  assert.equal(normalizeAppearance({ interfaceStyle: 'missing' as any }).interfaceStyle, 'classic');
   assert.equal(normalizeAppearance({ readingSize: 400 }).readingSize, 200);
   assert.equal(normalizeAppearance({ readingSize: -20 }).readingSize, 70);
   assert.equal(normalizeAppearance({ readingSize: NaN }).readingSize, 100);
@@ -50,12 +53,16 @@ test('appearance updates persist, reach other windows, and restore the manual pa
   Object.defineProperties(globalThis, {
     localStorage: { configurable: true, value: { getItem: (key: string) => saved.get(key) ?? null, setItem: (key: string, value: string) => saved.set(key, value) } },
     window: { configurable: true, value: Object.assign(new EventTarget(), { novi: { launchId: 'launch-1' } }) },
-    document: { configurable: true, value: { documentElement: { style: { setProperty: (key: string, value: string) => styles.set(key, value) } } } },
+    document: { configurable: true, value: { documentElement: { dataset: {}, style: { setProperty: (key: string, value: string) => styles.set(key, value) } } } },
   });
   const stop = subscribeAppearance(syncAppearance);
   try {
     saved.set('novi_transparent_opacity', '60');
     assert.equal(readAppearance().opacity, 60);
+    assert.equal(readAppearance().interfaceStyle, 'classic');
+    updateAppearance({ interfaceStyle: 'modern' });
+    assert.equal(document.documentElement.dataset.interfaceStyle, 'modern');
+    assert.equal(JSON.parse(saved.get('novi_appearance')!).interfaceStyle, 'modern');
     updateAppearance({ paletteId: 'paper', readingSize: 150 });
     assert.equal(styles.get('--transparent-bg'), '#ffffff');
     assert.equal(styles.get('--transparent-text'), '#141414');

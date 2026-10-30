@@ -391,6 +391,12 @@ export class RemoteCompanionService {
         win.webContents.send('global-action', { type: 'submit-prompt' });
         break;
 
+      case 'set-prompt':
+        if (typeof payload !== 'string' || payload.length > 12_000) throw new Error('Keep the phone prompt within 12,000 characters.');
+        if (!this.desktopState) throw new Error('Start a desktop chat before typing a prompt.');
+        win.webContents.send('global-action', { type: 'set-prompt', payload });
+        break;
+
       case 'capture-screen':
         win.webContents.send('global-action', { type: 'capture-screen' });
         break;
@@ -539,45 +545,37 @@ export class RemoteCompanionService {
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     :root { color-scheme: dark; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #111214; color: #f0f0f3; -webkit-text-size-adjust: 100%; }
     body { margin: 0; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); overscroll-behavior-y: contain; }
-    button, select, input { font: inherit; }
+    button, select, input, textarea { font: inherit; }
     button { cursor: pointer; touch-action: manipulation; transition: background 160ms, transform 160ms, opacity 160ms; }
-    button:focus-visible, input:focus-visible, [tabindex]:focus-visible { outline: 2px solid #99caff; outline-offset: 3px; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid #99caff; outline-offset: 3px; }
     button:active { transform: scale(.97); }
     button:disabled { opacity: .4; cursor: default; }
     svg { width: 19px; height: 19px; flex: none; }
     [hidden] { display: none !important; }
     .app-container { max-width: 480px; margin: 0 auto; }
-    .header-compact { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 20px; }
-    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .brand-mark { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid #3b3b44; border-radius: 11px; font-size: 21px; font-weight: 600; background: #222329; }
-    .brand strong { display: block; font-size: 16px; font-weight: 600; letter-spacing: -.3px; }
-    .brand small { color: #a0a1ac; font-size: 11px; }
-    .connection { display: grid; justify-items: end; gap: 4px; min-width: 0; }
-    .connection-status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #a0a1ac; }
-    .connection-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #a0a1ac; }
-    .connection-status[data-connected=true]::before { background: #8dc9a7; }
-    .account-name { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; color: #a0a1ac; }
     .connection-error { margin: 0 0 10px; padding: 9px 11px; border: 1px solid #70433e; border-radius: 6px; background: #32201e; color: #ffb4ab; font-size: 11px; line-height: 1.5; }
-    .controls-grid { display: grid; grid-template-areas: 'mode' 'hero' 'snapshot' 'audio' 'layout' 'reading' 'visibility'; gap: 12px; }
-    .hero-row { grid-area: hero; display: grid; grid-template-columns: minmax(0, 1fr) 88px; gap: 8px; }
-    .hero-btn, .stop-btn, .ctrl-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; min-height: 46px; padding: 10px 12px; border: 1px solid #35363e; border-radius: 10px; background: #1e1f24; color: #e5e5ec; font-size: 12px; line-height: 1.3; }
+    .controls-grid { display: grid; grid-template-areas: 'mode' 'hero' 'prompt' 'snapshot' 'audio' 'layout' 'utilities'; gap: 16px; }
+    .hero-row { grid-area: hero; display: grid; grid-template-columns: minmax(0, 1fr) 48px 48px; gap: 8px; }
+    .hero-btn, .stop-btn, .ctrl-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; min-height: 46px; padding: 10px 12px; border: 0; border-radius: 12px; background: #222429; color: #e5e5ec; font-size: 12px; line-height: 1.3; }
     .hero-btn { min-height: 52px; background: #dcd8fa; border-color: #dcd8fa; color: #252035; font-size: 14px; font-weight: 600; }
     .stop-btn { color: #f1afad; }
-    .mode-segment { grid-area: mode; display: flex; align-items: center; gap: 10px; padding: 4px 0 12px; border-bottom: 1px solid #2b2c32; }
-    .mode-segment label { display: flex; align-items: center; gap: 8px; color: #a0a1ac; font-size: 12px; }
-    select { min-width: 0; min-height: 44px; padding: 8px; border: 1px solid #35363e; border-radius: 8px; background: #1e1f24; color: #e5e5ec; font-size: 16px; }
-    #sessionMode { flex: 1; width: 0; margin-left: auto; }
-    .ctrl-btn.active-state { background: #2c2a3c; border-color: #827aaf; color: #e6e0ff; }
+    .mode-segment { grid-area: mode; display: flex; align-items: center; gap: 8px; color: #a0a1ac; }
+    select { min-width: 0; min-height: 46px; padding: 8px 30px 8px 12px; border: 0; border-radius: 10px; background: #222429; color: #e5e5ec; font-size: 16px; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239a9ba6' stroke-width='1.8'%3E%3Cpath d='m8 10 4 4 4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
+    #sessionMode { flex: 1; width: 0; background-color: transparent; font-size: 14px; }
+    .ctrl-btn.active-state { background: #302c43; color: #e6e0ff; }
+    .prompt-composer { grid-area: prompt; display: grid; gap: 8px; padding: 12px; border: 1px solid #393a44; border-radius: 14px; background: #1a1c20; }
+    .prompt-composer header, .prompt-composer footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .prompt-composer label { color: #c6c6cf; font-size: 12px; }
+    .prompt-composer textarea { width: 100%; min-height: 112px; max-height: 40dvh; padding: 4px; resize: vertical; border: 0; border-radius: 4px; background: transparent; color: #f0f0f3; font-size: 16px; line-height: 1.6; }
+    .prompt-composer small { color: #9a9ba6; font-size: 11px; }
+    .prompt-composer .ctrl-btn { width: 44px; min-height: 44px; }
+    .prompt-composer footer .ctrl-btn { background: #dcd8fa; color: #252035; }
     .button-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-    .layout-controls { grid-area: layout; display: grid; grid-template-columns: minmax(0, 1fr) 56px; gap: 8px; align-items: stretch; }
-    .section-box { min-width: 0; padding: 14px; background: #191a1f; border: 1px solid #2c2d34; border-radius: 12px; display: grid; align-content: start; gap: 14px; }
-    .section-label { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 11px; color: #c6c6cf; font-weight: 500; }
-    .section-label > span { display: inline-flex; align-items: center; gap: 7px; }
-    .section-label > span:last-child:not(:first-child) { font-size: 10px; color: #a0a1ac; }
-    .section-label svg { width: 15px; height: 15px; }
-    .window-pad { --screen-aspect: 1.7778; position: relative; width: min(100%, calc(180px * var(--screen-aspect))); aspect-ratio: var(--screen-aspect); margin: auto; background: #121212; border: 1px solid #383838; border-radius: 4px; touch-action: none; }
+    .layout-controls { grid-area: layout; display: grid; grid-template-columns: minmax(0, 1fr) 32px; gap: 8px; align-items: stretch; padding-top: 20px; border-top: 1px solid #2b2c32; }
+    .window-section { min-width: 0; display: grid; align-content: start; gap: 14px; }
+    .window-pad { --screen-aspect: 1.7778; position: relative; width: min(100%, calc(180px * var(--screen-aspect))); aspect-ratio: var(--screen-aspect); margin: auto; background: radial-gradient(ellipse at top, #252a34, #181a1f); border: 1px solid #353841; border-radius: 8px; touch-action: none; }
     .window-preview { position: absolute; left: 65%; top: 0; width: 35%; height: 100%; display: grid; place-items: center; min-width: 0; border: 1px solid #91bfff; border-radius: 3px; background: #99caff20; color: #b8d7ff; cursor: grab; touch-action: none; user-select: none; }
-    .window-preview > span { font-size: 10px; pointer-events: none; }
+    .window-preview > svg { width: 18px; height: 18px; pointer-events: none; opacity: .7; }
     .window-preview.is-dragging { cursor: grabbing; background: #99caff30; }
     .window-handle { position: absolute; width: 20px; height: 20px; padding: 0; border: 0; background: transparent; touch-action: none; }
     .window-handle::after { content: ''; position: absolute; inset: 7px; border-radius: 2px; background: #bedbff; }
@@ -588,65 +586,61 @@ export class RemoteCompanionService {
     .window-handle[data-edge='nw'], .window-handle[data-edge='se'] { cursor: nwse-resize; }
     .window-handle[data-edge='ne'], .window-handle[data-edge='sw'] { cursor: nesw-resize; }
     .placement-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .placement-tools .ctrl-btn { padding: 8px 10px; font-size: 11px; }
-    .auto-smart { display: flex; align-items: center; gap: 5px; color: #bbb; font-size: 11px; white-space: nowrap; }
+    .placement-tools .ctrl-btn { width: 44px; min-height: 44px; padding: 10px; background: transparent; }
+    .auto-smart { display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 8px; color: #bbb; }
     .auto-smart input { accent-color: #b8b0e9; width: 18px; height: 18px; }
     .placement-note { margin: 0; color: #a0a1ac; font-size: 10px; line-height: 1.5; }
     .placement-note.error { color: #ffb4ab; }
-    .scroll-section { padding: 10px 4px; justify-items: center; }
-    .scroll-section .section-label { font-size: 10px; }
-    .scroll-slider { --scroll-position: 1; position: relative; width: 44px; height: 178px; min-height: 120px; border-radius: 22px; touch-action: none; user-select: none; -webkit-user-select: none; cursor: ns-resize; }
-    .scroll-track { position: absolute; inset: 18px 20px; overflow: hidden; border-radius: 4px; background: #3b3b3b; pointer-events: none; }
-    .scroll-fill { display: block; width: 100%; height: calc(var(--scroll-position) * 100%); background: #8eb8e6; }
-    .scroll-thumb { position: absolute; top: calc((100% - 36px) * var(--scroll-position)); left: 10px; display: grid; place-items: center; width: 24px; height: 36px; border: 1px solid #accff7; border-radius: 10px; background: #c1d9f5; box-shadow: 0 2px 6px #0005; pointer-events: none; transition: top 120ms ease, background 160ms, box-shadow 160ms; }
-    .scroll-thumb::after { content: ''; width: 10px; height: 8px; border-block: 1px solid #58799c; background: linear-gradient(#58799c,#58799c) center / 10px 1px no-repeat; }
-    .scroll-slider.is-dragging .scroll-thumb { background: #fff; box-shadow: 0 0 0 5px #99caff20; transition: background 160ms, box-shadow 160ms; }
+    .scroll-section { display: flex; align-items: stretch; }
+    .scroll-slider { --scroll-position: 1; position: relative; width: 32px; min-height: 120px; border-radius: 16px; touch-action: none; user-select: none; -webkit-user-select: none; cursor: ns-resize; }
+    .scroll-track { position: absolute; inset: 18px 14px; overflow: hidden; border-radius: 4px; background: linear-gradient(#353841, #9aadd0); pointer-events: none; }
+    .scroll-fill { display: block; width: 100%; height: calc(var(--scroll-position) * 100%); background: linear-gradient(#7b8fb9, #b7c9ec); }
+    .scroll-thumb { position: absolute; top: calc((100% - 36px) * var(--scroll-position)); left: 9px; width: 14px; height: 36px; border-radius: 8px; background: #c1d9f5; pointer-events: none; transition: top 120ms ease, background 160ms; }
+    .scroll-slider.is-dragging .scroll-thumb { background: #fff; }
     .scroll-slider[aria-disabled=true] { opacity: .3; cursor: default; }
-    .scroll-label { color: #a0a1ac; font-size: 9px; }
-    .reading-controls { grid-area: reading; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 0 12px; border-bottom: 1px solid #2b2c32; }
-    .reading-controls .ctrl-btn { padding: 8px 13px; }
-    .snapshot-controls { grid-area: snapshot; } .audio-controls { grid-area: audio; } .visibility-controls { grid-area: visibility; }
+    .utility-controls { grid-area: utilities; display: flex; align-items: center; justify-content: space-around; gap: 8px; padding-top: 12px; border-top: 1px solid #2b2c32; }
+    .utility-controls .ctrl-btn { width: 48px; min-height: 48px; background: transparent; }
+    .utility-controls .ctrl-btn.active-state { background: #302c43; }
+    .snapshot-controls { grid-area: snapshot; } .audio-controls { grid-area: audio; }
     .snapshot-controls { grid-template-columns: 1fr 1fr 46px; }
     .audio-controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 0 0 4px; }
     .audio-controls select { width: 100%; font-size: 16px; }
-    .input-note { margin: -4px 0 0; color: #a0a1ac; font-size: 11px; line-height: 1.5; }
-    .visibility-controls .ctrl-btn { flex-wrap: wrap; gap: 6px; }
     @media (orientation: landscape) and (min-width: 600px) {
       .app-container { max-width: 920px; }
-      .header-compact { padding-bottom: 8px; }
-      .controls-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-areas: 'mode hero' 'layout snapshot' 'layout audio' 'layout reading' 'layout visibility'; align-items: start; gap: 10px 16px; }
+      .controls-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-areas: 'mode hero' 'layout prompt' 'layout snapshot' 'layout audio' 'utilities utilities'; align-items: start; gap: 12px 20px; }
       .window-pad { width: min(100%, calc(130px * var(--screen-aspect))); }
       .layout-controls { height: 100%; }
-      .reading-controls { padding-top: 0; }
-      .scroll-slider { height: 120px; }
     }
     @media (prefers-reduced-motion: reduce) { *, *::after { animation: none !important; transition: none !important; } }
   </style>
 </head>
 <body>
   <div class="app-container">
-    <header class="header-compact">
-      <div class="brand"><span class="brand-mark" aria-hidden="true">N</span><div><strong>Novi</strong><small>Phone companion</small></div></div>
-      <div class="connection"><span id="connectionStatus" class="connection-status" role="status">Connecting…</span><span id="accountName" class="account-name"></span></div>
-    </header>
     <p id="connectionError" class="connection-error" role="alert" hidden></p>
 
     <div class="controls-grid">
       <div class="mode-segment">
-        <label for="sessionMode">${icon('M4 4h16v12H8l-4 4Z')}Mode</label>
-        <select id="sessionMode" onchange="triggerAction('set-app-mode', this.value)" disabled>
+        ${icon('M4 4h16v12H8l-4 4Z')}
+        <select id="sessionMode" aria-label="Session mode" onchange="triggerAction('set-app-mode', this.value)" disabled>
           ${SESSION_MODES.map(mode => `<option value="${mode.id}">${mode.name}</option>`).join('')}
         </select>
       </div>
 
       <div class="hero-row">
-        <button type="button" id="sendPrompt" class="hero-btn" onclick="triggerAction('send-prompt')" disabled>
+        <button type="button" id="sendPrompt" class="hero-btn" onclick="sendCurrentPrompt()" disabled>
           ${send}<span>Send prompt</span>
         </button>
-        <button type="button" id="stopGeneration" class="stop-btn" onclick="triggerAction('stop-generation')" disabled>
-          ${icon('M6 6h12v12H6Z')}<span>Stop</span>
+        <button type="button" id="togglePrompt" class="ctrl-btn" aria-label="Write a prompt" title="Write a prompt" aria-expanded="false" aria-controls="promptComposer" onclick="togglePromptEditor()" disabled>${icon('M12 20h9M16 3l5 5L8 21H3v-5Z')}</button>
+        <button type="button" id="stopGeneration" class="stop-btn" aria-label="Stop generation" title="Stop generation" onclick="triggerAction('stop-generation')" disabled>
+          ${icon('M6 6h12v12H6Z')}
         </button>
       </div>
+
+      <form id="promptComposer" class="prompt-composer" onsubmit="sendPhonePrompt(event)" hidden>
+        <header><label for="promptText">Your prompt</label><button type="button" class="ctrl-btn" aria-label="Collapse prompt editor" title="Collapse prompt editor" onclick="togglePromptEditor(false)">${icon('m6 9 6 6 6-6')}</button></header>
+        <textarea id="promptText" maxlength="12000" placeholder="Ask anything…" aria-describedby="promptHint" oninput="queuePrompt()" disabled></textarea>
+        <footer><small id="promptHint" role="status">Also appears in your desktop draft.</small><button type="submit" id="sendTypedPrompt" class="ctrl-btn" aria-label="Send typed prompt" title="Send typed prompt" disabled>${send}</button></footer>
+      </form>
 
       <div class="button-row snapshot-controls">
         <button type="button" id="takeSnapshot" class="ctrl-btn" onclick="triggerAction('capture-screen')" disabled>
@@ -670,39 +664,32 @@ export class RemoteCompanionService {
       </div>
 
       <div class="layout-controls">
-        <section class="section-box window-section" aria-label="Desktop window layout">
-          <div class="section-label"><span>${icon('M3 4h18v13H3Zm5 17h8m-4-4v4')}Desktop window</span><span>Drag to arrange</span></div>
+        <section class="window-section" aria-label="Desktop window layout">
           <div class="window-pad" id="windowPad">
             <div class="window-preview" id="windowPreview" tabindex="0" role="group" aria-label="Desktop window position and size">
-              <span>Novi</span>
+              ${icon('M3 4h18v13H3Zm5 17h8m-4-4v4')}
               <button class="window-handle" type="button" data-edge="n" aria-label="Resize top edge"></button><button class="window-handle" type="button" data-edge="s" aria-label="Resize bottom edge"></button>
               <button class="window-handle" type="button" data-edge="w" aria-label="Resize left edge"></button><button class="window-handle" type="button" data-edge="e" aria-label="Resize right edge"></button>
               <button class="window-handle" type="button" data-edge="nw" aria-label="Resize top left corner"></button><button class="window-handle" type="button" data-edge="ne" aria-label="Resize top right corner"></button>
               <button class="window-handle" type="button" data-edge="sw" aria-label="Resize bottom left corner"></button><button class="window-handle" type="button" data-edge="se" aria-label="Resize bottom right corner"></button>
             </div>
           </div>
-          <div class="placement-tools"><button type="button" class="ctrl-btn" id="autoDetect" onclick="triggerAction('auto-detect')">${icon('m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z')}<span id="autoDetectText">Find space</span></button><label class="auto-smart"><input id="autoSmart" type="checkbox" onchange="triggerAction('auto-smart', this.checked)" />Auto Smart</label></div>
-          <p class="placement-note" id="placementStatus">AI placement shares a screenshot with your model.</p>
+          <div class="placement-tools"><button type="button" class="ctrl-btn" id="autoDetect" aria-label="Find desktop space" title="Find desktop space · shares a screenshot with your AI model" onclick="triggerAction('auto-detect')">${icon('m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z')}</button><label class="auto-smart" title="Automatic placement · shares screenshots with your AI model"><input id="autoSmart" type="checkbox" aria-label="Automatic window placement" onchange="triggerAction('auto-smart', this.checked)" />${icon('m13 2-9 12h7l-1 8L22 9h-8Z')}</label></div>
+          <p class="placement-note" id="placementStatus" role="status" hidden></p>
         </section>
-        <section class="section-box scroll-section" aria-label="Conversation scroll">
-          <span class="section-label">Scroll</span><span class="scroll-label">Top</span>
+        <section class="scroll-section" aria-label="Conversation scroll">
           <div class="scroll-slider" id="conversationScroll" role="slider" tabindex="-1" aria-label="Conversation scroll position" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="1000" aria-valuetext="Latest message" aria-disabled="true"><span class="scroll-track" aria-hidden="true"><span class="scroll-fill"></span></span><span class="scroll-thumb" aria-hidden="true"></span></div>
-          <span class="scroll-label">Latest</span>
         </section>
       </div>
-      <div class="reading-controls"><span class="section-label">Desktop text</span><div class="button-row">
-        <button type="button" class="ctrl-btn" aria-label="Decrease desktop interface size" onclick="triggerAction('change-reading-size', -1)">A− Smaller</button>
-        <button type="button" class="ctrl-btn" aria-label="Increase desktop interface size" onclick="triggerAction('change-reading-size', 1)">A+ Larger</button>
-      </div></div>
-
-      <div class="button-row visibility-controls">
-        <button type="button" id="btnGhost" class="ctrl-btn" aria-pressed="false" onclick="toggleTransparentSafe()">
-          ${icon('M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12m13 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0')}<span id="txtGhost">Transparency off</span>
+      <div class="utility-controls" role="group" aria-label="Desktop appearance and input">
+        <button type="button" id="btnGhost" class="ctrl-btn" aria-label="Turn on transparency" title="Turn on transparency" aria-pressed="false" onclick="toggleTransparentSafe()">
+          ${icon('M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12m13 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0')}
         </button>
-        <button type="button" id="btnInteract" class="ctrl-btn" aria-pressed="false" onclick="triggerAction('toggle-clickthrough')" disabled>
-          ${icon('m4 3 16 9-8 1-4 7Z')}<span id="txtInteract">Desktop input on</span>
+        <button type="button" id="btnInteract" class="ctrl-btn" aria-label="Pass clicks through desktop window" title="Pass clicks through desktop window" aria-pressed="false" onclick="triggerAction('toggle-clickthrough')" disabled>
+          ${icon('m4 3 16 9-8 1-4 7Z')}
         </button>
-        <p id="inputNote" class="input-note" style="grid-column: 1 / -1">Clicks and typing go to Novi.</p>
+        <button type="button" class="ctrl-btn" aria-label="Decrease desktop interface size" title="Smaller text" onclick="triggerAction('change-reading-size', -1)">${icon('m3 19 5-14 5 14M5 14h6m5-2h6')}</button>
+        <button type="button" class="ctrl-btn" aria-label="Increase desktop interface size" title="Larger text" onclick="triggerAction('change-reading-size', 1)">${icon('m3 19 5-14 5 14M5 14h6m5-2h6m-3-3v6')}</button>
       </div>
     </div>
   </div>
@@ -737,6 +724,51 @@ export class RemoteCompanionService {
     history.replaceState(null, '', window.location.pathname);
 
     let isTransparent = false;
+    let desktopAvailable = false, desktopBusy = true, promptSubmitting = false, promptTimer = 0;
+    let promptSync = Promise.resolve(true);
+
+    function updatePromptControls() {
+      document.getElementById('togglePrompt').disabled = !desktopAvailable;
+      document.getElementById('promptText').disabled = !desktopAvailable || promptSubmitting;
+      document.getElementById('sendTypedPrompt').disabled = !desktopAvailable || desktopBusy || promptSubmitting || !document.getElementById('promptText').value.trim();
+    }
+    function togglePromptEditor(open = document.getElementById('promptComposer').hidden) {
+      document.getElementById('promptComposer').hidden = !open;
+      document.getElementById('togglePrompt').setAttribute('aria-expanded', String(open));
+      if (open) document.getElementById('promptText').focus();
+      else document.getElementById('togglePrompt').focus();
+    }
+    function queuePrompt() {
+      clearTimeout(promptTimer);
+      document.getElementById('promptHint').textContent = 'Syncing to desktop…';
+      promptTimer = setTimeout(syncPrompt, 200);
+      updatePromptControls();
+    }
+    function syncPrompt() {
+      clearTimeout(promptTimer);
+      const text = document.getElementById('promptText').value;
+      promptSync = promptSync.then(async () => {
+        const synced = await triggerAction('set-prompt', text, true);
+        if (document.getElementById('promptText').value === text) document.getElementById('promptHint').textContent = synced ? 'Synced to your desktop draft.' : 'Draft kept here. Reconnect to sync.';
+        return synced;
+      });
+      return promptSync;
+    }
+    function sendCurrentPrompt() {
+      if (document.getElementById('promptText').value.trim()) return sendPhonePrompt({ preventDefault() {} });
+      return triggerAction('send-prompt');
+    }
+    async function sendPhonePrompt(event) {
+      event.preventDefault();
+      if (promptSubmitting || !desktopAvailable || desktopBusy || !document.getElementById('promptText').value.trim()) return;
+      promptSubmitting = true; updatePromptControls();
+      try {
+        if (!await syncPrompt() || !desktopAvailable || desktopBusy || !await triggerAction('send-prompt')) return;
+        document.getElementById('promptText').value = '';
+        document.getElementById('promptHint').textContent = 'Also appears in your desktop draft.';
+        togglePromptEditor(false);
+      } finally { promptSubmitting = false; updatePromptControls(); }
+    }
 
     // 4. ACTION DISPATCH WITH LOW LATENCY
     async function triggerAction(action, payload, quiet = false) {
@@ -755,12 +787,14 @@ export class RemoteCompanionService {
         if (data.ok) {
           reportConnectionError('');
           updateUI(data);
+          return true;
         } else {
           reportConnectionError(data.error || 'Action unavailable', false);
         }
       } catch (err) {
         reportConnectionError('Desktop unavailable. Reconnect using the link in Novi.');
       }
+      return false;
     }
 
     function toggleTransparentSafe() {
@@ -876,19 +910,14 @@ export class RemoteCompanionService {
     function reportConnectionError(message, disconnected = true) {
       const note = document.getElementById('connectionError');
       note.textContent = message; note.hidden = !message;
-      const connection = document.getElementById('connectionStatus');
-      if (!message || disconnected) {
-        connection.textContent = message ? 'Disconnected' : 'Connected';
-        connection.dataset.connected = String(!message);
-      }
       if (message && disconnected) {
+        desktopAvailable = false; updatePromptControls();
         for (const id of ['sendPrompt', 'stopGeneration', 'captureSend', 'takeSnapshot', 'deleteSnapshot', 'listenButton', 'listeningMode', 'sessionMode']) document.getElementById(id).disabled = true;
       }
     }
 
     // 7. REALTIME STATUS SYNC
     function updateUI(status) {
-      if (typeof status.username === 'string') document.getElementById('accountName').textContent = status.username;
       if (status.windowLayout && !windowDrag && !pendingWindow && !windowSending) {
         const layout = status.windowLayout;
         windowRect = { xRatio: layout.xRatio, yRatio: layout.yRatio, widthRatio: layout.widthRatio, heightRatio: layout.heightRatio };
@@ -903,27 +932,28 @@ export class RemoteCompanionService {
       if (status.smartPlacement) {
         const smart = status.smartPlacement, button = document.getElementById('autoDetect'), note = document.getElementById('placementStatus');
         document.getElementById('autoSmart').checked = smart.enabled;
-        button.disabled = smart.busy; document.getElementById('autoDetectText').textContent = smart.busy ? 'Finding…' : 'Find space';
+        button.disabled = smart.busy; button.setAttribute('aria-label', smart.busy ? 'Finding desktop space' : 'Find desktop space');
+        button.setAttribute('aria-busy', String(smart.busy));
         note.className = 'placement-note' + (smart.error ? ' error' : '');
-        note.textContent = smart.error || smart.reason || (smart.enabled ? 'Auto Smart on · screenshots go to your AI model.' : 'AI placement shares a screenshot with your model.');
-        button.title = smart.shortcutRegistered ? 'Shortcut: ' + smart.shortcut : 'AutoDetect shortcut is unavailable; use this button.';
+        note.textContent = smart.error || ''; note.hidden = !smart.error;
+        button.title = 'Find desktop space · shares a screenshot with your AI model' + (smart.shortcutRegistered ? ' · ' + smart.shortcut : '');
       }
       isTransparent = Boolean(status.transparent);
       const btnGhost = document.getElementById('btnGhost');
-      const txtGhost = document.getElementById('txtGhost');
       btnGhost.classList.toggle('active-state', isTransparent);
       btnGhost.setAttribute('aria-pressed', String(isTransparent));
-      txtGhost.textContent = isTransparent ? 'Transparency on' : 'Transparency off';
+      btnGhost.title = isTransparent ? 'Turn off transparency' : 'Turn on transparency';
+      btnGhost.setAttribute('aria-label', btnGhost.title);
 
       const btnInteract = document.getElementById('btnInteract');
-      const txtInteract = document.getElementById('txtInteract');
       btnInteract.disabled = !isTransparent;
       btnInteract.classList.toggle('active-state', !status.clickThrough && isTransparent);
       btnInteract.setAttribute('aria-pressed', String(!status.clickThrough));
-      txtInteract.textContent = status.clickThrough ? 'Enable desktop input' : 'Desktop input on';
-      document.getElementById('inputNote').textContent = status.clickThrough ? 'Clicks pass through Novi. Enable desktop input to type.' : 'Clicks and typing go to Novi.';
+      btnInteract.title = status.clickThrough ? 'Enable desktop input' : 'Pass clicks through desktop window';
+      btnInteract.setAttribute('aria-label', btnInteract.title);
 
       const desktop = status.desktopState;
+      desktopAvailable = Boolean(desktop); desktopBusy = !desktop || desktop.busy; updatePromptControls();
       const mode = document.getElementById('sessionMode');
       mode.value = desktop ? desktop.mode : status.currentMode || 'normal';
       mode.disabled = !desktop;
@@ -940,9 +970,6 @@ export class RemoteCompanionService {
       const audio = document.getElementById('listeningMode');
       audio.disabled = !desktop || listening;
       if (desktop) audio.value = desktop.source;
-      if (!desktop) {
-        document.getElementById('connectionStatus').textContent = 'No active chat';
-      }
     }
 
     async function pollStatus() {

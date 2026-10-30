@@ -12,7 +12,7 @@ async function main(){
  await page.addInitScript(()=>{(window as any).__name=(x:unknown)=>x;});
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  const actions:Array<{action:string,payload:any}>=[];
- const status={ok:true,username:'test-user',transparent:false,clickThrough:false,currentMode:'normal',windowLayout:{xRatio:.25,yRatio:.15,widthRatio:.4,heightRatio:.6,minWidthRatio:.12,minHeightRatio:.15,aspectRatio:16/9},conversationScroll:{position:.5,scrollable:true},smartPlacement:{enabled:false,busy:false,error:'',reason:'',shortcut:'Control+Alt+Shift+Space',shortcutRegistered:true}};
+ const status={ok:true,username:'test-user',transparent:false,clickThrough:false,currentMode:'normal',desktopState:{mode:'normal',availableModes:['normal','coding'],busy:false,listening:false,source:'system'},windowLayout:{xRatio:.25,yRatio:.15,widthRatio:.4,heightRatio:.6,minWidthRatio:.12,minHeightRatio:.15,aspectRatio:16/9},conversationScroll:{position:.5,scrollable:true},smartPlacement:{enabled:false,busy:false,error:'',reason:'',shortcut:'Control+Alt+Shift+Space',shortcutRegistered:true}};
  await page.route('https://companion.test/**',async route=>{
   const url=new URL(route.request().url());
   if(url.pathname==='/')return route.fulfill({contentType:'text/html',body:html});
@@ -27,7 +27,19 @@ async function main(){
  });
  await page.goto('https://companion.test/#token=fixture');await page.getByRole('slider',{name:'Conversation scroll position'}).waitFor();
  await page.waitForFunction(()=>document.querySelector('#conversationScroll')?.getAttribute('aria-disabled')==='false');
- assert.equal(await page.locator('.header-compact').innerText(),'test-user');
+ assert.equal(await page.locator('.header-compact,#accountName,#connectionStatus').count(),0);
+ await page.getByRole('button',{name:'Write a prompt',exact:true}).click();
+ await page.getByLabel('Your prompt',{exact:true}).fill('Explain this approach.');
+ await page.waitForFunction(()=>document.querySelector('#promptHint')?.textContent==='Synced to your desktop draft.');
+ assert.equal(actions.filter(action=>action.action==='set-prompt').at(-1)?.payload,'Explain this approach.');
+ await page.getByRole('button',{name:'Collapse prompt editor',exact:true}).click();
+ assert.equal(await page.locator('#promptComposer').isVisible(),false);
+ await page.getByRole('button',{name:'Write a prompt',exact:true}).click();
+ assert.equal(await page.getByLabel('Your prompt',{exact:true}).inputValue(),'Explain this approach.');
+ await page.getByRole('button',{name:'Send typed prompt',exact:true}).click();
+ await page.locator('#promptComposer').waitFor({state:'hidden'});
+ assert.equal(await page.getByLabel('Your prompt',{exact:true}).inputValue(),'');
+ assert.deepEqual(actions.slice(-2).map(action=>action.action),['set-prompt','send-prompt']);
  assert.equal(await page.locator('#connBadge').count(),0);
  assert.equal(await page.getByRole('button',{name:/^(Left|Right|Center|↑ Up|↓ Down)$/}).count(),0);
  const preview=page.locator('#windowPreview');
@@ -51,8 +63,8 @@ async function main(){
  assert.equal(await page.evaluate(()=>scrollY),beforeScroll,'Sliding the rail must not scroll the phone page');
  await slider.focus();await page.keyboard.press('Home');await page.waitForTimeout(140);assert.equal(actions.filter(x=>x.action==='scroll-conversation-to').at(-1)?.payload,0);
  await page.keyboard.press('End');await page.waitForTimeout(140);assert.equal(actions.filter(x=>x.action==='scroll-conversation-to').at(-1)?.payload,1);
- await page.getByRole('button',{name:'✦ AutoDetect',exact:true}).click();await page.getByText('A quiet right margin.').waitFor();
- await page.getByRole('checkbox',{name:'Auto Smart',exact:true}).check();await page.waitForTimeout(150);assert.equal(actions.at(-1)?.action,'auto-smart');
+ await page.getByRole('button',{name:'Find desktop space',exact:true}).click();await page.waitForTimeout(150);assert.equal(actions.at(-1)?.action,'auto-detect');
+ await page.getByRole('checkbox',{name:'Automatic window placement',exact:true}).check();await page.waitForTimeout(150);assert.equal(actions.at(-1)?.action,'auto-smart');
  await page.screenshot({path:'.test-data/companion-v2/portrait.png',fullPage:true});
  const before={...status.windowLayout};await page.setViewportSize({width:844,height:390});await page.screenshot({path:'.test-data/companion-v2/landscape.png',fullPage:true});
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));

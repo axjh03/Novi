@@ -6,8 +6,9 @@ import { ENGINES, type LocalCodingMessage } from '../../../../shared/localCoding
 import { Brand } from '../Brand';
 import { errorText, unwrap } from '../../services/api';
 import { NumberedCode } from '../CodingModeHUD';
+import { WaitingPhrases } from './WaitingPhrases';
 
-export function ImagePreview({ image }: { image: ImageAttachment }) {
+export function ImagePreview({ image, readOnly = false }: { image: ImageAttachment; readOnly?: boolean }) {
   const [url, setUrl] = useState(image.previewUrl), [failed, setFailed] = useState(false);
   const viewer = useRef<HTMLDialogElement>(null);
   const [fullUrl, setFullUrl] = useState(''), [viewError, setViewError] = useState(''), [zoomed, setZoomed] = useState(false);
@@ -33,6 +34,8 @@ export function ImagePreview({ image }: { image: ImageAttachment }) {
       </div>
     );
   }
+
+  if (readOnly) return <span className="image-preview image-preview-static">{url ? <img src={url} alt={image.name} /> : <span className="image-placeholder">{failed ? 'Image unavailable' : 'Loading image…'}</span>}</span>;
 
   return <>
     <button type="button" className="image-preview" aria-label={`View ${image.name}`} title={`View ${image.name}`} onClick={() => void openImage()}>
@@ -75,7 +78,7 @@ const OPERATION = {
 } as const;
 
 /** Task progress and the clickable proposed-file cards of a Local Coding answer. */
-function LocalCodingResult({ result, onOpenFile }: { result: LocalCodingMessage; onOpenFile?: (result: LocalCodingMessage, fileId: string) => void }) {
+export function LocalCodingResult({ result, onOpenFile }: { result: LocalCodingMessage; onOpenFile?: (result: LocalCodingMessage, fileId: string) => void }) {
   const engine = ENGINES.find((item) => item.id === result.engine)?.label ?? result.engine;
   const running = ['preparing', 'reading', 'analyzing', 'validating'].includes(result.state);
   return <div className="lc-result">
@@ -95,13 +98,13 @@ function LocalCodingResult({ result, onOpenFile }: { result: LocalCodingMessage;
 }
 
 // Streaming replaces only the active message object, so memo skips re-parsing finished messages.
-export const Message = memo(function Message({ message, generating, displayName, onOpenFile, debugEnabled = false }: { message: ChatMessage; generating: boolean; displayName: string; onOpenFile?: (result: LocalCodingMessage, fileId: string) => void; debugEnabled?: boolean }) {
-  return <article className={`message ${message.role}`}><div className="message-avatar">{message.role === 'assistant' ? <Brand compact /> : <UserRound size={17} />}</div><div className="message-body"><div className="message-heading"><strong>{message.role === 'assistant' ? 'Novi' : displayName}</strong>{message.model && <span className="message-model" title={message.providerName}>{message.model}</span>}<time dateTime={new Date(message.createdAt).toISOString()}>{new Date(message.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div>
-    {!!message.images?.length && <div className="message-images">{message.images.map((image) => <ImagePreview key={image.id} image={image} />)}</div>}
+export const Message = memo(function Message({ message, generating, onOpenFile, debugEnabled = false, readOnly = false }: { message: ChatMessage; generating: boolean; onOpenFile?: (result: LocalCodingMessage, fileId: string) => void; debugEnabled?: boolean; readOnly?: boolean }) {
+  return <article className={`message ${message.role}`} aria-label={message.role === 'assistant' ? 'Novi reply' : 'Your message'}><div className="message-avatar" aria-hidden="true">{message.role === 'assistant' ? <Brand compact /> : <UserRound size={17} />}</div><div className="message-body">
+    {!!message.images?.length && <div className="message-images">{message.images.map((image) => <ImagePreview key={image.id} image={image} readOnly={readOnly} />)}</div>}
     {message.localCodingRequest && <span className="lc-request-base">Asked about {message.localCodingRequest.baseLabel}</span>}
     {message.role === 'assistant' ? <div className="markdown"><Markdown skipHtml components={markdownComponents}>{message.content}</Markdown></div> : <p className="user-content">{message.content}</p>}
-    {message.localCoding && <LocalCodingResult result={message.localCoding} onOpenFile={onOpenFile} />}
-    {generating && !message.content && !message.localCoding && <div className="activity" role="status" aria-label="Novi is thinking"><span /><span /><span /></div>}
+    {!readOnly && message.localCoding && <LocalCodingResult result={message.localCoding} onOpenFile={onOpenFile} />}
+    {generating && !message.content && <WaitingPhrases />}
     {message.error && <div className="error message-error" role="alert">{message.error}</div>}
     {message.status === 'stopped' && <small className="muted">Response stopped</small>}
     {debugEnabled && message.latency && !generating && <details className="response-latency"><summary>Response timing</summary>
