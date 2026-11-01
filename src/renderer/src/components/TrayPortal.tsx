@@ -103,8 +103,8 @@ export function TrayPortal({ children, detached = false, modern = false, role = 
       for (const element of shell.querySelectorAll('*')) {
         // Closed <details> content keeps a layout box (content-visibility: hidden); skip anything not shown.
         if (!element.checkVisibility()) continue;
-        const clipped = element.closest('.modern-panel, .modern-overlay-host, .modern-tray .tray-menu-content, .mod-menu-content, .mod-scroll, .live-content, .live-panel-expander');
-        if (clipped && clipped !== element && !element.matches('dialog[open], .tray-menu-content, .mod-menu-content')) continue;
+        const clipped = element.closest('.modern-panel, .modern-overlay-host, .modern-tray .tray-menu-content, .deck-menu-content, .deck-scroll, .live-content, .live-panel-expander');
+        if (clipped && clipped !== element && !element.matches('dialog[open], .tray-menu-content, .deck-menu-content')) continue;
         bottom = Math.max(bottom, element.getBoundingClientRect().bottom + trayWindow.scrollY + 4);
       }
       const height = Math.ceil(bottom);

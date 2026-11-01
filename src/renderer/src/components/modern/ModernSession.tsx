@@ -7,10 +7,10 @@ import { useAppMode } from '../../context/AppModeContext';
 import { useListening, warmConnection } from '../../hooks/useListening';
 import { errorText, unwrap } from '../../services/api';
 import { TrayPortal } from '../TrayPortal';
-import { AnswerStage, type StageTab } from './AnswerStage';
-import { AppearanceBar } from './AppearanceBar';
-import { ModernButton, useListeningClock } from './ModernKit';
-import { SessionBar, type SessionHistory, type SessionLocal, type SessionModel } from './SessionBar';
+import { LiveStage, type StageTab } from './LiveStage';
+import { ScreenDeck } from './ScreenDeck';
+import { Tool, useListeningClock } from './DeckKit';
+import { SessionDeck, type SessionHistory, type SessionLocal, type SessionModel } from './SessionDeck';
 
 export interface ModernSessionProps {
   state: Snapshot;
@@ -35,10 +35,11 @@ export interface ModernSessionProps {
   onSwitchToClassic: () => void;
   onClosed: () => void;
   listenKey: string;
+  snapshotKey?: string;
 }
 
 /**
- * A Modern session: three floating windows sharing one listening session and one message box.
+ * A Modern session: three floating decks sharing one listening session and one message box.
  *
  * Answer sends the question the other side just asked, or asks what to say next, with the
  * transcript attached; the transcript itself never lands in the message box. The box at the foot
@@ -151,30 +152,29 @@ export function ModernSession(props: ModernSessionProps) {
   const notices = <>
     {props.practice}
     {props.ready}
-    {props.contextError && <div className="mod-error" role="alert"><span>Session setup could not finish. Your documents and instructions are still loaded.</span>
-      <ModernButton icon={<RefreshCw />} label={props.retryingContext ? 'Retrying setup…' : 'Retry setup'} showLabel disabled={props.retryingContext} onClick={props.onRetryContext} /></div>}
-    {shownError && <div className="mod-error" role="alert"><span>{shownError}</span><button type="button" className="mod-btn" aria-label="Dismiss" onClick={() => { props.onDismissError(); setError(''); listening.setWarning(''); }}><X size={13} /></button></div>}
+    {props.contextError && <div className="deck-error" role="alert"><span>Session setup could not finish. Your documents and instructions are still loaded.</span>
+      <Tool icon={<RefreshCw />} label={props.retryingContext ? 'Retrying setup…' : 'Retry setup'} showLabel disabled={props.retryingContext} onClick={props.onRetryContext} /></div>}
+    {shownError && <div className="deck-error" role="alert"><span>{shownError}</span><button type="button" className="deck-tool" aria-label="Dismiss" onClick={() => { props.onDismissError(); setError(''); listening.setWarning(''); }}><X size={13} /></button></div>}
   </>;
 
   return <>
     <TrayPortal detached modern role="left" onClosed={onClosed}>
-      <SessionBar listening={listening} onSnapSend={() => void snapAndSend()} snapping={snapping} busy={busy} model={props.model} history={props.history} local={local} state={state}
-        tools={props.tools} debug={props.debug} onOpenSettings={() => settingsOpen ? onCloseSettings() : onOpenSettings()} settingsOpen={settingsOpen} onEnd={props.onEnd} ending={props.ending}
-        onDiagrams={props.onDiagrams} onSwitchToClassic={props.onSwitchToClassic} onError={setError} />
+      <SessionDeck busy={busy} model={props.model} history={props.history} local={local} state={state} tools={props.tools} debug={props.debug}
+        onOpenSettings={() => settingsOpen ? onCloseSettings() : onOpenSettings()} settingsOpen={settingsOpen} onDiagrams={props.onDiagrams} onError={setError} />
     </TrayPortal>
     <TrayPortal detached modern role="center" onClosed={onClosed} panel={settingsOpen ? props.settingsPanel : local.active && !local.binding ? local.setup : undefined} onPanelClose={settingsOpen ? onCloseSettings : undefined}>
-      <div className="mod-stage-wrap" onKeyDown={event => {
+      <div className="deck-stage-wrap" onKeyDown={event => {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !event.defaultPrevented && !event.nativeEvent.isComposing) { event.preventDefault(); if (textRef.current.trim() || images.length) void send(); else answer(); }
       }}>
-        <AnswerStage listening={listening} elapsed={elapsed} question={question} onAnswer={answer} busy={busy} onEnd={props.onEnd} ending={props.ending}
+        <LiveStage listening={listening} elapsed={elapsed} question={question} onAnswer={answer} onAsk={action => void ask(action)} onSnapSend={() => void snapAndSend()} snapping={snapping} busy={busy} onEnd={props.onEnd} ending={props.ending}
           onHide={() => void unwrap(window.novi.workspaceAction('hide')).catch(cause => setError(errorText(cause)))}
-          tab={tab} setTab={setTab} collapsed={collapsed} setCollapsed={setCollapsed} conversation={props.conversation} transcript={listening.transcript} onAsk={action => void ask(action)}
+          tab={tab} setTab={setTab} collapsed={collapsed} setCollapsed={setCollapsed} conversation={props.conversation} transcript={listening.transcript}
           meta={<><b>{modeName}</b><span aria-hidden="true">·</span><span>{modelName}</span></>} notices={notices}
-          composer={{ text, setText: value => { setText(value); if (value.trim()) warmConnection(); }, images, removeImage: id => setImages(current => current.filter(image => image.id !== id)), attach: files => void attach(files), snapshot: () => void snapshot(), attaching, send: () => void send(), streaming, stop: () => void unwrap(window.novi.stop()).catch(cause => setError(errorText(cause))), textareaRef: textarea, placeholder: props.placeholder }} />
+          composer={{ text, setText: value => { setText(value); if (value.trim()) warmConnection(); }, images, removeImage: id => setImages(current => current.filter(image => image.id !== id)), attach: files => void attach(files), snapshot: () => void snapshot(), attaching, send: () => void send(), streaming, stop: () => void unwrap(window.novi.stop()).catch(cause => setError(errorText(cause))), textareaRef: textarea, placeholder: props.placeholder, snapshotKey: props.snapshotKey || 'Alt+3' }} />
       </div>
     </TrayPortal>
     <TrayPortal detached modern role="right" onClosed={onClosed}>
-      <AppearanceBar onSwitchToClassic={props.onSwitchToClassic} onError={setError} />
+      <ScreenDeck onSwitchToClassic={props.onSwitchToClassic} onError={setError} />
     </TrayPortal>
     {/* Dialogs from the chat page portal into the center window through overlayHost. */}
     {overlayHost ? null : null}

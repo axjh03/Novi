@@ -4,7 +4,7 @@ import type { InterfaceStyle } from '../../../shared/appearance';
 import { Brand } from './Brand';
 
 /**
- * Asked once after sign-in: Classic (everything in one window) or Modern (floating bars over your
+ * Asked once after sign-in: Classic (everything in one window) or Modern (floating decks over your
  * screen). The two previews move the way each mode does, so the choice is made by seeing, not reading.
  * "Remember" stores the choice on this device; Settings › Appearance can ask again.
  *
@@ -43,7 +43,7 @@ export function AppearanceGate({ initial, onChoose }: { initial: InterfaceStyle;
           <span className="gp-bar right"><i /><i /></span>
           <span className="gp-panel"><span /><span className="short" /><span /></span>
         </span>
-        <span className="gate-card-text"><strong>Modern</strong><span>Three small floating bars over whatever you are doing, with answers in a panel under the middle one.</span></span>
+        <span className="gate-card-text"><strong>Modern</strong><span>Three small floating decks over whatever you are doing, with answers in a panel under the middle one.</span></span>
       </button>
     </div>
     <div className="gate-actions">

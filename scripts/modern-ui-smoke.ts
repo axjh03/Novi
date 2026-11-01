@@ -133,18 +133,22 @@ async function main() {
       await byRole.right.setViewportSize({ width: 390, height: 420 });
       for (const popup of windows) await popup.addStyleTag({ content: backdrop });
       await page.waitForTimeout(400);
-      // The center bar: Answer, the red stop, hide; the panel with the box always present.
+      // The live stage: Listen, Snap, Answer with its quick questions, the red End, Hide; the panel with the box always present.
       const center = byRole.center;
-      assert.equal(await center.getByRole('button', { name: 'Answer', exact: true }).count(), 1);
-      assert.equal(await center.getByRole('button', { name: 'End session', exact: true }).count(), 1);
+      for (const name of ['Listen', 'Snap and send', 'Answer', 'End session']) assert.equal(await center.getByRole('button', { name, exact: true }).count(), 1, name);
+      assert.equal(await byRole.left.getByRole('button', { name: 'Listen', exact: true }).count(), 0, 'listening lives on the live stage only');
       assert.equal(await center.getByLabel('Message Novi').isVisible(), true, 'the message box is always visible');
-      assert.equal(await center.locator('.mod-chip').count(), 5);
+      await center.getByLabel('Quick questions', { exact: true }).click();
+      await center.waitForTimeout(200);
+      assert.equal(await center.locator('.deck-split .deck-menu-item').count(), 5, 'five quick questions beside Answer');
+      await center.screenshot({ path: `${OUT}/center-quick.png`, fullPage: true });
+      await center.keyboard.press('Escape');
       await center.screenshot({ path: `${OUT}/center-idle.png`, fullPage: true });
       // Listen, then a transcript question appears and Answer sends it without touching the box.
-      await byRole.left.getByRole('button', { name: 'Listen', exact: true }).click();
+      await center.getByRole('button', { name: 'Listen', exact: true }).click();
       await center.waitForFunction(() => !!(window.opener as any).transcriptEvent);
       await page.evaluate(() => (window as any).transcriptEvent({ type: 'transcript:final', segment: { sessionId: 'session', segmentId: 'q1', source: 'system', text: 'Can you walk me through how you would design a rate limiter?', startTime: 4000, isFinal: true } }));
-      await center.locator('.mod-question').waitFor();
+      await center.locator('.deck-question').waitFor();
       assert.equal(await center.getByLabel('Message Novi').inputValue(), '', 'the transcript never lands in the message box');
       await center.getByRole('button', { name: 'Answer', exact: true }).click();
       await page.waitForFunction(() => (window as any).sent.length === 1);
@@ -160,7 +164,10 @@ async function main() {
       assert.equal(await byRole.left.getByText('Meeting', { exact: true }).count(), 0);
       await byRole.left.keyboard.press('Escape');
       await byRole.right.screenshot({ path: `${OUT}/right-bar.png`, fullPage: true });
-      for (const name of ['Turn off transparent mode', 'Phone companion', 'Show or hide the main window']) assert.equal(await byRole.right.getByRole('button', { name, exact: true }).count(), 1, name);
+      // Once the mocked stealth state lands, transparent mode is locked to its hotkey and the button says so.
+      assert.equal(await byRole.right.getByRole('button', { name: /^(Turn off transparent mode|Transparent mode is on)/ }).count(), 1, 'the transparent toggle');
+      for (const name of ['Phone companion', 'Show or hide the main window']) assert.equal(await byRole.right.getByRole('button', { name, exact: true }).count(), 1, name);
+      assert.equal(await byRole.left.getByText('Switch to Classic').count(), 0, 'Classic is offered once, on the screen deck');
       for (const name of ['Opacity and colours', 'Window options']) assert.equal(await byRole.right.getByLabel(name, { exact: true }).count(), 1, name);
       assert.equal(await byRole.right.getByLabel(/Smaller text/).count(), 1);
       assert.equal(await byRole.right.getByText('Interactive').count(), 1, 'click-through state is shown');
@@ -170,7 +177,8 @@ async function main() {
       // The red square asks before ending.
       await center.getByRole('button', { name: 'End session', exact: true }).click();
       assert.equal(await page.evaluate(() => (window as any).ends), 1);
-      assert.equal((await center.locator('.live-drag, .live-logo, .brand').count()), 0, 'no drag grip and no logo in the bar');
+      assert.equal((await center.locator('.live-drag, .live-logo, .brand').count()), 0, 'no drag grip and no logo in the deck');
+      assert.equal(await center.locator('.deck-strip').count(), 1, 'the status strip reads the state');
       await context.close();
     }
     // 2. Session setup as a card.

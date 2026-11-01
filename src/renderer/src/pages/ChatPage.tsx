@@ -365,7 +365,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   if (modern) {
     return <div className="chat-layout modern-layout">
       <main className="chat-main empty">
-        <div className="modern-idle"><p>Novi is floating above your screen. Answers appear in the middle panel.</p><button type="button" className="primary" onClick={() => void window.novi.workspaceAction('show')}>Show the bars</button></div>
+        <div className="modern-idle"><p>Novi is floating above your screen. Answers appear in the middle panel.</p><button type="button" className="primary" onClick={() => void window.novi.workspaceAction('show')}>Show the decks</button></div>
       </main>
       <ModernSession key={composerKey} state={state} conversation={conversation}
         busy={chat.busy || contextBusy || ending || syncingModel} streaming={chat.busy}
@@ -382,7 +382,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
         settingsOpen={settings} onOpenSettings={() => { practice.cancel(); setSettings(true); }} onCloseSettings={() => setSettingsCloseRequest(value => value + 1)} settingsPanel={<div ref={setSettingsHost} />}
         onSwitchToClassic={() => setInterfaceStyle('classic')}
         onClosed={() => { setInterfaceStyle('classic'); chat.setError('A floating Modern window closed, so Novi switched back to Classic. Choose Modern again under Settings › Appearance to reopen it.'); }}
-        listenKey={listenKey} />
+        listenKey={listenKey} snapshotKey={config.screenshotShortcut || 'Alt+3'} />
       {dialogs}
       <SurfacePortal target={settingsHost}>{settings && settingsPage}</SurfacePortal>
     </div>;
