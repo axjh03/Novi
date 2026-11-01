@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Award, Brain, Camera, Code2, Download, Ellipsis, Eye, FolderCode, History, Lock, MessageSquare, Network, Pencil, Phone, Plus, Settings, SlidersHorizontal, Sparkles, Trash2, Video, Zap, type LucideIcon } from 'lucide-react';
+import { Award, Brain, Camera, Code2, Download, Ellipsis, Eye, FolderCode, History, Lock, MessageSquare, MessageSquareQuote, Network, Pencil, Phone, Plus, Settings, SlidersHorizontal, Sparkles, Trash2, Video, Zap, type LucideIcon } from 'lucide-react';
 import type { AppMode, BehavioralFramework, Conversation, ImageAttachment, ModelOption, ProviderConnection, Snapshot } from '../../../../shared/types';
 import type { ListeningSource } from '../../../../shared/interview';
 import { SESSION_MODES } from '../../../../shared/sessionModes';
@@ -79,7 +79,7 @@ export function SessionBar({ listening, onSnapSend, snapping, busy, model, histo
         <div className="mod-menu-group">{FRAMEWORKS.map(framework => <MenuItem key={framework.id} label={framework.label} description={framework.description} selected={behavioralFramework === framework.id} onClick={() => void setBehavioralFramework(framework.id)} />)}</div>
       </>}
     </ModernMenu>
-    <ModernMenu label="Answer style" icon={<MessageSquare />} width={270}>
+    <ModernMenu label="Answer style" icon={<MessageSquareQuote />} width={270}>
       <MenuTitle>Answer style · change any time</MenuTitle>
       <div className="mod-menu-group">{styles.map(style => <MenuItem key={style.id} label={style.name} description={style.description} selected={answerStyle === style.id} onClick={event => { setAnswerStyle(style.id); closeMenu(event.currentTarget); }} />)}</div>
     </ModernMenu>

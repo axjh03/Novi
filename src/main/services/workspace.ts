@@ -14,6 +14,7 @@ export function trayRole(frameName: string): TrayRole | null {
 const TRAY_WIDTH = 600;
 const MODERN_TRAY_WIDTH = 490;
 export const SIDE_TRAY_WIDTH = 360;
+export const LEFT_TRAY_WIDTH = 470;
 const TRAY_MIN_WIDTH = 320;
 const TRAY_GAP = 12;
 const TRAY_MIN_HEIGHT = 48;
@@ -190,8 +191,10 @@ export class WorkspaceService {
     };
   }
 
+  // The session bar on the left carries labelled controls, so it starts wider than the appearance bar.
   private defaultTrayWidth(role: TrayRole) {
-    return role === 'center' ? this.interfaceStyle === 'modern' ? MODERN_TRAY_WIDTH : TRAY_WIDTH : SIDE_TRAY_WIDTH;
+    if (role === 'center') return this.interfaceStyle === 'modern' ? MODERN_TRAY_WIDTH : TRAY_WIDTH;
+    return role === 'left' ? LEFT_TRAY_WIDTH : SIDE_TRAY_WIDTH;
   }
 
   /** On the screen the output panel is on: the center tray clear of the panel while docked, the side trays in the corners. */

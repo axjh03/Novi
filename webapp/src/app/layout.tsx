@@ -6,7 +6,7 @@ import CanadaPrank from '@/components/CanadaPrank'; // CANADA PRANK: removable i
 
 // Three faces, each with one job: Libre Franklin sets every headline on the public site, Source Serif 4
 // sets its running text, and Inter sets the workspace. All are self-hosted by next/font at build time.
-const display = Libre_Franklin({ subsets: ['latin'], weight: ['400', '500', '700'], variable: '--font-display', display: 'swap' });
+const display = Libre_Franklin({ subsets: ['latin'], weight: ['400', '500', '700'], style: ['normal', 'italic'], variable: '--font-display', display: 'swap' });
 const text = Source_Serif_4({ subsets: ['latin'], weight: ['400', '600'], style: ['normal', 'italic'], variable: '--font-text', display: 'swap' });
 const ui = Inter({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-ui', display: 'swap' });
 

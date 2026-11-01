@@ -57,9 +57,11 @@ export default function PublicLanding({ onSignIn, onSignUp }: { onSignIn: () => 
         <section className={styles.hero} aria-labelledby="landing-title">
           <div className={styles.heroCopy}>
             <h1 id="landing-title" className={styles.title}>
-              {['Fuck LeetCode.', 'Fuck HackerRank.', 'Fuck Assessment.', 'Fuck it RAW.'].map((line, index) => <span className={styles.line} key={line}><span style={{ '--i': index } as CSSProperties}>{line}</span></span>)}
+              {['Fuck LeetCode.', 'Fuck HackerRank.', 'Fuck Assessment.'].map((line, index) => <span className={styles.line} key={line}><span style={{ '--i': index } as CSSProperties}>{line}</span></span>)}
+              {/* RAW opens into its three words every few seconds: the capitals stay, the rest arrives in italics. */}
+              <span className={`${styles.line} ${styles.rawHost}`}><span className={styles.rawLine} style={{ '--i': 3 } as CSSProperties}>Fuck it <span className={styles.rawWord}><span className={styles.srOnly}>RAW, Random Access Wisdom</span><span aria-hidden="true" className={styles.rawLetters}><b>R</b><span className={styles.rawSeg}><span>andom&nbsp;</span></span><b>A</b><span className={styles.rawSeg}><span>ccess&nbsp;</span></span><b>W</b><span className={styles.rawSeg}><span>isdom</span></span></span></span>.</span></span>
             </h1>
-            <p className={styles.raw} data-load style={{ '--d': '560ms' } as CSSProperties}>(Random Access Wisdom)</p>
+            <p className={styles.raw}>(Random Access Wisdom)</p>
             <p className={styles.lead} data-load style={{ '--d': '640ms' } as CSSProperties}>Novi is an AI interview cheating app. Capture a live question from your screen or audio and get answers, code, and explanations during the interview. Behavioral round, technical screen, or another surprise follow-up: get the answer when you need it.</p>
             <div className={styles.actions} data-load style={{ '--d': '720ms' } as CSSProperties}>
               <Link className={styles.primary} href="/#signup" onClick={event => { event.preventDefault(); onSignUp(); }}>Create your account</Link>
