@@ -24,31 +24,33 @@
 .title { font-size: clamp(40px, 5.2vw, 80px); line-height: 0.95; letter-spacing: -0.04em; margin-left: -0.04em; }
 .line { display: block; overflow: clip; padding-bottom: 0.1em; margin-bottom: -0.1em; }
 .line > span { display: block; }
-/* RAW, opening. The last line keeps the title size; its long form runs out over the stage on wide
-   screens and shrinks to fit on phones (--raw-scale). Each hidden part is a grid track that opens
-   from 0fr to 1fr, so the width animates without knowing the text. Six seconds a cycle: three closed,
-   three open. With reduced motion the line stays closed and the subline says what RAW stands for. */
+/* RAW, opening once. The capitals are always pink. Three seconds after load the hidden parts open
+   ("with Random Access Wisdom"), hold, and close again; the line then stays RAW until the next load.
+   Each hidden part is a grid track that opens from 0fr to 1fr, so the width animates without knowing
+   the text; --raw-scale shrinks the long form to fit narrower screens. With reduced motion the line
+   stays closed and the subline says what RAW stands for. */
 .hero { overflow-x: clip; }
-.rawHost { --raw-scale: 1; display: flex; align-items: flex-end; height: 1.05em; overflow: visible; clip-path: inset(0 -100vw 0 -0.1em); }
+.rawHost { --raw-scale: .88; display: flex; align-items: flex-end; height: 1.05em; overflow: visible; clip-path: inset(0 -100vw 0 -0.1em); }
 .rawLine { white-space: nowrap; }
 .rawWord { display: inline-block; white-space: nowrap; }
 .rawLetters { display: inline; }
-.rawLetters b { font-weight: inherit; color: inherit; }
+.rawLetters b { font-weight: inherit; color: var(--accent); }
 .rawSeg { display: inline-grid; grid-template-columns: 0fr; vertical-align: baseline; color: var(--accent); font-style: italic; }
 .rawSeg > span { min-width: 0; overflow: hidden; opacity: 0; }
+.rawWith { color: inherit; }
 .raw { display: none; margin-top: 20px; font: italic 400 var(--step-lead)/1.3 var(--text); color: var(--accent); }
 @media (prefers-reduced-motion: no-preference) {
-  .rawSeg { animation: rawOpen 6s var(--ease-in-out) 3400ms infinite; }
-  .rawSeg > span { animation: rawShow 6s var(--ease-in-out) 3400ms infinite; }
-  .rawWord { animation: rawLean 6s step-end 3400ms infinite; }
-  /* The last line rises in with the others, then keeps the fit cycle for phones. */
-  .title .rawHost .rawLine { transform: translateY(105%); animation: lineUp 800ms var(--ease-expo) forwards, rawFit 6s var(--ease-in-out) infinite; animation-delay: calc(100ms + var(--i) * 100ms), 3400ms; }
+  .rawSeg { animation: rawOpen 5s var(--ease-in-out) 3000ms 1 both; }
+  .rawSeg > span { animation: rawShow 5s var(--ease-in-out) 3000ms 1 both; }
+  .rawWord { animation: rawLean 5s step-end 3000ms 1 both; }
+  /* The last line rises in with the others, then fits the long form while it is open. */
+  .title .rawHost .rawLine { transform: translateY(105%); animation: lineUp 800ms var(--ease-expo) forwards, rawFit 5s var(--ease-in-out) 1; animation-delay: calc(100ms + var(--i) * 100ms), 3000ms; }
 }
 @media (prefers-reduced-motion: reduce) { .raw { display: block; } }
-@keyframes rawOpen { 0%, 58%, 100% { grid-template-columns: 0fr; } 9%, 50% { grid-template-columns: 1fr; } }
-@keyframes rawShow { 0%, 3%, 55%, 100% { opacity: 0; } 9%, 50% { opacity: 1; } }
-@keyframes rawLean { 0%, 58%, 100% { font-style: normal; } 1%, 57% { font-style: italic; } }
-@keyframes rawFit { 0%, 58%, 100% { font-size: 1em; } 9%, 50% { font-size: calc(1em * var(--raw-scale)); } }
+@keyframes rawOpen { 0%, 100% { grid-template-columns: 0fr; } 20%, 80% { grid-template-columns: 1fr; } }
+@keyframes rawShow { 0%, 4%, 94%, 100% { opacity: 0; } 20%, 80% { opacity: 1; } }
+@keyframes rawLean { 0%, 100% { font-style: normal; } 1%, 99% { font-style: italic; } }
+@keyframes rawFit { 0%, 100% { font-size: 1em; } 20%, 80% { font-size: calc(1em * var(--raw-scale)); } }
 .lead { max-width: 44ch; margin-top: 28px; font-size: var(--step-body); line-height: 1.55; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; margin-top: 36px; }
 .price { flex-basis: 100%; font: 400 var(--step-small)/1.4 var(--ui); color: var(--muted); }
@@ -192,7 +194,7 @@
   .heroCopy { grid-column: 1 / 8; }
   .stage { left: calc(41.666% + var(--margin) * 0.5); }
   .stageInner { left: 56px; top: 100px; }
-  .rawHost { --raw-scale: .9; }
+  .rawHost { --raw-scale: .8; }
   .board { grid-template-rows: 34svh 34svh auto; }
   .tileA h2 { font-size: clamp(48px, 7vw, 96px); }
   .tileB strong { font-size: clamp(48px, 7vw, 96px); }
@@ -217,7 +219,7 @@
   .heroCopy { padding: 40px 20px 40px; }
   .title { margin-left: 0; }
   .title { font-size: clamp(36px, 10vw, 56px); }
-  .rawHost { --raw-scale: .68; }
+  .rawHost { --raw-scale: .6; }
   .lead { margin-top: 24px; }
   .stage { position: relative; inset: auto; left: 0; height: 420px; clip-path: polygon(0 56px, 72px 56px, 72px 0, 100% 0, 100% 100%, 0 100%); }
   .stageInner { top: 72px; left: 16px; width: 620px; max-width: none; }
@@ -276,7 +278,7 @@
 }
 @media (max-width: 480px) {
   .title { font-size: clamp(34px, 10vw, 44px); }
-  .rawHost { --raw-scale: .6; }
+  .rawHost { --raw-scale: .52; }
   .primary { width: 100%; }
   .stage { height: 380px; }
   .step { grid-template-columns: 1fr; }

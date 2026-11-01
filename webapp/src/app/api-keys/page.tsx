@@ -4,7 +4,9 @@ import Link from 'next/link';
 import PublicNavbar from '@/components/PublicNavbar';
 import SiteFooter from '@/components/SiteFooter';
 import { ChapterPage, CloseRow, Title } from '@/components/Chapters';
-import { AddKeyFragment, KeysFragment } from '@/components/Fragments';
+import { AddKeyFragment } from '@/components/Fragments';
+import KeyRelay from './KeyRelay';
+import { marks } from './ProviderMarks';
 import CopyButton from './CopyButton';
 import KeyChecker from './KeyChecker';
 import chapters from '@/components/Chapters.module.css';
@@ -20,7 +22,7 @@ export const metadata: Metadata = {
 const providers: { id: string; name: string; tone: string; home: string; keys: string; base: string; format: string; steps: ReactNode[]; test: string; mark?: ReactNode }[] = [
   {
     id: 'anthropic', name: 'Anthropic Claude', tone: 'tone-rose', home: 'https://console.anthropic.com/', keys: 'https://console.anthropic.com/settings/keys', base: 'https://api.anthropic.com/v1', format: 'sk-ant-api03-…',
-    mark: <svg viewBox="0 0 24 24" width="36" height="36" aria-hidden="true"><path fill="currentColor" d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.541Zm1.9074 4.5422 2.222 5.765H6.3813Z" /></svg>,
+    mark: marks.anthropic,
     steps: [
       <>Sign in or sign up at <a href="https://console.anthropic.com/" target="_blank" rel="noreferrer">console.anthropic.com</a>. Anthropic may ask for phone verification before it lets you create keys.</>,
       <>Open <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">Settings, API keys</a> and press <b>Create Key</b>.</>,
@@ -31,7 +33,7 @@ const providers: { id: string; name: string; tone: string; home: string; keys: s
   },
   {
     id: 'openai', name: 'OpenAI', tone: 'tone-paper', home: 'https://platform.openai.com/', keys: 'https://platform.openai.com/api-keys', base: 'https://api.openai.com/v1', format: 'sk-proj-…',
-    mark: <svg viewBox="0 0 24 24" width="36" height="36" aria-hidden="true"><path fill="currentColor" d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1683a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4947zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1683a.0757.0757 0 0 1-.071 0l-4.8303-2.7866A4.504 4.504 0 0 1 2.3408 7.8956zm16.0993 3.8558L12.5973 8.3829l2.02-1.1683a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.4023-.6813zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1635a.0804.0804 0 0 1-.038-.0567V6.0748a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.4598a.7948.7948 0 0 0-.3927.6813l-.0048 6.7219zm1.1026-1.576l2.5884-1.492 2.5836 1.492v2.984l-2.5836 1.492-2.5884-1.492z" /></svg>,
+    mark: marks.openai,
     steps: [
       <>Sign in at <a href="https://platform.openai.com/" target="_blank" rel="noreferrer">platform.openai.com</a>, the developer platform, not ChatGPT.</>,
       <>Open <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">API keys</a> and press <b>Create new secret key</b>.</>,
@@ -42,7 +44,7 @@ const providers: { id: string; name: string; tone: string; home: string; keys: s
   },
   {
     id: 'gemini', name: 'Google Gemini', tone: 'tone-wine', home: 'https://aistudio.google.com/', keys: 'https://aistudio.google.com/app/apikey', base: 'https://generativelanguage.googleapis.com/v1beta', format: 'AIzaSy…',
-    mark: <svg viewBox="0 0 24 24" width="36" height="36" aria-hidden="true"><path fill="currentColor" d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81Z" /></svg>,
+    mark: marks.gemini,
     steps: [
       <>Open <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer">aistudio.google.com</a> and sign in with a Google account.</>,
       <>Go to <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">Get API key</a> and press <b>Create API key</b>, in a new project if it asks.</>,
@@ -52,6 +54,7 @@ const providers: { id: string; name: string; tone: string; home: string; keys: s
   },
   {
     id: 'kimi', name: 'Kimi (Moonshot AI)', tone: 'tone-deep', home: 'https://platform.moonshot.cn/', keys: 'https://platform.moonshot.cn/console/api-keys', base: 'https://api.moonshot.cn/v1', format: 'sk-…',
+    mark: marks.kimi,
     steps: [
       <>Register or sign in at <a href="https://platform.moonshot.cn/" target="_blank" rel="noreferrer">platform.moonshot.cn</a>.</>,
       <>Open <a href="https://platform.moonshot.cn/console/api-keys" target="_blank" rel="noreferrer">API Keys</a> and press <b>新建 API Key</b> (Create API Key).</>,
@@ -77,7 +80,7 @@ export default function ApiKeysPage() {
               <a href="#add-key">Add it to Novi</a>
             </nav>
           </div>
-          <div className={`${chapters.heroSide} ${styles.heroKeys}`}><div data-open><KeysFragment /></div></div>
+          <div className={`${chapters.heroSide} ${styles.heroRelay}`}><div data-open><KeyRelay /></div></div>
         </section>
 
         {/* 2 · Which key is this, and which door for what. */}

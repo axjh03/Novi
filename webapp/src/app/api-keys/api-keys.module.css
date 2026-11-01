@@ -5,8 +5,8 @@
 .jump a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; background: var(--card); color: var(--ink); font: 500 15px/1 var(--ui); transition: background-color var(--t-hover) ease, transform var(--t-press) var(--ease-out); }
 .jump a:hover { background: var(--soft); }
 .jump a:active { transform: scale(0.97); }
-.heroKeys { align-items: flex-end; }
-.heroKeys > div { width: 100%; max-width: 560px; }
+.heroRelay { align-items: center; }
+.heroRelay > div { width: 100%; max-width: 560px; }
 
 /* ---------- 2 · four doors ---------- */
 .doors { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gutter); row-gap: 48px; align-items: start; padding: clamp(96px, 14vh, 180px) var(--margin); }
@@ -107,7 +107,7 @@
 }
 @media (max-width: 820px) {
   .jump { margin-top: 28px; }
-  .heroKeys > div { max-width: none; }
+  .heroRelay > div { max-width: none; }
   .doors { display: block; padding: 72px var(--margin); }
   .doorsWords h2 { max-width: none; margin-left: 0; font-size: clamp(32px, 9vw, 48px); }
   .doorsWords > p, .checker p { max-width: none; }
