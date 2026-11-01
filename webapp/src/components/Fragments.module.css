@@ -84,3 +84,19 @@
 .formCheck i::after { content: ''; position: absolute; left: 4.5px; top: 1.5px; width: 4px; height: 8px; border-right: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(45deg); }
 .formButton { display: flex; align-items: center; justify-content: center; min-height: 36px; margin: 14px 12px 12px; border-radius: 6px; background: #8f2946; color: #fff; font-weight: 500; }
 .formDesktop { background: #0a0a0b; }
+
+/* The interactive architecture model (src/components/SystemDesignScene.tsx) */
+.scene { position: relative; margin: 12px 0 0; border-radius: 8px; background: #09090b; overflow: hidden; }
+.scene .uiDiagramWrap { margin: 0; }
+.sceneCanvas { position: relative; height: clamp(230px, 44vw, 330px); }
+.sceneCanvas canvas { display: block; }
+.sceneHint { position: absolute; top: 9px; right: 11px; font: 400 11px/1 var(--ui); color: #6f6570; letter-spacing: .01em; pointer-events: none; }
+.lbl { display: inline-block; padding: 2px 6px; font: 500 14px/1 var(--ui); color: #e4a0b2; white-space: nowrap; letter-spacing: .005em; }
+.lblStore { color: #ece6ea; }
+.edgeLbl { display: inline-block; padding: 2px 6px; border-radius: 4px; background: rgba(9, 9, 11, .78); font: 400 11.5px/1 var(--ui); color: #a89da3; white-space: nowrap; transition: color 200ms; }
+.edgeLblLit { color: #e4a0b2; }
+.sceneBar { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px 6px; border-top: 1px solid #1b181d; }
+.chip { padding: 5px 10px; border: 1px solid #221e24; border-radius: 999px; background: #121014; color: #a89da3; font: 500 12px/1 var(--ui); cursor: pointer; transition: color 160ms, border-color 160ms, background 160ms; }
+.chip:hover, .chip:focus-visible { color: #ece6ea; border-color: #3a3036; outline: none; }
+.chip[aria-pressed='true'] { color: #e4a0b2; border-color: #8f2946; background: #1d1217; }
+.sceneNote { min-height: 40px; margin: 0; padding: 4px 12px 12px; font: 400 12.5px/1.5 var(--ui); color: color-mix(in srgb, #ece6ea calc(60% + var(--tone, 0) * 40%), #6f6570); transition: color 200ms; }

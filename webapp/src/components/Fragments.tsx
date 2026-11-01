@@ -1,5 +1,6 @@
 import { PLANS, type PlanId } from '@/lib/site';
 import styles from './Fragments.module.css';
+import { SystemDesignInteractive } from './SystemDesignInteractive';
 
 /* ----------------------------------------------------------------------------------------------
    Fragments of the product's own interface, at true size, shared by every public page. Each root is
@@ -9,7 +10,7 @@ import styles from './Fragments.module.css';
    ---------------------------------------------------------------------------------------------- */
 export type Mode = 'Code' | 'Behavioral' | 'System design' | 'Recruiter call' | 'Technical screen';
 export type FollowUp = { question: string; title: string; points: string[]; meta: string };
-export type Diagram = { nodes: { id: string; label: string; x: number; y: number; tone?: 'store' }[]; edges: { from: string; to: string; label?: string }[] };
+export type Diagram = { nodes: { id: string; label: string; x: number; y: number; tone?: 'store'; note?: string }[]; edges: { from: string; to: string; label?: string }[] };
 export type Answer = { mode: Mode; title: string; code?: string[]; points?: string[]; flow?: string[]; diagram?: Diagram; meta: string; followUp?: FollowUp };
 
 export const reverseList: Answer = { mode: 'Code', title: 'Reverse the list in place', code: [
@@ -43,8 +44,8 @@ export const failed: Answer = { mode: 'Behavioral', title: 'A time you failed, i
 ], meta: 'Framework: STAR · pulled from your resume and project notes · 60 seconds spoken', followUp: { question: 'What would you do differently now?', title: 'Estimate with someone, and surface slips early', points: ['Name the one habit that changed: a second reviewer on every estimate.', 'Then the signal you now watch for: a slice that misses its day gets raised the same day.'], meta: 'Keep it to two sentences · they are checking for self-awareness, not a new story' } };
 export const shortener: Answer = { mode: 'System design', title: 'A URL shortener', diagram: {
   nodes: [
-    { id: 'client', label: 'Client', x: 0, y: 0 }, { id: 'api', label: 'API', x: 1, y: 0 }, { id: 'cache', label: 'Cache', x: 2, y: 0 }, { id: 'store', label: 'Link store', x: 3, y: 0, tone: 'store' },
-    { id: 'keys', label: 'Key service', x: 1, y: 1 }, { id: 'analytics', label: 'Click queue', x: 2, y: 1, tone: 'store' },
+    { id: 'client', label: 'Client', x: 0, y: 0, note: 'A browser or app following a short link. It only ever sees a redirect.' }, { id: 'api', label: 'API', x: 1, y: 0, note: 'Stateless redirect and create endpoints; scale them out behind a load balancer.' }, { id: 'cache', label: 'Cache', x: 2, y: 0, note: 'The hottest 20% of links answer from memory, so the store never sees a viral key.' }, { id: 'store', label: 'Link store', x: 3, y: 0, tone: 'store', note: 'Key to URL, written once. Sharded by key prefix, replicated for reads.' },
+    { id: 'keys', label: 'Key service', x: 1, y: 1, note: 'Hands out pre-generated 7-character keys so creates never collide or wait.' }, { id: 'analytics', label: 'Click queue', x: 2, y: 1, tone: 'store', note: 'Clicks are published asynchronously; the redirect path never waits on analytics.' },
   ],
   edges: [
     { from: 'client', to: 'api', label: 'GET /x7Kq2' }, { from: 'api', to: 'cache', label: 'lookup' }, { from: 'cache', to: 'store', label: 'miss' },
@@ -67,8 +68,8 @@ export const screenQuestion: Answer = { mode: 'Technical screen', title: 'Walk m
 ], meta: 'Pulled from the project notes in your context · 90 seconds spoken', followUp: { question: 'What was the hardest bug in it?', title: 'The retry that charged twice', points: ['A declined card threw, the retry wrapper caught it and charged again.', 'Fixed with an idempotency key per order; the test now asserts one charge per decline.'], meta: 'From your project notes · say what you would test first next time' } };
 export const chatService: Answer = { mode: 'System design', title: 'A chat service for 10M users', diagram: {
   nodes: [
-    { id: 'app', label: 'Mobile app', x: 0, y: 0 }, { id: 'gw', label: 'Gateway', x: 1, y: 0 }, { id: 'chat', label: 'Chat service', x: 2, y: 0 }, { id: 'msgs', label: 'Message store', x: 3, y: 0, tone: 'store' },
-    { id: 'presence', label: 'Presence', x: 2, y: 1 }, { id: 'queue', label: 'Fan-out queue', x: 3, y: 1, tone: 'store' }, { id: 'push', label: 'Push service', x: 1, y: 1 },
+    { id: 'app', label: 'Mobile app', x: 0, y: 0, note: 'One websocket per device. It sends, acks by sequence number, and refetches a gap rather than resyncing.' }, { id: 'gw', label: 'Gateway', x: 1, y: 0, note: 'Terminates the websockets and keeps the chat service stateless; connections are the thing that scales here.' }, { id: 'chat', label: 'Chat service', x: 2, y: 0, note: 'Appends the message, assigns its sequence number, and publishes it for delivery. No state of its own.' }, { id: 'msgs', label: 'Message store', x: 3, y: 0, tone: 'store', note: 'An append-only log per conversation, sharded by conversation id; the last page is served from cache.' },
+    { id: 'presence', label: 'Presence', x: 2, y: 1, note: 'Heartbeats with a short TTL say who is online, which decides socket delivery versus push.' }, { id: 'queue', label: 'Fan-out queue', x: 3, y: 1, tone: 'store', note: 'Every recipient device gets its own delivery job, so a slow phone never blocks the sender.' }, { id: 'push', label: 'Push service', x: 1, y: 1, note: 'Offline devices get a notification through APNs or FCM and pull the messages when they open.' },
   ],
   edges: [
     { from: 'app', to: 'gw', label: 'websocket' }, { from: 'gw', to: 'chat' }, { from: 'chat', to: 'msgs', label: 'append' },
@@ -140,7 +141,7 @@ export function ArchitectureDiagram({ diagram, title }: { diagram: Diagram; titl
 }
 
 /** The answer window: question at the top, Novi's answer under it, a composer for the follow-up. */
-export function NoviAnswer({ answer, question, compact = false, time = '12:04', state = 'answer' }: { answer: Answer; question: string; compact?: boolean; time?: string; state?: 'listening' | 'answer' | 'follow-up' }) {
+export function NoviAnswer({ answer, question, compact = false, time = '12:04', state = 'answer', interactive = false }: { answer: Answer; question: string; compact?: boolean; time?: string; state?: 'listening' | 'answer' | 'follow-up'; interactive?: boolean }) {
   return (
     <div className={`${styles.ui} ${compact ? styles.uiCompact : ''}`} data-ui>
       <div className={styles.uiBar}><span className={styles.uiMode}>{answer.mode}</span><span>Session · {time}</span><span className={styles.uiLive}><i />Listening</span></div>
@@ -150,7 +151,7 @@ export function NoviAnswer({ answer, question, compact = false, time = '12:04', 
       ) : (
         <div className={styles.uiAnswer}>
           <p className={styles.uiTitle}><span className={styles.uiMark}>n</span>{answer.title}</p>
-          {answer.diagram && <div className={styles.uiDiagramWrap}><ArchitectureDiagram diagram={answer.diagram} title={answer.title} /></div>}
+          {answer.diagram && (interactive ? <SystemDesignInteractive diagram={answer.diagram} title={answer.title} /> : <div className={styles.uiDiagramWrap}><ArchitectureDiagram diagram={answer.diagram} title={answer.title} /></div>)}
           {answer.flow && !answer.diagram && <ol className={styles.uiFlow}>{answer.flow.map(step => <li key={step}>{step}</li>)}</ol>}
           {answer.code && <pre className={styles.uiCode}><code>{answer.code.map((line, index) => <span key={index}><i>{index + 1}</i>{line}</span>)}</code></pre>}
           {answer.points && <ul className={styles.uiPoints}>{answer.points.map(point => <li key={point}>{point}</li>)}</ul>}

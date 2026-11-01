@@ -109,7 +109,7 @@ export default function FeaturesClient() {
             <p data-reveal style={{ '--i': 2 } as CSSProperties}>Ask for the trade-off behind any box and the diagram updates with the conversation. Say the arrows out loud; that is the answer they are grading.</p>
             <p className={styles.plan} data-reveal style={{ '--i': 3 } as CSSProperties}>Pro and above</p>
           </div>
-          <div className={styles.splitPicture} data-reveal style={{ '--i': 2 } as CSSProperties}><NoviAnswer answer={chatService} question="Design a chat service for ten million users." time="31:08" /></div>
+          <div className={styles.splitPicture} data-reveal style={{ '--i': 2 } as CSSProperties}><NoviAnswer answer={chatService} question="Design a chat service for ten million users." time="31:08" interactive /></div>
         </section>
 
         {/* 4 · Eye tracking: the HUD follows the gaze. */}
