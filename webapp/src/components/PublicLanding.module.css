@@ -19,43 +19,37 @@
 }
 
 /* ---------- 1 · hero ---------- */
-.hero { position: relative; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gutter); min-height: calc(100svh - 72px); padding: 0 var(--margin); isolation: isolate; }
-.heroCopy { grid-column: 1 / 7; position: relative; z-index: 1; padding: clamp(56px, 10vh, 120px) 0 clamp(48px, 8vh, 96px); align-self: start; }
+.hero { position: relative; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gutter); min-height: calc(100svh - 72px); padding: 0 0 0 var(--margin); isolation: isolate; }
+.heroCopy { grid-column: 1 / 7; position: relative; z-index: 1; padding: clamp(56px, 10vh, 120px) var(--gutter) clamp(48px, 8vh, 96px) 0; align-self: start; }
 .title { font-size: clamp(40px, 5.2vw, 80px); line-height: 0.95; letter-spacing: -0.04em; margin-left: -0.04em; }
 .line { display: block; overflow: clip; padding-bottom: 0.1em; margin-bottom: -0.1em; }
 .line > span { display: block; }
 /* RAW, opening once. The capitals are always pink. Three seconds after load the hidden parts open
-   ("with Random Access Wisdom"), hold, and close again; the line then stays RAW until the next load.
-   Each hidden part is a grid track that opens from 0fr to 1fr, so the width animates without knowing
-   the text; --raw-scale shrinks the long form to fit narrower screens. With reduced motion the line
-   stays closed and the subline says what RAW stands for. */
+   ("Random Access Wisdom") and stay open; the line wraps like any other headline line instead of
+   running under the stage. Each hidden part is a grid track that opens from 0fr to 1fr, so the width
+   animates without knowing the text. With reduced motion the line stays RAW and the subline says what it stands for. */
 .hero { overflow-x: clip; }
-.rawHost { --raw-scale: .88; display: flex; align-items: flex-end; height: 1.05em; overflow: visible; clip-path: inset(0 -100vw 0 -0.1em); }
-.rawLine { white-space: nowrap; }
-.rawWord { display: inline-block; white-space: nowrap; }
+.rawHost { overflow: clip; }
+.rawLine { white-space: normal; }
+.rawWord { display: inline; }
 .rawLetters { display: inline; }
 .rawLetters b { font-weight: inherit; color: var(--accent); }
-.rawSeg { display: inline-grid; grid-template-columns: 0fr; vertical-align: baseline; color: var(--accent); font-style: italic; }
-.rawSeg > span { min-width: 0; overflow: hidden; opacity: 0; }
-.rawWith { color: inherit; }
+.rawSeg { display: inline-grid; grid-template-columns: 1fr; vertical-align: baseline; color: inherit; font-style: normal; }
+.rawSeg > span { min-width: 0; overflow: hidden; }
 .raw { display: none; margin-top: 20px; font: italic 400 var(--step-lead)/1.3 var(--text); color: var(--accent); }
 @media (prefers-reduced-motion: no-preference) {
-  .rawSeg { animation: rawOpen 5s var(--ease-in-out) 3000ms 1 both; }
-  .rawSeg > span { animation: rawShow 5s var(--ease-in-out) 3000ms 1 both; }
-  .rawWord { animation: rawLean 5s step-end 3000ms 1 both; }
-  /* The last line rises in with the others, then fits the long form while it is open. */
-  .title .rawHost .rawLine { transform: translateY(105%); animation: lineUp 800ms var(--ease-expo) forwards, rawFit 5s var(--ease-in-out) 1; animation-delay: calc(100ms + var(--i) * 100ms), 3000ms; }
+  .rawSeg { grid-template-columns: 0fr; animation: rawOpen 1400ms var(--ease-in-out) 3000ms 1 forwards; }
+  .rawSeg > span { opacity: 0; animation: rawShow 1400ms var(--ease-in-out) 3000ms 1 forwards; }
 }
-@media (prefers-reduced-motion: reduce) { .raw { display: block; } }
-@keyframes rawOpen { 0%, 100% { grid-template-columns: 0fr; } 20%, 80% { grid-template-columns: 1fr; } }
-@keyframes rawShow { 0%, 4%, 94%, 100% { opacity: 0; } 20%, 80% { opacity: 1; } }
-@keyframes rawLean { 0%, 100% { font-style: normal; } 1%, 99% { font-style: italic; } }
-@keyframes rawFit { 0%, 100% { font-size: 1em; } 20%, 80% { font-size: calc(1em * var(--raw-scale)); } }
+@media (prefers-reduced-motion: reduce) { .rawSeg { grid-template-columns: 0fr; } .rawSeg > span { opacity: 0; } .raw { display: block; } }
+@keyframes rawOpen { to { grid-template-columns: 1fr; } }
+@keyframes rawShow { 0%, 30% { opacity: 0; } to { opacity: 1; } }
 .lead { max-width: 44ch; margin-top: 28px; font-size: var(--step-body); line-height: 1.55; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; margin-top: 36px; }
 .price { flex-basis: 100%; font: 400 var(--step-small)/1.4 var(--ui); color: var(--muted); }
-.stage { position: absolute; z-index: 0; top: 42%; right: 0; bottom: 0; left: calc(36.5% + var(--margin) * 0.5); background: var(--field-wine); color: var(--field-wine-ink); clip-path: polygon(0 72px, 24% 72px, 24% 0, 100% 0, 100% 100%, 0 100%); overflow: clip; }
-.stageInner { position: absolute; top: 112px; left: 104px; width: 620px; max-width: calc(100% - 56px); }
+/* the stage: a wine field from the top of the hero to its foot, the laptop centred in it */
+.stage { grid-column: 7 / 13; position: relative; display: flex; align-items: center; justify-content: center; padding: clamp(40px, 6vh, 80px) var(--margin) clamp(40px, 6vh, 80px) clamp(28px, 3.4vw, 56px); background: var(--field-wine); color: var(--field-wine-ink); overflow: clip; }
+.stageInner { width: 100%; max-width: 720px; }
 /* The load sequence is pure CSS, so it starts on the first paint and is settled by 1.2s whatever the script does. */
 @media (prefers-reduced-motion: no-preference) {
   .hero [data-open] { clip-path: inset(0 0 100% 0); animation: open 1100ms var(--ease-in-out) 200ms forwards; }
@@ -192,9 +186,7 @@
 /* ---------- the tablet and the phone: each chapter recomposed ---------- */
 @media (max-width: 1100px) {
   .heroCopy { grid-column: 1 / 8; }
-  .stage { left: calc(41.666% + var(--margin) * 0.5); }
-  .stageInner { left: 56px; top: 100px; }
-  .rawHost { --raw-scale: .8; }
+  .stage { grid-column: 8 / 13; padding-left: 20px; }
   .board { grid-template-rows: 34svh 34svh auto; }
   .tileA h2 { font-size: clamp(48px, 7vw, 96px); }
   .tileB strong { font-size: clamp(48px, 7vw, 96px); }
@@ -219,10 +211,9 @@
   .heroCopy { padding: 40px 20px 40px; }
   .title { margin-left: 0; }
   .title { font-size: clamp(36px, 10vw, 56px); }
-  .rawHost { --raw-scale: .6; }
   .lead { margin-top: 24px; }
-  .stage { position: relative; inset: auto; left: 0; height: 420px; clip-path: polygon(0 56px, 72px 56px, 72px 0, 100% 0, 100% 100%, 0 100%); }
-  .stageInner { top: 72px; left: 16px; width: 620px; max-width: none; }
+  .stage { display: block; padding: 28px 20px 32px; }
+  .stageInner { max-width: none; }
   .board { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: 46svh auto auto; gap: 6px; padding: 6px; }
   .tileA { grid-column: 1 / 3; grid-row: 1; }
   .tileA h2 { font-size: clamp(40px, 13vw, 64px); max-width: none; }
@@ -278,9 +269,7 @@
 }
 @media (max-width: 480px) {
   .title { font-size: clamp(34px, 10vw, 44px); }
-  .rawHost { --raw-scale: .52; }
   .primary { width: 100%; }
-  .stage { height: 380px; }
   .step { grid-template-columns: 1fr; }
   .stepCard { grid-column: 1; grid-row: 3; justify-content: flex-start; padding-top: 28px; }
 }

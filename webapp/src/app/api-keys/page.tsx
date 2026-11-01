@@ -5,8 +5,8 @@ import PublicNavbar from '@/components/PublicNavbar';
 import SiteFooter from '@/components/SiteFooter';
 import { ChapterPage, CloseRow, Title } from '@/components/Chapters';
 import { AddKeyFragment } from '@/components/Fragments';
-import KeyRelay from './KeyRelay';
-import { marks } from './ProviderMarks';
+import BrainBot from './BrainBot';
+import { marks, PROVIDER_BRAND, type ProviderId } from './ProviderMarks';
 import CopyButton from './CopyButton';
 import KeyChecker from './KeyChecker';
 import chapters from '@/components/Chapters.module.css';
@@ -80,7 +80,7 @@ export default function ApiKeysPage() {
               <a href="#add-key">Add it to Novi</a>
             </nav>
           </div>
-          <div className={`${chapters.heroSide} ${styles.heroRelay}`}><div data-open><KeyRelay /></div></div>
+          <div className={`${chapters.heroSide} ${styles.heroRelay}`}><div data-open><BrainBot /></div></div>
         </section>
 
         {/* 2 · Which key is this, and which door for what. */}
@@ -108,7 +108,7 @@ export default function ApiKeysPage() {
         {providers.map(provider => (
           <section key={provider.id} id={provider.id} className={`${styles.provider} ${chapters[provider.tone]} ${provider.tone === 'tone-deep' ? styles.onDark : ''}`} aria-labelledby={`${provider.id}-title`}>
             <div className={styles.providerSide}>
-              <div className={styles.providerName} data-reveal>{provider.mark}<h2 id={`${provider.id}-title`}>{provider.name}</h2></div>
+              <div className={styles.providerName} data-reveal style={{ '--brand': PROVIDER_BRAND[provider.id as ProviderId] } as CSSProperties}>{provider.mark}<h2 id={`${provider.id}-title`}>{provider.name}</h2></div>
               <p className={styles.format} data-reveal style={{ '--i': 1 } as CSSProperties}><span>The key looks like</span><code>{provider.format}</code></p>
               <ul className={styles.links} data-reveal style={{ '--i': 2 } as CSSProperties}>
                 <li><span>Console</span><a href={provider.home} target="_blank" rel="noreferrer">{provider.home.replace('https://', '')}</a></li>

@@ -7,7 +7,8 @@ import SiteFooter from './SiteFooter';
 import Testimonials from './Testimonials';
 import { JOURNEY, PLANS } from '@/lib/site';
 import { FEATURES } from '@/lib/features';
-import { AddKeyFragment, DesktopSignInFragment, NoviAnswer, ScreenshotFragment, SignupFragment, answerFor, examples, reverseList } from './Fragments';
+import { AddKeyFragment, DesktopSignInFragment, NoviAnswer, ScreenshotFragment, SignupFragment, answerFor, examples } from './Fragments';
+import HeroShowcase from './HeroShowcase';
 import ScreenCompare from './ScreenCompare';
 import styles from './PublicLanding.module.css';
 
@@ -53,13 +54,13 @@ export default function PublicLanding({ onSignIn, onSignUp }: { onSignIn: () => 
     <div className={styles.page} ref={root}>
       <PublicNavbar onSignIn={onSignIn} onSignUp={onSignUp} />
       <main>
-        {/* 1 · Hero: the four lines on the ground, and the product at work on a wine stage. */}
+        {/* 1 · Hero: the four lines on the ground, and the product on a laptop on a wine stage. */}
         <section className={styles.hero} aria-labelledby="landing-title">
           <div className={styles.heroCopy}>
             <h1 id="landing-title" className={styles.title}>
               {['Fuck LeetCode.', 'Fuck HackerRank.', 'Fuck Assessment.'].map((line, index) => <span className={styles.line} key={line}><span style={{ '--i': index } as CSSProperties}>{line}</span></span>)}
-              {/* RAW opens once, three seconds after load, into "with Random Access Wisdom", then closes and stays RAW. */}
-              <span className={`${styles.line} ${styles.rawHost}`}><span className={styles.rawLine} style={{ '--i': 3 } as CSSProperties}>Fuck it <span className={styles.rawWord}><span className={styles.srOnly}>RAW, with Random Access Wisdom</span><span aria-hidden="true" className={styles.rawLetters}><span className={`${styles.rawSeg} ${styles.rawWith}`}><span>with&nbsp;</span></span><b>R</b><span className={styles.rawSeg}><span>andom&nbsp;</span></span><b>A</b><span className={styles.rawSeg}><span>ccess&nbsp;</span></span><b>W</b><span className={styles.rawSeg}><span>isdom</span></span></span></span>.</span></span>
+              {/* RAW opens once, three seconds after load, into "Random Access Wisdom" and stays open. The capitals are pink, the rest white. */}
+              <span className={`${styles.line} ${styles.rawHost}`}><span className={styles.rawLine} style={{ '--i': 3 } as CSSProperties}>Fuck it <span className={styles.rawWord}><span className={styles.srOnly}>Random Access Wisdom</span><span aria-hidden="true" className={styles.rawLetters}><b>R</b><span className={styles.rawSeg}><span>andom&nbsp;</span></span><b>A</b><span className={styles.rawSeg}><span>ccess&nbsp;</span></span><b>W</b><span className={styles.rawSeg}><span>isdom</span></span></span></span>.</span></span>
             </h1>
             <p className={styles.raw}>(Random Access Wisdom)</p>
             <p className={styles.lead} data-load style={{ '--d': '640ms' } as CSSProperties}>Novi is an AI interview cheating app. Capture a live question from your screen or audio and get answers, code, and explanations during the interview. Behavioral round, technical screen, or another surprise follow-up: get the answer when you need it.</p>
@@ -69,10 +70,9 @@ export default function PublicLanding({ onSignIn, onSignUp }: { onSignIn: () => 
               <span className={styles.price}>From {PLANS.core.price} a month, with your own AI key</span>
             </div>
           </div>
+          {/* The product on a laptop, on a wine field that runs to the right edge. */}
           <div className={styles.stage}>
-            <div className={styles.stageInner} data-open>
-              <NoviAnswer answer={reverseList} question="Reverse a linked list in place." />
-            </div>
+            <div className={styles.stageInner} data-open><HeroShowcase /></div>
           </div>
         </section>
 

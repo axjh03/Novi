@@ -1,0 +1,26 @@
+/* The laptop: lid in the XY plane with its hinge at the bottom, the base folded 90° toward the viewer.
+   Every surface is a flat tone; depth comes from the geometry, not from shading. */
+.scene { --w: 84cqi; --lid-h: calc(var(--w) * 0.64); --depth: calc(var(--w) * 0.56); --thick: calc(var(--w) * 0.012); --rx: -12deg; --ry: -14deg;
+  position: relative; width: 100%; aspect-ratio: 1 / 0.86; container-type: inline-size; perspective: 2200px; perspective-origin: 50% 45%; }
+.rig { position: absolute; left: 53%; top: 74%; width: 0; height: 0; transform-style: preserve-3d; transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform 600ms var(--ease-out); }
+.still, .sway { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-style: preserve-3d; }
+@media (prefers-reduced-motion: no-preference) { .sway { animation: sway 11s var(--ease-in-out) infinite alternate; } }
+@keyframes sway { from { transform: rotateY(-5deg) translateY(-1cqi); } to { transform: rotateY(5deg) translateY(1cqi); } }
+
+/* the lid, hinged at its bottom edge, leaning back a little */
+.lid { position: absolute; left: calc(var(--w) / -2); top: calc(var(--lid-h) * -1 + var(--depth) * 0.02); width: var(--w); height: var(--lid-h); transform-origin: bottom; transform: rotateX(8deg); transform-style: preserve-3d; }
+.bezel { position: absolute; inset: 0; padding: 2.4% 2.4% 3.4%; background: #141216; border-radius: 3.2cqi 3.2cqi 1cqi 1cqi; transform: translateZ(var(--thick)); }
+.lidBack { position: absolute; inset: 0; background: #1d1a1f; border-radius: 3.2cqi 3.2cqi 1cqi 1cqi; transform: translateZ(calc(var(--thick) * -0.2)); }
+.camera { position: absolute; left: 50%; top: 1.1%; width: 0.9cqi; height: 0.9cqi; margin-left: -0.45cqi; border-radius: 50%; background: #2a252a; }
+.screen { position: relative; width: 100%; height: 100%; overflow: hidden; background: #0a0a0b; border-radius: 1.6cqi 1.6cqi 0.4cqi 0.4cqi; }
+
+/* the base: folded flat toward the viewer, with its front edge standing up as the thickness */
+.base { position: absolute; left: calc(var(--w) / -2 - var(--w) * 0.015); top: 0; width: calc(var(--w) * 1.03); height: var(--depth); transform-origin: top; transform: rotateX(90deg); transform-style: preserve-3d; }
+.deck { position: absolute; inset: 0; background: #2a252a; border-radius: 1cqi 1cqi 2.4cqi 2.4cqi; transform: translateZ(calc(var(--thick) * 1.4)); }
+.front { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--thick) * 1.4); background: #1d1a1f; border-radius: 0 0 1cqi 1cqi; transform-origin: top; transform: rotateX(-90deg); }
+.keys { position: absolute; left: 8%; right: 8%; top: 9%; display: flex; flex-direction: column; gap: 1.2cqi; }
+.keyRow { display: flex; gap: 1.2cqi; }
+.keyRow i { flex: 1; height: 3.2cqi; border-radius: 0.5cqi; background: #1d1a1f; }
+.keyRow .keyWide { flex: 2.4; }
+.keyRow .keySpace { flex: 8; }
+.trackpad { position: absolute; left: 50%; bottom: 7%; width: 28%; height: 24%; transform: translateX(-50%); border-radius: 1cqi; background: #332c31; }
