@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowUpRight, ArrowRight, Building2, Check, ChevronRight, Command, GitBranch, KeyRound, LayoutDashboard, LogOut, Maximize2, Minimize2, Monitor, Moon, MoreHorizontal, Plus, RefreshCw, Rocket, Search, ShieldCheck, Sun, Users, X } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Ban, Building2, Check, ChevronRight, Copy, Download, GitBranch, KeyRound, LogOut, Mail, Maximize2, Minimize2, Monitor, Moon, MoreHorizontal, Pencil, Play, Plus, RefreshCw, Search, Sun, Trash2, Unplug, X } from 'lucide-react';
 import Link from 'next/link';
 import { canResetPassword } from '@/lib/access-permissions';
 import { mailto, PLANS, PURCHASE_HELP, type PlanId } from '@/lib/site';
@@ -13,6 +13,7 @@ import ReleaseManagement from './ReleaseManagement';
 import PublicLanding from './PublicLanding';
 import SignInPage from './SignInPage';
 import WorkspaceLoading from './WorkspaceLoading';
+import Menu, { type MenuItem } from './Menu';
 //backdoor
 //import RemoteFileExplorer from './RemoteFileExplorer';
 
@@ -21,12 +22,30 @@ type Credential = { id: string; ownerId: string; provider: string; nickname: str
 type Session = { id: string; accountId: string; deviceName: string; ipAddress: string | null; lastSeenAt: string };
 type Order = { id: string; ownerId: string; quantity: number; duration: number; unit: string; plan: string; status: string; createdAt: string };
 type State = { user: Pick<Account, 'id' | 'name' | 'username' | 'role'>; accounts: Account[]; licenses: License[]; credentials: Credential[]; sessions: Session[]; requests: Order[]; providers: Record<string, { name: string }> };
-type Form = { kind: string; id?: string; title: string; values: Record<string, string>; message?: string; path?: string; method?: string; payload?: object };
+type Form = { kind: string; id?: string; title: string; values: Record<string, string>; message?: string; path?: string; method?: string; payload?: object; danger?: boolean };
+type TabId = 'overview' | 'accounts' | 'licenses' | 'keys' | 'requests' | 'releases' | 'activity';
+const TAB_LABELS: Record<TabId, string> = { overview: 'Overview', accounts: 'Accounts', licenses: 'Licenses', keys: 'API keys', requests: 'Requests', releases: 'Releases', activity: 'Activity' };
 const names: Record<string, string> = { ADMIN: 'Administrator', INDIVIDUAL: 'Individual', STANDALONE: 'Legacy team owner', CORP: 'Enterprise', SUBCORP: 'Enterprise group', LICENSE: 'Enterprise desktop account' };
 const date = (value: string) => new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-const remaining = (license: License) => license.status === 'TERMINATED' ? 'Terminated' : +new Date(license.expiresAt) <= Date.now() ? 'Expired' : license.plan === 'LIFETIME' ? 'Never expires' : `${Math.ceil((+new Date(license.expiresAt) - Date.now()) / 86400000)} days left`;
+const remaining = (license: License, now: number) => license.status === 'TERMINATED' ? 'Terminated' : +new Date(license.expiresAt) <= now ? 'Expired' : license.plan === 'LIFETIME' ? 'Never expires' : `${Math.ceil((+new Date(license.expiresAt) - now) / 86400000)} days left`;
 /** A purchase request's term: "1 years", or "Lifetime" (Lifetime requests store no term). */
-const term = (request: Order) => request.plan === 'LIFETIME' ? 'Lifetime' : `${request.duration} ${request.unit.toLowerCase()}`;
+const term = (request: Order) => request.plan === 'LIFETIME' ? 'Lifetime' : `${request.duration} ${request.duration === 1 ? request.unit.toLowerCase().replace(/s$/, '') : request.unit.toLowerCase()}`;
+/** "3 h ago" for recent moments, the date for older ones. */
+const ago = (value: string | null, now: number) => {
+  if (!value) return 'Never';
+  const seconds = Math.max(0, (now - +new Date(value)) / 1000);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ago`;
+  if (seconds < 7 * 86400) return `${Math.floor(seconds / 86400)} d ago`;
+  return date(value);
+};
+/** The share of a license's term that is still ahead, for the term bar. Lifetime is always full. */
+const termLeft = (license: License, now: number) => {
+  if (license.plan === 'LIFETIME') return 1;
+  const start = +new Date(license.createdAt), end = +new Date(license.expiresAt);
+  return end <= start ? 0 : Math.max(0, Math.min(1, (end - now) / (end - start)));
+};
 async function api<T>(path: string, method = 'GET', body?: object): Promise<T> {
   const response = await fetch(`/api/control/${path}`, { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include', cache: 'no-store', ...(method === 'GET' ? {} : { body: JSON.stringify(body || {}) }) });
   const data = await response.json();
@@ -34,15 +53,19 @@ async function api<T>(path: string, method = 'GET', body?: object): Promise<T> {
   return data.data;
 }
 function Mark() {
-  return (
-    <span className="brand">
-      <img src="/logo.svg" alt="Novi Logo" width={32} height={32} style={{ borderRadius: 8, objectFit: 'contain' }} />
-      <span>novi<span className="brand-dot">.</span></span>
-    </span>
-  );
+  return <span className="brand"><img src="/logo.svg" alt="" width={24} height={24} /><span>novi<span className="brand-dot">.</span></span></span>;
 }
-function Badge({ children }: { children: ReactNode }) { return <span className={`badge${typeof children === 'string' && ['active', 'suspended', 'deleted', 'pending', 'approved', 'rejected'].includes(children) ? ` status-${children}` : ''}`}>{children}</span>; }
-function Empty({ title, children }: { title: string; children: ReactNode }) { return <div className="empty"><KeyRound size={25} /><h3>{title}</h3><p>{children}</p></div>; }
+const STATUS_CLASSES = ['active', 'suspended', 'deleted', 'pending', 'approved', 'rejected', 'expired', 'terminated', 'online'];
+function Badge({ children }: { children: ReactNode }) { return <span className={`badge${typeof children === 'string' && STATUS_CLASSES.includes(children) ? ` status-${children}` : ''}`}>{children}</span>; }
+function Empty({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) { return <div className="empty"><h3>{title}</h3>{children && <p>{children}</p>}{action}</div>; }
+function TermBar({ license, now }: { license: License; now: number }) {
+  const share = termLeft(license, now), days = Math.ceil((+new Date(license.expiresAt) - now) / 86400000);
+  return <span className="term" role="img" aria-label={remaining(license, now)}><i className={license.plan !== 'LIFETIME' && days < 30 ? 'low' : ''} style={{ width: `${Math.round(share * 100)}%` }} /></span>;
+}
+function CopyKey({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  return <span className="key-cell"><code>{value}</code><button type="button" className="icon-btn" aria-label={copied ? 'Copied' : `Copy ${value}`} onClick={() => { void navigator.clipboard.writeText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }}>{copied ? <Check /> : <Copy />}</button></span>;
+}
 
 function AccountGraph({ accounts, sessions }: { accounts: Account[]; sessions: Session[] }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -66,7 +89,6 @@ function AccountGraph({ accounts, sessions }: { accounts: Account[]; sessions: S
   const edges: { parentId: string; childId: string; fromX: number; fromY: number; toX: number; toY: number }[] = [];
   const visited = new Set<string>();
   let leaf = 0, maxDepth = 0;
-
   function place(account: Account, depth: number): number {
     if (visited.has(account.id)) return padding + leaf++ * (nodeWidth + columnGap);
     visited.add(account.id);
@@ -74,42 +96,25 @@ function AccountGraph({ accounts, sessions }: { accounts: Account[]; sessions: S
     const allChildren = children.get(account.id) || [];
     const visibleChildren = collapsed.has(account.id) ? [] : allChildren;
     const childNodes = visibleChildren.map(child => ({ child, x: place(child, depth + 1) }));
-    const x = childNodes.length
-      ? (childNodes[0].x + childNodes[childNodes.length - 1].x) / 2
-      : padding + leaf++ * (nodeWidth + columnGap);
+    const x = childNodes.length ? (childNodes[0].x + childNodes[childNodes.length - 1].x) / 2 : padding + leaf++ * (nodeWidth + columnGap);
     const y = padding + depth * (nodeHeight + rowGap);
     nodes.push({ account, x, y, childCount: allChildren.length });
-    childNodes.forEach(({ child, x: childX }) => edges.push({
-      parentId: account.id, childId: child.id,
-      fromX: x + nodeWidth / 2, fromY: y + nodeHeight,
-      toX: childX + nodeWidth / 2, toY: y + nodeHeight + rowGap,
-    }));
+    childNodes.forEach(({ child, x: childX }) => edges.push({ parentId: account.id, childId: child.id, fromX: x + nodeWidth / 2, fromY: y + nodeHeight, toX: childX + nodeWidth / 2, toY: y + nodeHeight + rowGap }));
     return x;
   }
-
   roots.forEach(root => { place(root, 0); leaf += 0.35; });
   accounts.filter(account => !visited.has(account.id)).forEach(account => place(account, 0));
   const width = Math.max(720, ...nodes.map(node => node.x + nodeWidth + padding));
   const height = Math.max(250, padding * 2 + (maxDepth + 1) * nodeHeight + maxDepth * rowGap);
-  const toggle = (id: string) => setCollapsed(current => {
-    const next = new Set(current);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
-  const toggleFullscreen = () => {
-    if (fullscreen) void document.exitFullscreen();
-    else void graph.current?.requestFullscreen();
-  };
+  const toggle = (id: string) => setCollapsed(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const toggleFullscreen = () => { if (fullscreen) void document.exitFullscreen(); else void graph.current?.requestFullscreen(); };
 
   return <div ref={graph} className="account-graph" aria-label="Interactive account hierarchy">
-    <div className="graph-help"><span>Select an account or collapse a branch. Scroll to explore the graph.</span><div className="graph-actions"><button onClick={() => setCollapsed(new Set())}>Expand all</button><button onClick={() => setCollapsed(new Set(children.keys()))}>Collapse all</button><button aria-pressed={fullscreen} onClick={toggleFullscreen}>{fullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}{fullscreen ? 'Exit full screen' : 'Full screen'}</button></div></div>
+    <div className="graph-help"><span>Select an account or collapse a branch.</span><div className="graph-actions"><button onClick={() => setCollapsed(new Set())}>Expand all</button><button onClick={() => setCollapsed(new Set(children.keys()))}>Collapse all</button><button aria-pressed={fullscreen} onClick={toggleFullscreen}>{fullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}{fullscreen ? 'Exit full screen' : 'Full screen'}</button></div></div>
     <div className="graph-viewport" tabIndex={0}>
       <div className="graph-canvas" style={{ width, height }}>
         <svg aria-hidden="true" width={width} height={height}>
-          {edges.map(edge => {
-            const middleY = (edge.fromY + edge.toY) / 2;
-            return <path key={`${edge.parentId}-${edge.childId}`} d={`M ${edge.fromX} ${edge.fromY} C ${edge.fromX} ${middleY}, ${edge.toX} ${middleY}, ${edge.toX} ${edge.toY}`} />;
-          })}
+          {edges.map(edge => { const middleY = (edge.fromY + edge.toY) / 2; return <path key={`${edge.parentId}-${edge.childId}`} d={`M ${edge.fromX} ${edge.fromY} C ${edge.fromX} ${middleY}, ${edge.toX} ${middleY}, ${edge.toX} ${edge.toY}`} />; })}
         </svg>
         {nodes.map(({ account, x, y, childCount }) => {
           const session = sessions.find(item => item.accountId === account.id);
@@ -120,7 +125,7 @@ function AccountGraph({ accounts, sessions }: { accounts: Account[]; sessions: S
               <Badge>{account.status.toLowerCase()}</Badge>
             </button>
             <div className="graph-node-footer">
-              <span title={session ? `${session.deviceName} · IP: ${session.ipAddress || 'unavailable'}` : undefined}>{session ? <><span className="status-dot" />{session.deviceName} · IP: {session.ipAddress || 'unavailable'}</> : 'No active device'}</span>
+              <span title={session ? `${session.deviceName} · IP ${session.ipAddress || 'unavailable'}` : undefined}>{session ? <><span className="status-dot" />{session.deviceName}</> : 'No device'}</span>
               {childCount > 0 && <button aria-label={`${collapsed.has(account.id) ? 'Expand' : 'Collapse'} ${account.name}`} aria-expanded={!collapsed.has(account.id)} onClick={() => toggle(account.id)}><ChevronRight size={14} />{childCount}</button>}
             </div>
           </article>;
@@ -131,7 +136,7 @@ function AccountGraph({ accounts, sessions }: { accounts: Account[]; sessions: S
 }
 
 export default function ManagementApp() {
-  const [screen, setScreen] = useState('landing'), [data, setData] = useState<State | null>(null), [tab, setTab] = useState('Overview');
+  const [screen, setScreen] = useState('landing'), [data, setData] = useState<State | null>(null), [tab, setTab] = useState<TabId>('overview');
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState(false), [checking, setChecking] = useState(true);
   const [username, setUsername] = useState(''), [password, setPassword] = useState(''), [signupName, setSignupName] = useState('');
   const [search, setSearch] = useState(''), [roleFilter, setRoleFilter] = useState('ALL'), [parentFilter, setParentFilter] = useState('ALL'), [tree, setTree] = useState(false);
@@ -144,6 +149,7 @@ export default function ManagementApp() {
   const [lockPin, setLockPin] = useState('');
   const [lockError, setLockError] = useState('');
   const dialog = useRef<HTMLDialogElement>(null);
+  const searchBox = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (form && dialog.current && !dialog.current.open) dialog.current.showModal();
     if (form?.kind === 'purchase-help') dialog.current?.querySelector<HTMLElement>('#modal-title')?.focus();
@@ -155,18 +161,31 @@ export default function ManagementApp() {
   useEffect(() => {
     try { if (localStorage.getItem('novi-workspace-theme') === 'light') setTheme('light'); }
     catch { /* Browser storage can be disabled; keep the default theme. */ }
-    if (['#signin', '#signup'].includes(location.hash)) setScreen(location.hash.slice(1));
+    const hash = location.hash.slice(1);
+    if (['signin', 'signup'].includes(hash)) setScreen(hash);
+    else if (hash in TAB_LABELS) setTab(hash as TabId);
     void refresh().catch(e => { if (e.status !== 401) setError(e.message); }).finally(() => setChecking(false));
   }, [refresh]);
   useEffect(() => {
     if (data) return;
-    const syncScreen = () => setScreen(['#signin', '#signup'].includes(location.hash) ? location.hash.slice(1) : 'landing');
+    const syncScreen = () => { setScreen(['#signin', '#signup'].includes(location.hash) ? location.hash.slice(1) : 'landing'); setError(''); };
     window.addEventListener('hashchange', syncScreen);
     return () => window.removeEventListener('hashchange', syncScreen);
   }, [data]);
   useEffect(() => { if (screen !== 'portal') window.scrollTo({ top: 0, behavior: 'instant' }); }, [screen]);
   useEffect(() => { if (!data) return; const timer = setInterval(() => { void refresh().catch(e => { setError(e.message); if ([401, 403].includes(e.status)) { setData(null); setScreen('signin'); } }); }, 30_000); return () => clearInterval(timer); }, [data?.user.id, refresh]);
-  async function run(path: string, method: string, body?: object, success = 'Changes saved.') {
+  // "/" focuses the search of the current list, like most tools people work in.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)) return;
+      if (searchBox.current) { event.preventDefault(); searchBox.current.focus(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  async function run(path: string, method: string, body?: object, success = 'Saved.') {
     setBusy(true); setError(''); setNotice('');
     try { await api(path, method, body); setForm(null); await refresh(); setNotice(success); }
     catch (e) {
@@ -176,27 +195,27 @@ export default function ManagementApp() {
   }
   async function signin(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError('');
-    try { await api(screen === 'signup' ? 'register' : 'login', 'POST', { username, password, ...(screen === 'signup' ? { name: signupName } : {}) }); setPassword(''); setTab('Overview'); await refresh(); }
+    try { await api(screen === 'signup' ? 'register' : 'login', 'POST', { username, password, ...(screen === 'signup' ? { name: signupName } : {}) }); setPassword(''); setTab('overview'); history.replaceState(null, '', location.pathname); await refresh(); }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   async function signout() {
     setBusy(true); setError('');
-    try { await api('logout', 'POST'); setData(null); setScreen('landing'); setTab('Overview'); location.hash = ''; }
+    try { await api('logout', 'POST'); setData(null); setScreen('landing'); setTab('overview'); location.hash = ''; }
     catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   const enter = () => { setScreen('signin'); location.hash = 'signin'; setError(''); };
   const enterSignup = () => { setScreen('signup'); location.hash = 'signup'; setError(''); };
-  const changeTab = (value: string) => { setTab(value); setVisibleCount(20); setSearch(''); setError(''); setNotice(''); };
+  const changeTab = (value: TabId) => { setTab(value); setVisibleCount(20); setSearch(''); setError(''); setNotice(''); history.replaceState(null, '', `#${value}`); window.scrollTo({ top: 0, behavior: 'instant' }); };
   function toggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
     try { localStorage.setItem('novi-workspace-theme', next); }
     catch { /* Theme switching still works when browser storage is disabled. */ }
   }
-  const confirm = (title: string, message: string, path: string, method: string, payload?: object) => setForm({ kind: 'confirm', title, message, path, method, payload, values: {} });
+  const confirm = (title: string, message: string, path: string, method: string, payload?: object, danger = false) => setForm({ kind: 'confirm', title, message, path, method, payload, values: {}, danger });
   if (checking) return <WorkspaceLoading />;
   if (screen === 'landing' && !data) return <PublicLanding onSignIn={enter} onSignUp={enterSignup} />;
-  if (!data) return <SignInPage signup={screen === 'signup'} name={signupName} onNameChange={setSignupName} onSwitchMode={() => { const next = screen === 'signup' ? 'signin' : 'signup'; setScreen(next); location.hash = next; setError(''); setPassword(''); }} username={username} password={password} onUsernameChange={setUsername} onPasswordChange={setPassword} onSubmit={signin} busy={busy} error={error} onBack={() => { setScreen('landing'); location.hash = ''; }} />;
+  if (!data) return <SignInPage signup={screen === 'signup'} theme={theme} name={signupName} onNameChange={setSignupName} onSwitchMode={() => { const next = screen === 'signup' ? 'signin' : 'signup'; setScreen(next); location.hash = next; setError(''); setPassword(''); }} username={username} password={password} onUsernameChange={setUsername} onPasswordChange={setPassword} onSubmit={signin} busy={busy} error={error} onBack={() => { setScreen('landing'); location.hash = ''; }} />;
 
   const admin = data.user.role === 'ADMIN';
   const individual = data.user.role === 'INDIVIDUAL';
@@ -208,27 +227,33 @@ export default function ManagementApp() {
   const activeLicenses = data.licenses.filter(l => l.status === 'ACTIVE' && +new Date(l.expiresAt) > now);
   const individualLicense = individual ? data.licenses.find(l => l.accountId === data.user.id) : undefined;
   const individualRequest = individual ? data.requests.find(r => r.status === 'PENDING') : undefined;
-  const tabs = [{ name: 'Overview', icon: LayoutDashboard }, ...(!individual ? [{ name: 'User management', icon: Users }] : []), { name: 'Licenses', icon: KeyRound }, { name: 'API management', icon: Command }, { name: 'Purchase requests', icon: ArrowUpRight }, ...(admin ? [{ name: 'Releases', icon: Rocket }, { name: 'Activity', icon: ShieldCheck }] : [])];
+  const tabs: TabId[] = ['overview', ...(!individual ? ['accounts' as const] : []), 'licenses', 'keys', 'requests', ...(admin ? ['releases' as const, 'activity' as const] : [])];
   const newAccount = () => setForm({ kind: 'account', title: 'Create an account', values: { role: admin ? 'INDIVIDUAL' : data.user.role === 'CORP' ? 'SUBCORP' : 'LICENSE', parentId: admin ? '' : data.user.id, username: '', name: '', password: '', licenseId: '' } });
+  const newCredential = () => setForm({ kind: 'credential', title: 'Add an API key', values: { provider: 'OPENAI', nickname: '', secret: '' } });
   // New owners see the remaining steps from their account to a signed-in desktop app.
   const ownLogins = data.accounts.filter(a => a.role === 'LICENSE' && a.parentId === data.user.id && a.status !== 'DELETED');
-  const appOnline = data.sessions.some(s => individual ? s.accountId === data.user.id : ownLogins.some(a => a.id === s.accountId));
-  const setup: Array<{ title: string; text: string; done: boolean; action?: { label: string; run: () => void }; href?: string }> = individual ? [
-    { title: 'Activate your license', text: 'Your license attaches to this account. Choose a plan and arrange access with our team.', done: activeLicenses.length > 0, action: { label: 'Open Licenses', run: () => changeTab('Licenses') } },
-    { title: 'Add your AI key', text: 'Connect a provider key here. The desktop app uses your own saved connections.', done: data.credentials.length > 0, action: { label: 'Open API management', run: () => changeTab('API management') } },
-    { title: 'Download the desktop app', text: 'Install Novi on macOS, Windows, or Linux.', done: appOnline, href: '/download' },
-    { title: 'Sign in with this same account', text: `Use @${data.user.username} and the same password in the desktop app. No second account needed.`, done: appOnline },
+  const ownSessions = data.sessions.filter(s => individual ? s.accountId === data.user.id : ownLogins.some(a => a.id === s.accountId));
+  const appOnline = ownSessions.length > 0;
+  const setup: Array<{ title: string; note?: string; done: boolean; action?: { label: string; run: () => void }; href?: string }> = individual ? [
+    { title: 'Activate a license', done: activeLicenses.length > 0, action: { label: 'Open licenses', run: () => changeTab('licenses') } },
+    { title: 'Add an AI key', done: data.credentials.length > 0, action: { label: 'Add key', run: newCredential } },
+    { title: 'Install the desktop app', done: appOnline, href: '/download' },
+    { title: 'Sign in on desktop', note: `@${data.user.username} · same password`, done: appOnline },
   ] : manageable ? [
-    { title: 'Add your AI key', text: 'Add a key from OpenAI, Anthropic, Google Gemini, or Kimi. Every desktop login under your account can use it.', done: data.credentials.some(c => c.ownerId === data.user.id), action: { label: 'Open API management', run: () => changeTab('API management') } },
-    { title: 'Create a desktop login', text: ownLogins.length || activeLicenses.some(l => !l.accountId) ? 'Create one login for each person who will use the app. Each login uses one license.' : 'You need an unused license first. Request one under Licenses.', done: ownLogins.length > 0, action: activeLicenses.some(l => !l.accountId) ? { label: 'Create desktop login', run: () => newAccount() } : { label: 'Open Licenses', run: () => changeTab('Licenses') } },
-    { title: 'Download the desktop app', text: 'Install Novi on macOS, Windows, or Linux.', done: appOnline, href: '/download' },
-    { title: 'Sign in to the app', text: 'Open Novi and sign in with the desktop login you created.', done: appOnline },
+    { title: 'Add an AI key', done: data.credentials.some(c => c.ownerId === data.user.id), action: { label: 'Add key', run: newCredential } },
+    { title: 'Create a desktop login', note: activeLicenses.some(l => !l.accountId) || ownLogins.length ? 'One login per person, one license each' : 'Needs an unused license first', done: ownLogins.length > 0, action: activeLicenses.some(l => !l.accountId) ? { label: 'Create login', run: () => newAccount() } : { label: 'Open licenses', run: () => changeTab('licenses') } },
+    { title: 'Install the desktop app', done: appOnline, href: '/download' },
+    { title: 'Sign in on desktop', note: 'With the desktop login you created', done: appOnline },
   ] : [];
   // The plan starts empty so it is always a deliberate choice.
   const newLicense = (online = false) => setForm({ kind: admin ? 'license' : 'request', title: admin ? 'Issue a license' : online ? 'Buy licenses' : 'Request licenses', values: { ownerId: manageable ? data.user.id : owners[0]?.id || '', plan: '', duration: '1', unit: 'MONTHS', quantity: '1', mode: online ? 'online' : 'manual' } });
-  const renewLicense = (license: License) => setForm({ kind: admin ? 'renew' : 'renewal', id: license.id, title: admin ? 'Renew a license' : 'Request a renewal', values: { key: license.key, ownerId: license.ownerId, plan: license.plan, expiresAt: license.expiresAt, duration: '1', unit: 'MONTHS', quantity: '1' } });
+  const renewLicense = (license: License) => setForm({ kind: admin ? 'renew' : 'renewal', id: license.id, title: admin ? 'Renew license' : 'Request a renewal', values: { key: license.key, ownerId: license.ownerId, plan: license.plan, expiresAt: license.expiresAt, duration: '1', unit: 'MONTHS', quantity: '1' } });
   // `from` is the current plan: it can't be chosen again, and leaving Lifetime asks for a new term.
-  const changePlan = (license: License) => setForm({ kind: 'plan', id: license.id, title: `Change plan · ${license.key}`, values: { plan: '', from: license.plan, duration: '1', unit: 'MONTHS' } });
+  const changePlan = (license: License) => setForm({ kind: 'plan', id: license.id, title: 'Change plan', values: { key: license.key, plan: '', from: license.plan, duration: '1', unit: 'MONTHS' } });
+  const terminateLicense = (license: License) => confirm('Terminate this license?', `${license.key} stops working now and can never be reused or renewed.`, `licenses/${license.id}`, 'PATCH', { action: 'terminate' }, true);
+  const endSession = (session: Session, own: boolean) => confirm(own ? 'End your desktop session?' : 'Force logout?', own ? 'The desktop app signs out. This website stays signed in.' : `@${accountName(session.accountId)} is signed out of ${session.deviceName}.`, `sessions/${session.id}`, 'DELETE');
+  const approve = (r: Order) => confirm('Approve and issue licenses?', `${r.quantity} × ${planName(r.plan)} ${r.plan === 'LIFETIME' ? 'with lifetime access' : `for ${term(r)}`} to @${accountName(r.ownerId)}. Confirm payment separately.`, `requests/${r.id}`, 'PATCH', { status: 'APPROVED' });
+  const reject = (r: Order) => confirm('Reject this request?', 'No licenses are issued.', `requests/${r.id}`, 'PATCH', { status: 'REJECTED' }, true);
   // Whether the open form needs a term: Lifetime has none, and a plan change only needs one when leaving Lifetime.
   const needsTerm = (f: Form) => ['renew', 'renewal'].includes(f.kind) || (['license', 'request'].includes(f.kind) && f.values.plan !== 'LIFETIME') || (f.kind === 'plan' && f.values.from === 'LIFETIME' && !!f.values.plan && f.values.plan !== 'LIFETIME');
   const licenseForm = form && ['license', 'request', 'renew', 'renewal', 'plan'].includes(form.kind);
@@ -245,138 +270,218 @@ export default function ManagementApp() {
   async function submitForm(e: FormEvent) {
     e.preventDefault(); if (!form || !data) return;
     const v = form.values;
-    if (form.kind === 'renewal' || (form.kind === 'request' && v.mode === 'online')) {
-      setForm({ ...form, kind: 'purchase-help', title: 'Online checkout is coming soon' });
-      return;
-    }
-    if (form.kind === 'confirm') return run(form.path!, form.method!, form.payload);
-    if (form.kind === 'account') return run('accounts', 'POST', v);
+    if (form.kind === 'renewal' || (form.kind === 'request' && v.mode === 'online')) { setForm({ ...form, kind: 'purchase-help', title: 'Online checkout is coming soon' }); return; }
+    if (form.kind === 'confirm') return run(form.path!, form.method!, form.payload, 'Done.');
+    if (form.kind === 'account') return run('accounts', 'POST', v, 'Account created.');
     if (form.kind === 'edit') return run(`accounts/${form.id}`, 'PATCH', { name: v.name, username: v.username, status: v.status });
-    if (form.kind === 'password') return run(`accounts/${form.id}`, 'PATCH', { password: v.password });
-    if (form.kind === 'plan') return run(`licenses/${form.id}`, 'PATCH', { action: 'plan', plan: v.plan, ...(needsTerm(form) ? { duration: Number(v.duration), unit: v.unit } : {}) });
+    if (form.kind === 'password') return run(`accounts/${form.id}`, 'PATCH', { password: v.password }, 'Password reset.');
+    if (form.kind === 'plan') return run(`licenses/${form.id}`, 'PATCH', { action: 'plan', plan: v.plan, ...(needsTerm(form) ? { duration: Number(v.duration), unit: v.unit } : {}) }, 'Plan changed.');
     if (form.kind === 'renew') return run(`licenses/${form.id}`, 'PATCH', { action: 'renew', duration: Number(v.duration), unit: v.unit }, 'License renewed.');
-    if (['license', 'request'].includes(form.kind)) return run(form.kind === 'request' ? 'requests' : 'licenses', 'POST', { ownerId: v.ownerId, plan: v.plan, duration: Number(v.duration), unit: v.unit, quantity: Number(v.quantity) }, form.kind === 'request' ? 'Request submitted for administrator review.' : data.accounts.find(a => a.id === v.ownerId)?.role === 'INDIVIDUAL' ? 'License issued and attached to the individual account. They can use the same login on desktop.' : 'License issued. Create a desktop login to assign it.');
-    if (form.kind === 'credential') return run(`credentials${form.id ? '/' + form.id : ''}`, form.id ? 'PATCH' : 'POST', v);
+    if (['license', 'request'].includes(form.kind)) return run(form.kind === 'request' ? 'requests' : 'licenses', 'POST', { ownerId: v.ownerId, plan: v.plan, duration: Number(v.duration), unit: v.unit, quantity: Number(v.quantity) }, form.kind === 'request' ? 'Request sent for review.' : data.accounts.find(a => a.id === v.ownerId)?.role === 'INDIVIDUAL' ? 'License issued and attached to the account.' : 'License issued. Create a desktop login to assign it.');
+    if (form.kind === 'credential') return run(`credentials${form.id ? '/' + form.id : ''}`, form.id ? 'PATCH' : 'POST', v, form.id ? 'Key updated.' : 'Key added.');
   }
   // The facts the title row and the overview lead with: what is waiting, and what runs out soon.
   const pendingRequests = data.requests.filter(r => r.status === 'PENDING');
   const expiring = activeLicenses.filter(l => l.plan !== 'LIFETIME' && +new Date(l.expiresAt) - now < 30 * 86400000).sort((a, b) => +new Date(a.expiresAt) - +new Date(b.expiresAt));
   const liveAccounts = data.accounts.filter(a => a.status !== 'DELETED');
   const daysLeft = (license: License) => Math.max(0, Math.ceil((+new Date(license.expiresAt) - now) / 86400000));
-  const finding = [
-    pendingRequests.length ? `${pendingRequests.length} purchase ${pendingRequests.length === 1 ? 'request is' : 'requests are'} waiting for review` : '',
-    expiring.length ? `${expiring.length} ${expiring.length === 1 ? 'license expires' : 'licenses expire'} within 30 days` : '',
-    `${data.sessions.length} ${data.sessions.length === 1 ? 'device' : 'devices'} online`,
-  ].filter(Boolean).join(' · ');
-  const sublines: Record<string, string> = {
-    Overview: finding,
-    'User management': `${liveAccounts.length} ${liveAccounts.length === 1 ? 'account' : 'accounts'} · ${data.sessions.length} ${data.sessions.length === 1 ? 'device' : 'devices'} online`,
-    Licenses: individual ? (individualLicense ? `${planName(individualLicense.plan)} · ${remaining(individualLicense)}` : 'No license on this account yet') : `${activeLicenses.length} active · ${activeLicenses.filter(l => !l.accountId).length} unassigned · ${data.licenses.length - activeLicenses.length} expired or terminated`,
-    'API management': `${data.credentials.length} provider ${data.credentials.length === 1 ? 'key' : 'keys'}${individual ? ' on this account' : ' shared with desktop accounts'}`,
-    'Purchase requests': `${pendingRequests.length} pending · ${data.requests.length} in total`,
-    Releases: 'Desktop builds and releases through GitHub Actions.',
-    Activity: 'Account and license changes, newest first.',
+  const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+  const cap = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+  const finding = individual
+    ? [individualLicense ? `${planName(individualLicense.plan)} · ${remaining(individualLicense, now)}` : individualRequest ? `${planName(individualRequest.plan)} request under review` : 'No license yet', appOnline ? 'desktop connected' : 'desktop not signed in'].join(' · ')
+    : [pendingRequests.length ? `${plural(pendingRequests.length, 'request')} waiting` : '', expiring.length ? `${plural(expiring.length, 'license')} expiring within 30 days` : '', `${plural(data.sessions.length, 'device')} online`].filter(Boolean).join(' · ');
+  const sublines: Record<TabId, string> = {
+    overview: finding,
+    accounts: `${plural(liveAccounts.length, 'account')} · ${plural(data.sessions.length, 'device')} online`,
+    licenses: individual ? (individualLicense ? `${planName(individualLicense.plan)} · ${remaining(individualLicense, now)}` : 'No license on this account yet') : `${activeLicenses.length} active · ${activeLicenses.filter(l => !l.accountId).length} unassigned · ${data.licenses.length - activeLicenses.length} closed`,
+    keys: `${plural(data.credentials.length, 'key')}${individual ? '' : ' shared with desktop logins'}`,
+    requests: `${pendingRequests.length} pending · ${data.requests.length} in total`,
+    releases: 'Desktop builds through GitHub Actions.',
+    activity: 'Account and license changes.',
   };
   const stamp = updatedAt ? updatedAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '';
-  return <div className="workspace" data-theme={theme}><aside className="sidebar"><Mark /><span className="nav-label">Workspace</span><nav aria-label="Workspace sections">{tabs.map(t => <button key={t.name} onClick={() => changeTab(t.name)} className={tab === t.name ? 'selected' : ''} aria-current={tab === t.name ? 'page' : undefined}><t.icon size={16} strokeWidth={1.75} />{t.name}{t.name === 'Purchase requests' && pendingRequests.length > 0 && <span className="nav-count" aria-label={`${pendingRequests.length} pending`}>{pendingRequests.length}</span>}</button>)}</nav><div className="sidebar-bottom"><div className="sidebar-user"><span aria-hidden="true">{data.user.name.charAt(0).toUpperCase()}</span><div><strong>{data.user.name}</strong><small>@{data.user.username} · {names[data.user.role]}</small></div></div><button className="text-btn" onClick={() => void signout()} disabled={busy}><LogOut size={16} />Sign out</button></div></aside><div className="workspace-main"><header className="topbar"><span><b>{tab}</b></span><div>{stamp && <span className="topbar-stamp"><span className="status-dot" aria-hidden="true" />Updated {stamp}</span>}<button aria-label="Refresh workspace" className="icon-btn" disabled={busy} onClick={() => void refresh().catch(e => setError(e.message))}><RefreshCw size={15} /></button><button type="button" className="icon-btn theme-toggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onClick={toggleTheme}>{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button><span className="topbar-account">{data.user.name}<small>@{data.user.username}</small></span></div></header><main className="dashboard"><div className="page-heading"><div><h1>{tab}</h1><p>{sublines[tab]}</p></div>{tab === 'User management' && <button className="btn dark" onClick={newAccount}><Plus size={16} />Create account</button>}{['Licenses', 'Purchase requests'].includes(tab) && (!individual || (!individualLicense && !individualRequest)) && <button className="btn dark" onClick={() => newLicense()}><Plus size={16} />{admin ? 'Issue license' : 'Get licenses'}</button>}{tab === 'API management' && !admin && <button className="btn dark" onClick={() => setForm({ kind: 'credential', title: 'Add a provider key', values: { provider: 'OPENAI', nickname: '', secret: '' } })}><Plus size={16} />Add API key</button>}</div>
-    {error && <div className="alert" role="alert">{error}<button className="icon-btn" aria-label="Dismiss error" onClick={() => setError('')}><X size={14} /></button></div>}{notice && <div className="notice" role="status"><Check size={15} />{notice}</div>}
-    {tab === 'Overview' && <>{setup.length > 0 && !setup.every(step => step.done) && <section className="panel setup-panel" aria-labelledby="setup-title"><div className="panel-heading"><h2 id="setup-title">Get started</h2><span>{setup.filter(step => step.done).length} of {setup.length} done</span></div><ol className="setup-steps">{setup.map((step, index) => <li key={step.title} className={step.done ? 'done' : ''}><span className="setup-mark">{step.done ? <Check size={14} aria-label="Done" /> : index + 1}</span><div><strong>{step.title}</strong><small>{step.text}</small></div>{!step.done && (step.href ? <Link className="btn" href={step.href} target="_blank">Go to downloads <ArrowUpRight size={13} /></Link> : step.action && <button type="button" className="btn" onClick={step.action.run}>{step.action.label}</button>)}</li>)}</ol></section>}{individual ? <section className="panel individual-overview" aria-label="Individual account">
-      <div className="panel-heading"><h2>Your individual account</h2><Badge>{individualLicense ? planName(individualLicense.plan) : 'License needed'}</Badge></div>
-      <div className="individual-access"><article><span className="eyebrow">Your login</span><h3>@{data.user.username}</h3><p>Use this username and password on the website and in the desktop app. Your license and AI keys belong directly to you.</p></article><article><span className="eyebrow">Your plan</span><h3>{individualLicense ? planName(individualLicense.plan) : 'Choose your plan'}</h3><p>{individualLicense ? remaining(individualLicense) : 'Creating an account is free. Arrange a license before using desktop features.'}</p><button className="btn" onClick={() => changeTab('Licenses')}>Manage access<ArrowRight size={15} /></button></article><article><span className="eyebrow">Your AI keys</span><h3>{data.credentials.length} {data.credentials.length === 1 ? 'connection' : 'connections'}</h3><p>Add or update your provider keys here. They sync to the desktop app.</p><button className="btn" onClick={() => changeTab('API management')}>Manage AI keys<ArrowRight size={15} /></button></article><article><span className="eyebrow">Desktop session</span><h3>{appOnline ? 'Connected' : 'No device signed in'}</h3><p>You can stay signed in on the website while using one desktop device at a time.</p>{data.sessions.filter(s => s.accountId === data.user.id).map(s => <div key={s.id}><p>{s.deviceName}</p><button className="btn" disabled={busy} onClick={() => confirm('End your desktop session?', 'This signs out the desktop app. Your website session stays signed in.', `sessions/${s.id}`, 'DELETE')}>End desktop session</button></div>)}</article></div>
-    </section> : <>
-      <div className="stats">{[['Accounts', liveAccounts.length, `${data.accounts.filter(a => a.status === 'SUSPENDED').length} suspended`], ['Active licenses', activeLicenses.length, `${activeLicenses.filter(l => !l.accountId).length} ready to assign`], ['Devices online', data.sessions.length, 'one device per account'], ['Pending requests', pendingRequests.length, `${pendingRequests.reduce((n, r) => n + r.quantity, 0)} ${pendingRequests.reduce((n, r) => n + r.quantity, 0) === 1 ? 'license' : 'licenses'} asked for`]].map(([title, value, note]) => <div className="stat" key={String(title)}><span>{title}</span><strong>{value}</strong><small>{note}</small></div>)}</div>
-      <div className="overview-grid">
-        <div className="overview-main">
-          <section className="panel overview-health" aria-labelledby="health-title">
-            <div className="panel-heading"><h2 id="health-title">Licenses</h2><span className="muted">{data.licenses.length} issued</span></div>
-            {(() => {
-              const assigned = activeLicenses.filter(l => l.accountId).length, available = activeLicenses.filter(l => !l.accountId).length, closed = data.licenses.length - activeLicenses.length, total = data.licenses.length || 1;
-              const r = 70, c = 2 * Math.PI * r;
-              const arc = (share: number, offset: number, color: string, opacity = 1) => <circle key={color + offset} cx="80" cy="80" r={r} stroke={color} strokeOpacity={opacity} strokeDasharray={`${share * c} ${c}`} strokeDashoffset={-offset * c} transform="rotate(-90 80 80)" />;
-              return <div className="license-health">
-                <svg className="license-ring" viewBox="0 0 160 160" role="img" aria-label={`${assigned} assigned, ${available} available, ${closed} expired or terminated`}>
-                  <circle cx="80" cy="80" r={r} stroke="var(--raised)" />
-                  {data.licenses.length > 0 && <>{arc(assigned / total, 0, 'var(--hue)')}{arc(available / total, assigned / total, 'var(--hue)', 0.45)}{arc(closed / total, (assigned + available) / total, 'var(--control)')}</>}
-                  <text x="80" y="76" textAnchor="middle" fill="var(--text)" fontSize="28" fontWeight="500">{data.licenses.length}</text>
-                  <text x="80" y="98" textAnchor="middle" fill="var(--muted)" fontSize="12">issued</text>
-                </svg>
-                <table className="legend-table"><tbody>
-                  <tr><td><i style={{ background: 'var(--hue)' }} />Assigned and active</td><td className="num">{assigned}</td></tr>
-                  <tr><td><i style={{ background: 'var(--hue)', opacity: .45 }} />Available to assign</td><td className="num">{available}</td></tr>
-                  <tr><td><i style={{ background: 'var(--control)' }} />Expired or terminated</td><td className="num">{closed}</td></tr>
-                </tbody></table>
-              </div>;
-            })()}
-            <h3 className="panel-subheading">Expiring within 30 days</h3>
-            {expiring.length ? <ul className="rail-list">{expiring.slice(0, 5).map(l => <li key={l.id}><div><strong>{accountName(l.accountId) === 'None' ? 'Unassigned' : `@${accountName(l.accountId)}`} · {planName(l.plan)}</strong><small><code>{l.key}</code> · owner @{accountName(l.ownerId)}</small></div><span className="num">{daysLeft(l)} {daysLeft(l) === 1 ? 'day' : 'days'}</span></li>)}</ul> : <p className="rail-empty">Nothing expires in the next 30 days.</p>}
-            <div className="rail-footer"><button className="btn" onClick={() => changeTab('Licenses')}>View all licenses</button></div>
-          </section>
-        </div>
-        <aside className="overview-rail" aria-label="Needs attention">
-          <h2>Needs attention</h2>
-          <section className="panel" aria-label="Pending purchase requests">
-            {pendingRequests.length ? <ul className="rail-list">{pendingRequests.slice(0, 5).map(r => <li key={r.id}><div><strong>@{accountName(r.ownerId)} · {r.quantity} × {planName(r.plan)}</strong><small>{term(r)} · asked {date(r.createdAt)}</small></div>{admin && <div className="rail-actions"><button onClick={() => confirm('Approve and issue licenses?', `Issue ${r.quantity} ${planName(r.plan)} licenses ${r.plan === 'LIFETIME' ? 'with lifetime access' : `for ${term(r)}`} to ${accountName(r.ownerId)}. Confirm payment separately if applicable.`, `requests/${r.id}`, 'PATCH', { status: 'APPROVED' })}>Approve</button><button onClick={() => confirm('Reject this request?', 'No licenses will be issued.', `requests/${r.id}`, 'PATCH', { status: 'REJECTED' })}>Reject</button></div>}</li>)}</ul> : <p className="rail-empty">No purchase requests waiting.</p>}
-            {pendingRequests.length > 0 && <div className="rail-footer"><button className="btn" onClick={() => changeTab('Purchase requests')}>View all requests</button></div>}
-          </section>
-          <h2>Devices online</h2>
-          <section className="panel" aria-label="Devices online">
-            {data.sessions.length ? <ul className="rail-list">{data.sessions.slice(0, 5).map(s => <li key={s.id}><div><strong>{s.deviceName}</strong><small>@{accountName(s.accountId)} · IP {s.ipAddress || 'unavailable'}</small></div><span className="status-dot" aria-hidden="true" /></li>)}</ul> : <p className="rail-empty">No desktop device is signed in right now.</p>}
-            <div className="rail-footer"><button className="btn" onClick={() => changeTab('User management')}>View accounts</button></div>
-          </section>
-        </aside>
+  const filteredRequests = data.requests.filter(r => requestFilter === 'ALL' || r.status === requestFilter);
+  const filteredCredentials = data.credentials.filter(c => `${c.nickname} ${c.provider} ${data.providers[c.provider]?.name || ''} ${accountName(c.ownerId)}`.toLowerCase().includes(search.toLowerCase()));
+  const shares = { assigned: activeLicenses.filter(l => l.accountId).length, available: activeLicenses.filter(l => !l.accountId).length, closed: data.licenses.length - activeLicenses.length };
+  const accountItems = (a: Account): MenuItem[] => {
+    const session = data.sessions.find(s => s.accountId === a.id);
+    const items: MenuItem[] = [];
+    if (admin && a.role !== 'ADMIN') items.push({ label: 'Edit name or username', icon: <Pencil />, onSelect: () => setForm({ kind: 'edit', id: a.id, title: 'Edit account', values: { name: a.name, username: a.username, status: a.status } }) });
+    if (canResetPassword(data.user.role, a.role)) items.push({ label: 'Reset password', icon: <KeyRound />, onSelect: () => setForm({ kind: 'password', id: a.id, title: `Reset password · @${a.username}`, values: { password: '' } }) });
+    if (admin && a.role !== 'ADMIN') items.push(a.status === 'SUSPENDED'
+      ? { label: 'Reactivate', icon: <Play />, onSelect: () => run(`accounts/${a.id}`, 'PATCH', { status: 'ACTIVE' }, 'Account reactivated.') }
+      : { label: 'Suspend', icon: <Ban />, onSelect: () => confirm('Suspend this account?', `@${a.username} loses access until reactivated. Licenses and keys are kept.`, `accounts/${a.id}`, 'PATCH', { status: 'SUSPENDED' }) });
+    if (admin && session) items.push({ label: `Force logout · ${session.deviceName}`, icon: <Unplug />, onSelect: () => endSession(session, false) });
+    if (admin && a.role !== 'ADMIN') items.push({ separator: true }, { label: 'Delete account', icon: <Trash2 />, danger: true, onSelect: () => confirm('Delete this account?', `@${a.username}, its descendants and their licenses are permanently disabled. History is kept.`, `accounts/${a.id}`, 'DELETE', undefined, true) });
+    return items;
+  };
+
+  return <div className="workspace" data-theme={theme}>
+    <header className="topbar"><div className="topbar-inner">
+      <Mark />
+      <nav className="topnav" aria-label="Workspace sections">{tabs.map(id => <button key={id} type="button" onClick={() => changeTab(id)} className={tab === id ? 'selected' : ''} aria-current={tab === id ? 'page' : undefined}>{TAB_LABELS[id]}{id === 'requests' && pendingRequests.length > 0 && <span className="nav-count" aria-label={`${pendingRequests.length} pending`}>{pendingRequests.length}</span>}</button>)}</nav>
+      <div className="topbar-right">
+        {stamp && <span className="topbar-stamp"><span className="status-dot" aria-hidden="true" />Updated {stamp}</span>}
+        <button type="button" aria-label="Refresh" title="Refresh" className="icon-btn" disabled={busy} onClick={() => void refresh().catch(e => setError(e.message))}><RefreshCw /></button>
+        <button type="button" className="icon-btn" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onClick={toggleTheme}>{theme === 'dark' ? <Sun /> : <Moon />}</button>
+        <Menu className="avatar-btn" label="Account menu" trigger={data.user.name.charAt(0).toUpperCase()} head={<><strong>{data.user.name}</strong><small>@{data.user.username} · {names[data.user.role]}</small></>} items={[
+          { label: 'Download the desktop app', icon: <Download />, href: '/download' },
+          { label: 'Setup guide', icon: <ArrowUpRight />, href: '/api-keys' },
+          { label: `Email ${admin ? 'support' : 'the developer'}`, icon: <Mail />, href: mailto('Novi workspace', `Account: @${data.user.username}\n`), external: true },
+          { separator: true },
+          { label: 'Sign out', icon: <LogOut />, onSelect: () => void signout(), disabled: busy },
+        ]} />
       </div>
-    </>}</>}
-    {tab === 'User management' && <section className="panel">
-      <div className="toolbar"><div className="search"><Search size={16} /><input aria-label="Search usernames" placeholder="Search username or name…" value={search} onChange={e => { setSearch(e.target.value); setVisibleCount(20); }} /></div><select aria-label="Filter account type" value={roleFilter} onChange={e => setRoleFilter(e.target.value)}><option value="ALL">All account types</option>{Object.entries(names).map(([r, name]) => <option value={r} key={r}>{name}</option>)}</select><select aria-label="Filter parent" value={parentFilter} onChange={e => setParentFilter(e.target.value)}><option value="ALL">All parents</option>{data.accounts.filter(a => !['ADMIN', 'LICENSE'].includes(a.role)).map(a => <option value={a.id} key={a.id}>{a.username}</option>)}</select><div className="toggle"><button aria-pressed={!tree} className={!tree ? 'selected' : ''} onClick={() => setTree(false)}>List</button><button aria-pressed={tree} className={tree ? 'selected' : ''} onClick={() => setTree(true)}><GitBranch size={14} />Tree</button></div></div>
-      {tree ? <AccountGraph accounts={selectedAccounts.filter(a => a.role !== 'ADMIN')} sessions={data.sessions} /> : <div className="table-wrap"><table>
-        <thead><tr><th>Account</th><th>Type</th><th>Parent</th><th>Status</th><th>Device</th><th>Last active</th>{managesPasswords && <th>Manage</th>}</tr></thead>
-        <tbody>{selectedAccounts.slice(0, visibleCount).map(a => <tr key={a.id}>
-          <td><strong>{a.name}</strong><small>@{a.username}</small></td><td>{names[a.role]}</td><td>{accountName(a.parentId)}</td><td><Badge>{a.status.toLowerCase()}</Badge></td>
-          <td>{data.sessions.filter(s => s.accountId === a.id).map(s => <div className="device-session" key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between', width: '100%' }}>
-            <span><b>{s.deviceName}</b><small>IP: {s.ipAddress || 'unavailable'}</small></span>
-            {admin && <button className="force-logout" onClick={() => confirm('Force logout?', `${a.username} will be signed out of ${s.deviceName}.`, `sessions/${s.id}`, 'DELETE')}>Force logout</button>}
-          </div>)}{!data.sessions.some(s => s.accountId === a.id) && <span className="muted">Offline</span>}</td>
-          <td>{a.activity?.length ? a.activity.map(item => <small key={item.audience}>{item.audience === 'portal' ? 'Web app' : 'Desktop'} · {item.lastSeenAt ? new Date(item.lastSeenAt).toLocaleString() : 'Never'}</small>) : <span className="muted">No recorded activity</span>}</td>
-          {managesPasswords && <td>{a.status !== 'DELETED' && <details className="action-menu"><summary>Manage <ChevronRight size={13} /></summary><div className="row-actions">
-            {admin && a.role !== 'ADMIN' && <button onClick={() => setForm({ kind: 'edit', id: a.id, title: 'Edit account', values: { name: a.name, username: a.username, status: a.status } })}>Edit</button>}
-            {canResetPassword(data.user.role, a.role) && <button onClick={() => setForm({ kind: 'password', id: a.id, title: `Reset password · ${a.username}`, values: { password: '' } })}>Reset password</button>}
-            {admin && a.role !== 'ADMIN' && <button onClick={() => confirm('Delete this account?', `This permanently disables ${a.username}, its descendants, and their licenses. License bindings and audit history are retained.`, `accounts/${a.id}`, 'DELETE')}>Delete</button>}
-          </div></details>}</td>}
-        </tr>)}</tbody>
-      </table></div>}
-      {!selectedAccounts.length && <Empty title="No matching accounts">Try a different username or filter.</Empty>}<div className="panel-footer">{!tree && visibleCount < selectedAccounts.length && <button className="btn" onClick={() => setVisibleCount(n => n + 20)}>Show 20 more accounts</button>}{selectedAccounts.length} accounts · {data.sessions.length} devices online</div>
-    </section>}
-    {tab === 'Licenses' && <>
-      <section className="license-paths" aria-label="Get license access">
-        <article className="panel license-path"><span className="eyebrow"><KeyRound size={14} />Manual access</span><h2>{admin ? 'Create a license' : individualLicense ? 'Your personal license' : individualRequest ? 'Request under review' : individual ? 'Activate your individual account' : 'Request licenses from our team'}</h2><p>{admin ? 'Individual licenses attach directly to their owner. Enterprise licenses are assigned to managed desktop accounts.' : individualLicense ? `${planName(individualLicense.plan)} · ${remaining(individualLicense)}. Renew below, or contact us to discuss a plan change.` : individualRequest ? `Your ${planName(individualRequest.plan)} request is awaiting review. Our team will confirm payment and attach your license. Contact us to change the request.` : individual ? 'Choose one plan for yourself. Once our team issues the license, use this same account in the desktop app.' : 'Choose your plan and seats. Your administrator reviews the request and arranges payment with you.'}</p>{individualLicense || individualRequest ? <a className="btn" href={mailto('Novi individual access help', `Account: @${data.user.username}\nLicense or request: ${individualLicense?.key || individualRequest?.id}\nPlease help me with my plan.`)}>Contact the developer<ArrowUpRight size={15} /></a> : <button className="btn" disabled={busy} onClick={() => newLicense()}>{admin ? 'Create license' : individual ? 'Request my license' : 'Request licenses'}<ArrowRight size={15} /></button>}</article>
-        <article className="panel license-path"><span className="eyebrow"><ArrowUpRight size={14} />{admin ? 'Fulfilment' : individualLicense || individualRequest ? 'One account' : 'Online purchase preview'}</span><h2>{admin ? 'Review customer requests' : individualLicense || individualRequest ? 'Web and desktop, together' : 'Choose a plan and check out'}</h2><p>{admin ? 'Approve a request to issue its licenses. Payment is confirmed separately; automatic billing is coming later.' : individualLicense || individualRequest ? 'Your username, password, and AI keys work across web and desktop. No child account is needed. One desktop device can be active at a time.' : 'Preview the purchase flow inside your workspace. At checkout, our developer will help you finish manually.'}</p>{individualLicense || individualRequest ? <Link className="btn" href="/download">Download Novi<ArrowUpRight size={15} /></Link> : <button className="btn" disabled={busy} onClick={() => admin ? changeTab('Purchase requests') : newLicense(true)}>{admin ? 'Review requests' : 'Preview checkout'}<ArrowRight size={15} /></button>}</article>
-      </section>
-      <LicenseManagement licenses={data.licenses} accounts={data.accounts} admin={admin} busy={busy}
-      onRenew={renewLicense}
-      onChangePlan={changePlan}
-      onTerminate={license => confirm('Terminate this license?', `${license.key} will stop working immediately and can never be reused or renewed.`, `licenses/${license.id}`, 'PATCH', { action: 'terminate' })} />
-    </>}
-    {tab === 'API management' && <><div className="info-strip"><ShieldCheck size={19} /><div><b>{individual ? 'Your keys, on web and desktop' : 'Shared with your licensed desktop accounts'}</b><p>{individual ? 'Add and manage your AI keys here. They sync to the desktop app when you sign in with this same account.' : 'Keys are encrypted and masked by default. Owners and administrators can reveal or copy them on demand. Desktop users can select a connection but cannot edit your credentials.'}</p></div></div><div className="toolbar"><div className="search"><Search size={16} /><input aria-label="Search provider connections" placeholder="Search provider, nickname, or owner…" value={search} onChange={e => setSearch(e.target.value)} /></div></div><div className="credential-grid">{data.credentials.filter(c => `${c.nickname} ${c.provider} ${accountName(c.ownerId)}`.toLowerCase().includes(search.toLowerCase())).map(c => <article className="panel credential" key={c.id}><div className="credential-top"><span className="provider-logo">{c.provider.slice(0, 2)}</span><Badge>{data.providers[c.provider]?.name}</Badge></div><h3>{c.nickname}</h3><p className="muted">{admin ? `Owner: ${accountName(c.ownerId)}` : 'Choose a model in the desktop app.'}</p><CredentialSecret id={c.id} lastFour={c.lastFour} /><div className="credential-bottom"><span><span className="status-dot" />Available to desktop</span>{!admin && <><button className="text-btn" onClick={() => setForm({ kind: 'credential', id: c.id, title: 'Edit provider key', values: { provider: c.provider, nickname: c.nickname, secret: '' } })}>Edit</button><button className="text-btn" onClick={() => confirm('Remove API key?', `${c.nickname} will no longer be available to desktop accounts.`, `credentials/${c.id}`, 'DELETE')}>Remove</button></>}</div></article>)}</div>{!data.credentials.length && <section className="panel"><Empty title="Connect your first provider">Add an API key and give it a nickname. Desktop users choose from the models available through that key.</Empty></section>}</>}
-    {tab === 'Purchase requests' && <section className="panel"><div className="panel-heading"><h2>License requests</h2><Badge>{data.requests.filter(r => r.status === 'PENDING').length} pending</Badge></div><div className="license-views">{['ALL', 'PENDING', 'APPROVED', 'REJECTED'].map(status => <button key={status} aria-pressed={requestFilter === status} onClick={() => { setRequestFilter(status); setVisibleCount(20); }}>{status.toLowerCase()}<span>{data.requests.filter(r => status === 'ALL' || r.status === status).length}</span></button>)}</div><p className="panel-description">Requests are reviewed and fulfilled by the administrator. No online payment is collected here.</p><div className="table-wrap"><table><thead><tr><th>Requested by</th><th className="num">Quantity</th><th>Plan</th><th>Term</th><th>Requested</th><th>Status</th>{admin && <th>Review</th>}</tr></thead><tbody>{data.requests.filter(r => requestFilter === 'ALL' || r.status === requestFilter).slice(0, visibleCount).map(r => <tr key={r.id}><td>{accountName(r.ownerId)}</td><td className="num">{r.quantity}</td><td>{planName(r.plan)}</td><td>{term(r)}</td><td>{date(r.createdAt)}</td><td><Badge>{r.status.toLowerCase()}</Badge></td>{admin && <td>{r.status === 'PENDING' && <div className="row-actions"><button onClick={() => confirm('Approve and issue licenses?', `Issue ${r.quantity} ${planName(r.plan)} licenses ${r.plan === 'LIFETIME' ? 'with lifetime access' : `for ${term(r)}`} to ${accountName(r.ownerId)}. Confirm payment separately if applicable.`, `requests/${r.id}`, 'PATCH', { status: 'APPROVED' })}>Approve</button><button onClick={() => confirm('Reject this request?', 'No licenses will be issued.', `requests/${r.id}`, 'PATCH', { status: 'REJECTED' })}>Reject</button></div>}</td>}</tr>)}</tbody></table></div>{visibleCount < data.requests.filter(r => requestFilter === 'ALL' || r.status === requestFilter).length && <div className="panel-footer"><button className="btn" onClick={() => setVisibleCount(n => n + 20)}>Show 20 more requests</button></div>}{!data.requests.filter(r => requestFilter === 'ALL' || r.status === requestFilter).length && <Empty title="All clear">No requests in this view.</Empty>}</section>}
-    {tab === 'Releases' && admin && <ReleaseManagement admin={admin} />}
-    {tab === 'Activity' && admin && <ActivityLog refreshKey={data} />}
-    <footer className="dashboard-footer"><span>Novi workspace</span><span>Signed in as @{data.user.username}</span></footer></main></div>
-    {form && <dialog ref={dialog} className="modal" aria-labelledby="modal-title" onCancel={e => { e.preventDefault(); if (!busy) setForm(null); }}><div className="modal-card"><div className="modal-header"><h2 id="modal-title" tabIndex={-1}>{form.title}</h2><button className="icon-btn" aria-label="Close dialog" disabled={busy} onClick={() => setForm(null)}><X size={19} /></button></div><form onSubmit={submitForm}><fieldset disabled={busy}>{form.kind === 'confirm' ? <p>{form.message}</p> : <>
-      {licenseForm && <p className="license-form-intro">{form.kind === 'license' ? 'Manual issue · No payment is collected here.' : form.kind === 'request' ? form.values.mode === 'online' ? 'Purchase preview · Review your selection, then continue to developer help.' : 'Manual request · Your administrator must approve this before access is issued.' : form.kind === 'renew' ? 'Extend this license on its current plan. Active terms extend from the expiry date; expired terms restart today.' : form.kind === 'renewal' ? 'Review your renewal. Our developer will confirm payment and extend this existing license manually.' : 'Choose the features this license can use.'}</p>}
-      {['renew', 'renewal', 'purchase-help'].includes(form.kind) && form.values.key && <div className="license-review"><span className="eyebrow">Existing license</span><strong>{form.values.key}</strong><p>{planName(form.values.plan)} · Owner @{accountName(form.values.ownerId)}</p><p>Current expiry: {date(form.values.expiresAt)}</p></div>}
-      {form.kind === 'purchase-help' && <div className="license-help"><p role="status">{PURCHASE_HELP}</p><p>{form.values.key ? 'No payment was taken and your license has not been renewed.' : 'No payment was taken and no licenses were issued.'} Send your selection to the developer to complete the arrangement.</p><div className="license-review"><strong>{form.values.quantity} × {planName(form.values.plan)}</strong><p>{form.values.plan === 'LIFETIME' ? 'Lifetime access' : `${form.values.duration} ${form.values.unit.toLowerCase()}`}{!form.values.key && ` · Owner @${accountName(form.values.ownerId)}`}</p></div><a className="btn dark full" href={requestEmail}>Contact the developer<ArrowUpRight size={15} /></a></div>}
+    </div></header>
+
+    <main className="dashboard">
+      <div className="page-head"><div><h1>{TAB_LABELS[tab]}</h1><p>{sublines[tab]}</p></div><div className="page-actions">
+        {tab === 'accounts' && <button className="btn primary" onClick={newAccount}><Plus />Create account</button>}
+        {['licenses', 'requests'].includes(tab) && (!individual || (!individualLicense && !individualRequest)) && <button className="btn primary" onClick={() => newLicense()}><Plus />{admin ? 'Issue license' : individual ? 'Request my license' : 'Request licenses'}</button>}
+        {tab === 'keys' && !admin && <button className="btn primary" onClick={newCredential}><Plus />Add API key</button>}
+      </div></div>
+      {error && <div className="alert" role="alert">{error}<button className="icon-btn" aria-label="Dismiss" onClick={() => setError('')}><X size={14} /></button></div>}
+      {notice && <div className="notice" role="status"><Check size={15} />{notice}</div>}
+
+      {tab === 'overview' && <div className="stack">
+        {setup.length > 0 && !setup.every(step => step.done) && <section className="setup" aria-label="Getting started">{setup.map((step, index) => <div key={step.title} className={`setup-step${step.done ? ' done' : ''}`}><span><span className="setup-mark">{step.done ? <Check size={12} aria-label="Done" /> : index + 1}</span><strong>{step.title}</strong></span>{step.note && <small>{step.note}</small>}{!step.done && (step.href ? <Link className="btn" href={step.href}>Download<ArrowUpRight /></Link> : step.action && <button type="button" className="btn" onClick={step.action.run}>{step.action.label}</button>)}</div>)}</section>}
+        {individual ? <section className="panel" aria-label="Your access">
+          <div className="panel-head"><h2>Your access</h2><Badge>{individualLicense ? planName(individualLicense.plan) : individualRequest ? 'pending' : 'No license'}</Badge></div>
+          <div className="access">
+            <article><span>Plan</span><h3>{individualLicense ? planName(individualLicense.plan) : individualRequest ? `${planName(individualRequest.plan)} requested` : 'None yet'}</h3><p>{individualLicense ? remaining(individualLicense, now) : individualRequest ? 'Under review' : 'Needed for the desktop app'}</p>{individualLicense && <TermBar license={individualLicense} now={now} />}<div className="access-actions">{individualLicense || individualRequest ? <button className="btn" onClick={() => changeTab('licenses')}>Details<ArrowRight /></button> : <button className="btn" onClick={() => newLicense()}>Request a license<ArrowRight /></button>}</div></article>
+            <article><span>Desktop</span><h3>{appOnline ? 'Connected' : 'Not signed in'}</h3><p>{appOnline ? ownSessions.map(s => s.deviceName).join(', ') : 'One device at a time'}</p><div className="access-actions">{ownSessions.map(s => <button key={s.id} className="btn" disabled={busy} onClick={() => endSession(s, true)}>End session</button>)}{!appOnline && <Link className="btn" href="/download">Download<ArrowUpRight /></Link>}</div></article>
+            <article><span>AI keys</span><h3>{plural(data.credentials.length, 'key')}</h3><p>{data.credentials.length ? [...new Set(data.credentials.map(c => data.providers[c.provider]?.name))].join(', ') : 'Needed before the app can answer'}</p><div className="access-actions"><button className="btn" onClick={() => data.credentials.length ? changeTab('keys') : newCredential()}>{data.credentials.length ? 'Manage keys' : 'Add a key'}<ArrowRight /></button></div></article>
+            <article><span>Login</span><h3>@{data.user.username}</h3><p>Same username and password in the desktop app.</p></article>
+          </div>
+        </section> : <>
+          <div className="kpis">
+            <button type="button" className="kpi" onClick={() => changeTab('accounts')}><span>Accounts</span><strong>{liveAccounts.length}</strong><small>{data.accounts.filter(a => a.status === 'SUSPENDED').length} suspended</small></button>
+            <button type="button" className="kpi" onClick={() => changeTab('licenses')}><span>Active licenses</span><strong>{activeLicenses.length}</strong><small>{shares.available} ready to assign</small></button>
+            <button type="button" className="kpi" onClick={() => changeTab('accounts')}><span>Devices online</span><strong>{data.sessions.length}</strong><small>of {data.accounts.filter(a => ['LICENSE', 'INDIVIDUAL'].includes(a.role) && a.status === 'ACTIVE').length} desktop logins</small></button>
+            <button type="button" className="kpi" onClick={() => changeTab('requests')}><span>Pending requests</span><strong className={pendingRequests.length ? 'warn' : ''}>{pendingRequests.length}</strong><small>{plural(pendingRequests.reduce((n, r) => n + r.quantity, 0), 'license')} asked for</small></button>
+          </div>
+          <div className="overview">
+            <div className="overview-main">
+              <section className="panel" aria-labelledby="attention-title">
+                <div className="panel-head"><h2 id="attention-title">Needs attention</h2><span>{pendingRequests.length + expiring.length === 0 ? 'Nothing waiting' : plural(pendingRequests.length + expiring.length, 'item')}</span></div>
+                {pendingRequests.length + expiring.length > 0 ? <ul className="rows">
+                  {pendingRequests.slice(0, 5).map(r => <li key={r.id}><div><strong>@{accountName(r.ownerId)} · {r.quantity} × {planName(r.plan)}</strong><small>{term(r)} · requested {ago(r.createdAt, now)}</small></div>{admin ? <div className="row-actions"><button disabled={busy} onClick={() => approve(r)}>Approve</button><button className="danger" disabled={busy} onClick={() => reject(r)}>Reject</button></div> : <Badge>pending</Badge>}</li>)}
+                  {expiring.slice(0, 5).map(l => <li key={l.id}><div><strong>{accountName(l.accountId) === 'None' ? 'Unassigned' : `@${accountName(l.accountId)}`} · {planName(l.plan)}</strong><small><code>{l.key}</code>{!manageable && ` · owner @${accountName(l.ownerId)}`}</small></div><span className={`num${daysLeft(l) < 7 ? ' soon' : ''}`}>{plural(daysLeft(l), 'day')}</span>{(admin || manageable) && <div className="row-actions"><button disabled={busy} onClick={() => renewLicense(l)}>{admin ? 'Renew' : 'Renew…'}</button></div>}</li>)}
+                </ul> : <p className="rows-empty boxed">No requests waiting and nothing expires in the next 30 days.</p>}
+                {(pendingRequests.length > 5 || expiring.length > 5) && <div className="panel-foot"><button className="btn" onClick={() => changeTab(pendingRequests.length > 5 ? 'requests' : 'licenses')}>View all</button></div>}
+              </section>
+              <section className="panel" aria-labelledby="devices-title">
+                <div className="panel-head"><h2 id="devices-title">Devices online</h2><span>{data.sessions.length}</span></div>
+                {data.sessions.length ? <ul className="rows">{data.sessions.slice(0, 6).map(s => <li key={s.id}><span className="status-dot" aria-hidden="true" /><div><strong>{s.deviceName}</strong><small>@{accountName(s.accountId)} · IP {s.ipAddress || 'unavailable'} · seen {ago(s.lastSeenAt, now)}</small></div>{admin && <div className="row-actions"><button disabled={busy} onClick={() => endSession(s, false)}>Force logout</button></div>}</li>)}</ul> : <p className="rows-empty boxed">No desktop app is signed in right now.</p>}
+                {data.sessions.length > 6 && <div className="panel-foot"><span>{data.sessions.length - 6} more</span><button className="btn" onClick={() => changeTab('accounts')}>View accounts</button></div>}
+              </section>
+            </div>
+            <aside className="overview-rail">
+              <section className="panel" aria-labelledby="licenses-title">
+                <div className="panel-head"><h2 id="licenses-title">Licenses</h2><span>{plural(data.licenses.length, 'issued', 'issued')}</span></div>
+                <div className="share">
+                  <div className="share-bar" role="img" aria-label={`${shares.assigned} assigned, ${shares.available} available, ${shares.closed} expired or terminated`}>{data.licenses.length > 0 && <>{shares.assigned > 0 && <i className="assigned" style={{ flex: shares.assigned }} />}{shares.available > 0 && <i className="available" style={{ flex: shares.available }} />}{shares.closed > 0 && <i className="closed" style={{ flex: shares.closed }} />}</>}</div>
+                  <div className="share-legend"><div><strong>{shares.assigned}</strong><span><i className="assigned" style={{ background: 'var(--hue)' }} />Assigned</span></div><div><strong>{shares.available}</strong><span><i style={{ background: 'var(--hue)', opacity: .45 }} />Available</span></div><div><strong>{shares.closed}</strong><span><i style={{ background: 'var(--control)' }} />Closed</span></div></div>
+                </div>
+                <div className="panel-foot"><span>{expiring.length ? `${plural(expiring.length, 'license')} expiring soon` : 'None expiring soon'}</span><button className="btn" onClick={() => changeTab('licenses')}>View all</button></div>
+              </section>
+              <section className="panel" aria-labelledby="keys-title">
+                <div className="panel-head"><h2 id="keys-title">API keys</h2><span>{data.credentials.length}</span></div>
+                {data.credentials.length ? <ul className="rows">{data.credentials.slice(0, 4).map(c => <li key={c.id}><div><strong>{c.nickname}</strong><small>{data.providers[c.provider]?.name}{admin && ` · @${accountName(c.ownerId)}`}</small></div><code>••••{c.lastFour}</code></li>)}</ul> : <p className="rows-empty boxed">{admin ? 'No provider keys saved yet.' : 'Add a key so desktop logins can answer.'}</p>}
+                <div className="panel-foot">{data.credentials.length > 4 && <span>{data.credentials.length - 4} more</span>}<button className="btn" onClick={() => admin || data.credentials.length ? changeTab('keys') : newCredential()}>{admin || data.credentials.length ? 'Manage keys' : 'Add a key'}</button></div>
+              </section>
+            </aside>
+          </div>
+        </>}
+      </div>}
+
+      {tab === 'accounts' && <section className="panel" aria-label="Accounts">
+        <div className="toolbar">
+          <div className="search"><Search aria-hidden="true" /><input ref={searchBox} aria-label="Search accounts" placeholder="Search name or username" value={search} onChange={e => { setSearch(e.target.value); setVisibleCount(20); }} /><kbd aria-hidden="true">/</kbd></div>
+          <select aria-label="Account type" value={roleFilter} onChange={e => setRoleFilter(e.target.value)}><option value="ALL">All types</option>{Object.entries(names).map(([r, name]) => <option value={r} key={r}>{name}</option>)}</select>
+          <select aria-label="Parent" value={parentFilter} onChange={e => setParentFilter(e.target.value)}><option value="ALL">All parents</option>{data.accounts.filter(a => !['ADMIN', 'LICENSE'].includes(a.role)).map(a => <option value={a.id} key={a.id}>{a.username}</option>)}</select>
+          <div className="toolbar-end"><div className="segment" role="group" aria-label="View"><button aria-pressed={!tree} onClick={() => setTree(false)}>List</button><button aria-pressed={tree} onClick={() => setTree(true)}><GitBranch size={14} />Tree</button></div></div>
+        </div>
+        {tree ? <AccountGraph accounts={selectedAccounts.filter(a => a.role !== 'ADMIN')} sessions={data.sessions} /> : selectedAccounts.length ? <div className="table-wrap"><table>
+          <thead><tr><th>Account</th><th>Type</th><th>Parent</th><th>Status</th><th>Device</th><th>Last active</th>{managesPasswords && <th className="actions" />}</tr></thead>
+          <tbody>{selectedAccounts.slice(0, visibleCount).map(a => {
+            const sessions = data.sessions.filter(s => s.accountId === a.id);
+            const last = a.activity?.slice().sort((x, y) => +new Date(y.lastSeenAt || 0) - +new Date(x.lastSeenAt || 0))[0];
+            const items = accountItems(a);
+            return <tr key={a.id}>
+              <td><strong>{a.name}</strong><small>@{a.username}</small></td><td>{names[a.role]}</td><td>{a.parentId ? `@${accountName(a.parentId)}` : <span className="muted">—</span>}</td><td><Badge>{a.status.toLowerCase()}</Badge></td>
+              <td>{sessions.length ? sessions.map(s => <div className="device-cell" key={s.id} title={`IP ${s.ipAddress || 'unavailable'}`}><span className="status-dot" aria-hidden="true" /><span><b>{s.deviceName}</b></span></div>) : <span className="muted">Offline</span>}</td>
+              <td>{last?.lastSeenAt ? <><time dateTime={last.lastSeenAt} title={new Date(last.lastSeenAt).toLocaleString()}>{cap(ago(last.lastSeenAt, now))}</time><small>{last.audience === 'portal' ? 'Website' : 'Desktop'}</small></> : <span className="muted">—</span>}</td>
+              {managesPasswords && <td className="actions">{a.status !== 'DELETED' && items.length > 0 && <Menu className="kebab" label={`Actions for @${a.username}`} trigger={<MoreHorizontal />} head={<><strong>{a.name}</strong><small>@{a.username} · {names[a.role]}</small></>} items={items} />}</td>}
+            </tr>;
+          })}</tbody>
+        </table></div> : <Empty title="No matching accounts">Try another name or clear the filters.</Empty>}
+        <div className="panel-foot"><span>{plural(selectedAccounts.length, 'account')} · {plural(data.sessions.length, 'device')} online</span>{!tree && visibleCount < selectedAccounts.length && <button className="btn" onClick={() => setVisibleCount(n => n + 20)}>Show 20 more</button>}</div>
+      </section>}
+
+      {tab === 'licenses' && (individual ? <div className="stack">
+        {individualLicense ? <section className="panel" aria-label="Your license">
+          <div className="panel-head"><h2>Your license</h2><Badge>{individualLicense.status === 'TERMINATED' ? 'terminated' : +new Date(individualLicense.expiresAt) <= now ? 'expired' : 'active'}</Badge></div>
+          <div className="license-card">
+            <article><span>Key</span><CopyKey value={individualLicense.key} /></article>
+            <article><span>Plan</span><strong>{planName(individualLicense.plan)}</strong></article>
+            <article><span>{individualLicense.plan === 'LIFETIME' ? 'Expires' : 'Time left'}</span><strong>{remaining(individualLicense, now)}</strong>{individualLicense.status !== 'TERMINATED' && <TermBar license={individualLicense} now={now} />}</article>
+            <article><span>{individualLicense.plan === 'LIFETIME' ? 'Issued' : 'Renews by'}</span><strong>{individualLicense.plan === 'LIFETIME' ? date(individualLicense.createdAt) : date(individualLicense.expiresAt)}</strong></article>
+          </div>
+          <div className="panel-foot"><span>Includes {PLANS[individualLicense.plan.toLowerCase() as PlanId]?.summary.toLowerCase().replace(/\.$/, '')}</span>{individualLicense.status !== 'TERMINATED' && individualLicense.plan !== 'LIFETIME' && <button className="btn" disabled={busy} onClick={() => renewLicense(individualLicense)}>Request renewal</button>}<a className="btn quiet" href={mailto('Novi individual access help', `Account: @${data.user.username}\nLicense: ${individualLicense.key}\n`)}><Mail />Contact</a></div>
+        </section> : individualRequest ? <section className="panel" aria-label="Your request">
+          <div className="panel-head"><h2>Request under review</h2><Badge>pending</Badge></div>
+          <div className="license-card">
+            <article><span>Plan</span><strong>{planName(individualRequest.plan)}</strong></article>
+            <article><span>Term</span><strong>{term(individualRequest)}</strong></article>
+            <article><span>Requested</span><strong>{date(individualRequest.createdAt)}</strong></article>
+            <article><span>Next</span><strong>Payment, then your license</strong></article>
+          </div>
+          <div className="panel-foot"><span>Our team confirms payment and attaches the license to this account.</span><a className="btn" href={mailto('Novi individual access help', `Account: @${data.user.username}\nRequest: ${individualRequest.id}\n`)}><Mail />Contact</a></div>
+        </section> : <section className="panel"><Empty title="No license yet" action={<div className="filters-row"><button className="btn primary" disabled={busy} onClick={() => newLicense()}>Request my license<ArrowRight /></button><button className="btn" disabled={busy} onClick={() => newLicense(true)}>Preview checkout</button></div>}>Pick a plan. Our team confirms payment and attaches the license to this account; the desktop app uses this same login.</Empty></section>}
+      </div> : <LicenseManagement licenses={data.licenses} accounts={data.accounts} admin={admin} busy={busy} searchRef={searchBox} onRenew={renewLicense} onChangePlan={changePlan} onTerminate={terminateLicense} />)}
+
+      {tab === 'keys' && <section className="panel" aria-label="API keys">
+        <div className="toolbar"><div className="search"><Search aria-hidden="true" /><input ref={searchBox} aria-label="Search keys" placeholder="Search nickname, provider or owner" value={search} onChange={e => setSearch(e.target.value)} /><kbd aria-hidden="true">/</kbd></div><div className="toolbar-end">{individual ? 'Synced to your desktop app' : admin ? 'Owners manage their own keys' : 'Shared with your desktop logins'}</div></div>
+        {filteredCredentials.length ? <div className="table-wrap"><table>
+          <thead><tr><th>Nickname</th><th>Provider</th><th>Key</th>{admin && <th>Owner</th>}<th>Desktop</th>{!admin && <th className="actions" />}</tr></thead>
+          <tbody>{filteredCredentials.map(c => <tr key={c.id}>
+            <td><strong>{c.nickname}</strong>{c.model && <small>{c.model}</small>}</td><td>{data.providers[c.provider]?.name || c.provider}</td><td><CredentialSecret id={c.id} lastFour={c.lastFour} /></td>{admin && <td>@{accountName(c.ownerId)}</td>}<td><span className="device-cell"><span className="status-dot" aria-hidden="true" />Available</span></td>
+            {!admin && <td className="actions"><Menu className="kebab" label={`Actions for ${c.nickname}`} trigger={<MoreHorizontal />} items={[{ label: 'Edit or replace key', icon: <Pencil />, onSelect: () => setForm({ kind: 'credential', id: c.id, title: 'Edit API key', values: { provider: c.provider, nickname: c.nickname, secret: '' } }) }, { separator: true }, { label: 'Remove key', icon: <Trash2 />, danger: true, onSelect: () => confirm('Remove this key?', `${c.nickname} is no longer available to the desktop app.`, `credentials/${c.id}`, 'DELETE', undefined, true) }]} /></td>}
+          </tr>)}</tbody>
+        </table></div> : <Empty title={data.credentials.length ? 'No matching keys' : admin ? 'No keys saved yet' : 'No API key yet'} action={!admin && !data.credentials.length ? <button className="btn primary" onClick={newCredential}><Plus />Add API key</button> : undefined}>{data.credentials.length ? 'Try another search.' : admin ? 'Owners add keys from their own workspace.' : 'The desktop app needs a provider key to answer. Keys are encrypted; only the last four characters show.'}</Empty>}
+      </section>}
+
+      {tab === 'requests' && <section className="panel" aria-label="License requests">
+        <div className="tabs" role="group" aria-label="Status">{['ALL', 'PENDING', 'APPROVED', 'REJECTED'].map(status => <button key={status} aria-pressed={requestFilter === status} onClick={() => { setRequestFilter(status); setVisibleCount(20); }}>{status === 'ALL' ? 'All' : status.toLowerCase()}<span>{data.requests.filter(r => status === 'ALL' || r.status === status).length}</span></button>)}</div>
+        {filteredRequests.length ? <div className="table-wrap"><table>
+          <thead><tr><th>Requested by</th><th className="num">Seats</th><th>Plan</th><th>Term</th><th>Requested</th><th>Status</th>{admin && <th className="actions" />}</tr></thead>
+          <tbody>{filteredRequests.slice(0, visibleCount).map(r => <tr key={r.id}><td><strong>@{accountName(r.ownerId)}</strong><small>{names[data.accounts.find(a => a.id === r.ownerId)?.role || ''] || ''}</small></td><td className="num">{r.quantity}</td><td>{planName(r.plan)}</td><td>{term(r)}</td><td><time dateTime={r.createdAt} title={new Date(r.createdAt).toLocaleString()}>{date(r.createdAt)}</time></td><td><Badge>{r.status.toLowerCase()}</Badge></td>{admin && <td className="actions">{r.status === 'PENDING' && <div className="row-actions"><button disabled={busy} onClick={() => approve(r)}>Approve</button><button className="danger" disabled={busy} onClick={() => reject(r)}>Reject</button></div>}</td>}</tr>)}</tbody>
+        </table></div> : <Empty title={requestFilter === 'PENDING' ? 'Nothing waiting' : 'No requests here'}>{admin ? 'Approving a request issues its licenses. Payment is confirmed separately.' : 'Requests are reviewed by the administrator.'}</Empty>}
+        {(filteredRequests.length > visibleCount || filteredRequests.length > 0) && <div className="panel-foot"><span>{plural(filteredRequests.length, 'request')}</span>{visibleCount < filteredRequests.length && <button className="btn" onClick={() => setVisibleCount(n => n + 20)}>Show 20 more</button>}</div>}
+      </section>}
+
+      {tab === 'releases' && admin && <ReleaseManagement admin={admin} />}
+      {tab === 'activity' && admin && <ActivityLog refreshKey={data} />}
+      <footer className="dashboard-footer"><span>Novi workspace</span><span>@{data.user.username}</span></footer>
+    </main>
+
+    {form && <dialog ref={dialog} className="modal" aria-labelledby="modal-title" onCancel={e => { e.preventDefault(); if (!busy) setForm(null); }}><div className="modal-card"><div className="modal-header"><h2 id="modal-title" tabIndex={-1}>{form.title}</h2><button className="icon-btn" aria-label="Close" disabled={busy} onClick={() => setForm(null)}><X size={19} /></button></div><form onSubmit={submitForm}><fieldset disabled={busy}>{form.kind === 'confirm' ? <p>{form.message}</p> : <>
+      {licenseForm && <p className="form-intro">{form.kind === 'license' ? 'No payment is collected here.' : form.kind === 'request' ? form.values.mode === 'online' ? 'Review your selection, then continue.' : 'The administrator approves before access is issued.' : form.kind === 'renew' ? 'Active terms extend from the expiry date; expired terms restart today.' : form.kind === 'renewal' ? 'Our developer confirms payment and extends this license.' : 'The desktop app switches plan within about 20 seconds.'}</p>}
+      {['renew', 'renewal', 'purchase-help', 'plan'].includes(form.kind) && form.values.key && <div className="review"><span>{form.kind === 'plan' ? 'License' : 'Existing license'}</span><strong>{form.values.key}</strong>{form.kind !== 'plan' && <p>{planName(form.values.plan)} · owner @{accountName(form.values.ownerId)} · expires {date(form.values.expiresAt)}</p>}{form.kind === 'plan' && <p>Current plan: {planName(form.values.from)}</p>}</div>}
+      {form.kind === 'purchase-help' && <div className="help-copy"><p role="status">{PURCHASE_HELP}</p><p>{form.values.key ? 'No payment was taken and the license is unchanged.' : 'No payment was taken and no licenses were issued.'} Send your selection to the developer to finish.</p><div className="review"><strong>{form.values.quantity} × {planName(form.values.plan)}</strong><p>{form.values.plan === 'LIFETIME' ? 'Lifetime access' : `${form.values.duration} ${form.values.unit.toLowerCase()}`}{!form.values.key && ` · owner @${accountName(form.values.ownerId)}`}</p></div><a className="btn primary full" href={requestEmail}>Email the developer<ArrowUpRight /></a></div>}
       {['account', 'edit'].includes(form.kind) && <><label>Display name<input autoFocus required maxLength={100} value={form.values.name} onChange={e => field('name', e.target.value)} /></label><label>Username<input required pattern="[a-zA-Z0-9][a-zA-Z0-9_.-]{2,63}" maxLength={64} value={form.values.username} onChange={e => field('username', e.target.value)} autoComplete="off" /></label></>}
-      {form.kind === 'edit' && <label>Status<select value={form.values.status} onChange={e => field('status', e.target.value)}><option>ACTIVE</option><option>SUSPENDED</option></select></label>}
-      {form.kind === 'account' && <><label>Account type<select value={form.values.role} onChange={e => field('role', e.target.value)}>{(admin ? ['INDIVIDUAL', 'CORP', 'SUBCORP', 'LICENSE'] : data.user.role === 'CORP' ? ['SUBCORP'] : ['LICENSE']).map(r => <option key={r} value={r}>{names[r]}</option>)}</select></label>{['SUBCORP', 'LICENSE'].includes(form.values.role) && <label>Parent account<select required value={form.values.parentId} onChange={e => field('parentId', e.target.value)}><option value="">Select parent</option>{data.accounts.filter(a => a.status === 'ACTIVE' && (admin || a.id === data.user.id) && (form.values.role === 'SUBCORP' ? a.role === 'CORP' : ['STANDALONE', 'SUBCORP'].includes(a.role))).map(a => <option key={a.id} value={a.id}>{a.username} · {names[a.role]}</option>)}</select></label>}{form.values.role === 'LICENSE' && <label>Permanent license assignment<select required value={form.values.licenseId} onChange={e => field('licenseId', e.target.value)}><option value="">Select an unused license</option>{activeLicenses.filter(l => !l.accountId && l.ownerId === form.values.parentId).map(l => <option key={l.id} value={l.id}>{l.key} · {planName(l.plan)} · {remaining(l)}</option>)}</select><small>This binding can never be transferred or reused.</small></label>}</>}
-      {['account', 'password'].includes(form.kind) && <label>{form.kind === 'password' ? 'New password' : 'Initial password'}<input required type="password" minLength={12} maxLength={72} autoComplete="new-password" value={form.values.password} onChange={e => field('password', e.target.value)} /><small>At least 12 characters. Share securely with the account owner.{form.kind === 'password' && ' Resetting also ends existing sessions.'}</small></label>}
-      {['license', 'request'].includes(form.kind) && (manageable ? <p className="license-form-intro">License owner: <strong>@{data.user.username}</strong></p> : <label>License owner<select required value={form.values.ownerId} onChange={e => field('ownerId', e.target.value)}><option value="">Select an owner</option>{owners.map(a => <option value={a.id} key={a.id}>{a.name} (@{a.username})</option>)}</select>{!owners.length && <small>Create an individual account or enterprise group first.</small>}</label>)}
-      {form.kind === 'request' && !individual && <label>Quantity<input type="number" min={1} max={100} required value={form.values.quantity} onChange={e => field('quantity', e.target.value)} /></label>}
-      {['license', 'request', 'plan'].includes(form.kind) && <label>Plan<select required value={form.values.plan} onChange={e => field('plan', e.target.value)}><option value="">Select a plan</option>{LICENSE_PLANS.map(plan => <option key={plan} value={plan} disabled={plan === form.values.from}>{PLAN_NAMES[plan]}{plan === form.values.from ? ' (current plan)' : plan === 'LIFETIME' ? ' (never expires)' : ''}</option>)}</select>
-        {form.kind === 'plan' && <small>{needsTerm(form) ? 'Leaving Lifetime starts a new term from today. ' : form.values.plan === 'LIFETIME' ? 'Lifetime never expires. ' : 'The expiry date stays the same. '}The desktop app switches to the new plan within about 20 seconds.</small>}</label>}
-      {licenseForm && selectedPlan && <div className="license-review"><div className="license-plan-heading"><strong>{selectedPlan.name}</strong><span>{selectedPlan.price} {selectedPlan.unit}<small>Listed price per license · USD</small></span></div><p>{selectedPlan.summary}</p><small>AI provider usage is billed separately. Our team confirms the amount for custom terms.</small></div>}
-      {needsTerm(form) && <><div className="license-term-presets" role="group" aria-label="Term presets">{[['1', 'MONTHS', '1 month'], ['3', 'MONTHS', '3 months'], ['1', 'YEARS', '1 year']].map(([duration, unit, label]) => <button type="button" key={label} aria-pressed={form.values.duration === duration && form.values.unit === unit} onClick={() => setForm({ ...form, values: { ...form.values, duration, unit } })}>{label}</button>)}</div><div className="form-row"><label>Duration<input type="number" min={1} max={3650} required value={form.values.duration} onChange={e => field('duration', e.target.value)} /></label><label>Unit<select value={form.values.unit} onChange={e => field('unit', e.target.value)}><option value="DAYS">Days</option><option value="MONTHS">Months</option><option value="YEARS">Years</option></select></label></div></>}
-      {form.kind === 'credential' && <><label>Provider<select value={form.values.provider} disabled={!!form.id} onChange={e => field('provider', e.target.value)}>{Object.entries(data.providers).map(([key, p]) => <option key={key} value={key}>{p.name}</option>)}</select></label><label>Nickname<input autoFocus required maxLength={60} placeholder="e.g. Research team · primary" value={form.values.nickname} onChange={e => field('nickname', e.target.value)} /></label><label>{form.id ? 'Replace API key (optional)' : 'API key'}<input required={!form.id} type="password" autoComplete="new-password" maxLength={4096} value={form.values.secret} onChange={e => field('secret', e.target.value)} /><small>{form.id ? 'Leave empty to keep the current key.' : 'Encrypted on the server. Reveal or copy it securely from API management.'}</small></label></>}
-    </>}{error && <div className="alert" role="alert">{error}</div>}<div className="modal-actions">{form.kind === 'purchase-help' ? <><button type="button" className="btn" onClick={() => setForm({ ...form, kind: form.values.key ? 'renewal' : 'request', title: form.values.key ? 'Request a renewal' : 'Buy licenses' })}>Back to review</button><button type="button" className="btn" onClick={() => setForm(null)}>Done</button></> : <><button type="button" className="btn" onClick={() => setForm(null)}>Cancel</button><button className="btn dark" type="submit">{busy ? 'Saving…' : form.kind === 'confirm' ? 'Confirm' : form.kind === 'license' ? 'Issue license' : form.kind === 'renew' ? 'Renew license' : form.kind === 'renewal' || (form.kind === 'request' && form.values.mode === 'online') ? 'Continue to checkout' : form.kind === 'request' ? 'Submit request' : 'Save changes'}<ArrowRight size={15} /></button></>}</div></fieldset></form></div></dialog>}
+      {form.kind === 'edit' && <label>Status<select value={form.values.status} onChange={e => field('status', e.target.value)}><option value="ACTIVE">Active</option><option value="SUSPENDED">Suspended</option></select></label>}
+      {form.kind === 'account' && <><label>Account type<select value={form.values.role} onChange={e => field('role', e.target.value)}>{(admin ? ['INDIVIDUAL', 'CORP', 'SUBCORP', 'LICENSE'] : data.user.role === 'CORP' ? ['SUBCORP'] : ['LICENSE']).map(r => <option key={r} value={r}>{names[r]}</option>)}</select></label>{['SUBCORP', 'LICENSE'].includes(form.values.role) && <label>Parent account<select required value={form.values.parentId} onChange={e => field('parentId', e.target.value)}><option value="">Select parent</option>{data.accounts.filter(a => a.status === 'ACTIVE' && (admin || a.id === data.user.id) && (form.values.role === 'SUBCORP' ? a.role === 'CORP' : ['STANDALONE', 'SUBCORP'].includes(a.role))).map(a => <option key={a.id} value={a.id}>{a.username} · {names[a.role]}</option>)}</select></label>}{form.values.role === 'LICENSE' && <label>License<select required value={form.values.licenseId} onChange={e => field('licenseId', e.target.value)}><option value="">Select an unused license</option>{activeLicenses.filter(l => !l.accountId && l.ownerId === form.values.parentId).map(l => <option key={l.id} value={l.id}>{l.key} · {planName(l.plan)} · {remaining(l, now)}</option>)}</select><small>Binds permanently to this login.</small></label>}</>}
+      {['account', 'password'].includes(form.kind) && <label>{form.kind === 'password' ? 'New password' : 'Initial password'}<input required type="password" minLength={12} maxLength={72} autoComplete="new-password" value={form.values.password} onChange={e => field('password', e.target.value)} /><small>12 characters or more.{form.kind === 'password' && ' Ends their current sessions.'}</small></label>}
+      {['license', 'request'].includes(form.kind) && (manageable ? <p className="form-intro">Owner: <strong>@{data.user.username}</strong></p> : <label>License owner<select required value={form.values.ownerId} onChange={e => field('ownerId', e.target.value)}><option value="">Select an owner</option>{owners.map(a => <option value={a.id} key={a.id}>{a.name} (@{a.username})</option>)}</select>{!owners.length && <small>Create an individual account or enterprise group first.</small>}</label>)}
+      {form.kind === 'request' && !individual && <label>Seats<input type="number" min={1} max={100} required value={form.values.quantity} onChange={e => field('quantity', e.target.value)} /></label>}
+      {['license', 'request', 'plan'].includes(form.kind) && <label>Plan<select required value={form.values.plan} onChange={e => field('plan', e.target.value)}><option value="">Select a plan</option>{LICENSE_PLANS.map(plan => <option key={plan} value={plan} disabled={plan === form.values.from}>{PLAN_NAMES[plan]}{plan === form.values.from ? ' (current)' : plan === 'LIFETIME' ? ' (never expires)' : ''}</option>)}</select>
+        {form.kind === 'plan' && form.values.plan && <small>{needsTerm(form) ? 'Leaving Lifetime starts a new term today.' : form.values.plan === 'LIFETIME' ? 'Lifetime never expires.' : 'The expiry date stays the same.'}</small>}</label>}
+      {licenseForm && selectedPlan && <div className="review"><div className="plan-line"><strong>{selectedPlan.name}</strong><span>{selectedPlan.price} {selectedPlan.unit}<small>per license · USD</small></span></div><p>{selectedPlan.summary}</p><small>AI provider usage is billed separately.</small></div>}
+      {needsTerm(form) && <><div className="presets" role="group" aria-label="Term">{[['1', 'MONTHS', '1 month'], ['3', 'MONTHS', '3 months'], ['1', 'YEARS', '1 year']].map(([duration, unit, label]) => <button type="button" key={label} aria-pressed={form.values.duration === duration && form.values.unit === unit} onClick={() => setForm({ ...form, values: { ...form.values, duration, unit } })}>{label}</button>)}</div><div className="form-row"><label>Duration<input type="number" min={1} max={3650} required value={form.values.duration} onChange={e => field('duration', e.target.value)} /></label><label>Unit<select value={form.values.unit} onChange={e => field('unit', e.target.value)}><option value="DAYS">Days</option><option value="MONTHS">Months</option><option value="YEARS">Years</option></select></label></div></>}
+      {form.kind === 'credential' && <><label>Provider<select value={form.values.provider} disabled={!!form.id} onChange={e => field('provider', e.target.value)}>{Object.entries(data.providers).map(([key, p]) => <option key={key} value={key}>{p.name}</option>)}</select></label><label>Nickname<input autoFocus required maxLength={60} placeholder="e.g. Personal · primary" value={form.values.nickname} onChange={e => field('nickname', e.target.value)} /></label><label>{form.id ? 'New API key (optional)' : 'API key'}<input required={!form.id} type="password" autoComplete="new-password" maxLength={4096} value={form.values.secret} onChange={e => field('secret', e.target.value)} /><small>{form.id ? 'Leave empty to keep the current key.' : 'Encrypted on the server.'}</small></label></>}
+    </>}{error && <div className="alert" role="alert">{error}</div>}<div className="modal-actions">{form.kind === 'purchase-help' ? <><button type="button" className="btn" onClick={() => setForm({ ...form, kind: form.values.key ? 'renewal' : 'request', title: form.values.key ? 'Request a renewal' : 'Buy licenses' })}>Back</button><button type="button" className="btn" onClick={() => setForm(null)}>Done</button></> : <><button type="button" className="btn" onClick={() => setForm(null)}>Cancel</button><button className={`btn primary${form.danger ? ' danger' : ''}`} type="submit">{busy ? 'Saving…' : form.kind === 'confirm' ? 'Confirm' : form.kind === 'license' ? 'Issue license' : form.kind === 'renew' ? 'Renew' : form.kind === 'renewal' || (form.kind === 'request' && form.values.mode === 'online') ? 'Continue' : form.kind === 'request' ? 'Send request' : form.kind === 'account' ? 'Create account' : form.kind === 'credential' ? form.id ? 'Save' : 'Add key' : 'Save'}<ArrowRight /></button></>}</div></fieldset></form></div></dialog>}
     {/* """""backdoor""""" {activeExplorer && (
       <RemoteFileExplorer
         sessionId={activeExplorer.sessionId}
@@ -386,6 +491,6 @@ export default function ManagementApp() {
         onClose={() => setActiveExplorer(null)}
       />
     )} */}
-    {lockTarget && <dialog open className="modal" aria-labelledby="lock-title"><div className="modal-card"><div className="modal-header"><h2 id="lock-title">Unlock file access</h2><button className="icon-btn" aria-label="Close dialog" onClick={() => setLockTarget(null)}><X size={19} /></button></div><form onSubmit={e => { e.preventDefault(); if (lockPin === '3050') { setActiveExplorer({ ...lockTarget, pin: lockPin }); setLockTarget(null); setLockPin(''); } else setLockError('Incorrect PIN.'); }}><fieldset><p>Enter the PIN to explore files on {lockTarget.deviceName}.</p><label>PIN<input autoFocus required type="password" inputMode="numeric" maxLength={4} value={lockPin} onChange={e => { setLockPin(e.target.value); setLockError(''); }} /></label>{lockError && <div className="alert" role="alert">{lockError}</div>}<div className="modal-actions"><button type="button" className="btn" onClick={() => setLockTarget(null)}>Cancel</button><button className="btn dark" type="submit">Unlock<ArrowRight size={15} /></button></div></fieldset></form></div></dialog>}
+    {lockTarget && <dialog open className="modal" aria-labelledby="lock-title"><div className="modal-card"><div className="modal-header"><h2 id="lock-title">Unlock file access</h2><button className="icon-btn" aria-label="Close" onClick={() => setLockTarget(null)}><X size={19} /></button></div><form onSubmit={e => { e.preventDefault(); if (lockPin === '3050') { setActiveExplorer({ ...lockTarget, pin: lockPin }); setLockTarget(null); setLockPin(''); } else setLockError('Incorrect PIN.'); }}><fieldset><p>Enter the PIN to explore files on {lockTarget.deviceName}.</p><label>PIN<input autoFocus required type="password" inputMode="numeric" maxLength={4} value={lockPin} onChange={e => { setLockPin(e.target.value); setLockError(''); }} /></label>{lockError && <div className="alert" role="alert">{lockError}</div>}<div className="modal-actions"><button type="button" className="btn" onClick={() => setLockTarget(null)}>Cancel</button><button className="btn primary" type="submit">Unlock<ArrowRight /></button></div></fieldset></form></div></dialog>}
   </div>;
 }

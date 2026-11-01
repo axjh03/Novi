@@ -1,11 +1,20 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { ChevronLeft, ChevronRight, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { activityEvents, type ActivityPage } from '@/lib/activity-events';
 
 const defaults = { from: '', to: '', event: '', sort: 'desc', page: 1 };
+const ago = (value: string) => {
+  const seconds = Math.max(0, (Date.now() - +new Date(value)) / 1000);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ago`;
+  if (seconds < 7 * 86400) return `${Math.floor(seconds / 86400)} d ago`;
+  return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+};
 
+/** Account and license changes, newest first, filtered by event and date range; 20 per page from the server. */
 export default function ActivityLog({ refreshKey }: { refreshKey: object }) {
   const [filters, setFilters] = useState(defaults);
   const [draft, setDraft] = useState({ from: '', to: '' });
@@ -46,30 +55,24 @@ export default function ActivityLog({ refreshKey }: { refreshKey: object }) {
   }
   const clear = () => { setDraft({ from: '', to: '' }); change(defaults); };
   const hasFilters = !!(filters.from || filters.to || filters.event || draft.from || draft.to);
+  const pageTo = (page: number) => { setLoading(true); setFilters(current => ({ ...current, page })); };
 
   return <section className="panel activity-panel" aria-label="Account and license activity">
-    <div className="panel-heading"><h2>Account &amp; license changes</h2><span className="badge">20 per page</span></div>
-    <div className="license-controls">
-      <form className="activity-range" onSubmit={applyRange}>
-        <label>From<input type="datetime-local" value={draft.from} onChange={e => setDraft(current => ({ ...current, from: e.target.value }))} /></label>
-        <label>Through<input type="datetime-local" value={draft.to} onChange={e => setDraft(current => ({ ...current, to: e.target.value }))} aria-invalid={invalidRange} aria-describedby={invalidRange ? 'activity-range-error' : undefined} /></label>
-        <button className="btn" type="submit" disabled={invalidRange}>Apply dates</button>
-      </form>
-      {invalidRange && <p className="activity-range-error" id="activity-range-error" role="alert">The end must be on or after the start.</p>}
-      <p className="activity-timezone">Dates and times use your local time zone. The ending minute is included.</p>
-      <div className="activity-filters">
-        <label>Event type<select aria-label="Event type" value={filters.event} onChange={e => change({ event: e.target.value })}><option value="">All account &amp; license events</option>{Object.entries(activityEvents).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <label>Sort by<select aria-label="Sort by" value={filters.sort} onChange={e => change({ sort: e.target.value })}><option value="desc">Newest first</option><option value="asc">Oldest first</option></select></label>
-        {hasFilters && <button className="text-btn" onClick={clear}>Clear filters</button>}
-      </div>
-    </div>
+    <form className="toolbar activity-toolbar" onSubmit={applyRange}>
+      <select aria-label="Event type" value={filters.event} onChange={e => change({ event: e.target.value })}><option value="">All events</option>{Object.entries(activityEvents).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+      <label>From<input type="datetime-local" aria-label="From" value={draft.from} onChange={e => setDraft(current => ({ ...current, from: e.target.value }))} /></label>
+      <label>To<input type="datetime-local" aria-label="To" value={draft.to} aria-invalid={invalidRange} aria-describedby={invalidRange ? 'activity-range-error' : undefined} onChange={e => setDraft(current => ({ ...current, to: e.target.value }))} /></label>
+      <button className="btn" type="submit" disabled={invalidRange || (draft.from === filters.from && draft.to === filters.to)}>Apply</button>
+      {hasFilters && <button type="button" className="text-btn" onClick={clear}>Clear</button>}
+      <div className="toolbar-end"><span role="status">{result ? `${result.total} ${result.total === 1 ? 'event' : 'events'}` : ''}</span><select aria-label="Sort by" value={filters.sort} onChange={e => change({ sort: e.target.value })}><option value="desc">Newest first</option><option value="asc">Oldest first</option></select></div>
+    </form>
+    {invalidRange && <p className="activity-range-error" id="activity-range-error" role="alert">The end must be on or after the start.</p>}
     {error ? <div className="empty" role="alert"><h3>Activity could not be loaded</h3><p>{error}</p><button className="btn" onClick={() => setRetry(current => current + 1)}><RefreshCw size={14} />Retry</button></div>
-      : loading ? <div className="empty" role="status">Loading activity…</div>
+      : loading && !result ? <div className="empty" role="status"><p>Loading…</p></div>
       : result && <>
-        <div className="license-results" role="status">{result.total} {result.total === 1 ? 'event' : 'events'}{filters.from || filters.to || filters.event ? ' matching filters' : ''}</div>
-        {!!result.items.length && <div className="table-wrap" tabIndex={0} role="region" aria-label="Activity results, scroll horizontally for more columns"><table className="activity-table" aria-label="Activity events"><thead><tr><th scope="col">Date &amp; time</th><th scope="col">Event</th><th scope="col">Changed by</th><th scope="col">Account / license</th></tr></thead><tbody>{result.items.map(item => <tr key={item.id}><td><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleDateString()}<small>{new Date(item.createdAt).toLocaleTimeString()}</small></time></td><td>{activityEvents[item.action]}</td><td>{item.actorName}</td><td>{item.targetName}<small>{item.targetId}</small></td></tr>)}</tbody></table></div>}
-        {!result.items.length && <div className="empty"><ShieldCheck size={25} /><h3>No activity found</h3><p>{hasFilters ? 'Try a wider date range or a different event type.' : 'Account and license changes will appear here.'}</p>{hasFilters && <button className="btn" onClick={clear}>Clear filters</button>}</div>}
-        <div className="license-pagination"><span>{result.total ? `${(result.page - 1) * result.pageSize + 1}–${Math.min(result.page * result.pageSize, result.total)} of ${result.total}` : '0 results'}</span><nav aria-label="Activity pagination"><button className="btn" aria-label="Previous page" disabled={result.page <= 1} onClick={() => { setLoading(true); setFilters(current => ({ ...current, page: result.page - 1 })); }}><ChevronLeft size={15} /></button><span>Page {result.page} of {result.pages}</span><button className="btn" aria-label="Next page" disabled={result.page >= result.pages} onClick={() => { setLoading(true); setFilters(current => ({ ...current, page: result.page + 1 })); }}><ChevronRight size={15} /></button></nav></div>
+        {!!result.items.length && <div className="table-wrap" tabIndex={0} role="region" aria-label="Activity"><table className="activity-table" aria-label="Activity events" aria-busy={loading}><thead><tr><th scope="col">When</th><th scope="col">Event</th><th scope="col">By</th><th scope="col">Account or license</th></tr></thead><tbody>{result.items.map(item => <tr key={item.id}><td><time dateTime={item.createdAt} title={new Date(item.createdAt).toLocaleString()}>{ago(item.createdAt).replace(/^j/, 'J')}</time><small>{new Date(item.createdAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</small></td><td>{activityEvents[item.action] || item.action}</td><td>{item.actorName}</td><td>{item.targetName}<small>{item.targetId}</small></td></tr>)}</tbody></table></div>}
+        {!result.items.length && <div className="empty"><h3>No activity found</h3><p>{hasFilters ? 'Try a wider date range or another event type.' : 'Account and license changes appear here.'}</p>{hasFilters && <button className="btn" onClick={clear}>Clear filters</button>}</div>}
+        {result.total > 0 && <div className="pager"><span>{`${(result.page - 1) * result.pageSize + 1}–${Math.min(result.page * result.pageSize, result.total)} of ${result.total}`}</span><nav aria-label="Activity pagination"><button className="btn" aria-label="Previous page" disabled={result.page <= 1} onClick={() => pageTo(result.page - 1)}><ChevronLeft size={15} /></button><span>{result.page} / {result.pages}</span><button className="btn" aria-label="Next page" disabled={result.page >= result.pages} onClick={() => pageTo(result.page + 1)}><ChevronRight size={15} /></button></nav></div>}
       </>}
   </section>;
 }
