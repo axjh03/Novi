@@ -8,6 +8,13 @@ import styles from './get-access.module.css';
 
 const planIds = Object.keys(PLANS) as PlanId[];
 const tones: Record<PlanId, string> = { core: 'tone-paper', pro: 'tone-rose', ultimate: 'tone-wine', lifetime: 'tone-deep' };
+// What each plan unlocks, as the app shows it.
+const pictures: Record<PlanId, { src: string; alt: string; w: number; h: number }> = {
+  core: { src: '/app/transparent.png', alt: 'Novi in transparent mode over a code review question', w: 1180, h: 940 },
+  pro: { src: '/app/chat.png', alt: 'The Novi chat window answering a code question with an explanation', w: 1180, h: 940 },
+  ultimate: { src: '/app/companion-landscape.png', alt: 'The phone companion in landscape, with its layout and listening controls', w: 844, h: 390 },
+  lifetime: { src: '/app/modern-light.png', alt: 'The floating Novi bar in its light theme', w: 490, h: 457 },
+};
 const stepNames = { details: 'Your details', payment: 'Review', help: 'Send' } as const;
 
 export default function AccessRequest({ initialPlan, initialReferral = '' }: { initialPlan: PlanId; initialReferral?: string }) {
@@ -59,6 +66,7 @@ export default function AccessRequest({ initialPlan, initialReferral = '' }: { i
             <p className={styles.summary} data-reveal style={{ '--i': 2 } as CSSProperties}>{PLANS[id].summary}</p>
             <ul className={styles.features} data-reveal style={{ '--i': 3 } as CSSProperties}>{PLANS[id].features.map(feature => <li key={feature}>{feature}</li>)}</ul>
             <button type="button" className={styles.choose} aria-pressed={plan === id} onClick={() => choosePlan(id)} data-reveal style={{ '--i': 4 + index * 0 } as CSSProperties}>{plan === id ? `${PLANS[id].name} selected` : `Choose ${PLANS[id].name}`}</button>
+            <img className={styles.planPicture} src={pictures[id].src} alt={pictures[id].alt} width={pictures[id].w} height={pictures[id].h} loading="lazy" decoding="async" />
           </article>
         ))}
         <p className={styles.plansNote}>All prices in USD. Every plan uses your own AI provider key; the provider bills the usage, Lifetime included.</p>

@@ -6,6 +6,7 @@ import PublicNavbar from '@/components/PublicNavbar';
 import SiteFooter from '@/components/SiteFooter';
 import { ChapterPage, CloseRow, Title } from '@/components/Chapters';
 import { DesktopSignInFragment } from '@/components/Fragments';
+import InstallScene from './InstallScene';
 import { detectDesktopPlatform, type DesktopPlatform } from '@/lib/download-platform';
 import chapters from '@/components/Chapters.module.css';
 import styles from './download.module.css';
@@ -41,16 +42,16 @@ export interface ReleaseData {
 }
 
 type AssetKey = keyof ReleaseAssetInfo;
-const platforms: { id: DesktopPlatform; name: string; requires: string; logo: string; tone: string; packages: { key: AssetKey; title: string; detail: string }[] }[] = [
+const platforms: { id: DesktopPlatform; name: string; requires: string; logo: string; picture: { src: string; alt: string; w: number; h: number }; tone: string; packages: { key: AssetKey; title: string; detail: string }[] }[] = [
   // Novi runs on Electron 44, which needs macOS 13 (Ventura) or later.
-  { id: 'mac', name: 'macOS', requires: 'macOS 13 or later', logo: '/apple-logo.png', tone: 'tone-paper', packages: [
+  { id: 'mac', name: 'macOS', requires: 'macOS 13 or later', logo: '/apple-logo.png', picture: { src: '/app/chat.png', alt: 'The Novi chat window answering a code question', w: 1180, h: 940 }, tone: 'tone-paper', packages: [
     { key: 'macArm64', title: 'Apple Silicon', detail: 'M-series chips · .dmg' },
     { key: 'macX64', title: 'Intel', detail: 'Intel processors · .dmg' },
   ] },
-  { id: 'windows', name: 'Windows', requires: 'Windows 10 and 11, 64-bit', logo: '/microsoft.png', tone: 'tone-rose', packages: [
+  { id: 'windows', name: 'Windows', requires: 'Windows 10 and 11, 64-bit', logo: '/microsoft.png', picture: { src: '/app/transparent.png', alt: 'Novi in transparent mode over a code review question', w: 1180, h: 940 }, tone: 'tone-rose', packages: [
     { key: 'windows', title: 'Windows installer', detail: '64-bit · .exe' },
   ] },
-  { id: 'linux', name: 'Linux', requires: 'Debian, Ubuntu, or any distribution with AppImage', logo: '/ubuntu.png', tone: 'tone-wine', packages: [
+  { id: 'linux', name: 'Linux', requires: 'Debian, Ubuntu, or any distribution with AppImage', logo: '/ubuntu.png', picture: { src: '/app/modern-dark.png', alt: 'The floating Novi bar listening to a call', w: 490, h: 457 }, tone: 'tone-wine', packages: [
     { key: 'linuxDeb', title: 'Debian / Ubuntu', detail: 'x64 · .deb' },
     { key: 'linuxAppImage', title: 'AppImage', detail: 'x64 · .AppImage' },
     { key: 'linuxDebArm64', title: 'Debian / Ubuntu', detail: 'ARM64 · .deb' },
@@ -129,7 +130,7 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
             </div>
           </div>
           <div className={`${chapters.heroSide} ${styles.heroTile}`}>
-            <div data-open><img src="/app/modern-light.png" alt="The floating Novi bar in its light theme, with a transcript and follow-up questions" width={490} height={457} decoding="async" /></div>
+            <div data-open><InstallScene /></div>
           </div>
         </section>
 
@@ -139,9 +140,9 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
             const available = platform.packages.filter(item => release.downloads[item.key] && release.fileNames[item.key]);
             const commandId = `${platform.id}-cli`;
             return (
-              <article key={platform.id} className={`${styles.system} ${chapters[platform.tone]}`} id={platform.id} aria-labelledby={`${platform.id}-title`}>
+              <article key={platform.id} className={`${styles.system} ${chapters[platform.tone]} ${platform.id === 'linux' ? styles.onWine : ''}`} id={platform.id} aria-labelledby={`${platform.id}-title`}>
                 <div className={styles.systemHead} data-reveal>
-                  <img src={platform.logo} alt="" width={40} height={40} className={platform.id === 'mac' ? styles.invert : ''} />
+                  <img src={platform.logo} alt="" width={56} height={56} />
                   <h2 id={`${platform.id}-title`}>{platform.name}</h2>
                   {detected === platform.id && <span className={styles.thisComputer}>This computer</span>}
                 </div>
@@ -153,11 +154,23 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
                   {!available.length && <li className={styles.none}>No installer for this system in this release. Check the previous releases below.</li>}
                 </ul>
                 {platform.id === 'mac' && <p className={styles.help} data-reveal style={{ '--i': 3 } as CSSProperties}>Not sure which Mac? Apple menu, About This Mac, then read Chip or Processor.</p>}
+                {platform.id === 'mac' && (
+                  <div className={styles.gatekeeper} data-reveal style={{ '--i': 3 } as CSSProperties}>
+                    <p><strong>Installing from the .dmg?</strong> Novi is not notarised with Apple yet, so Gatekeeper may say the app is damaged or cannot be opened. Drag Novi to Applications, then clear the quarantine flag once from a terminal. The install command below does this for you.</p>
+                    <div className={styles.commandRow}>
+                      <pre><code>xattr -cr /Applications/Novi.app</code></pre>
+                      <button type="button" className={styles.copy} onClick={() => void copyText('xattr -cr /Applications/Novi.app', 'mac-xattr')}>{copied === 'mac-xattr' ? 'Copied' : 'Copy'}</button>
+                    </div>
+                  </div>
+                )}
                 <div className={styles.terminal} data-reveal style={{ '--i': 3 } as CSSProperties}>
-                  <p>Or from the terminal{platform.id === 'windows' ? ' (PowerShell)' : ''}:</p>
-                  <pre><code>{siteOrigin ? command(platform.id) : 'Preparing the install command…'}</code></pre>
-                  <button type="button" className={styles.copy} disabled={!siteOrigin} onClick={() => void copyText(command(platform.id), commandId)}>{copied === commandId ? 'Copied' : 'Copy the command'}</button>
+                  <p>Or from the terminal{platform.id === 'windows' ? ' (PowerShell)' : ''}. It downloads with a progress bar, installs, and opens Novi:</p>
+                  <div className={styles.commandRow}>
+                    <pre><code>{siteOrigin ? command(platform.id) : 'Preparing the install command…'}</code></pre>
+                    <button type="button" className={styles.copy} disabled={!siteOrigin} onClick={() => void copyText(command(platform.id), commandId)} aria-label="Copy the install command">{copied === commandId ? 'Copied' : 'Copy'}</button>
+                  </div>
                 </div>
+                <img className={styles.systemPicture} src={platform.picture.src} alt={platform.picture.alt} width={platform.picture.w} height={platform.picture.h} loading="lazy" decoding="async" />
               </article>
             );
           })}
@@ -174,7 +187,7 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
               <li data-reveal style={{ '--i': 3 } as CSSProperties}><strong>One desktop at a time.</strong><span>Signing in on a second computer signs the first one out. The website stays signed in alongside.</span></li>
             </ul>
           </div>
-          <div className={styles.afterScreen} data-reveal style={{ '--i': 2 } as CSSProperties}><DesktopSignInFragment /></div>
+          <div className={styles.afterScreen} data-reveal style={{ '--i': 2 } as CSSProperties}><DesktopSignInFragment /><img src="/app/modern-light.png" alt="The floating Novi bar in its light theme, answering with the keys from your account" width={490} height={457} loading="lazy" decoding="async" /></div>
         </section>
 
         {/* 4 · Every package, as a table. */}

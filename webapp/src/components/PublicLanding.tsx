@@ -36,7 +36,6 @@ const stepScreens = [<SignupFragment key="signup" />, <AddKeyFragment key="key" 
 export default function PublicLanding({ onSignIn, onSignUp }: { onSignIn: () => void; onSignUp: () => void }) {
   const root = useRef<HTMLDivElement>(null);
   const [question, setQuestion] = useState(examples[0]);
-  const [portrait, setPortrait] = useState(true);
   const answer = answerFor(question);
 
   // Reveal once as each block enters. Everything is visible without script; only a ready page hides anything.
@@ -129,17 +128,14 @@ export default function PublicLanding({ onSignIn, onSignUp }: { onSignIn: () => 
         {/* 5 · The parody quotation: portrait left, the quote offset right. */}
         <section className={styles.parody} aria-labelledby="parody-title">
           <figure className={styles.portrait} data-reveal>
-            {portrait
-              ? <img src="https://siliconvalleyism.com/images/chinese-markets.jpg" alt="Jian-Yang from Silicon Valley standing by a whiteboard" referrerPolicy="no-referrer" width={640} height={853} loading="lazy" decoding="async" onError={() => setPortrait(false)} />
-              : <div className={styles.portraitFallback} aria-hidden="true">JY</div>}
-            <figcaption>Very legal. Very good.</figcaption>
+            <img src="/app/jian-yang.jpg" alt="Jian-Yang from Silicon Valley, in a white sweater, mid-pitch on an office sofa" width={572} height={763} loading="lazy" decoding="async" />
           </figure>
           <div className={styles.words}>
             <h2 id="parody-title" data-reveal>Jian Yang, CEO of Novi.</h2>
             <blockquote data-reveal style={{ '--i': 1 } as CSSProperties}>
               <p>“Herro. I am Jian-Yang. CEO of Novi. You spend four year learning computah science. Interviewah ask you reverse binary twee. You shit your pants. Very sad. So I make Novi. AI risten, AI write code, you just nod head like fucking genius. Google hire you. You make two hundwed thousand dollah. I make sixteen dollah. Six month later, you get fired. Not my problem. No refund. Fuck ReetCode.”</p>
             </blockquote>
-            <p className={styles.attribution} data-reveal style={{ '--i': 2 } as CSSProperties}><strong>Jian Yang</strong><span>CEO of Novi · a <cite>Silicon Valley</cite> parody</span></p>
+            <p className={styles.attribution} data-reveal style={{ '--i': 2 } as CSSProperties}><strong>Jian Yang</strong><span>CEO of Novi · a <cite>Silicon Valley</cite> parody · Very legal. Very good.</span></p>
           </div>
         </section>
 

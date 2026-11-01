@@ -259,7 +259,7 @@ export function SignupFragment({ plan = 'pro' }: { plan?: PlanId }) {
 export function AddKeyFragment({ provider = 'OpenAI' }: { provider?: string }) {
   return (
     <div className={styles.form} data-ui>
-      <div className={styles.formHead}><span className={styles.uiMark}>n</span><span>Add a provider key</span><span>API management</span></div>
+      <div className={styles.formHead}><span className={styles.uiMark}>n</span><span>Add a provider key</span></div>
       <Field label="Provider" value={provider} type="select" />
       <Field label="Nickname" value={`Main ${provider} key`} />
       <Field label="API key" value="sk-proj-••••••••••••••••••••4f2a" type="password" hint="Encrypted on the server. Only the last four stay visible." />

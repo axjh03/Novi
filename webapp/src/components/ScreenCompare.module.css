@@ -12,15 +12,15 @@
 /* the desk: a call strip and an editor, as the interviewer sees them */
 .desk { position: relative; width: 100%; height: 100%; display: grid; grid-template-rows: auto 1fr; gap: 10px; padding: 12px; background: #1a1a1d; color: #ece6ea; font: 400 13px/1.45 var(--ui); container-type: inline-size; }
 .call { background: #0f0e11; border-radius: 10px; overflow: hidden; }
-.callBar { display: flex; justify-content: space-between; gap: 12px; padding: 9px 14px; background: #171519; color: #a89da3; font-size: 12px; }
+.callBar { display: flex; justify-content: space-between; gap: 12px; padding: 9px 14px; background: #171519; color: #a89da3; font-size: 13px; }
 .callLive { display: inline-flex; align-items: center; gap: 6px; color: #ece6ea; }
 .callLive i { width: 7px; height: 7px; border-radius: 50%; background: #e5566f; }
 .callTiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; }
 .tile { position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; height: 92px; border-radius: 8px; background: #26232a; }
 .tile b { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: #4a1326; color: #f6e6ec; font: 600 13px/1 var(--ui); }
-.tile span { color: #a89da3; font-size: 12px; }
+.tile span { color: #a89da3; font-size: 13px; }
 .editor { display: grid; grid-template-rows: auto 1fr; min-height: 0; background: #0f0e11; border-radius: 10px; overflow: hidden; }
-.editorBar { display: flex; align-items: center; gap: 16px; padding: 8px 14px; background: #171519; color: #a89da3; font-size: 12px; }
+.editorBar { display: flex; align-items: center; gap: 16px; padding: 8px 14px; background: #171519; color: #a89da3; font-size: 13px; }
 .editorBar > span:last-child { margin-left: auto; }
 .editorTab { padding: 3px 9px; border-radius: 6px; background: #26232a; color: #ece6ea; }
 .editorBody { margin: 0; padding: 12px 0; overflow: hidden; }
@@ -38,7 +38,7 @@
 .divider i::before, .divider i::after { content: ''; position: absolute; top: 50%; width: 0; height: 0; border: 7px solid transparent; }
 .divider i::before { left: 6px; border-right-color: #0a0a0b; transform: translateY(-50%); }
 .divider i::after { right: 6px; border-left-color: #0a0a0b; transform: translateY(-50%); }
-.labelLeft, .labelRight { position: absolute; bottom: calc(2.6% + 14px); z-index: 3; padding: 7px 12px; background: #f4f0f2; color: #0a0a0b; font: 600 13px/1 var(--ui); pointer-events: none; }
+.labelLeft, .labelRight { position: absolute; bottom: calc(2.6% + 14px); z-index: 3; padding: 8px 12px; background: #f4f0f2; color: #0a0a0b; font: 600 14px/1 var(--ui); pointer-events: none; }
 .labelLeft { left: calc(2.2% + 14px); }
 .labelRight { right: calc(2.2% + 14px); background: #8f2946; color: #fbf2f5; }
 .range { position: absolute; inset: 2.2% 2.2% 2.6%; z-index: 4; width: calc(100% - 4.4%); height: auto; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; opacity: 0; cursor: ew-resize; -webkit-appearance: none; appearance: none; }
@@ -47,13 +47,13 @@
 .range:focus-visible { opacity: 1; outline: 0; background: transparent; }
 .range:focus-visible + * , .screen:has(.range:focus-visible) .divider { outline: 3px solid #e4a0b2; outline-offset: 4px; }
 @media (max-width: 820px) {
-  .desk { padding: 8px; gap: 8px; font-size: 12px; }
+  .desk { padding: 8px; gap: 8px; font-size: 13px; }
   .tile { height: 64px; }
   .tile b { width: 30px; height: 30px; }
   .editorBody code { font-size: 10px; }
   .editorBody code i { width: 14px; margin-right: 10px; }
   .novi { top: 18%; width: 52%; }
-  .labelLeft, .labelRight { font-size: 11px; padding: 6px 9px; }
+  .labelLeft, .labelRight { font-size: 13px; padding: 6px 9px; }
   .divider i { width: 36px; height: 36px; }
 }
 @media (prefers-reduced-motion: reduce) { .editorBody em { animation: none; } }

@@ -87,8 +87,10 @@ export default function ApiKeysPage() {
             <p data-reveal style={{ '--i': 1 } as CSSProperties}>A key from any of them unlocks every session mode. After you add it, Novi lists the models that key can use, and you pick one when a session starts. The provider bills the usage; the plan covers Novi.</p>
             <div data-reveal style={{ '--i': 2 } as CSSProperties}><KeyChecker /></div>
           </div>
+          <div className={styles.doorsPicture} data-reveal style={{ '--i': 1 } as CSSProperties}><img src="/app/modern-light.png" alt="The floating Novi bar in its light theme, answering from a connected key" width={490} height={457} loading="lazy" decoding="async" /></div>
           <table className={styles.doorsTable} data-reveal style={{ '--i': 2 } as CSSProperties}>
             <caption className={chapters.srOnly}>What each provider is good at</caption>
+            <colgroup><col /><col /><col /></colgroup>
             <thead><tr><th scope="col">Provider</th><th scope="col">Good at</th><th scope="col">Key starts with</th></tr></thead>
             <tbody>
               <tr><th scope="row"><a href="#anthropic">Anthropic Claude</a></th><td>Long reasoning, code explanations, system design write-ups.</td><td><code>sk-ant-</code></td></tr>
@@ -158,12 +160,15 @@ export default function ApiKeysPage() {
 
         {/* 5 · Where the key lives. */}
         <section className={`${styles.security} ${chapters['tone-rose']}`} aria-labelledby="security-title">
+          <div className={styles.securityWords}>
           <h2 id="security-title" data-reveal>Where the key lives.</h2>
           <ul className={styles.securityList}>
             <li data-reveal style={{ '--i': 1 } as CSSProperties}><strong>Encrypted on the server.</strong><span>Keys in your account are stored with AES-256-GCM, each with its own initialisation vector. The workspace shows the last four characters; owners can reveal or copy a key on demand.</span></li>
             <li data-reveal style={{ '--i': 2 } as CSSProperties}><strong>In memory on the desk.</strong><span>The desktop app holds keys in memory while you are signed in and drops them when you sign out. A remembered sign-in lives in Novi’s local app data.</span></li>
             <li data-reveal style={{ '--i': 3 } as CSSProperties}><strong>No middle server.</strong><span>Prompts, transcripts and screenshots go from your computer to the provider you chose. Nothing passes through, or is logged by, a server of ours.</span></li>
           </ul>
+          </div>
+          <div className={styles.securityPicture} data-reveal style={{ '--i': 2 } as CSSProperties}><img src="/app/modern-dark.png" alt="The floating Novi bar on the desk, with its transcript" width={490} height={457} loading="lazy" decoding="async" /></div>
         </section>
 
         <CloseRow id="setup-close" title={<>Key in hand?<br />Get the app.</>} text="Add the key to your account first, then install Novi and sign in. No account yet? Create an individual account, or contact us for a team." action="Download Novi" href="/download" />

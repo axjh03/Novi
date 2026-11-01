@@ -5,6 +5,7 @@ import SiteFooter from '@/components/SiteFooter';
 import { ChapterPage, CloseRow, Faq, Title } from '@/components/Chapters';
 import { CONTACT_EMAIL, isPlanId, referralCode, JOURNEY, mailto, PLANS, PURCHASE_HELP, type PlanId } from '@/lib/site';
 import AccessRequest from './AccessRequest';
+import { AddKeyFragment, DesktopSignInFragment, SignupFragment } from '@/components/Fragments';
 import chapters from '@/components/Chapters.module.css';
 import styles from './get-access.module.css';
 
@@ -14,6 +15,7 @@ export const metadata: Metadata = {
 };
 
 const orderWords = ['First,', 'Then', 'Finally,'];
+const screens = [<SignupFragment key="signup" />, <AddKeyFragment key="key" />, <DesktopSignInFragment key="desktop" />];
 const faqs = [
   { q: `What does Core include for ${PLANS.core.price}?`, a: `Core includes behavioral and technical modes, resume and document context, screenshots, audio transcription, transparency, and local history. Pro adds chat, recruiter mode, coding, system design, and eye tracking for ${PLANS.pro.price} a month. Ultimate adds local coding and the exclusive phone companion.` },
   { q: `What is in the ${PLANS.ultimate.price} plan?`, a: 'Ultimate includes every Novi feature: coding assistance, system design, local code context, eye tracking and the phone companion. Your AI provider bills its usage separately.' },
@@ -34,18 +36,18 @@ export default async function GetAccessPage({ searchParams }: { searchParams: Pr
           <div className={chapters.heroCopy}>
             <Title id="pricing-title" lines={['Four plans.', 'Your own key.']} />
             <p className={chapters.lead} data-load style={{ '--d': '480ms' } as React.CSSProperties}>Novi charges for access. Your AI provider charges for usage, on every plan, Lifetime included. Individuals use one account on the web and the desktop. Teams get managed desktop logins.</p>
-            <div className={chapters.actions} data-load style={{ '--d': '560ms' } as React.CSSProperties}>
-              <a className={chapters.primary} href="#plans">Compare the plans</a>
-              <a className={chapters.textLink} href="#consultancies">Teams and consultancies</a>
-            </div>
           </div>
           <ol className={`${chapters.heroSide} ${styles.priceList}`} aria-label="Plans and prices">
             {planIds.map((id, index) => (
               <li key={id} data-load style={{ '--d': `${300 + index * 90}ms` } as React.CSSProperties}>
-                <a href={`#plan-${id}`}><span>{PLANS[id].name}</span><strong>{PLANS[id].price}</strong><small>{PLANS[id].unit}</small></a>
+                <a href={`#plan-${id}`}><span>{PLANS[id].name} <b>{id === 'lifetime' ? 'once' : 'a month'}</b></span><strong>{PLANS[id].price}</strong></a>
               </li>
             ))}
           </ol>
+          <div className={`${chapters.actions} ${styles.heroActions}`} data-load style={{ '--d': '560ms' } as React.CSSProperties}>
+            <a className={chapters.primary} href="#plans">Compare the plans</a>
+            <a className={chapters.textLink} href="#checkout">Request access</a>
+          </div>
         </section>
 
         <AccessRequest initialPlan={isPlanId(plan) ? plan : 'core'} initialReferral={referralCode(ref)} />
@@ -68,6 +70,7 @@ export default async function GetAccessPage({ searchParams }: { searchParams: Pr
           <ol className={styles.nextSteps}>
             {JOURNEY.map((step, index) => (
               <li key={step.title} data-reveal style={{ '--i': index + 1 } as React.CSSProperties}>
+                <div className={styles.nextScreen}>{screens[index]}</div>
                 <p className={styles.clause}>{orderWords[index]} {step.title.charAt(0).toLowerCase() + step.title.slice(1)}.</p>
                 <p>{step.text}</p>
               </li>

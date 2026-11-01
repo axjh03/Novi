@@ -1,16 +1,80 @@
 /* Download: the version and one button first, then a field per system, then the table of every package. */
 
-/* ---------- 1 · hero: the light bar on a paper tile ---------- */
+/* ---------- 1 · hero: the install, drawn, on a rose tile ---------- */
 .heroTile { align-items: stretch; }
-.heroTile > div { width: 100%; min-height: 520px; height: 100%; display: flex; align-items: flex-end; justify-content: center; padding: 48px 32px 0; background: var(--field-paper); overflow: hidden; }
-.heroTile img { width: auto; max-width: 100%; height: auto; max-height: 100%; object-fit: contain; object-position: bottom; }
+.heroTile > div { width: 100%; min-height: 520px; height: 100%; display: flex; align-items: flex-end; justify-content: flex-end; padding: 56px 0 0 56px; background: var(--field-rose); overflow: hidden; }
+.scene { position: relative; width: 100%; max-width: 640px; aspect-ratio: 16 / 11; display: grid; grid-template-rows: 28px 1fr; background: #e9e4e7; color: #0a0a0b; border-radius: 12px 0 0 0; overflow: hidden; font: 400 13px/1.3 var(--ui); }
+.menuBar { display: flex; align-items: center; gap: 14px; padding: 0 24px 0 14px; background: #f6f3f5; color: #3b3338; font-size: 13px; }
+.menuApple { width: 12px; height: 12px; border-radius: 50% 50% 45% 45%; background: #0a0a0b; }
+.menuApp { font-weight: 600; color: #0a0a0b; }
+.menuRight { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.menuNovi { display: inline-flex; width: 16px; height: 16px; border-radius: 4px; overflow: hidden; opacity: 0; transform: scale(0.6); }
+.menuNovi img { width: 16px; height: 16px; }
+.desk { position: relative; }
+.download { position: absolute; top: 16px; right: 16px; width: 46%; padding: 10px 12px; background: #fbf9fa; border-radius: 10px; }
+.downloadHead { display: flex; align-items: center; gap: 10px; }
+.downloadHead strong { display: block; font-weight: 600; font-size: 13px; }
+.downloadHead small { display: block; color: #6b6167; font-size: 13px; }
+.dmgIcon { flex-shrink: 0; width: 26px; height: 26px; border-radius: 6px; background: #4a1326; }
+.dmgIcon::after { content: ''; display: block; width: 10px; height: 10px; margin: 8px; border-radius: 50%; background: #e4a0b2; }
+.downloadSpeed::before { content: '12.4 MB/s'; }
+.downloadBar { height: 6px; margin-top: 8px; border-radius: 3px; background: #ddd6da; overflow: hidden; }
+.downloadBar i { display: block; width: 100%; height: 100%; background: #8f2946; transform-origin: left; transform: scaleX(0); }
+.finder { position: absolute; left: 6%; right: 18%; top: 22%; bottom: 14%; display: grid; grid-template-rows: 30px 1fr; background: #ffffff; border-radius: 10px; overflow: hidden; opacity: 0; transform: translateY(12px) scale(0.98); }
+.finderBar { display: flex; align-items: center; gap: 12px; padding: 0 12px; background: #ebe7e9; color: #3b3338; font-size: 13px; font-weight: 500; }
+.lights { display: inline-flex; gap: 6px; }
+.lights i { width: 10px; height: 10px; border-radius: 50%; background: #c8bfc4; }
+.lights i:first-child { background: #e5566f; }
+.lights i:nth-child(2) { background: #efc06a; }
+.lights i:last-child { background: #5dd394; }
+.finderBody { position: relative; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; justify-items: center; padding: 16px 24px; }
+.appIcon { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 13px; }
+.appIcon img { width: 56px; height: 56px; border-radius: 14px; }
+.appIconMoving { position: absolute; left: 24px; top: 16px; width: calc((100% - 48px) / 3); opacity: 0; }
+.dragArrow { width: 44px; height: 3px; background: #a89da3; position: relative; }
+.dragArrow::after { content: ''; position: absolute; right: -2px; top: -5px; width: 0; height: 0; border: 6.5px solid transparent; border-left: 9px solid #a89da3; }
+.folder { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 13px; }
+.folder i { display: block; width: 62px; height: 48px; border-radius: 6px; background: #8fb6e0; position: relative; }
+.folder i::before { content: ''; position: absolute; left: 0; top: -8px; width: 26px; height: 10px; border-radius: 4px 4px 0 0; background: #8fb6e0; }
+.installed { position: absolute; left: 6%; bottom: 72px; display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #0a0a0b; color: #f4f0f2; border-radius: 8px; font-size: 13px; opacity: 0; transform: translateY(8px); }
+.dock { position: absolute; left: 50%; bottom: 10px; display: flex; gap: 8px; padding: 8px; background: rgba(255, 255, 255, 0.7); border-radius: 14px; transform: translateX(-50%); }
+.dock i { display: block; width: 36px; height: 36px; border-radius: 9px; background: #c8bfc4; }
+.dock i:nth-child(2) { background: #8fb6e0; }
+.dock i:nth-child(3) { background: #e4a0b2; }
+.dock i:nth-child(4) { background: #a1c7af; }
+.dock i:nth-child(5) { background: #efc06a; }
+.dockNovi { background: #0a0a0b !important; display: grid !important; place-items: center; opacity: 0; transform: scale(0.6); }
+.dockNovi img { width: 28px; height: 28px; }
+.tick { width: 16px; height: 16px; border-radius: 50%; background: #5dd394; position: relative; }
+.tick::after { content: ''; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px; border-right: 2px solid #0a0a0b; border-bottom: 2px solid #0a0a0b; transform: rotate(45deg); }
+@media (prefers-reduced-motion: no-preference) {
+  .downloadBar i { animation: fill 10s linear infinite; }
+  .download { animation: downloadCard 10s var(--ease-in-out) infinite; }
+  .finder { animation: finder 10s var(--ease-in-out) infinite; }
+  .appIconMoving { animation: drag 10s var(--ease-in-out) infinite; }
+  .installed { animation: installed 10s var(--ease-out) infinite; }
+  .menuNovi { animation: menuIcon 10s var(--ease-out) infinite; }
+  .dockNovi { animation: menuIcon 10s var(--ease-out) infinite; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .downloadBar i { transform: none; }
+  .finder { opacity: 1; transform: none; }
+  .installed { opacity: 1; transform: none; }
+  .menuNovi { opacity: 1; transform: none; }
+  .dockNovi { opacity: 1; transform: none; }
+}
+@keyframes fill { 0% { transform: scaleX(0); } 28% { transform: scaleX(1); } 100% { transform: scaleX(1); } }
+@keyframes downloadCard { 0%, 32% { opacity: 1; transform: none; } 38%, 100% { opacity: 0; transform: translateY(-8px); } }
+@keyframes finder { 0%, 30% { opacity: 0; transform: translateY(12px) scale(0.98); } 36%, 86% { opacity: 1; transform: none; } 92%, 100% { opacity: 0; transform: translateY(12px) scale(0.98); } }
+@keyframes drag { 0%, 40% { opacity: 0; transform: translateX(0); } 44% { opacity: 1; transform: translateX(0); } 58% { opacity: 1; transform: translateX(200%); } 62%, 100% { opacity: 0; transform: translateX(200%); } }
+@keyframes installed { 0%, 62% { opacity: 0; transform: translateY(8px); } 66%, 92% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; transform: translateY(8px); } }
+@keyframes menuIcon { 0%, 64% { opacity: 0; transform: scale(0.6); } 68%, 94% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; transform: scale(0.6); } }
 
 /* ---------- 2 · three fields side by side ---------- */
 .installers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .system { display: flex; flex-direction: column; gap: 20px; min-height: 84svh; padding: 36px 28px 40px; scroll-margin-top: 72px; }
 .systemHead { display: flex; align-items: center; gap: 14px; }
-.systemHead img { width: 40px; height: 40px; object-fit: contain; }
-.invert { filter: invert(1); }
+.systemHead img { width: 72px; height: 72px; object-fit: contain; }
 .systemHead h2 { font-size: clamp(30px, 3vw, 48px); letter-spacing: -0.035em; }
 .thisComputer { margin-left: auto; padding: 6px 10px; background: var(--field-black); color: var(--field-black-ink); font: 500 13px/1 var(--ui); }
 .requires { font-size: var(--step-body); line-height: 1.45; }
@@ -25,11 +89,18 @@
 .help { font: 400 var(--step-small)/1.5 var(--ui); opacity: .85; }
 .terminal { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: auto; padding-top: 12px; }
 .terminal p { font: 500 15px/1.4 var(--ui); }
-.terminal pre { width: 100%; margin: 0; padding: 12px 14px; background: var(--field-black); color: var(--field-black-ink); overflow-x: auto; }
-.terminal code { font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre; }
+.commandRow { display: flex; align-items: stretch; width: 100%; }
+.commandRow pre { flex: 1; min-width: 0; margin: 0; padding: 12px 14px; background: var(--field-black); color: var(--field-black-ink); overflow-x: auto; }
+.commandRow code { font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre; }
+.gatekeeper { display: flex; flex-direction: column; gap: 10px; }
+.gatekeeper p { font-size: 16px; line-height: 1.5; }
+.gatekeeper strong { font-weight: 600; }
 .copy { min-height: 44px; padding: 0 16px; border: 0; background: var(--field-black); color: var(--field-black-ink); font: 600 15px/1 var(--ui); transition: background-color var(--t-hover) ease, transform var(--t-press) var(--ease-out); }
+.commandRow .copy { flex-shrink: 0; min-height: 0; background: var(--field-wine); }
+.onWine .commandRow .copy { background: var(--field-paper); color: var(--field-paper-ink); }
 .copy:hover { background: var(--action); }
 .copy:active { transform: scale(0.97); }
+.systemPicture { width: calc(100% + 56px); height: 240px; margin: 28px -28px -40px; object-fit: cover; object-position: left top; }
 .copyStatus { min-height: 24px; padding: 12px var(--margin) 0; font: 400 var(--step-small)/1.4 var(--ui); color: var(--accent); }
 
 /* ---------- 3 · after the install ---------- */
@@ -40,13 +111,14 @@
 .afterList li { display: flex; flex-direction: column; gap: 8px; max-width: 48ch; }
 .afterList strong { font: 700 clamp(22px, 2vw, 30px)/1.1 var(--display); letter-spacing: -0.03em; }
 .afterList span { font-size: 17px; line-height: 1.5; }
-.afterScreen { grid-column: 9 / 13; display: flex; justify-content: flex-end; }
+.afterScreen { grid-column: 8 / 13; display: flex; align-items: flex-end; justify-content: flex-end; gap: 24px; }
+.afterScreen img { width: 55%; max-width: 300px; height: auto; }
 
 /* ---------- 4 · every package ---------- */
 .all { padding: clamp(96px, 14vh, 180px) 0 0; }
 .tableScroll { margin: 0 var(--margin); overflow-x: auto; }
 .tableScroll table { width: 100%; min-width: 760px; border-collapse: collapse; font: 400 15px/1.45 var(--ui); }
-.tableScroll th, .tableScroll td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; white-space: normal; }
+.tableScroll th, .tableScroll td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; white-space: normal; color: inherit; font: inherit; }
 .tableScroll thead th { padding-top: 0; color: var(--muted); font-weight: 500; }
 .tableScroll tbody th { font-weight: 500; }
 .tableScroll tbody tr:hover th, .tableScroll tbody tr:hover td { background: var(--card); }
@@ -65,14 +137,19 @@
   .afterScreen { grid-column: 8 / 13; }
 }
 @media (max-width: 820px) {
-  .heroTile > div { min-height: 0; height: auto; padding: 32px 20px 0; }
-  .heroTile img { max-height: 380px; }
+  .heroTile > div { min-height: 0; height: auto; padding: 28px 0 0 20px; }
+  .scene { font-size: 13px; }
+  .installed { display: none; }
+  .systemHead img { width: 48px; height: 48px; }
   .system { padding: 28px 20px 32px; }
+  .systemPicture { width: calc(100% + 40px); height: 200px; margin: 24px -20px -32px; }
+  .packages a { grid-template-columns: 1fr; }
+  .packages span { grid-column: 1; grid-row: auto; text-align: left; }
   .after { display: block; min-height: 0; padding: 72px var(--margin); }
   .afterWords h2 { max-width: none; margin-left: 0; font-size: clamp(32px, 9vw, 48px); }
   .afterList { margin-top: 32px; }
   .afterList li { max-width: none; }
-  .afterScreen { justify-content: flex-start; margin-top: 40px; }
+  .afterScreen { justify-content: center; margin-top: 40px; }
   .all { padding-top: 72px; }
   .tableScroll table { min-width: 640px; font-size: 14px; }
 }

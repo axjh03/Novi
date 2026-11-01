@@ -79,9 +79,8 @@ export default function FeaturesClient() {
                     const on = plansFor(feature.label).includes(plan);
                     return (
                       <li key={feature.title} className={on ? '' : styles.off} data-reveal style={{ '--i': index % 4 } as CSSProperties}>
-                        <h4>{feature.title}</h4>
+                        <h4>{feature.title}<span>{on ? feature.label : `Not on ${PLANS[plan].name} · ${feature.label}`}</span></h4>
                         <p>{feature.text}</p>
-                        <span>{on ? feature.label : `Not on ${PLANS[plan].name} · ${feature.label}`}</span>
                       </li>
                     );
                   })}
