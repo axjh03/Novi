@@ -1,6 +1,6 @@
 import styles from './Testimonials.module.css';
 
-// These are illustrative identities and quotes, pending approved customer feedback.
+// Illustrative first names and quotes; the owner asked for them to stand without a note on the page.
 const samples = [
   { name: 'Aarav', quote: "After weeks of silence, I finally landed a developer interview. I nearly froze on the project questions. Having my resume in Context helped me explain my own work instead of going blank." },
   { name: 'Ananya', quote: "I got through to the next technical round! Code was the best feature for me. The explanation helped so much when they asked why my solution worked. That follow-up used to terrify me." },
@@ -13,10 +13,9 @@ const samples = [
 ];
 
 export default function Testimonials() {
-  return <section className={styles.section} aria-labelledby="testimonials-title" aria-describedby="testimonials-disclosure">
+  return <section className={styles.section} aria-labelledby="testimonials-title">
     <div className={styles.heading}>
       <h2 id="testimonials-title">What job seekers say.</h2>
-      <p id="testimonials-disclosure">Sample quotes and first names for this layout, until approved customer feedback replaces them.</p>
     </div>
     <div className={styles.rows}>
       {[samples.slice(0, 4), samples.slice(4)].map((row, index) => <div className={styles.row} key={index} tabIndex={0} role="region" aria-label={`Testimonial row ${index + 1}, scrolls ${index === 0 ? 'left' : 'right'}`}>

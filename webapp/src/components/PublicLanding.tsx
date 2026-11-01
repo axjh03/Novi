@@ -7,119 +7,9 @@ import SiteFooter from './SiteFooter';
 import Testimonials from './Testimonials';
 import { JOURNEY, PLANS } from '@/lib/site';
 import { FEATURES } from '@/lib/features';
+import { AddKeyFragment, DesktopSignInFragment, NoviAnswer, ScreenshotFragment, SignupFragment, answerFor, examples, reverseList } from './Fragments';
+import ScreenCompare from './ScreenCompare';
 import styles from './PublicLanding.module.css';
-
-/* ----------------------------------------------------------------------------------------------
-   Sample answers for the question box. They show the shape of what Novi returns in each of its
-   session modes; a live session uses the visitor's own AI key. Keep them short and true to the modes.
-   ---------------------------------------------------------------------------------------------- */
-type Mode = 'Code' | 'Behavioral' | 'System design' | 'Recruiter call' | 'Technical screen';
-type Answer = { mode: Mode; title: string; code?: string[]; points?: string[]; flow?: string[]; meta: string };
-
-const reverseList: Answer = { mode: 'Code', title: 'Reverse the list in place', code: [
-  'function reverse(head) {',
-  '  let prev = null, node = head;',
-  '  while (node) {',
-  '    const next = node.next;',
-  '    node.next = prev;',
-  '    prev = node;',
-  '    node = next;',
-  '  }',
-  '  return prev;',
-  '}',
-], meta: 'O(n) time · O(1) space · edge case: empty list returns null' };
-const twoSum: Answer = { mode: 'Code', title: 'Two numbers that add up to a target', code: [
-  'function findPair(numbers, target) {',
-  '  const seen = new Map();',
-  '  for (const [i, value] of numbers.entries()) {',
-  '    const match = target - value;',
-  '    if (seen.has(match)) return [seen.get(match), i];',
-  '    seen.set(value, i);',
-  '  }',
-  '  return null;',
-  '}',
-], meta: 'O(n) time · O(n) space · one pass, say why the map beats sorting' };
-const failed: Answer = { mode: 'Behavioral', title: 'A time you failed, in STAR', points: [
-  'Situation: the migration I owned slipped two weeks past the date I had promised.',
-  'Task: I had estimated it alone and skipped the legacy auth module.',
-  'Action: I split the rest into daily slices, posted a burn-down, and paired on the auth piece.',
-  'Result: it shipped nine days late instead of a month, and estimates now get a second reviewer.',
-], meta: 'Framework: STAR · pulled from your resume and project notes · 60 seconds spoken' };
-const shortener: Answer = { mode: 'System design', title: 'A URL shortener', flow: ['Client', 'API', 'Key service', 'Store', 'Cache'], points: [
-  'Write path: hand out pre-generated 7-character keys from a key service, store the mapping once.',
-  'Read path: cache the hottest 20% of links; redirects are 301 for permanence, 302 to keep click analytics.',
-  'Scale: 100M links is about 50 GB; shard the store by key prefix, replicate reads.',
-], meta: 'Trade-offs to raise: custom aliases, expiry, abuse limits · diagram available' };
-const whyJob: Answer = { mode: 'Recruiter call', title: 'Why this role', points: [
-  'Lead with the overlap: their stack is the one from your last two projects.',
-  'Name one concrete thing you want to work on there, taken from the job description.',
-  'Close with timing: available in two weeks, open on the band they listed.',
-], meta: 'Keep it under 45 seconds · they decide the next round on this call' };
-const generic = (question: string): Answer => ({ mode: 'Technical screen', title: question.trim().replace(/\?$/, '') || 'Your question', points: [
-  'Restate the problem in one sentence and confirm the input and output.',
-  'Pick the structure that fits (map, heap, two pointers, graph walk) and say why.',
-  'Walk one small example out loud, then write it, then state the complexity.',
-], meta: 'Novi listens for the follow-up and keeps the same context' });
-
-function answerFor(question: string): Answer {
-  const q = question.toLowerCase();
-  if (/linked list|reverse/.test(q)) return reverseList;
-  if (/two sum|add up|pair|target/.test(q)) return twoSum;
-  if (/design|shortener|scale|architecture|system/.test(q)) return shortener;
-  if (/tell me|time (you|when)|fail|conflict|weakness|yourself|disagree/.test(q)) return failed;
-  if (/why|salary|notice|this (job|role|company)|expect/.test(q)) return whyJob;
-  return generic(question);
-}
-const examples = ['Reverse a linked list in place', 'Tell me about a time you failed', 'Design a URL shortener', 'Why do you want this job?'];
-
-/* A fragment of the product's own interface, at true size. Marked data-ui so its small type and rules
-   are read as the product's, not the page's. */
-function NoviAnswer({ answer, question, compact = false }: { answer: Answer; question: string; compact?: boolean }) {
-  return (
-    <div className={`${styles.ui} ${compact ? styles.uiCompact : ''}`} data-ui>
-      <div className={styles.uiBar}><span className={styles.uiMode}>{answer.mode}</span><span>Session · 12:04</span><span className={styles.uiLive}><i />Listening</span></div>
-      <p className={styles.uiQuestion}><span>Interviewer</span>{question}</p>
-      <div className={styles.uiAnswer}>
-        <p className={styles.uiTitle}><span className={styles.uiMark}>n</span>{answer.title}</p>
-        {answer.flow && <ol className={styles.uiFlow}>{answer.flow.map(step => <li key={step}>{step}</li>)}</ol>}
-        {answer.code && <pre className={styles.uiCode}><code>{answer.code.map((line, index) => <span key={index}><i>{index + 1}</i>{line}</span>)}</code></pre>}
-        {answer.points && <ul className={styles.uiPoints}>{answer.points.map(point => <li key={point}>{point}</li>)}</ul>}
-        <p className={styles.uiMeta}>{answer.meta}</p>
-      </div>
-      <div className={styles.uiComposer}><span>Ask a follow-up…</span><b>Send</b></div>
-    </div>
-  );
-}
-
-/* The account card that moves through the three steps of getting started. */
-function AccountCard({ step }: { step: 0 | 1 | 2 }) {
-  return (
-    <div className={styles.account} data-ui>
-      <div className={styles.accountHead}><span className={styles.uiMark}>n</span><span>Your Novi account</span><span className={step === 2 ? styles.accountOn : ''}>{step === 2 ? 'Desktop online' : 'Web only'}</span></div>
-      <dl>
-        <div><dt>Login</dt><dd>@you · Individual</dd></div>
-        <div><dt>Plan</dt><dd>{PLANS.pro.name} · {PLANS.pro.price} {PLANS.pro.unit}</dd></div>
-        <div><dt>License</dt><dd>{step === 0 ? 'Pending our confirmation' : 'Active · 29 days left'}</dd></div>
-        <div className={step < 1 ? styles.accountOff : ''}><dt>AI key</dt><dd>{step < 1 ? 'Not connected' : 'OpenAI · ends in 4f2a'}</dd></div>
-        <div className={step < 2 ? styles.accountOff : ''}><dt>Device</dt><dd>{step < 2 ? 'No device yet' : 'MacBook Pro · signed in'}</dd></div>
-      </dl>
-    </div>
-  );
-}
-
-function ScreenshotFragment() {
-  return (
-    <div className={`${styles.ui} ${styles.uiShot}`} data-ui>
-      <div className={styles.uiBar}><span className={styles.uiMode}>Technical screen</span><span>Screenshot attached</span></div>
-      <figure className={styles.uiCapture}><img src="/app/transparent.png" alt="A captured screenshot of a code question" width={1180} height={940} loading="lazy" decoding="async" /><figcaption>Captured 12:06 · the question on screen</figcaption></figure>
-      <div className={styles.uiAnswer}>
-        <p className={styles.uiTitle}><span className={styles.uiMark}>n</span>What the error means</p>
-        <ul className={styles.uiPoints}><li>The copy keeps the original string; the function logs the message, so nothing mutates.</li><li>If they ask about the comment, it is a block comment and is ignored at runtime.</li></ul>
-        <p className={styles.uiMeta}>Ask about the exact problem in front of you without retyping it</p>
-      </div>
-    </div>
-  );
-}
 
 const faq = [
   { q: 'Which plan is right for me?', a: 'Core includes behavioral and technical modes, document context, screenshots, transcription, and the transparent overlay. Pro adds chat, recruiter mode, coding assistance, system design, and eye tracking. Ultimate adds the local coding agent and the phone companion. Lifetime is the Pro toolkit for $399, once.' },
@@ -140,6 +30,8 @@ const sheets = [
 
 const modes = ['Behavioral interview', 'Technical screen', 'Recruiter call', 'Chat', 'Code', 'System design', 'Local coding'];
 const orderWords = ['First,', 'Then', 'Finally,'];
+// The screen each step happens on: sign up here, add the key in the account, sign in on the desktop.
+const stepScreens = [<SignupFragment key="signup" />, <AddKeyFragment key="key" />, <DesktopSignInFragment key="desktop" />];
 
 export default function PublicLanding({ onSignIn, onSignUp }: { onSignIn: () => void; onSignUp: () => void }) {
   const root = useRef<HTMLDivElement>(null);
@@ -224,7 +116,17 @@ export default function PublicLanding({ onSignIn, onSignUp }: { onSignIn: () => 
           </ol>
         </section>
 
-        {/* 5 · The parody quotation: portrait, offset quote, a small second picture. */}
+        {/* 4b · What the share shows against what you see: one laptop, one divider to drag. */}
+        <section className={styles.compare} aria-labelledby="compare-title">
+          <div className={styles.compareWords}>
+            <h2 id="compare-title" data-reveal>What they see.<br />What you see.</h2>
+            <p data-reveal style={{ '--i': 1 } as CSSProperties}>Transparent mode turns on OS-level capture protection for Novi&apos;s windows, and the floating bar can hide from the Dock and the taskbar. Drag across the screen: the left side is the share, the right side is your desk.</p>
+            <p data-reveal style={{ '--i': 2 } as CSSProperties}>Results depend on your operating system and capture software, so test your own setup before the call.</p>
+          </div>
+          <ScreenCompare />
+        </section>
+
+        {/* 5 · The parody quotation: portrait left, the quote offset right. */}
         <section className={styles.parody} aria-labelledby="parody-title">
           <figure className={styles.portrait} data-reveal>
             {portrait
@@ -238,7 +140,6 @@ export default function PublicLanding({ onSignIn, onSignUp }: { onSignIn: () => 
               <p>“Herro. I am Jian-Yang. CEO of Novi. You spend four year learning computah science. Interviewah ask you reverse binary twee. You shit your pants. Very sad. So I make Novi. AI risten, AI write code, you just nod head like fucking genius. Google hire you. You make two hundwed thousand dollah. I make sixteen dollah. Six month later, you get fired. Not my problem. No refund. Fuck ReetCode.”</p>
             </blockquote>
             <p className={styles.attribution} data-reveal style={{ '--i': 2 } as CSSProperties}><strong>Jian Yang</strong><span>CEO of Novi · a <cite>Silicon Valley</cite> parody</span></p>
-            <figure className={styles.second} data-reveal style={{ '--i': 3 } as CSSProperties}><img src="/app/chat.png" alt="The Novi window with a code answer, the thing he is talking about" width={1180} height={940} loading="lazy" decoding="async" /></figure>
           </div>
         </section>
 
@@ -249,7 +150,7 @@ export default function PublicLanding({ onSignIn, onSignUp }: { onSignIn: () => 
           {JOURNEY.map((step, index) => (
             <div className={`${styles.step} ${styles[`step-${index}` as keyof typeof styles]}`} key={step.title}>
               {index === 0 && <h2 id="steps-title">Your first session.</h2>}
-              <div className={styles.stepCard} data-reveal><AccountCard step={index as 0 | 1 | 2} /></div>
+              <div className={styles.stepCard} data-reveal>{stepScreens[index]}</div>
               <div className={styles.stepWords} data-reveal style={{ '--i': 1 } as CSSProperties}>
                 <p className={styles.clause}>{orderWords[index]} {step.title.charAt(0).toLowerCase() + step.title.slice(1)}.</p>
                 <p>{step.text}</p>
@@ -273,7 +174,7 @@ export default function PublicLanding({ onSignIn, onSignUp }: { onSignIn: () => 
 
         {/* 9 · The close: one row of tiles cropped from a longer board. */}
         <section className={styles.close} aria-labelledby="closing-title">
-          <div className={`${styles.closeTile} ${styles.closeLeft}`} data-reveal><img src="/app/companion-landscape.png" alt="The phone companion in landscape, with its layout and listening controls" width={844} height={390} loading="lazy" decoding="async" /></div>
+          <div className={`${styles.closeTile} ${styles.closeLeft}`} data-reveal aria-hidden="true" />
           <div className={`${styles.closeTile} ${styles.closeMain}`} data-reveal style={{ '--i': 1 } as CSSProperties}>
             <h2 id="closing-title">Enough interview bullshit.<br />Bring Novi.</h2>
             <p>Live interview answers, readable code, and explanations for the follow-up. Start with the plan that fits your next round.</p>

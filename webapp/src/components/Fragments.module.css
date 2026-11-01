@@ -1,0 +1,86 @@
+/* The product's interface, at true size (data-ui). Shared by every public page: the same window the
+   visitor will install, never a drawing of it. Small type and rules here are the product's own. */
+.ui { width: 100%; background: #0f0e11; color: #ece6ea; font: 400 14px/1.5 var(--ui); border-radius: 10px; overflow: hidden; }
+.uiBar { display: flex; align-items: center; gap: 14px; padding: 12px 16px; background: #171519; color: #a89da3; font-size: 13px; }
+.uiBar > span:nth-child(2) { margin-left: auto; }
+.uiMode { padding: 3px 9px; border-radius: 999px; background: #2a1a21; color: #e4a0b2; font-weight: 500; }
+.uiLive { display: inline-flex; align-items: center; gap: 6px; color: #ece6ea; }
+.uiLive i { width: 7px; height: 7px; border-radius: 50%; background: #e4a0b2; }
+.uiQuestion { display: flex; gap: 12px; padding: 16px 16px 6px; color: #ece6ea; }
+.uiQuestion span { flex-shrink: 0; color: #a89da3; }
+.uiAnswer { padding: 10px 16px 16px; }
+.uiTitle { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.uiThinking { display: flex; align-items: center; gap: 10px; color: #a89da3; }
+.uiThinking i { width: 5px; height: 5px; border-radius: 50%; background: #a89da3; }
+.uiThinking i:first-of-type { margin-left: 2px; }
+.uiMark { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: #8f2946; color: #fff; font: italic 600 14px/1 var(--text); flex-shrink: 0; }
+.uiCode { margin: 12px 0 0; padding: 12px 0; background: #09090b; border-radius: 8px; overflow-x: auto; }
+.uiCode code { display: block; font: 13px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre; color: #ece6ea; }
+.uiCode code span { display: flex; padding: 0 14px; }
+.uiCode code i { width: 22px; flex-shrink: 0; margin-right: 14px; color: #6f646b; text-align: right; font-style: normal; user-select: none; }
+.uiPoints { margin: 10px 0 0; padding: 0 0 0 18px; }
+.uiPoints li + li { margin-top: 6px; }
+.uiFlow { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; counter-reset: flow; }
+.uiFlow li { padding: 6px 10px; border-radius: 6px; background: #2a1a21; color: #e4a0b2; font-size: 13px; }
+.uiFlow li + li::before { content: '→'; margin: 0 8px 0 -2px; color: #a89da3; }
+.uiDiagramWrap { margin: 12px 0 0; padding: 10px 6px; background: #09090b; border-radius: 8px; overflow-x: auto; }
+.uiDiagram { display: block; width: 100%; max-width: 540px; height: auto; font-family: var(--ui); }
+.uiMeta { margin-top: 12px; color: #a89da3; font-size: 13px; }
+.uiComposer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 16px 16px; padding: 10px 10px 10px 14px; border-radius: 8px; background: #171519; color: #a89da3; }
+.uiComposer b { padding: 6px 12px; border-radius: 6px; background: #8f2946; color: #fff; font-weight: 500; font-size: 13px; }
+.uiCompact .uiComposer { display: none; }
+.uiShot .uiCapture { margin: 12px 16px 0; }
+.uiShot .uiCapture img { width: 100%; height: 150px; object-fit: cover; object-position: left top; border-radius: 6px; }
+.uiShot .uiCapture figcaption { margin-top: 6px; color: #a89da3; font-size: 13px; }
+
+/* the keys list */
+.uiKeys { margin: 0; padding: 6px 16px 10px; list-style: none; }
+.uiKeys li { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px 0; }
+.uiKeys li + li { border-top: 1px solid #1f1c22; } /* taste-skill-ignore: inside a data-ui fragment */
+.uiKeyProvider { color: #a89da3; font-size: 13px; }
+.uiKeyName { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uiKeyName small { display: block; color: #6f646b; font-size: 12px; }
+.uiKeys code { font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #a89da3; }
+.uiKeys b { padding: 5px 10px; border-radius: 6px; background: #2a1a21; color: #e4a0b2; font-weight: 500; font-size: 12px; }
+.uiKeySelected b { background: #8f2946; color: #fff; }
+@media (max-width: 480px) {
+  .uiKeys li { grid-template-columns: minmax(0, 1fr) auto; }
+  .uiKeyProvider { display: none; }
+  .uiKeys code { display: none; }
+}
+
+/* the account card */
+.account { width: 260px; background: #0f0e11; color: #ece6ea; border-radius: 10px; font: 400 13px/1.45 var(--ui); overflow: hidden; }
+.accountHead { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #171519; font-size: 13px; }
+.accountHead > span:nth-child(2) { font-weight: 500; }
+.accountHead > span:last-child { margin-left: auto; color: #a89da3; font-size: 12px; }
+.accountHead > .accountOn { color: #a1c7af; }
+.account dl { margin: 0; padding: 6px 12px 10px; }
+.account dl > div { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; }
+.account dl > div + div { border-top: 1px solid #1f1c22; } /* taste-skill-ignore: inside a data-ui fragment */
+.account dt { color: #a89da3; }
+.account dd { margin: 0; text-align: right; }
+.account .accountOff dd { color: #6f646b; }
+
+/* the three forms of getting started */
+.form { width: 280px; background: #0f0e11; color: #ece6ea; border-radius: 10px; font: 400 13px/1.45 var(--ui); overflow: hidden; }
+.formHead { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #171519; font-size: 13px; }
+.formHead > span:nth-child(2) { font-weight: 500; }
+.formHead > span:last-child:not(:nth-child(2)) { margin-left: auto; color: #a89da3; font-size: 12px; }
+.formNote { padding: 10px 12px 0; color: #a89da3; font-size: 12px; }
+.formField { display: flex; flex-direction: column; gap: 5px; padding: 10px 12px 0; }
+.formField > span:first-child { color: #a89da3; font-size: 12px; }
+.formInput { display: block; min-height: 34px; padding: 7px 10px; border: 1px solid #2a252a; border-radius: 6px; background: #141216; color: #ece6ea; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* taste-skill-ignore: inside a data-ui fragment */
+.formSecret { letter-spacing: 0.04em; }
+.formSelect { position: relative; padding-right: 28px; }
+.formSelect::after { content: ''; position: absolute; right: 11px; top: 12px; width: 7px; height: 7px; border-right: 1.5px solid #a89da3; border-bottom: 1.5px solid #a89da3; transform: rotate(45deg); }
+.formField small { color: #6f646b; font-size: 11px; }
+.formPlan { display: flex; flex-direction: column; gap: 3px; margin: 12px 12px 0; padding: 10px 12px; border-radius: 6px; background: #2a1a21; }
+.formPlan > span { color: #e4a0b2; font-size: 12px; }
+.formPlan b { font-weight: 500; }
+.formPlan small { color: #a89da3; font-size: 11px; }
+.formCheck { display: flex; align-items: center; gap: 8px; padding: 12px 12px 0; color: #a89da3; font-size: 12px; }
+.formCheck i { width: 14px; height: 14px; border-radius: 3px; background: #8f2946; position: relative; }
+.formCheck i::after { content: ''; position: absolute; left: 4.5px; top: 1.5px; width: 4px; height: 8px; border-right: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(45deg); }
+.formButton { display: flex; align-items: center; justify-content: center; min-height: 36px; margin: 14px 12px 12px; border-radius: 6px; background: #8f2946; color: #fff; font-weight: 500; }
+.formDesktop { background: #0a0a0b; }

@@ -1,11 +1,174 @@
 import type { Metadata } from 'next';
-import ApiGuideClient from './ApiGuideClient';
+import type { CSSProperties, ReactNode } from 'react';
+import Link from 'next/link';
+import PublicNavbar from '@/components/PublicNavbar';
+import SiteFooter from '@/components/SiteFooter';
+import { ChapterPage, CloseRow, Title } from '@/components/Chapters';
+import { AddKeyFragment, KeysFragment } from '@/components/Fragments';
+import CopyButton from './CopyButton';
+import KeyChecker from './KeyChecker';
+import chapters from '@/components/Chapters.module.css';
+import styles from './api-keys.module.css';
 
 export const metadata: Metadata = {
-  title: 'API Keys Setup Guide for Claude, OpenAI, Gemini & Kimi | Novi',
-  description: 'Step-by-step documentation for obtaining and configuring API keys from Anthropic Claude, OpenAI, Google Gemini, and Kimi (Moonshot AI) in Novi.',
+  title: 'Setup guide: API keys for Anthropic, OpenAI, Gemini and Kimi | Novi',
+  description: 'Get an API key from Anthropic Claude, OpenAI, Google Gemini or Kimi (Moonshot AI), add it once to your Novi account, and use it in the desktop app.',
 };
 
+/* The four doors. Each test command lists the models the key can use, which is also what Novi does
+   after you add it: no model name to keep up to date. */
+const providers: { id: string; name: string; tone: string; home: string; keys: string; base: string; format: string; steps: ReactNode[]; test: string; mark?: ReactNode }[] = [
+  {
+    id: 'anthropic', name: 'Anthropic Claude', tone: 'tone-rose', home: 'https://console.anthropic.com/', keys: 'https://console.anthropic.com/settings/keys', base: 'https://api.anthropic.com/v1', format: 'sk-ant-api03-…',
+    mark: <svg viewBox="0 0 24 24" width="36" height="36" aria-hidden="true"><path fill="currentColor" d="M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.541Zm1.9074 4.5422 2.222 5.765H6.3813Z" /></svg>,
+    steps: [
+      <>Sign in or sign up at <a href="https://console.anthropic.com/" target="_blank" rel="noreferrer">console.anthropic.com</a>. Anthropic may ask for phone verification before it lets you create keys.</>,
+      <>Open <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">Settings, API keys</a> and press <b>Create Key</b>.</>,
+      <>Name it (<code>Novi Desktop</code> works) and create it.</>,
+      <>Copy the key. It starts with <code>sk-ant-api03-</code> and Anthropic shows it only once.</>,
+    ],
+    test: `curl https://api.anthropic.com/v1/models \\\n  -H "x-api-key: YOUR_KEY_HERE" \\\n  -H "anthropic-version: 2023-06-01"`,
+  },
+  {
+    id: 'openai', name: 'OpenAI', tone: 'tone-paper', home: 'https://platform.openai.com/', keys: 'https://platform.openai.com/api-keys', base: 'https://api.openai.com/v1', format: 'sk-proj-…',
+    mark: <svg viewBox="0 0 24 24" width="36" height="36" aria-hidden="true"><path fill="currentColor" d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1683a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4947zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1683a.0757.0757 0 0 1-.071 0l-4.8303-2.7866A4.504 4.504 0 0 1 2.3408 7.8956zm16.0993 3.8558L12.5973 8.3829l2.02-1.1683a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.4023-.6813zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1635a.0804.0804 0 0 1-.038-.0567V6.0748a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.4598a.7948.7948 0 0 0-.3927.6813l-.0048 6.7219zm1.1026-1.576l2.5884-1.492 2.5836 1.492v2.984l-2.5836 1.492-2.5884-1.492z" /></svg>,
+    steps: [
+      <>Sign in at <a href="https://platform.openai.com/" target="_blank" rel="noreferrer">platform.openai.com</a>, the developer platform, not ChatGPT.</>,
+      <>Open <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">API keys</a> and press <b>Create new secret key</b>.</>,
+      <>Name it, keep the permissions at <b>All</b> or <b>Model capabilities</b>, and create it.</>,
+      <>Copy the key. It starts with <code>sk-proj-</code>. Add billing on the platform if the account has none; keys without credit are rejected.</>,
+    ],
+    test: `curl https://api.openai.com/v1/models \\\n  -H "Authorization: Bearer YOUR_KEY_HERE"`,
+  },
+  {
+    id: 'gemini', name: 'Google Gemini', tone: 'tone-wine', home: 'https://aistudio.google.com/', keys: 'https://aistudio.google.com/app/apikey', base: 'https://generativelanguage.googleapis.com/v1beta', format: 'AIzaSy…',
+    mark: <svg viewBox="0 0 24 24" width="36" height="36" aria-hidden="true"><path fill="currentColor" d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81Z" /></svg>,
+    steps: [
+      <>Open <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer">aistudio.google.com</a> and sign in with a Google account.</>,
+      <>Go to <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">Get API key</a> and press <b>Create API key</b>, in a new project if it asks.</>,
+      <>Copy the key. It starts with <code>AIzaSy</code> and is 39 characters long.</>,
+    ],
+    test: `curl "https://generativelanguage.googleapis.com/v1beta/models?key=YOUR_KEY_HERE"`,
+  },
+  {
+    id: 'kimi', name: 'Kimi (Moonshot AI)', tone: 'tone-deep', home: 'https://platform.moonshot.cn/', keys: 'https://platform.moonshot.cn/console/api-keys', base: 'https://api.moonshot.cn/v1', format: 'sk-…',
+    steps: [
+      <>Register or sign in at <a href="https://platform.moonshot.cn/" target="_blank" rel="noreferrer">platform.moonshot.cn</a>.</>,
+      <>Open <a href="https://platform.moonshot.cn/console/api-keys" target="_blank" rel="noreferrer">API Keys</a> and press <b>新建 API Key</b> (Create API Key).</>,
+      <>Label it and copy the key. It starts with <code>sk-</code>, like an OpenAI key, so note which it is.</>,
+      <>Add it with the provider set to <b>Kimi (Moonshot AI)</b>; Novi points it at the Moonshot endpoint for you.</>,
+    ],
+    test: `curl https://api.moonshot.cn/v1/models \\\n  -H "Authorization: Bearer YOUR_KEY_HERE"`,
+  },
+];
+
 export default function ApiKeysPage() {
-  return <ApiGuideClient />;
+  return (
+    <ChapterPage>
+      <PublicNavbar active="setup-guide" />
+      <main>
+        {/* 1 · The claim, and the account with its keys. */}
+        <section className={chapters.hero} aria-labelledby="setup-title">
+          <div className={chapters.heroCopy}>
+            <Title id="setup-title" lines={['Get a key.', 'Add it once.']} />
+            <p className={chapters.lead} data-load style={{ '--d': '480ms' } as CSSProperties}>Novi talks to your AI provider directly, with your own key. Make the key at the provider, paste it into your Novi account, and the desktop app picks it up when you sign in. Four providers: OpenAI, Anthropic, Google Gemini and Kimi.</p>
+            <nav className={styles.jump} aria-label="Providers on this page" data-load style={{ '--d': '560ms' } as CSSProperties}>
+              {providers.map(provider => <a key={provider.id} href={`#${provider.id}`}>{provider.name}</a>)}
+              <a href="#add-key">Add it to Novi</a>
+            </nav>
+          </div>
+          <div className={`${chapters.heroSide} ${styles.heroKeys}`}><div data-open><KeysFragment /></div></div>
+        </section>
+
+        {/* 2 · Which key is this, and which door for what. */}
+        <section className={`${styles.doors} ${chapters['tone-paper']}`} aria-labelledby="doors-title">
+          <div className={styles.doorsWords}>
+            <h2 id="doors-title" data-reveal>Four doors. Any one will do.</h2>
+            <p data-reveal style={{ '--i': 1 } as CSSProperties}>A key from any of them unlocks every session mode. After you add it, Novi lists the models that key can use, and you pick one when a session starts. The provider bills the usage; the plan covers Novi.</p>
+            <div data-reveal style={{ '--i': 2 } as CSSProperties}><KeyChecker /></div>
+          </div>
+          <table className={styles.doorsTable} data-reveal style={{ '--i': 2 } as CSSProperties}>
+            <caption className={chapters.srOnly}>What each provider is good at</caption>
+            <thead><tr><th scope="col">Provider</th><th scope="col">Good at</th><th scope="col">Key starts with</th></tr></thead>
+            <tbody>
+              <tr><th scope="row"><a href="#anthropic">Anthropic Claude</a></th><td>Long reasoning, code explanations, system design write-ups.</td><td><code>sk-ant-</code></td></tr>
+              <tr><th scope="row"><a href="#openai">OpenAI</a></th><td>Screenshots and other images, balanced answers, broad model choice.</td><td><code>sk-proj-</code></td></tr>
+              <tr><th scope="row"><a href="#gemini">Google Gemini</a></th><td>Very long documents, fast replies, a generous free tier to start.</td><td><code>AIza</code></td></tr>
+              <tr><th scope="row"><a href="#kimi">Kimi (Moonshot AI)</a></th><td>Long resumes and project notes, Chinese and English questions.</td><td><code>sk-</code></td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        {/* 3 · One chapter per provider. */}
+        {providers.map(provider => (
+          <section key={provider.id} id={provider.id} className={`${styles.provider} ${chapters[provider.tone]} ${provider.tone === 'tone-deep' ? styles.onDark : ''}`} aria-labelledby={`${provider.id}-title`}>
+            <div className={styles.providerSide}>
+              <div className={styles.providerName} data-reveal>{provider.mark}<h2 id={`${provider.id}-title`}>{provider.name}</h2></div>
+              <p className={styles.format} data-reveal style={{ '--i': 1 } as CSSProperties}><span>The key looks like</span><code>{provider.format}</code></p>
+              <ul className={styles.links} data-reveal style={{ '--i': 2 } as CSSProperties}>
+                <li><span>Console</span><a href={provider.home} target="_blank" rel="noreferrer">{provider.home.replace('https://', '')}</a></li>
+                <li><span>Keys page</span><a href={provider.keys} target="_blank" rel="noreferrer">{provider.keys.replace('https://', '')}</a></li>
+                <li><span>Endpoint</span><code>{provider.base}</code></li>
+              </ul>
+              <a className={styles.go} href={provider.keys} target="_blank" rel="noreferrer" data-reveal style={{ '--i': 3 } as CSSProperties}>Open the keys page</a>
+            </div>
+            <div className={styles.providerMain}>
+              <h3 data-reveal>Make the key</h3>
+              <ol className={styles.steps} data-reveal style={{ '--i': 1 } as CSSProperties}>{provider.steps.map((step, index) => <li key={index}>{step}</li>)}</ol>
+              <h3 data-reveal style={{ '--i': 2 } as CSSProperties}>Check it from a terminal</h3>
+              <p data-reveal style={{ '--i': 3 } as CSSProperties}>Lists the models the key can use, which is what Novi asks for after you add it. A list back means the key works; a 401 means it does not.</p>
+              <div className={styles.code} data-reveal style={{ '--i': 4 } as CSSProperties}>
+                <pre><code>{provider.test}</code></pre>
+                <CopyButton text={provider.test} label="Copy the command" />
+              </div>
+            </div>
+          </section>
+        ))}
+
+        {/* 4 · Into Novi: once on the website, then on the desk. */}
+        <section className={`${styles.into} ${chapters['tone-black']}`} id="add-key" aria-labelledby="into-title">
+          <div className={chapters.chapterHead}>
+            <h2 id="into-title" data-reveal>Add it to your Novi account.</h2>
+            <p data-reveal style={{ '--i': 1 } as CSSProperties}>Once, on this website. Individuals use it directly in the desktop app. Enterprise desktop accounts inherit the keys their organisation added.</p>
+          </div>
+          <div className={styles.intoGrid}>
+            <div className={styles.intoScreen} data-reveal><AddKeyFragment provider="Anthropic" /></div>
+            <div className={styles.intoWords} data-reveal style={{ '--i': 1 } as CSSProperties}>
+              <h3>On this website</h3>
+              <ol>
+                <li><Link className={chapters.inline} href="/#signin">Sign in</Link> to your Novi account.</li>
+                <li>Open <b>API management</b> in the sidebar and press <b>Add API key</b>.</li>
+                <li>Choose the provider: OpenAI, Anthropic, Google Gemini or Kimi.</li>
+                <li>Give it a nickname you will recognise and paste the key.</li>
+                <li>Save. The key is encrypted at rest; only its last four characters show from then on.</li>
+              </ol>
+            </div>
+            <div className={styles.intoWords} data-reveal style={{ '--i': 2 } as CSSProperties}>
+              <h3>In the desktop app</h3>
+              <ol>
+                <li>Sign in with the same username and password. Enterprise members use the desktop login from <b>User management</b>.</li>
+                <li>Open <b>Settings</b>, then <b>API management</b>. Your account’s keys are listed; press <b>Refresh</b> if a new one is missing.</li>
+                <li>Select the key you want, one per provider. Keys cannot be typed into the app itself.</li>
+                <li>Pick the model when you start a session.</li>
+              </ol>
+              <p><Link className={chapters.inline} href="/download">Download the app</Link> if it is not installed yet.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* 5 · Where the key lives. */}
+        <section className={`${styles.security} ${chapters['tone-rose']}`} aria-labelledby="security-title">
+          <h2 id="security-title" data-reveal>Where the key lives.</h2>
+          <ul className={styles.securityList}>
+            <li data-reveal style={{ '--i': 1 } as CSSProperties}><strong>Encrypted on the server.</strong><span>Keys in your account are stored with AES-256-GCM, each with its own initialisation vector. The workspace shows the last four characters; owners can reveal or copy a key on demand.</span></li>
+            <li data-reveal style={{ '--i': 2 } as CSSProperties}><strong>In memory on the desk.</strong><span>The desktop app holds keys in memory while you are signed in and drops them when you sign out. A remembered sign-in lives in Novi’s local app data.</span></li>
+            <li data-reveal style={{ '--i': 3 } as CSSProperties}><strong>No middle server.</strong><span>Prompts, transcripts and screenshots go from your computer to the provider you chose. Nothing passes through, or is logged by, a server of ours.</span></li>
+          </ul>
+        </section>
+
+        <CloseRow id="setup-close" title={<>Key in hand?<br />Get the app.</>} text="Add the key to your account first, then install Novi and sign in. No account yet? Create an individual account, or contact us for a team." action="Download Novi" href="/download" />
+      </main>
+      <SiteFooter />
+    </ChapterPage>
+  );
 }

@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 import { type SiteLinkId } from '@/lib/site';
 
-// The plain bar: wordmark, four links, one action. Referrals and the setup guide live in the footer.
+// The plain bar: wordmark, five links, one action. Referrals live in the footer.
 const navigationLinks = [
   { id: 'features', href: '/features', label: 'Features' },
   { id: 'how-it-works', href: '/how-it-works', label: 'How it works' },
   { id: 'get-access', href: '/get-access', label: 'Pricing' },
   { id: 'download', href: '/download', label: 'Download' },
+  { id: 'setup-guide', href: '/api-keys', label: 'Setup guide' },
 ] as const satisfies readonly { id: SiteLinkId; href: string; label: string }[];
 
 export interface PublicNavbarProps {
@@ -60,7 +61,6 @@ export default function PublicNavbar({ active, onSignIn, onSignUp }: PublicNavba
             <Link key={link.id} href={link.href} onClick={closeMenu} className="mobile-nav-item" aria-current={active === link.id ? 'page' : undefined}>{link.label}</Link>
           ))}
           <Link href="/referral" onClick={closeMenu} className="mobile-nav-item">Referrals</Link>
-          <Link href="/api-keys" onClick={closeMenu} className="mobile-nav-item">Setup guide</Link>
           <div className="mobile-nav-auth">{signIn}{signUp}</div>
         </div>
       )}

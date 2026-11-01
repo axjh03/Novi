@@ -84,7 +84,7 @@ code { font: 0.92em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .public-brand { display: inline-flex; align-items: center; gap: 10px; font: 700 22px/1 var(--display); letter-spacing: -0.04em; }
 .public-brand img { width: 28px; height: 28px; border-radius: 6px; }
 .brand-dot { color: var(--accent); }
-.public-nav-links { display: flex; align-items: center; gap: 28px; margin-left: auto; }
+.public-nav-links { display: flex; align-items: center; gap: 24px; margin-left: auto; }
 .public-nav-item { position: relative; display: inline-flex; align-items: center; min-height: 44px; font: 500 15px/1 var(--ui); color: var(--muted); transition: color var(--t-hover) ease; }
 .public-nav-item[aria-current="page"], .public-nav-item:hover { color: var(--ink); }
 .public-nav-item[aria-current="page"]::after { content: ''; position: absolute; left: 0; right: 0; bottom: 8px; height: 2px; background: var(--accent); }
