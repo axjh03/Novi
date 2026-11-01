@@ -47,3 +47,7 @@ z
 # password hashes, so they must never be committed.
 /prisma/*.db
 /prisma/*.db-journal
+
+# design tooling output
+.taste-skill/
+.impeccable/

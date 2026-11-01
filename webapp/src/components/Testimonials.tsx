@@ -1,4 +1,3 @@
-import { Quote } from 'lucide-react';
 import styles from './Testimonials.module.css';
 
 // These are illustrative identities and quotes, pending approved customer feedback.
@@ -15,12 +14,18 @@ const samples = [
 
 export default function Testimonials() {
   return <section className={styles.section} aria-labelledby="testimonials-title" aria-describedby="testimonials-disclosure">
-    <div className={styles.heading}><span className={styles.eyebrow}>OUR TESTIMONIALS</span><h2 id="testimonials-title">Real feedback from job seekers.</h2><p id="testimonials-disclosure"><strong>Sample content.</strong> Illustrative quotes and names for this layout preview. Approved customer feedback will replace these cards.</p></div>
+    <div className={styles.heading}>
+      <h2 id="testimonials-title">What job seekers say.</h2>
+      <p id="testimonials-disclosure">Sample quotes and first names for this layout, until approved customer feedback replaces them.</p>
+    </div>
     <div className={styles.rows}>
       {[samples.slice(0, 4), samples.slice(4)].map((row, index) => <div className={styles.row} key={index} tabIndex={0} role="region" aria-label={`Testimonial row ${index + 1}, scrolls ${index === 0 ? 'left' : 'right'}`}>
         <div className={`${styles.track} ${index === 1 ? styles.reverse : ''}`}>
           {[false, true].map(duplicate => <div className={styles.group} key={String(duplicate)} aria-hidden={duplicate || undefined}>
-            {row.map((item, card) => <figure className={styles.card} key={card}><Quote size={20} className={styles.quote} aria-hidden="true" /><blockquote>{item.quote}</blockquote><figcaption><span className={styles.avatar} aria-hidden="true">{item.name === 'Anonymous' ? '?' : item.name[0]}</span><div><strong>{item.name}{item.name !== 'Anonymous' && <><span className={styles.surname} aria-hidden="true"> ██████</span><span className={styles.srOnly}> · surname hidden</span></>}</strong></div></figcaption></figure>)}
+            {row.map((item, card) => <figure className={styles.card} key={card}>
+              <blockquote>{item.quote}</blockquote>
+              <figcaption><span className={styles.avatar} aria-hidden="true">{item.name === 'Anonymous' ? '?' : item.name[0]}</span><strong>{item.name}{item.name !== 'Anonymous' && <><span className={styles.surname} aria-hidden="true"> ██████</span><span className={styles.srOnly}> · surname hidden</span></>}</strong></figcaption>
+            </figure>)}
           </div>)}
         </div>
       </div>)}

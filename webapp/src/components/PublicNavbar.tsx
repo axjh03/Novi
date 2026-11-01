@@ -1,12 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowUpRight, BookOpen, CreditCard, Download, Gift, KeyRound, Layers, Menu, X } from 'lucide-react';
-import { SITE_LINKS, type SiteLinkId } from '@/lib/site';
+import { Menu, X } from 'lucide-react';
+import { type SiteLinkId } from '@/lib/site';
 
-const navigationIcons = { features: Layers, 'how-it-works': BookOpen, download: Download, referral: Gift, 'setup-guide': KeyRound, 'get-access': CreditCard };
-const navigationLinks = [...SITE_LINKS, { id: 'get-access', href: '/get-access', label: 'Pricing & plans' }] as const;
+// The plain bar: wordmark, four links, one action. Referrals and the setup guide live in the footer.
+const navigationLinks = [
+  { id: 'features', href: '/features', label: 'Features' },
+  { id: 'how-it-works', href: '/how-it-works', label: 'How it works' },
+  { id: 'get-access', href: '/get-access', label: 'Pricing' },
+  { id: 'download', href: '/download', label: 'Download' },
+] as const satisfies readonly { id: SiteLinkId; href: string; label: string }[];
 
 export interface PublicNavbarProps {
   active?: SiteLinkId;
@@ -16,96 +21,47 @@ export interface PublicNavbarProps {
 
 export default function PublicNavbar({ active, onSignIn, onSignUp }: PublicNavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-
   const closeMenu = () => setMenuOpen(false);
-  const signIn = (mobile: boolean) => onSignIn ? (
-    <button type="button" className={`btn${mobile ? ' full' : ''}`} onClick={() => { closeMenu(); onSignIn(); }}>Log in</button>
-  ) : (
-    <Link href="/#signin" className={`btn${mobile ? ' full' : ''}`} onClick={closeMenu}>Log in</Link>
-  );
-  const signUp = (mobile: boolean) => onSignUp ? (
-    <button type="button" className={`btn dark${mobile ? ' full' : ''}`} onClick={() => { closeMenu(); onSignUp(); }}>Sign up<ArrowUpRight size={15} aria-hidden="true" /></button>
-  ) : (
-    <Link href="/#signup" className={`btn dark${mobile ? ' full' : ''}`} onClick={closeMenu}>Sign up<ArrowUpRight size={15} aria-hidden="true" /></Link>
-  );
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') closeMenu(); };
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = ''; };
+  }, [menuOpen]);
+
+  const signIn = onSignIn
+    ? <button type="button" className="public-nav-signin" onClick={() => { closeMenu(); onSignIn(); }}>Log in</button>
+    : <Link href="/#signin" className="public-nav-signin" onClick={closeMenu}>Log in</Link>;
+  const signUp = onSignUp
+    ? <button type="button" className="public-nav-action" onClick={() => { closeMenu(); onSignUp(); }}>Sign up</button>
+    : <Link href="/#signup" className="public-nav-action" onClick={closeMenu}>Sign up</Link>;
 
   return (
     <header className="public-nav-shell">
       <nav className="public-nav" aria-label="Main">
-        <Link href="/" className="brand" onClick={event => { closeMenu(); if (location.pathname === '/') event.preventDefault(); }} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <img
-            src="/logo.svg"
-            alt="Novi"
-            width={32}
-            height={32}
-            style={{ borderRadius: 8, objectFit: 'contain' }}
-          />
-          novi<span className="brand-dot">.</span>
+        <Link href="/" className="public-brand" onClick={event => { closeMenu(); if (location.pathname === '/') event.preventDefault(); }}>
+          <img src="/logo.svg" alt="" width={28} height={28} />
+          <span>novi<span className="brand-dot">.</span></span>
         </Link>
-
-        {/* Desktop Links */}
         <div className="public-nav-links">
-          {navigationLinks.map(link => { const Icon = navigationIcons[link.id]; return (
-            <Link
-              key={link.id}
-              href={link.href}
-              className="public-nav-item"
-              aria-label={link.label}
-              aria-current={active === link.id ? 'page' : undefined}
-              style={{
-                textDecoration: 'none',
-                color: active === link.id ? 'var(--ink)' : 'inherit',
-                fontWeight: active === link.id ? 600 : 400,
-              }}
-            >
-              <Icon size={17} strokeWidth={1.7} aria-hidden="true" /><span className="public-nav-text">{link.label}</span>
-            </Link>
-          ); })}
-          {signIn(false)}
-          {signUp(false)}
+          {navigationLinks.map(link => (
+            <Link key={link.id} href={link.href} className="public-nav-item" aria-current={active === link.id ? 'page' : undefined}>{link.label}</Link>
+          ))}
         </div>
-
-        {/* Mobile Burger Toggle Button */}
-        <button
-          type="button"
-          className="mobile-menu-toggle"
-          aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-          aria-expanded={menuOpen}
-          aria-controls={menuOpen ? 'public-mobile-menu' : undefined}
-          onClick={() => setMenuOpen(!menuOpen)}
-        >
-          {menuOpen ? <X size={20} /> : <Menu size={20} />}
+        <div className="public-nav-auth">{signIn}{signUp}</div>
+        <button type="button" className="mobile-menu-toggle" aria-label={menuOpen ? 'Close menu' : 'Open menu'} aria-expanded={menuOpen} aria-controls="public-mobile-menu" onClick={() => setMenuOpen(open => !open)}>
+          {menuOpen ? <X size={22} aria-hidden="true" /> : <Menu size={22} aria-hidden="true" />}<span>Menu</span>
         </button>
       </nav>
-
-      {/* Mobile Drawer Navigation Menu */}
       {menuOpen && (
-        <div
-          id="public-mobile-menu"
-          className="mobile-nav-drawer"
-        >
-          {navigationLinks.map(link => { const Icon = navigationIcons[link.id]; return (
-            <Link
-              key={link.id}
-              href={link.href}
-              onClick={closeMenu}
-              className="public-nav-item"
-              aria-label={link.label}
-              aria-current={active === link.id ? 'page' : undefined}
-              style={{
-                padding: '10px 12px',
-                borderRadius: 8,
-                textDecoration: 'none',
-                color: active === link.id ? 'var(--accent)' : 'var(--ink)',
-                fontWeight: active === link.id ? 600 : 500,
-                background: active === link.id ? 'var(--accent-soft)' : 'transparent',
-                fontSize: 15,
-              }}
-            >
-              <Icon size={17} strokeWidth={1.7} aria-hidden="true" /><span className="public-nav-text">{link.label}</span>
-            </Link>
-          ); })}
-          <div className="public-nav-auth">{signIn(true)}{signUp(true)}</div>
+        <div id="public-mobile-menu" className="mobile-nav-sheet">
+          {navigationLinks.map(link => (
+            <Link key={link.id} href={link.href} onClick={closeMenu} className="mobile-nav-item" aria-current={active === link.id ? 'page' : undefined}>{link.label}</Link>
+          ))}
+          <Link href="/referral" onClick={closeMenu} className="mobile-nav-item">Referrals</Link>
+          <Link href="/api-keys" onClick={closeMenu} className="mobile-nav-item">Setup guide</Link>
+          <div className="mobile-nav-auth">{signIn}{signUp}</div>
         </div>
       )}
     </header>
