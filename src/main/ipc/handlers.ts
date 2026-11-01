@@ -37,6 +37,7 @@ import type { AppMask } from '../services/appMask';
 import { AppCommandService } from '../services/appCommand';
 import { CloseGuard } from '../services/closeGuard';
 import { debug } from '../services/debug';
+import { SessionTrace } from '../services/sessionTrace';
 import { SmartPlacementService } from '../services/smartPlacement';
 import { AUTO_DETECT_SHORTCUT } from '../../shared/windowLayout';
 import { AIProviderFactory } from '../services/providers';
@@ -318,10 +319,47 @@ export function registerIPC(
     if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Open diagnostics in the main Novi window.');
   };
   handle('debug-state', (_value, event) => { debugOwner(event); return debug.snapshot(); });
+  // ── Session trace: with Debug on, one readable .txt per session under <userData>/logs ──
+  let sessionLabel = 'session';
+  let lastTraceFile: string | null = null;
+  const sessionTraceName = (input: unknown) => {
+    const value = input && typeof input === 'object' ? input as Record<string, unknown> : {};
+    const parts = [value.company, value.role].filter((part): part is string => typeof part === 'string' && part.trim().length > 0).map((part) => part.trim());
+    return parts.length ? parts.join(' ') : value.empty === true ? 'quick session' : 'session';
+  };
+  function openSessionTrace() {
+    const session = get().context.session;
+    if (!debug.isEnabled || !session) return;
+    closeSessionTrace(false);
+    const details = `Connection "${session.connection.name}" (${session.connection.provider}) · model ${session.connection.model}`;
+    debug.attachTrace(new SessionTrace(app.getPath('userData'), sessionLabel, details));
+    debug.traceLine('Session trace started');
+  }
+  /** Closes the session's trace; with `notify`, the page shows where it was saved. */
+  function closeSessionTrace(notify: boolean) {
+    const file = debug.traceFile;
+    if (file) debug.traceLine('Session trace ended');
+    const closed = debug.attachTrace(null) ?? file;
+    if (!closed) return;
+    lastTraceFile = closed;
+    const main = getMainWindow();
+    if (notify && main && !main.isDestroyed()) main.webContents.send('global-action', { type: 'session-trace-saved', payload: { file: closed } });
+  }
   handle('debug-enable', (value, event) => {
     debugOwner(event);
     if (typeof value !== 'boolean') throw new UserError('Invalid debug setting.');
-    return debug.setEnabled(value);
+    const state = debug.setEnabled(value);
+    if (value) openSessionTrace(); else closeSessionTrace(true);
+    return state;
+  });
+  handle('debug-trace-open', async (value, event) => {
+    debugOwner(event);
+    const kind = object(value).kind;
+    if (!lastTraceFile) throw new UserError('No session trace has been saved yet. Turn on Debug in Settings and run a session.');
+    if (kind === 'folder') { shell.showItemInFolder(lastTraceFile); return; }
+    if (kind !== 'file') throw new UserError('Unknown request.');
+    const problem = await shell.openPath(lastTraceFile);
+    if (problem) throw new UserError(`The trace file could not be opened: ${problem}`);
   });
   handle('debug-clear', (_value, event) => { debugOwner(event); return debug.clear(); });
   handle('interview-frame', () => {});
@@ -415,6 +453,7 @@ export function registerIPC(
     await chat.stopAndWait();
     await context.initialization?.catch(() => { });
     context.end(); images.clearPending(); overlay.closeOverlay();
+    closeSessionTrace(true);
   }
   // Signing out ends the session, disconnects the phone companion (its link controls this account's
   // window), then forgets the account.
@@ -466,7 +505,7 @@ export function registerIPC(
     if (!models.some(m => m.id === input.ai.model)) throw new UserError('This model is no longer available. Refresh the model list and choose another model.');
     const selected = account.settings.connections.find(c => c.id === input.id);
     if (storage.current() !== account || account.settings.activeConnectionId !== input.id || selected?.model !== input.ai.model || selected.provider !== input.ai.provider || selected.baseUrl !== input.ai.baseUrl || selected.enabled === false) throw new UserError('Your selection changed. Start the session again.');
-    chat.assertIdle(); context.begin(value); return snapshot();
+    chat.assertIdle(); context.begin(value); sessionLabel = sessionTraceName(value); openSessionTrace(); return snapshot();
   });
   handle('start-empty-session', async () => {
     const { chat, storage, connections, context } = get();
@@ -481,6 +520,7 @@ export function registerIPC(
     if (storage.current() !== account || account.settings.activeConnectionId !== input.id || selected?.model !== input.ai.model || selected.provider !== input.ai.provider || selected.baseUrl !== input.ai.baseUrl || selected.enabled === false) throw new UserError('Your selection changed. Start the session again.');
     chat.assertIdle();
     context.beginEmpty();
+    sessionLabel = 'quick session'; openSessionTrace();
     return snapshot();
   });
   // Profiles keep folder locations from folders the user picked; the page only ever sends loaded folder IDs.
@@ -826,17 +866,6 @@ export function registerIPC(
     return { snapshot: await snapshot(), conversationId };
   });
   handle('local-coding-state', (value, event) => { fromMain(event); return get().localCoding.state(value); });
-  handle('local-coding-select', (value, event) => { fromMain(event); const input = object(value); return get().localCoding.select(input.projectId, input.versionId); });
-  handle('local-coding-engine', async (value, event) => {
-    fromMain(event);
-    const { chat, storage, localCoding } = get();
-    chat.assertIdle();
-    const input = object(value);
-    const project = await localCoding.updateEngine(input.projectId, input, storage.conversations);
-    storage.save();
-    return { snapshot: await snapshot(), project };
-  });
-  handle('local-coding-changes', (value, event) => { fromMain(event); const input = object(value); return get().localCoding.changes(input.projectId, input.fromVersionId, input.toVersionId); });
   // The detached viewer may read the review it was asked to show, and nothing else.
   let reviewTarget: ReviewTarget | null = null;
   handle('local-coding-review', (value, event) => {
@@ -847,17 +876,16 @@ export function registerIPC(
     }
     return get().localCoding.review(input.projectId, input.fromVersionId, input.toVersionId, input.fileId);
   });
-  handle('local-coding-review-changes', (value, event) => {
+  handle('local-coding-review-tree', (_value, event) => {
     const sender = BrowserWindow.fromWebContents(event.sender);
     if (!codeViewerWindow || sender !== codeViewerWindow || !reviewTarget) throw new UserError('This review is not open.');
-    return get().localCoding.changes(reviewTarget.projectId, object(value).fromVersionId, reviewTarget.toVersionId);
+    return get().localCoding.reviewTree(reviewTarget);
   });
   handle('local-coding-open-review', async (value, event) => {
     fromMain(event);
     const input = object(value);
-    // Validates ownership and that the file exists in one of the versions before showing anything.
-    get().localCoding.review(input.projectId, input.fromVersionId, input.toVersionId, input.fileId);
-    reviewTarget = get().localCoding.reviewTarget(input.projectId, input.fromVersionId, input.toVersionId, input.fileId);
+    // Validates ownership, the version and the file (when given) before showing anything.
+    reviewTarget = get().localCoding.reviewTarget(input.projectId, input.toVersionId, input.fileId ?? null);
     codeViewerVisible = true;
     openCodeViewer();
     if (codeViewerWindow && !codeViewerWindow.isDestroyed()) codeViewerWindow.webContents.send('review-target', reviewTarget);
@@ -874,20 +902,6 @@ export function registerIPC(
     const message = text(input.text, 'request', 4000);
     const main = getMainWindow();
     if (main && !main.isDestroyed()) { main.webContents.send('global-action', { type: 'review-action', payload: { kind: input.kind, text: message } }); main.show(); }
-  });
-  handle('local-coding-refresh', async (value, event) => {
-    fromMain(event);
-    const { chat, localCoding } = get();
-    chat.assertIdle();
-    const input = object(value);
-    const result = await localCoding.refresh(input.projectId, input.carryVersionId, input.addPaths ?? []);
-    return { result, project: localCoding.state(input.projectId) };
-  });
-  handle('local-coding-resolve', (value, event) => {
-    fromMain(event);
-    const input = object(value);
-    const result = get().localCoding.resolve(input.projectId, input.pendingId, input.decisions);
-    return { result, project: get().localCoding.state(input.projectId) };
   });
   let codeViewerWindow: BrowserWindow | null = null;
   let codeViewerBlocks: CodeViewerBlock[] = [];

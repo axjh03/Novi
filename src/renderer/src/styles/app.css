@@ -1700,6 +1700,11 @@ html.overlay-window #root {
    213 by 150 px) it starts at the top and the overlay scrolls, so its buttons can still be clicked. */
 .session-confirm { position: fixed; inset: 0; z-index: 10000; background: #0008; display: grid; overflow-y: auto; }
 .session-confirm > div { margin: auto; max-width: 460px; padding: 28px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
+.trace-saved { max-width: 560px !important; }
+.trace-saved h2 { margin: 0 0 8px; font-size: 17px; }
+.trace-saved p { margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.trace-path { display: block; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); font-size: 12px; overflow-wrap: anywhere; user-select: all; }
+.trace-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 
 /* ==========================================================================
    Desktop Application Shell & Frameless TitleBar
@@ -2056,7 +2061,7 @@ html.transparent-mode #root {
   --border: color-mix(in srgb, var(--transparent-text, #fff) 18%, transparent);
   --selected: var(--hover);
   --error-bg: color-mix(in srgb, var(--danger) 10%, transparent);
-  --lc-add: inherit; --lc-remove: inherit; --lc-edit: inherit;
+  --lc-add: inherit; --lc-remove: inherit; --lc-edit: inherit; --lc-new: inherit;
   background: transparent;
   border: 0;
   color-scheme: var(--transparent-color-scheme, dark);
@@ -3676,8 +3681,8 @@ html.novi-tray #tray-root { padding: 0 4px; -webkit-app-region: drag; zoom: var(
 /* ==========================================================================
    Local Coding: setup, explorer, history, answer cards and proposal review
    ========================================================================== */
-:root { --lc-add: #7ee2a8; --lc-add-bg: #17331f; --lc-remove: #ffb4ab; --lc-remove-bg: #3a1f22; --lc-edit: #f2cc8f; }
-:root[data-theme='light'] { --lc-add: #1a7f37; --lc-add-bg: #e6ffec; --lc-remove: #b42318; --lc-remove-bg: #ffebe9; --lc-edit: #8a5a00; }
+:root { --lc-add: #7ee2a8; --lc-add-bg: #17331f; --lc-remove: #ffb4ab; --lc-remove-bg: #3a1f22; --lc-edit: #7ee2a8; --lc-new: #8ab4ff; }
+:root[data-theme='light'] { --lc-add: #1a7f37; --lc-add-bg: #e6ffec; --lc-remove: #b42318; --lc-remove-bg: #ffebe9; --lc-edit: #1a7f37; --lc-new: #0969da; }
 
 /* Setup panel (src/renderer/src/components/LocalCodingSetup.tsx) */
 .lc-setup { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 20px 22px 28px; }
@@ -3688,15 +3693,15 @@ html.novi-tray #tray-root { padding: 0 4px; -webkit-app-region: drag; zoom: var(
 .lc-folder-row { display: flex; gap: 8px; }
 .lc-folder-row input { flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 .lc-browse { align-self: flex-start; padding: 4px 6px; font-size: 12px; }
-.lc-extra { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.lc-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 260px; padding: 3px 4px 3px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lc-chip .icon-button { width: 22px; height: 22px; }
-.lc-add.secondary, .lc-extra .secondary { min-height: 32px; padding: 0 12px; font-size: 12px; }
-.lc-engine-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; }
+.lc-engine-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
 .lc-engine-grid label { gap: 6px; font-size: 12px; }
 .lc-engine-grid select { min-height: 36px; }
 .lc-reasoning { grid-column: 1 / -1; display: flex; gap: 8px; align-items: baseline; font-size: 12px; color: var(--muted); }
-.lc-reasoning strong { color: var(--text); font-weight: 600; }
+.lc-reasoning strong { display: inline-flex; align-items: center; gap: 6px; color: var(--text); font-weight: 600; }
+.lc-reasoning img { border-radius: 3px; }
+.lc-folder-summary { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.lc-folder-summary svg { flex: none; color: var(--lc-edit); }
+.lc-folder-summary span { color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
 .lc-problem { grid-column: 1 / -1; margin: 0; color: var(--warning); font-size: 12px; }
 .lc-status { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--muted); font-size: 12px; }
 .lc-preview { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); font-size: 12px; }
@@ -3748,35 +3753,6 @@ html.novi-tray #tray-root { padding: 0 4px; -webkit-app-region: drag; zoom: var(
 .explorer-note { padding: 0 14px 10px; }
 @media (max-width: 620px) { .explorer-body { grid-template-columns: 1fr; } .explorer-places { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); } }
 
-/* History bar (src/renderer/src/components/LocalCodingHistory.tsx) */
-.lc-history { display: flex; flex-direction: column; gap: 6px; margin: 10px 16px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: 12px; }
-.transparent-mode .lc-history { background: color-mix(in srgb, var(--surface) 55%, transparent); }
-.lc-history-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.lc-session-name { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lc-engine { color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lc-history-top .icon-button { margin-left: auto; width: 28px; height: 28px; }
-.lc-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
-.lc-version { display: inline-flex; align-items: center; gap: 5px; flex: none; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: 12px; }
-.lc-version.local { border-style: dashed; }
-.lc-version[aria-pressed='true'] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); font-weight: 600; }
-.lc-next { margin: 0; color: var(--muted); }
-.lc-next strong { color: var(--text); }
-.lc-ready { display: flex; align-items: center; gap: 6px; margin: 0; padding: 4px 8px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.lc-ready .text-button { padding: 2px 6px; font-size: 12px; }
-.lc-ready .icon-button { width: 22px; height: 22px; margin-left: auto; }
-.lc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.lc-actions .text-button { gap: 5px; padding: 4px 7px; font-size: 12px; }
-.lc-engine-switch { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
-.lc-engine-switch > div:last-child { display: flex; justify-content: flex-end; gap: 6px; }
-.lc-engine-switch .primary { min-height: 34px; padding: 0 14px; }
-.lc-conflicts { max-width: 620px; max-height: 80vh; overflow-y: auto; }
-.lc-conflicts ul { margin: 12px 0; padding: 0; list-style: none; }
-.lc-conflicts li { display: flex; flex-direction: column; gap: 4px; padding: 10px 0; border-top: 1px solid var(--border); }
-.lc-conflict-path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; overflow-wrap: anywhere; }
-.lc-conflict-actions { display: flex; flex-wrap: wrap; gap: 4px; }
-.lc-conflict-actions .text-button { padding: 4px 8px; font-size: 12px; border: 1px solid var(--border); }
-.lc-conflict-actions .chosen { border-color: var(--accent); color: var(--text); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.lc-conflict-footer { display: flex; justify-content: flex-end; gap: 8px; }
 
 /* Tray session bar (src/renderer/src/pages/ChatPage.tsx) */
 .lc-session-bar { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--muted); }
@@ -3786,7 +3762,6 @@ html.novi-tray #tray-root { padding: 0 4px; -webkit-app-region: drag; zoom: var(
 .lc-readonly-pill { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); }
 
 /* Answer cards (src/renderer/src/components/chat/Message.tsx) */
-.lc-request-base { display: inline-block; margin-bottom: 4px; padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: 11px; }
 .lc-result { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .lc-progress { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--muted); font-size: 12px; }
 .lc-progress strong { color: var(--text); }
@@ -3795,18 +3770,22 @@ html.novi-tray #tray-root { padding: 0 4px; -webkit-app-region: drag; zoom: var(
 .lc-card:hover { background: var(--hover); }
 .lc-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .lc-card.edit { border-left-color: var(--lc-edit); }
-.lc-card.create { border-left-color: var(--lc-add); }
+.lc-card.create { border-left-color: var(--lc-new); }
 .lc-card.delete { border-left-color: var(--lc-remove); }
 .lc-op { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; letter-spacing: .04em; }
 .lc-op.edit, .lc-card.edit .lc-op { color: var(--lc-edit); }
-.lc-op.create, .lc-card.create .lc-op { color: var(--lc-add); }
+.lc-op.create, .lc-card.create .lc-op { color: var(--lc-new); }
 .lc-op.delete, .lc-card.delete .lc-op { color: var(--lc-remove); }
 .lc-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 .lc-counts { display: inline-flex; gap: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
 .lc-add { color: var(--lc-add); }
 .lc-del { color: var(--lc-remove); }
 .lc-reason { grid-column: 2 / -1; color: var(--muted); font-size: 11px; }
-.lc-provenance { margin: 0; color: var(--subtle); font-size: 11px; }
+.lc-trace { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; color: var(--muted); font-size: 11px; }
+.lc-trace code { font-size: 11px; overflow-wrap: anywhere; color: var(--text); }
+.lc-trace .text-button { gap: 4px; padding: 2px 6px; font-size: 11px; }
+.lc-changes-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+.lc-changes-head .text-button { gap: 5px; padding: 3px 7px; font-size: 12px; }
 
 .agent-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); overflow: hidden; }
 .agent-row { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: start; gap: 14px; min-width: 0; padding: 17px 16px; border-bottom: 1px solid var(--border); transition: background 160ms; }
@@ -3837,19 +3816,36 @@ html.novi-tray #tray-root { padding: 0 4px; -webkit-app-region: drag; zoom: var(
 }
 
 /* Proposal review in the detached viewer (src/renderer/src/components/RepositoryReview.tsx) */
-.review-viewer .code-viewer-header strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.review-compare-label { margin-left: auto; white-space: nowrap; }
-.review-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 12px; }
-.review-toolbar [role='group'] { display: flex; flex-wrap: wrap; gap: 4px; }
-.review-toolbar .text-button { padding: 3px 8px; font-size: 11px; border: 1px solid transparent; }
-.review-toolbar .text-button[aria-pressed='true'] { border-color: var(--accent); color: var(--text); }
-.review-files { display: flex; gap: 4px; overflow-x: auto; padding: 6px 10px; border-bottom: 1px solid var(--border); }
-.review-file { display: inline-flex; align-items: center; gap: 6px; flex: none; max-width: 260px; padding: 3px 8px; border-radius: 6px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.review-file[aria-current='true'] { background: var(--hover); color: var(--text); }
+.review-viewer .code-viewer-header strong { white-space: nowrap; }
+.review-summary { margin-left: 0 !important; color: var(--muted); font-size: 11px !important; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-viewer .code-viewer-close { margin-left: auto; }
+.review-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: clamp(170px, 28%, 300px) minmax(0, 1fr); }
+.review-tree { min-height: 0; overflow: auto; padding: 4px 0 10px; border-right: 1px solid var(--border); background: var(--panel); font-size: 12px; -webkit-app-region: no-drag; }
+.review-tree ul { margin: 0; padding: 0; list-style: none; }
+.review-tree-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 10px 6px; color: var(--muted); font-size: 11px; }
+.review-filter { display: inline-flex; flex-direction: row; align-items: center; gap: 5px; margin: 0; font-size: 11px; font-weight: 400; cursor: pointer; }
+.review-filter input { width: 13px; height: 13px; margin: 0; }
+.tree-row { display: flex; align-items: center; gap: 5px; width: 100%; padding: 3px 10px 3px calc(8px + var(--depth, 0) * 14px); border-radius: 0; color: var(--text); font: inherit; text-align: left; white-space: nowrap; }
+.tree-row:hover { background: var(--hover); }
+.tree-row[aria-current='true'] { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.tree-row svg { flex: none; color: var(--muted); }
+.tree-indent { flex: none; width: 13px; }
+.tree-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tree-row.edit .tree-name, .tree-row.edit svg { color: var(--lc-edit); }
+.tree-row.create .tree-name, .tree-row.create svg { color: var(--lc-new); }
+.tree-row.delete .tree-name, .tree-row.delete svg { color: var(--lc-remove); }
+.tree-row.delete .tree-name { text-decoration: line-through; }
+.tree-dot { flex: none; width: 6px; height: 6px; margin-left: auto; border-radius: 50%; background: var(--lc-edit); }
+.review-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.review-pane > .review-empty, .review-pane > .error { margin: 12px; }
+.review-file-head { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 10px; border-bottom: 1px solid var(--border); font-size: 12px; -webkit-app-region: no-drag; }
+.review-file-head strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; }
+.review-file-head .icon-button { margin-left: auto; width: 28px; height: 28px; }
+@media (max-width: 640px) { .review-layout { grid-template-columns: 1fr; grid-template-rows: minmax(120px, 35%) minmax(0, 1fr); } .review-tree { border-right: 0; border-bottom: 1px solid var(--border); } }
 .review-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 11px; color: var(--muted); }
 .review-actions > span:first-child { margin-right: auto; }
 .review-actions .text-button { gap: 5px; padding: 3px 7px; font-size: 11px; }
-.review-scroll { padding: 8px 0; background: #0d1117; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.review-scroll { flex: 1; padding: 8px 0; background: #0d1117; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 .review-empty { padding: 0 12px; color: var(--muted); }
 .diff-hunk { margin-bottom: 6px; }
 /* Its own row above the change, so it never covers code. */

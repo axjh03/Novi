@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { mkdirSync, rmSync } from 'node:fs';
-import { ENGINES, LOCAL_CODING_LIMITS, PROPOSAL_SCHEMA, isEngineId, type ChangeSummary, type EngineId, type EngineModel, type EngineReadiness, type FileEntry, type LocalCodingBinding, type LocalCodingMessage, type ProjectState, type ProjectVersion, type Proposal, type RefreshDecision, type RefreshResult, type SourceRoot, type TaskState } from '../../shared/localCoding';
+import { ENGINES, LOCAL_CODING_LIMITS, PROPOSAL_SCHEMA, isEngineId, type ChangeSummary, type EngineId, type EngineModel, type EngineReadiness, type FileEntry, type LocalCodingBinding, type LocalCodingMessage, type ProjectState, type ProjectVersion, type Proposal, type RefreshDecision, type RefreshResult, type ReviewTree, type SourceRoot, type TaskState } from '../../shared/localCoding';
 import type { ChatEvent, ChatMessage, Conversation, ProviderConnection } from '../../shared/types';
 import type { CredentialStore } from './credentials';
 import type { ImageService } from './images';
@@ -19,7 +19,8 @@ import { EngineInstaller } from './codingAgents/install';
 import { listModels as providerModels } from './models';
 import { writeLocalCodingError } from './localCodingLog';
 import { debug } from './debug';
-import type { AgentImage, CodingAgent } from './codingAgents/types';
+import { defaultEffort, type AgentImage, type CodingAgent } from './codingAgents/types';
+import type { ReviewTarget } from '../../shared/types';
 import { answerStyleInstructions, type AnswerStyle } from '../../shared/interviewProfile';
 
 const ENGINE_INSTRUCTIONS = `You are a read-only coding assistant inside Novi. You analyze one immutable virtual version of the user's project.
@@ -231,7 +232,7 @@ export class LocalCodingService {
     return {
       projectId: meta.id, name: meta.name, roots: meta.roots, versions: meta.versions, selectedVersionId: meta.selectedVersionId,
       engine: meta.engine, connectionId: meta.connectionId, connectionName: connection?.name ?? 'Unavailable connection', model: meta.model,
-      reasoningEffort: cached?.highestEffort ?? null,
+      reasoningEffort: cached ? defaultEffort(cached.efforts) : null,
       activeTaskId: this.activeTask?.projectId === meta.id ? this.activeTask.taskId : null,
       activeTaskVersionId: this.activeTask?.projectId === meta.id ? this.activeTask.versionId : null,
     };
@@ -272,16 +273,32 @@ export class LocalCodingService {
     return reviewFile(this.store, meta, from, to, text(fileId, 'file', 40));
   }
 
-  /** Everything the detached viewer needs to offer both comparisons for a file. */
-  reviewTarget(projectId: unknown, fromVersionId: unknown, toVersionId: unknown, fileId: unknown) {
+  /** The review window compares a proposed version with the local files it was built from. Without a file, the first changed one is shown. */
+  reviewTarget(projectId: unknown, toVersionId: unknown, fileId: unknown): ReviewTarget {
     const meta = this.load(projectId);
-    const to = meta.versions.find((version) => version.id === toVersionId);
-    if (!to) throw new UserError('This version is not part of the project.');
-    return {
-      projectId: meta.id, fromVersionId: fromVersionId === null ? null : String(fromVersionId), toVersionId: to.id, fileId: text(fileId, 'file', 40),
-      parentVersionId: to.parentVersionId, localSnapshotId: to.kind === 'local' ? null : to.localSnapshotId,
-      labels: Object.fromEntries(meta.versions.map((version) => [version.id, version.label])),
+    const to = this.store.version(meta, toVersionId);
+    const fromVersionId = to.kind === 'local' ? null : to.localSnapshotId;
+    let file = fileId === null || fileId === undefined || fileId === '' ? null : text(fileId, 'file', 40);
+    if (file) reviewFile(this.store, meta, fromVersionId ? this.store.version(meta, fromVersionId) : null, to, file);
+    else file = (fromVersionId ? changedFiles(this.store.version(meta, fromVersionId), to)[0]?.fileId : null) ?? to.files[0]?.fileId ?? null;
+    return { projectId: meta.id, fromVersionId, toVersionId: to.id, fileId: file };
+  }
+
+  /** Every file of the reviewed version, plus the files the proposal deletes, each marked with what the proposal does to it. */
+  reviewTree(target: ReviewTarget): ReviewTree {
+    const meta = this.load(target.projectId);
+    const to = this.store.version(meta, target.toVersionId);
+    const from = target.fromVersionId ? this.store.version(meta, target.fromVersionId) : null;
+    const changed = from ? changedFiles(from, to) : [];
+    const operation = new Map(changed.map((item) => [item.fileId, item.operation]));
+    const roots = [...to.roots, ...(from?.roots ?? [])];
+    const path = (entry: { rootId: string; relativePath: string }) => {
+      const root = roots.find((item) => item.id === entry.rootId);
+      return to.roots.length > 1 && root ? `${root.displayName}/${entry.relativePath}` : entry.relativePath;
     };
+    const files: ReviewTree['files'] = to.files.map((entry) => ({ fileId: entry.fileId, path: path(entry), operation: operation.get(entry.fileId) ?? 'unchanged' }));
+    for (const item of changed) if (item.operation === 'delete') files.push({ fileId: item.fileId, path: path(item), operation: 'delete' });
+    return { projectId: meta.id, fromVersionId: from?.id ?? null, toVersionId: to.id, files, changed: changed.length };
   }
 
   // ── Refresh ───────────────────────────────────────────────────────────
@@ -388,9 +405,11 @@ export class LocalCodingService {
     assistant.providerName = ENGINES.find((item) => item.id === binding.engine)!.label;
     assistant.model = binding.model;
     let lastEmit = 0;
+    const trace = debug.traceFile ? debug : null;
     const update = (state: TaskState, progress?: string, force = false) => {
       result.state = state;
       if (progress) result.progress = progress;
+      trace?.traceLine(`Local Coding state: ${state}`, progress ?? '');
       const now = Date.now();
       if (!force && now - lastEmit < 250) return;
       lastEmit = now;
@@ -407,15 +426,23 @@ export class LocalCodingService {
     const touch = () => { clearTimeout(idle); idle = setTimeout(() => controller.abort(new Error('idle')), IDLE_TIMEOUT_MS); };
     let apiKey = '';
     try {
-      update('preparing', 'Preparing', true);
       ({ apiKey } = this.credential(binding.engine, binding.connectionId));
       debug.secret(apiKey);
+      // Debug on: the session's trace file, which the chat points to from the first progress event on.
+      if (trace?.traceFile) {
+        result.traceFile = trace.traceFile;
+        trace.traceLine(`Local Coding request ${taskId}`, `engine ${binding.engine} · model ${binding.model} · connection ${binding.connectionId} · ${base.files.length} files in ${base.label} · ${input.imageIds.length} images · idle timeout ${IDLE_TIMEOUT_MS / 1000}s · task timeout ${TASK_TIMEOUT_MS / 1000}s`);
+      }
+      update('preparing', 'Preparing', true);
       debug.event('Checking engine model availability');
+      trace?.traceLine('Loading the engine model catalog');
       const model = await this.modelInfo(binding, controller.signal);
       controller.signal.throwIfAborted();
       debug.identify({ model: binding.model });
-      debug.event('Engine model ready', { effort: model.highestEffort || 'default' });
-      result.reasoningEffort = model.highestEffort;
+      const effort = defaultEffort(model.efforts);
+      debug.event('Engine model ready', { effort: effort || 'default' });
+      trace?.traceLine('Model ready', `${model.id} · efforts [${model.efforts.join(', ')}] · using ${effort ?? 'default'} · images ${model.images ? 'yes' : 'no'}`);
+      result.reasoningEffort = effort;
       const images: AgentImage[] = input.imageIds.map((id) => {
         const image = this.deps.images.resolve(id);
         if (!image.mimeType.startsWith('image/')) throw new UserError('Local Coding accepts images and text. Use speech to text for audio.');
@@ -454,20 +481,22 @@ export class LocalCodingService {
       const agent = this.agents[binding.engine];
       let denied = 0;
       const attempt = (promptText: string) => agent.run({
-        model: binding.model, effort: model.highestEffort, instructions: [ENGINE_INSTRUCTIONS, input.answerStyle ? `Apply the following speaking preference only inside the summary and approach text fields; keep the required JSON schema and evidence intact.\n${answerStyleInstructions(input.answerStyle, conversation.context?.interview?.customAnswerStyle || this.deps.storage.current().settings.customAnswerStyle)}` : ''].filter(Boolean).join('\n\n'), prompt: promptText, images,
+        model: binding.model, effort, instructions: [ENGINE_INSTRUCTIONS, input.answerStyle ? `Apply the following speaking preference only inside the summary and approach text fields; keep the required JSON schema and evidence intact.\n${answerStyleInstructions(input.answerStyle, conversation.context?.interview?.customAnswerStyle || this.deps.storage.current().settings.customAnswerStyle)}` : ''].filter(Boolean).join('\n\n'), prompt: promptText, images,
         schema: PROPOSAL_SCHEMA as unknown as Record<string, unknown>,
         tools: {
-          list: (args) => { debug.event('Tool: list snapshot files'); return reader.list(args); },
-          search: (args) => { debug.event('Tool: search snapshot files'); return reader.search(args); },
-          read: (args) => { debug.event('Tool: read snapshot file'); return reader.read(args); },
+          list: (args) => { debug.event('Tool: list snapshot files'); trace?.traceLine('Tool: list_files', typeof args.scope === 'string' ? `scope ${args.scope}` : ''); return reader.list(args); },
+          search: (args) => { debug.event('Tool: search snapshot files'); trace?.traceLine('Tool: search_files', `query "${String(args.query ?? '').slice(0, 120)}"${typeof args.scope === 'string' ? ` scope ${args.scope}` : ''}`); return reader.search(args); },
+          read: (args) => { debug.event('Tool: read snapshot file'); trace?.traceLine('Tool: read_file', `${base.files.find((entry) => entry.fileId === args.fileId)?.relativePath ?? `fileId ${String(args.fileId)}`}${args.startLine !== undefined || args.endLine !== undefined ? ` lines ${String(args.startLine ?? 1)}-${String(args.endLine ?? 'end')}` : ''}`); return reader.read(args); },
         },
         signal: controller.signal,
         onProgress: (state, detail) => { touch(); update(state, detail || (state === 'reading' ? 'Reading files' : 'Analyzing')); },
-        onDenied: () => { touch(); denied++; result.deniedRequests = denied; debug.event('Engine tool request denied', { denied }, 'warning'); },
+        onDenied: (what) => { touch(); denied++; result.deniedRequests = denied; debug.event('Engine tool request denied', { denied }, 'warning'); trace?.traceLine('Denied engine request', what); },
       }, { apiKey });
       update('analyzing', 'Analyzing', true);
+      trace?.traceLine('Engine started', `prompt ${prompt.length} characters`);
       let raw = await attempt(prompt);
       controller.signal.throwIfAborted();
+      trace?.traceLine('Engine answered', `${(typeof raw === 'string' ? raw : JSON.stringify(raw) ?? '').length} characters`);
       update('validating', 'Validating the proposal', true);
       let parsed, validated, repaired = false;
       try {
@@ -477,6 +506,7 @@ export class LocalCodingService {
         if (!(error instanceof ProposalInvalid) || controller.signal.aborted) throw error;
         // One bounded repair, against the same base version.
         repaired = true;
+        trace?.traceLine('Validation failed; asking for one correction', error.issues.slice(0, 20).join(' | '));
         update('analyzing', 'Correcting the proposal', true);
         const previous = typeof raw === 'string' ? raw : JSON.stringify(raw);
         raw = await attempt(`${prompt}\n\nYour previous answer for this request failed Novi's validation against ${base.label}:\n${error.issues.slice(0, 40).map((issue) => `- ${issue}`).join('\n')}\nRead the files again if needed and return a corrected, complete answer.\nPrevious answer (for reference):\n${previous.slice(0, 60_000)}`);
@@ -495,7 +525,7 @@ export class LocalCodingService {
       const proposal: Proposal = {
         id: proposalId, baseVersionId: base.id, resultingVersionId: resulting?.id ?? null, summary: parsed.summary, approach: parsed.approach,
         evidence: parsed.evidence, assumptions: parsed.assumptions, questions: parsed.questions, suggestedChecks: parsed.suggestedChecks,
-        changes, engine: binding.engine, model: binding.model, reasoningEffort: model.highestEffort, createdAt: Date.now(), validation: 'verified', execution: 'not-run', repaired,
+        changes, engine: binding.engine, model: binding.model, reasoningEffort: effort, createdAt: Date.now(), validation: 'verified', execution: 'not-run', repaired,
       };
       if (resulting) {
         // Artifacts first, then the history reference; select it only if the user is still on the base version.
@@ -507,12 +537,16 @@ export class LocalCodingService {
       result.resultingLabel = resulting?.label ?? null;
       result.changes = changes;
       result.progress = undefined;
-      assistant.content = describe(proposal, base.label, resulting?.label ?? null, denied);
+      assistant.content = describe(proposal, denied);
+      if (result.traceFile) assistant.content += `\n\n_Debug trace: ${result.traceFile}_`;
       update(parsed.questions.length && !changes.length ? 'needs-information' : 'complete', undefined, true);
       save();
       debug.event('Local Coding result saved', { changedFiles: changes.length, repaired });
+      trace?.traceLine('Saved', `${changes.length} changed file${changes.length === 1 ? '' : 's'}${repaired ? ' · corrected once' : ''}`);
     } catch (error) {
       const reason = controller.signal.reason;
+      if (reason instanceof Error) trace?.traceLine('Stopped', `reason: ${reason.message}`);
+      if (signal.aborted) trace?.traceLine('Stopped by the user'); else trace?.traceError(error);
       debug.event(signal.aborted ? 'Local Coding stopped' : 'Local Coding failed', { reason: reason instanceof Error ? reason.message : 'engine error', error: error instanceof Error ? error.name : 'Unknown error' }, signal.aborted ? 'warning' : 'error');
       if (signal.aborted) { result.state = 'cancelled'; result.progress = undefined; assistant.content ||= 'Stopped. Earlier iterations are unchanged.'; assistant.status = 'stopped'; }
       else {
@@ -526,10 +560,12 @@ export class LocalCodingService {
           : error instanceof Error && /^(Codex|Claude|The Codex|The Claude|Antigravity|The Antigravity)/.test(error.message) ? error.message
           : 'The engine could not complete this request. Earlier iterations are unchanged; try again.';
         assistant.error += log ? `\n\nDiagnostic log: ${log}\nRequest ID: ${taskId}` : '\n\nThe diagnostic log could not be written.';
+        if (result.traceFile) assistant.error += `\nDebug trace: ${result.traceFile}`;
         debug.event('Failure details', { message: assistant.error }, 'error');
       }
       emit({ type: 'progress', conversationId: conversation.id, messageId: assistant.id, localCoding: { ...result } });
     } finally {
+      trace?.traceLine('Local Coding request ended', result.state);
       clearTimeout(deadline); clearTimeout(idle);
       signal.removeEventListener('abort', relay);
       this.activeTask = null;
@@ -550,10 +586,12 @@ export class LocalCodingService {
   }
 }
 
-function describe(proposal: Proposal, baseLabel: string, resultLabel: string | null, denied: number): string {
+function describe(proposal: Proposal, denied: number): string {
   const list = (title: string, items: string[]) => items.length ? `\n\n**${title}**\n${items.map((item) => `- ${item}`).join('\n')}` : '';
-  const header = resultLabel ? `**${resultLabel}** · based on ${baseLabel}` : `Answer about ${baseLabel} · no code changes`;
-  return `${header}\n\n${proposal.summary}${proposal.approach ? `\n\n**Approach**\n${proposal.approach}` : ''}`
+  const count = proposal.changes.length;
+  const header = count ? `**Proposed changes · ${count} file${count === 1 ? '' : 's'}**` : '';
+  const notes = [count ? 'Nothing was changed on disk; open the files below to review the proposal.' : '', proposal.repaired ? 'The answer was corrected once after validation.' : '', denied ? `${denied} engine request${denied === 1 ? '' : 's'} outside read-only access denied.` : ''].filter(Boolean).join(' ');
+  return `${header ? `${header}\n\n` : ''}${proposal.summary}${proposal.approach ? `\n\n**Approach**\n${proposal.approach}` : ''}`
     + list('Evidence', proposal.evidence) + list('Assumptions', proposal.assumptions) + list('Questions', proposal.questions) + list('Suggested checks', proposal.suggestedChecks)
-    + `\n\n_Source references verified · Proposed behavior not executed${proposal.repaired ? ' · corrected once after validation' : ''}${denied ? ` · ${denied} engine request${denied === 1 ? '' : 's'} outside read-only access denied` : ''}._`;
+    + (notes ? `\n\n_${notes}_` : '');
 }

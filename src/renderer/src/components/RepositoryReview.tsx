@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Columns2, Copy, FileMinus2, FilePen, FilePlus2, MessageSquare, PencilLine, Rows3, X } from 'lucide-react';
-import type { ChangeOperation, DiffLine, FileReview } from '../../../shared/localCoding';
+import { Check, ChevronDown, ChevronRight, Columns2, Copy, File, FileMinus2, FilePen, FilePlus2, Folder, FolderOpen, MessageSquare, PencilLine, Rows3, X } from 'lucide-react';
+import type { DiffLine, FileReview, ReviewTree, ReviewTreeFile, TreeOperation } from '../../../shared/localCoding';
 import type { ReviewTarget } from '../../../shared/types';
 import { errorText, unwrap } from '../services/api';
 import { languageForPath, tokenizeCode } from './CodingModeHUD';
 
-// Read-only review: there is no Apply. NEW and DELETE describe proposals; nothing here touches the project.
+// Read-only review window: a file tree of the whole project on the left (edited files green, new files blue,
+// deleted files red and struck through), the selected file on the right as a GitHub-style diff.
+// There is no Apply. Nothing here touches the project.
 
 const CONTEXT = 3;
 type Segment = { kind: 'lines'; lines: DiffLine[]; hunk: number } | { kind: 'gap'; lines: DiffLine[]; id: number };
-const OPS: Record<ChangeOperation | 'unchanged', { label: string; Icon: typeof FilePen }> = {
-  edit: { label: 'EDIT', Icon: FilePen }, create: { label: 'NEW', Icon: FilePlus2 }, delete: { label: 'DELETE', Icon: FileMinus2 }, unchanged: { label: 'SAME', Icon: FilePen },
+const OPS: Record<TreeOperation, { label: string; Icon: typeof FilePen; note: string }> = {
+  edit: { label: 'EDITED', Icon: FilePen, note: 'Proposed edit. The file on disk is unchanged.' },
+  create: { label: 'NEW', Icon: FilePlus2, note: 'Proposed new file. It is not created on disk.' },
+  delete: { label: 'DELETED', Icon: FileMinus2, note: 'Proposed deletion. The file is not deleted on disk.' },
+  unchanged: { label: 'UNCHANGED', Icon: File, note: 'This file is not part of the proposal.' },
 };
 
 /** Splits a diff into hunks with three lines of context; longer unchanged runs collapse into expandable gaps. */
@@ -40,48 +45,98 @@ export function unifiedDiff(review: FileReview): string {
   }).join('\n') + '\n';
 }
 
+// ── File tree ──────────────────────────────────────────────────────────────
+
+export interface TreeNode { name: string; path: string; folders: TreeNode[]; files: ReviewTreeFile[]; changed: number }
+
+const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
+const fileName = (file: ReviewTreeFile) => file.path.slice(file.path.lastIndexOf('/') + 1);
+
+/** Nests the flat file list the way an editor's explorer shows it: folders first, then files, both alphabetical. */
+export function buildTree(files: ReviewTreeFile[]): TreeNode {
+  const root: TreeNode = { name: '', path: '', folders: [], files: [], changed: 0 };
+  for (const file of files) {
+    const parts = file.path.split('/');
+    let node = root;
+    const changed = file.operation !== 'unchanged';
+    if (changed) root.changed++;
+    for (const part of parts.slice(0, -1)) {
+      let next = node.folders.find((folder) => folder.name === part);
+      if (!next) { next = { name: part, path: node.path ? `${node.path}/${part}` : part, folders: [], files: [], changed: 0 }; node.folders.push(next); }
+      if (changed) next.changed++;
+      node = next;
+    }
+    node.files.push(file);
+  }
+  const sort = (node: TreeNode) => { node.folders.sort(byName); node.folders.forEach(sort); node.files.sort((a, b) => byName({ name: fileName(a) }, { name: fileName(b) })); };
+  sort(root);
+  return root;
+}
+
+type Row = { kind: 'folder'; node: TreeNode; depth: number } | { kind: 'file'; file: ReviewTreeFile; depth: number };
+
+/** The visible rows: collapsed folders hide their contents; "changed only" hides untouched files and folders. */
+export function treeRows(root: TreeNode, collapsed: ReadonlySet<string>, changedOnly: boolean): Row[] {
+  const rows: Row[] = [];
+  const walk = (node: TreeNode, depth: number) => {
+    for (const folder of node.folders) {
+      if (changedOnly && !folder.changed) continue;
+      rows.push({ kind: 'folder', node: folder, depth });
+      if (!collapsed.has(folder.path)) walk(folder, depth + 1);
+    }
+    for (const file of node.files) if (!changedOnly || file.operation !== 'unchanged') rows.push({ kind: 'file', file, depth });
+  };
+  walk(root, 0);
+  return rows;
+}
+
 function Code({ text, language }: { text: string; language: string }) {
   return <>{tokenizeCode(text, language).map((token, index) => token.kind === 'plain' ? token.text : <span className={`syntax-${token.kind}`} key={index}>{token.text}</span>)}</>;
 }
 
 export function RepositoryReview({ target, onClose }: { target: ReviewTarget; onClose: () => void }) {
-  const [compare, setCompare] = useState<string | null>(target.fromVersionId);
-  const [fileId, setFileId] = useState(target.fileId);
-  const [files, setFiles] = useState<Array<{ fileId: string; operation: ChangeOperation; rootName: string; relativePath: string }>>([]);
+  const [tree, setTree] = useState<ReviewTree | null>(null);
+  const [fileId, setFileId] = useState<string | null>(target.fileId);
   const [review, setReview] = useState<FileReview | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(''), [treeError, setTreeError] = useState('');
   const [expanded, setExpanded] = useState<number[]>([]);
-  const [split, setSplit] = useState(() => window.innerWidth >= 900);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const [changedOnly, setChangedOnly] = useState(false);
+  const [split, setSplit] = useState(() => window.innerWidth >= 1100);
   const [copied, setCopied] = useState('');
   const auto = useRef(true);
-  useEffect(() => { setCompare(target.fromVersionId); setFileId(target.fileId); }, [target]);
+  useEffect(() => { setFileId(target.fileId); }, [target]);
   useEffect(() => {
-    const onResize = () => { if (auto.current) setSplit(window.innerWidth >= 900); };
+    const onResize = () => { if (auto.current) setSplit(window.innerWidth >= 1100); };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+  // A new proposal replaces the tree; the selection follows the target.
   useEffect(() => {
     let alive = true;
-    void unwrap(window.novi.getReviewChanges(compare ?? target.toVersionId)).then((list) => { if (alive) setFiles(list); }).catch((cause) => { if (alive) setError(errorText(cause)); });
+    setTreeError('');
+    void unwrap(window.novi.getReviewTree()).then((next) => { if (alive) setTree(next); }).catch((cause) => { if (alive) setTreeError(errorText(cause)); });
     return () => { alive = false; };
-  }, [compare, target]);
+  }, [target.projectId, target.fromVersionId, target.toVersionId]);
   useEffect(() => {
     let alive = true;
     setReview(null); setError(''); setExpanded([]);
-    void unwrap(window.novi.getReviewDiff({ projectId: target.projectId, fromVersionId: compare, toVersionId: target.toVersionId, fileId }))
+    if (!fileId) return;
+    void unwrap(window.novi.getReviewDiff({ projectId: target.projectId, fromVersionId: target.fromVersionId, toVersionId: target.toVersionId, fileId }))
       .then((next) => { if (alive) setReview(next); }).catch((cause) => { if (alive) setError(errorText(cause)); });
     return () => { alive = false; };
-  }, [compare, fileId, target]);
+  }, [fileId, target]);
 
-  const parts = useMemo(() => review ? segments(review.lines) : [], [review]);
+  const root = useMemo(() => buildTree(tree?.files ?? []), [tree]);
+  const rows = useMemo(() => treeRows(root, collapsed, changedOnly), [root, collapsed, changedOnly]);
+  const parts = useMemo(() => review ? review.operation === 'unchanged' ? [{ kind: 'lines' as const, lines: review.lines, hunk: 0 }] : segments(review.lines) : [], [review]);
   const language = review ? languageForPath(review.relativePath) : 'code';
   async function copy(label: string, text: string) {
     try { await unwrap(window.novi.copyText(text)); setCopied(label); setTimeout(() => setCopied((current) => current === label ? '' : current), 1800); }
     catch (cause) { setError(errorText(cause)); }
   }
+  const toggleFolder = (path: string) => setCollapsed((current) => { const next = new Set(current); if (next.has(path)) next.delete(path); else next.add(path); return next; });
   const path = review ? `${review.rootName}/${review.relativePath}` : '';
-  const toLabel = target.labels[target.toVersionId] ?? 'proposal';
-  const fromLabel = compare ? target.labels[compare] ?? 'earlier version' : null;
   const op = review ? OPS[review.operation] : null;
 
   const row = (line: DiffLine, key: string) => <div key={key} className={`diff-line ${line.type}`}>
@@ -106,39 +161,68 @@ export function RepositoryReview({ target, onClose }: { target: ReviewTarget; on
     </div>);
   };
 
+  const changed = tree?.changed ?? 0;
   return <section className="code-viewer review-viewer" aria-label="Proposal review">
     <header className="code-viewer-header">
-      {op && <span className={`lc-op ${review!.operation}`}><op.Icon size={13} aria-hidden="true" />{op.label}</span>}
-      <strong title={path}>{review ? review.relativePath : 'Loading…'}</strong>
-      <span className="review-compare-label">{fromLabel ? `${toLabel} compared with ${fromLabel}` : toLabel}</span>
+      <strong>Proposed changes</strong>
+      <span className="review-summary">{tree ? `${changed} file${changed === 1 ? '' : 's'} changed · compared with your local files` : 'Loading…'}</span>
       <button className="code-viewer-close" type="button" aria-label="Close review" onClick={onClose}><X size={15} /></button>
     </header>
-    <div className="review-toolbar">
-      <div role="group" aria-label="Compare against">
-        {target.parentVersionId && <button type="button" className="text-button" aria-pressed={compare === target.parentVersionId} onClick={() => setCompare(target.parentVersionId)}>Against parent{target.labels[target.parentVersionId] ? ` (${target.labels[target.parentVersionId]})` : ''}</button>}
-        {target.localSnapshotId && target.localSnapshotId !== target.parentVersionId && <button type="button" className="text-button" aria-pressed={compare === target.localSnapshotId} onClick={() => setCompare(target.localSnapshotId)}>Against local snapshot ({target.labels[target.localSnapshotId]})</button>}
+    <div className="review-layout">
+      <nav className="review-tree" aria-label="Project files">
+        <div className="review-tree-head">
+          <span>{tree ? `${tree.files.length.toLocaleString()} files` : ''}</span>
+          <label className="review-filter"><input type="checkbox" checked={changedOnly} onChange={(event) => setChangedOnly(event.target.checked)} />Changed only</label>
+        </div>
+        {treeError && <p className="error" role="alert">{treeError}</p>}
+        {tree && !rows.length && <p className="review-empty">{changedOnly ? 'No changed files.' : 'No files.'}</p>}
+        <ul role="tree" aria-label="Files">
+          {rows.map((item) => item.kind === 'folder'
+            ? <li key={`d:${item.node.path}`} role="treeitem" aria-expanded={!collapsed.has(item.node.path)}>
+              <button type="button" className="tree-row folder" style={{ '--depth': item.depth } as React.CSSProperties} onClick={() => toggleFolder(item.node.path)} title={item.node.path}>
+                {collapsed.has(item.node.path) ? <ChevronRight size={13} aria-hidden="true" /> : <ChevronDown size={13} aria-hidden="true" />}
+                {collapsed.has(item.node.path) ? <Folder size={13} aria-hidden="true" /> : <FolderOpen size={13} aria-hidden="true" />}
+                <span className="tree-name">{item.node.name}</span>
+                {item.node.changed > 0 && <span className="tree-dot" aria-label={`${item.node.changed} changed inside`} />}
+              </button>
+            </li>
+            : <li key={`f:${item.file.fileId}`} role="treeitem" aria-selected={item.file.fileId === fileId}>
+              <button type="button" className={`tree-row ${item.file.operation}`} style={{ '--depth': item.depth } as React.CSSProperties} aria-current={item.file.fileId === fileId ? 'true' : undefined} onClick={() => setFileId(item.file.fileId)} title={`${item.file.path} · ${OPS[item.file.operation].label.toLowerCase()}`}>
+                <span className="tree-indent" aria-hidden="true" />
+                <OPS.unchanged.Icon size={13} aria-hidden="true" />
+                <span className="tree-name">{fileName(item.file)}</span>
+              </button>
+            </li>)}
+        </ul>
+      </nav>
+      <div className="review-pane">
+        {!fileId && <p className="review-empty">Select a file to view it.</p>}
+        {error && <p className="error" role="alert">{error}</p>}
+        {review && op && <>
+          <div className="review-file-head">
+            <span className={`lc-op ${review.operation}`}><op.Icon size={13} aria-hidden="true" />{op.label}</span>
+            <strong title={path}>{review.relativePath}</strong>
+            <span className="lc-counts">{review.additions > 0 && <span className="lc-add">+{review.additions}</span>}{review.deletions > 0 && <span className="lc-del">−{review.deletions}</span>}</span>
+            <button type="button" className="icon-button" aria-label={split ? 'Unified view' : 'Side-by-side view'} title={split ? 'Unified view' : 'Side-by-side view'} onClick={() => { auto.current = false; setSplit((value) => !value); }}>{split ? <Rows3 size={14} /> : <Columns2 size={14} />}</button>
+          </div>
+          <div className="review-actions">
+            <span>{op.note}</span>
+            {review.proposedText !== null && <button type="button" className="text-button" onClick={() => void copy('file', review.proposedText!)}>{copied === 'file' ? <Check size={13} /> : <Copy size={13} />}{review.operation === 'create' ? 'Copy new file' : review.operation === 'unchanged' ? 'Copy file' : 'Copy proposed file'}</button>}
+            {review.operation !== 'unchanged' && <button type="button" className="text-button" onClick={() => void copy('diff', unifiedDiff(review))}>{copied === 'diff' ? <Check size={13} /> : <Copy size={13} />}Copy diff</button>}
+            <button type="button" className="text-button" onClick={() => void window.novi.sendReviewAction({ kind: 'ask', text: `About ${path}: ` })}><MessageSquare size={13} />Ask about this file</button>
+            {review.operation !== 'unchanged' && <button type="button" className="text-button" onClick={() => void window.novi.sendReviewAction({ kind: 'revise', text: `Revise the proposed change to ${path}: ` })}><PencilLine size={13} />Request a revision</button>}
+          </div>
+          <div className="code-viewer-scroll review-scroll" tabIndex={0} role="region" aria-label={`${op.label.toLowerCase()} ${path}`}>
+            {!review.lines.length && <p className="review-empty">This file is empty.</p>}
+            {parts.map((segment) => segment.kind === 'gap' && !expanded.includes(segment.id)
+              ? <button type="button" key={`gap-${segment.id}`} className="diff-gap" onClick={() => setExpanded((current) => [...current, segment.id])}>Show {segment.lines.length} unchanged line{segment.lines.length === 1 ? '' : 's'}</button>
+              : <div key={segment.kind === 'gap' ? `gap-${segment.id}` : `hunk-${segment.hunk}`} className={`diff-hunk ${split ? 'split' : 'unified'}`}>
+                {segment.kind === 'lines' && segment.lines.some((line) => line.type === 'add') && <button type="button" className="text-button diff-copy" onClick={() => void copy(`hunk-${segment.hunk}`, segment.lines.filter((line) => line.type !== 'remove').map((line) => line.text).join('\n'))}>{copied === `hunk-${segment.hunk}` ? <Check size={12} /> : <Copy size={12} />}Copy replacement</button>}
+                {split && review.operation === 'edit' ? splitRows(segment.lines, `s-${segment.kind}-${segment.kind === 'gap' ? segment.id : segment.hunk}`) : segment.lines.map((line, index) => row(line, `${segment.kind}-${index}`))}
+              </div>)}
+          </div>
+        </>}
       </div>
-      <button type="button" className="icon-button" aria-label={split ? 'Unified view' : 'Side-by-side view'} title={split ? 'Unified view' : 'Side-by-side view'} onClick={() => { auto.current = false; setSplit((value) => !value); }}>{split ? <Rows3 size={14} /> : <Columns2 size={14} />}</button>
     </div>
-    {files.length > 1 && <nav className="review-files" aria-label="Files in this proposal">{files.map((file) => { const meta = OPS[file.operation]; return <button type="button" key={file.fileId} aria-current={file.fileId === fileId ? 'true' : undefined} className={`review-file ${file.operation}`} onClick={() => setFileId(file.fileId)} title={`${file.rootName}/${file.relativePath}`}><span className={`lc-op ${file.operation}`}>{meta.label}</span>{file.relativePath}</button>; })}</nav>}
-    {error && <p className="error" role="alert">{error}</p>}
-    {review && <>
-      <div className="review-actions">
-        <span>{review.additions > 0 && <span className="lc-add">+{review.additions}</span>} {review.deletions > 0 && <span className="lc-del">−{review.deletions}</span>} {review.operation === 'delete' ? 'Proposed deletion: the file is not deleted on disk.' : review.operation === 'create' ? 'Proposed new file: it is not created on disk.' : review.operation === 'unchanged' ? 'No differences.' : 'Proposed edit.'}</span>
-        {review.proposedText !== null && <button type="button" className="text-button" onClick={() => void copy('file', review.proposedText!)}>{copied === 'file' ? <Check size={13} /> : <Copy size={13} />}{review.operation === 'create' ? 'Copy new file' : 'Copy proposed file'}</button>}
-        <button type="button" className="text-button" onClick={() => void copy('diff', unifiedDiff(review))}>{copied === 'diff' ? <Check size={13} /> : <Copy size={13} />}Copy diff</button>
-        <button type="button" className="text-button" onClick={() => void window.novi.sendReviewAction({ kind: 'ask', text: `About ${path} in ${toLabel}: ` })}><MessageSquare size={13} />Ask about this file</button>
-        <button type="button" className="text-button" onClick={() => void window.novi.sendReviewAction({ kind: 'revise', text: `Revise ${path} (${toLabel}): ` })}><PencilLine size={13} />Request a revision</button>
-      </div>
-      <div className="code-viewer-scroll review-scroll" tabIndex={0} role="region" aria-label={`Diff of ${path}`}>
-        {!review.lines.length && <p className="review-empty">This file is empty.</p>}
-        {parts.map((segment) => segment.kind === 'gap' && !expanded.includes(segment.id)
-          ? <button type="button" key={`gap-${segment.id}`} className="diff-gap" onClick={() => setExpanded((current) => [...current, segment.id])}>Show {segment.lines.length} unchanged line{segment.lines.length === 1 ? '' : 's'}</button>
-          : <div key={segment.kind === 'gap' ? `gap-${segment.id}` : `hunk-${segment.hunk}`} className={`diff-hunk ${split ? 'split' : 'unified'}`}>
-            {segment.kind === 'lines' && segment.lines.some((line) => line.type === 'add') && <button type="button" className="text-button diff-copy" onClick={() => void copy(`hunk-${segment.hunk}`, segment.lines.filter((line) => line.type !== 'remove').map((line) => line.text).join('\n'))}>{copied === `hunk-${segment.hunk}` ? <Check size={12} /> : <Copy size={12} />}Copy replacement</button>}
-            {split ? splitRows(segment.lines, `s-${segment.kind}-${segment.kind === 'gap' ? segment.id : segment.hunk}`) : segment.lines.map((line, index) => row(line, `${segment.kind}-${index}`))}
-          </div>)}
-      </div>
-    </>}
   </section>;
 }

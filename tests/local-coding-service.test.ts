@@ -71,11 +71,21 @@ test('a request becomes a pinned, validated iteration; explanation-only answers 
   assert.equal(assistant.status, 'complete');
   assert.equal(assistant.localCoding?.state, 'complete');
   assert.equal(assistant.localCoding?.resultingLabel, 'Iteration 1');
-  assert.equal(assistant.localCoding?.reasoningEffort, 'xhigh', 'the highest listed effort is used and recorded');
-  assert.equal(env.agent.runs[0].effort, 'xhigh');
-  assert.match(assistant.content, /Iteration 1\*\* · based on Local S0/);
-  assert.match(assistant.content, /Proposed behavior not executed/);
+  assert.equal(assistant.localCoding?.reasoningEffort, 'high', '"high" is used when the model offers it, not the slowest maximum');
+  assert.equal(env.agent.runs[0].effort, 'high');
+  assert.match(assistant.content, /^\*\*Proposed changes · 1 file\*\*/);
+  assert.match(assistant.content, /Nothing was changed on disk/);
+  assert.doesNotMatch(assistant.content, /Iteration|Local S0/, 'version bookkeeping stays out of the answer');
   assert.equal(env.conversation().messages.at(-2)!.localCodingRequest?.baseLabel, 'Local S0');
+  // The review window compares the proposal with the local files and lists the whole project.
+  const target = env.service.reviewTarget(env.projectId, assistant.localCoding!.resultingVersionId, null);
+  assert.equal(target.fromVersionId, s0);
+  assert.equal(target.fileId, assistant.localCoding!.changes[0].fileId, 'without a file, the first changed one is selected');
+  const tree = env.service.reviewTree(target);
+  assert.equal(tree.changed, 1);
+  assert.deepEqual(tree.files.filter((file: { operation: string }) => file.operation !== 'unchanged').map((file: { path: string; operation: string }) => [file.path, file.operation]), [['src/cart.js', 'edit']]);
+  assert(tree.files.some((file: { operation: string }) => file.operation === 'unchanged'), 'untouched files are listed too');
+  assert.throws(() => env.service.reviewTarget(env.projectId, assistant.localCoding!.resultingVersionId, 'nope'), /not in either version/);
   assert.deepEqual(env.events.map((event) => event.type).filter((type, index, all) => all.indexOf(type) === index), ['started', 'progress', 'finished']);
   assert(env.events.filter((event) => event.type === 'progress').every((event) => event.type === 'progress' && event.messageId === assistant.id));
   state = env.service.state(env.projectId);
@@ -257,6 +267,39 @@ test('unexpected engine errors leave a diagnostic log and a matching request ID 
   await env.send('Retry.', s0);
   assert.match(env.conversation().messages.at(-1)!.error!, /Codex: original failure/);
   assert.match(env.conversation().messages.at(-1)!.error!, /diagnostic log could not be written/);
+});
+
+test('with Debug on, the session trace records every request as it runs and chat shows its path', async t => {
+  const env = await setup(t);
+  const { debug } = tsxRequire('../src/main/services/debug.ts', import.meta.url);
+  const { SessionTrace } = tsxRequire('../src/main/services/sessionTrace.ts', import.meta.url);
+  debug.setEnabled(true); t.after(() => { debug.attachTrace(null); debug.setEnabled(false); });
+  debug.attachTrace(new SessionTrace(env.storage.directory, 'Acme Staff Engineer', 'Connection "OpenAI work"'));
+  const s0 = env.service.state(env.projectId).selectedVersionId;
+  env.agent.answers.push(({ tools }) => answer([{ operation: 'edit', sourceFileId: fileId(tools.list({}), 'src/cart.js'), reason: 'Sum prices', edits: [{ startLine: 2, before: ['  return items.length;'], after: ['  return items.reduce((sum, item) => sum + item.price, 0);'] }] }]));
+  await env.send('PRIVATE_PROMPT sum prices.', s0);
+  const assistant = env.conversation().messages.at(-1)!;
+  const file = assistant.localCoding!.traceFile!;
+  assert.match(file, /logs[\\/]Acme-Staff-Engineer-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}\.txt$/, file);
+  assert(assistant.content.includes(`Debug trace: ${file}`), 'the answer names the trace file');
+  const first = env.events.find((event) => event.type === 'progress');
+  assert.equal(first?.type === 'progress' && first.localCoding.traceFile, file, 'the path is shown from the first progress event');
+  const text = readFileSync(file, 'utf8');
+  for (const expected of [/Session "Acme Staff Engineer"/, /Local Coding request .*engine codex .*model gpt-test/, /Model ready .*using high/, /state: preparing/, /Tool: list_files/, /state: reading  Listing files/, /Engine answered/, /state: complete/, /request ended  complete/]) assert.match(text, expected);
+  assert.doesNotMatch(text, /sk-secret-test|PRIVATE_PROMPT|export function total/, 'no key, prompt or file contents');
+  // A failure lands in the same session file, redacted, and the error names it.
+  env.agent.answers.push(() => { throw new TypeError('boom sk-secret-test'); });
+  await env.send('Again.', env.service.state(env.projectId).selectedVersionId);
+  const failed = env.conversation().messages.at(-1)!;
+  assert.equal(failed.localCoding!.traceFile, file, 'one file for the whole session');
+  assert(failed.error!.includes(`Debug trace: ${file}`));
+  assert.match(readFileSync(file, 'utf8'), /ERROR  TypeError: boom \[REDACTED\]/);
+  // Trace closed (session ended or Debug off): nothing in chat.
+  assert.equal(debug.attachTrace(null), file, 'closing returns the file to announce');
+  env.agent.answers.push(() => answer([], { summary: 'It sums prices.' }));
+  await env.send('Explain.', env.service.state(env.projectId).selectedVersionId);
+  assert.equal(env.conversation().messages.at(-1)!.localCoding!.traceFile, undefined);
+  assert.doesNotMatch(env.conversation().messages.at(-1)!.content, /Debug trace/);
 });
 
 test('refresh: snapshot, carry forward, conflicts resolved virtually, AI reconcile context', async (t) => {

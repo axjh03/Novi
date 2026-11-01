@@ -3,7 +3,7 @@ import type { DebugState } from './debug';
 import type { InterviewEvent, InterviewFrame, InterviewSession, InterviewStart, ListeningSource } from './interview';
 import type { Feature } from './plans';
 import type { AnswerStyle, InterviewProfile, ProfileResearch, ProfileResearchInput } from './interviewProfile';
-import type { BrowseResult, EngineId, EngineModel, EngineReadiness, FileReview, LocalCodingBinding, LocalCodingMessage, LocalCodingRequest, ProjectState, RefreshDecision, RefreshResult, SourcePreview, ChangeOperation } from './localCoding';
+import type { BrowseResult, EngineId, EngineModel, EngineReadiness, FileReview, LocalCodingBinding, LocalCodingMessage, LocalCodingRequest, ProjectState, ReviewTree, SourcePreview } from './localCoding';
 export type SupportedProviderKind = 'openai' | 'anthropic' | 'gemini';
 export type ProviderKind = SupportedProviderKind | 'compatible';
 export type AudioPipelineMode = 'local_stt' | 'live_stream';
@@ -257,17 +257,15 @@ export interface NoviAPI {
   listEngineModels(input: { engine: EngineId; connectionId: string }): Promise<Result<EngineModel[]>>;
   captureLocalSources(input: { selectionId: string; engine: EngineId; connectionId: string; model: string }): Promise<Result<{ snapshot: Snapshot; conversationId: string }>>;
   getProjectState(projectId: string): Promise<Result<ProjectState>>;
-  selectProjectVersion(input: { projectId: string; versionId: string }): Promise<Result<ProjectState>>;
-  updateLocalCodingEngine(input: { projectId: string; engine: EngineId; connectionId: string; model: string }): Promise<Result<{ snapshot: Snapshot; project: ProjectState }>>;
-  listReviewChanges(input: { projectId: string; fromVersionId: string; toVersionId: string }): Promise<Result<Array<{ fileId: string; operation: ChangeOperation; rootName: string; relativePath: string }>>>;
   getReviewDiff(input: { projectId: string; fromVersionId: string | null; toVersionId: string; fileId: string }): Promise<Result<FileReview>>;
-  openReview(input: { projectId: string; fromVersionId: string | null; toVersionId: string; fileId: string }): Promise<Result<void>>;
-  refreshLocalSources(input: { projectId: string; carryVersionId: string | null; addPaths?: string[] }): Promise<Result<{ result: RefreshResult; project: ProjectState }>>;
-  resolveRefreshConflict(input: { projectId: string; pendingId: string; decisions: Record<string, RefreshDecision> }): Promise<Result<{ result: RefreshResult; project: ProjectState }>>;
+  /** Opens (or refocuses) the review window on a proposed version; without a file it shows the first changed one. */
+  openReview(input: { projectId: string; toVersionId: string; fileId?: string | null }): Promise<Result<void>>;
   onReviewTarget(callback: (target: ReviewTarget | null) => void): () => void;
   getReviewTarget(): Promise<Result<ReviewTarget | null>>;
-  /** For the detached viewer: the files changed in the review it is showing. */
-  getReviewChanges(fromVersionId: string): Promise<Result<Array<{ fileId: string; operation: ChangeOperation; rootName: string; relativePath: string }>>>;
+  /** For the detached viewer: every file of the review it is showing, with what the proposal does to each. */
+  getReviewTree(): Promise<Result<ReviewTree>>;
+  /** Opens the last saved session trace (Debug on) in the system editor, or reveals it in its folder. */
+  openDebugTrace(kind: 'file' | 'folder'): Promise<Result<void>>;
   sendReviewAction(action: { kind: 'ask' | 'revise'; text: string }): Promise<Result<void>>;
   initializeContext(retry?: boolean): Promise<Result<Snapshot>>;
   endContext(): Promise<Result<Snapshot>>;
@@ -374,7 +372,8 @@ export interface PermissionStatus {
 }
 export interface CodeViewerBlock { id: string; label: string; code: string; language?: string }
 /** What the detached viewer shows when reviewing a Local Coding proposal. */
-export interface ReviewTarget { projectId: string; fromVersionId: string | null; toVersionId: string; fileId: string; parentVersionId: string | null; localSnapshotId: string | null; labels: Record<string, string> }
+/** What the detached review window shows: the proposed version compared with the local files it started from. */
+export interface ReviewTarget { projectId: string; fromVersionId: string | null; toVersionId: string; fileId: string | null }
 export interface UpdateProgress {
   percent: number | null;
   status: string;

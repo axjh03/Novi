@@ -249,6 +249,11 @@ export interface FileReview {
   proposedText: string | null;
 }
 
+/** The whole project as the review window lists it: every file of the reviewed version plus files the proposal deletes. */
+export type TreeOperation = ChangeOperation | 'unchanged';
+export interface ReviewTreeFile { fileId: string; path: string; operation: TreeOperation }
+export interface ReviewTree { projectId: string; fromVersionId: string | null; toVersionId: string; files: ReviewTreeFile[]; changed: number }
+
 export type TaskState = 'preparing' | 'reading' | 'analyzing' | 'validating' | 'complete' | 'needs-information' | 'cancelled' | 'failed';
 
 /** Stored on the assistant message: compact references only, never source contents. */
@@ -268,6 +273,8 @@ export interface LocalCodingMessage {
   progress?: string;
   /** Engine requests that could not be granted (always denied). */
   deniedRequests?: number;
+  /** With Debug on in Settings: the plain-text trace of this request, written as it runs. */
+  traceFile?: string;
 }
 
 /** Stored on the user message: the version the request was pinned to. */

@@ -3,10 +3,9 @@ import type { LocalCodingBinding, ProjectState } from '../../../shared/localCodi
 import type { ChatMessage } from '../../../shared/types';
 import { errorText, unwrap } from '../services/api';
 
-/** The selected conversation's Local Coding project: versions, selection and engine. Reloads after each task. */
+/** The selected conversation's Local Coding project. Reloads after each task and opens the review window when a task proposed changes. */
 export function useLocalCodingProject(binding: LocalCodingBinding | undefined, busy: boolean, messages: ChatMessage[] | undefined, onError: (message: string) => void) {
   const [project, setProject] = useState<ProjectState | null>(null);
-  const [notice, setNotice] = useState<{ versionId: string; label: string; baseLabel: string } | null>(null);
   const projectId = binding?.projectId;
   const selectedProject = useRef(projectId);
   selectedProject.current = projectId;
@@ -26,25 +25,22 @@ export function useLocalCodingProject(binding: LocalCodingBinding | undefined, b
       return null;
     }
   }, [projectId]);
-  useEffect(() => { setNotice(null); void load(); return () => { request.current++; }; }, [load, binding?.engine, binding?.model, binding?.connectionId]);
-  // When a task ends, reload; if its result was not selected because the user moved elsewhere, say it is ready.
+  useEffect(() => { void load(); return () => { request.current++; }; }, [load, binding?.engine, binding?.model, binding?.connectionId]);
+  // When a task ends, reload the project; a proposal with changes opens in the review window.
   const wasBusy = useRef(busy);
   useEffect(() => {
     const finished = wasBusy.current && !busy;
     wasBusy.current = busy;
     if (busy && projectId) void load();
     if (!finished || !projectId) return;
-    void (async () => {
-      const state = await load();
-      if (!state || selectedProject.current !== projectId) return;
-      const last = [...(messages ?? [])].reverse().find((message) => message.localCoding?.projectId === projectId)?.localCoding;
-      if (!last?.resultingVersionId) return;
-      if (state.selectedVersionId !== last.resultingVersionId) setNotice({ versionId: last.resultingVersionId, label: last.resultingLabel ?? 'A new iteration', baseLabel: last.baseLabel });
-    })();
+    void load();
+    const last = [...(messages ?? [])].reverse().find((message) => message.role === 'assistant')?.localCoding;
+    if (!last || last.projectId !== projectId || last.state !== 'complete' || !last.resultingVersionId) return;
+    void unwrap(window.novi.openReview({ projectId, toVersionId: last.resultingVersionId })).catch((cause) => errors.current(errorText(cause)));
   }, [busy]);
   return {
     project: project?.projectId === projectId ? project : null,
     setProject(next: ProjectState) { if (next.projectId === selectedProject.current) setProject(next); },
-    notice, clearNotice: () => setNotice(null), reload: load,
+    reload: load,
   };
 }

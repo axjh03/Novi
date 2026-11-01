@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { stripVTControlCharacters } from 'node:util';
 import type { DebugEvent, DebugOperation, DebugState } from '../../shared/debug';
+import type { SessionTrace } from './sessionTrace';
 
 type Context = { current: DebugOperation; secrets: Set<string>; failed: boolean; lastRecorded: number };
 type Identity = Pick<DebugOperation, 'conversationId' | 'connectionId' | 'model' | 'engine' | 'taskId'>;
@@ -13,7 +14,20 @@ export class DebugService {
   private active = new Map<string, Context>();
   private context = new AsyncLocalStorage<Context>();
   private sequence = 0;
+  private trace: SessionTrace | null = null;
 
+  get isEnabled() { return this.enabled; }
+  /** The session's trace file while Debug is on and a trace is attached (see handlers); null otherwise. */
+  get traceFile() { return this.enabled ? this.trace?.file ?? null : null; }
+  /** Attaching replaces the previous trace; passing null closes it. Returns the closed file's path. */
+  attachTrace(trace: SessionTrace | null): string | null {
+    const previous = this.trace?.file ?? null;
+    this.trace = trace;
+    return previous;
+  }
+  /** A detailed step for the trace file only (the panel keeps its own bounded events). */
+  traceLine(stage: string, detail = '', limit?: number) { if (this.enabled) this.trace?.line(stage, detail, limit); }
+  traceError(error: unknown) { if (this.enabled) this.trace?.error(error); }
   snapshot(): DebugState {
     return { enabled: this.enabled, active: this.enabled ? [...this.active.values()].map(item => ({ ...item.current })) : [], events: [...this.events] };
   }
@@ -26,7 +40,7 @@ export class DebugService {
   reset() { this.enabled = false; this.events = []; this.active.clear(); }
 
   secret(value: string) {
-    if (value) { this.context.getStore()?.secrets.add(value); this.context.getStore()?.secrets.add(encodeURIComponent(value)); }
+    if (value) { this.context.getStore()?.secrets.add(value); this.context.getStore()?.secrets.add(encodeURIComponent(value)); this.trace?.addSecret(value); }
   }
   private clean(value: string, context?: Context): string {
     let result = stripVTControlCharacters(value);
@@ -53,6 +67,7 @@ export class DebugService {
     context.lastRecorded = now;
     const safe = Object.fromEntries(Object.entries(details).slice(0, 20).map(([key, value]) => [key, typeof value === 'string' ? this.clean(value, context) : value]));
     this.events.push({ ...context.current, sequence: ++this.sequence, time: now, level, details: safe });
+    this.trace?.line(`${level === 'info' ? '' : `[${level}] `}${context.current.operation}: ${stage}`, Object.keys(safe).length ? JSON.stringify(safe) : '');
     if (this.events.length > 400) this.events.splice(0, this.events.length - 400);
   }
   async run<T>(operation: string, callback: () => Promise<T>): Promise<T> {

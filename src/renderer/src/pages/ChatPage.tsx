@@ -4,7 +4,7 @@ import { Award, Brain, Code2, ExternalLink, FolderCode, History, Image, Lock, Me
 import type { AppMode, ModelOption, Snapshot } from '../../../shared/types';
 import { Sidebar } from '../components/chat/Sidebar';
 import { Composer } from '../components/chat/Composer';
-import { ImagePreview, LocalCodingResult, Message } from '../components/chat/Message';
+import { ImagePreview, Message } from '../components/chat/Message';
 import { useChat } from '../hooks/useChat';
 import { activeConnection } from '../../../shared/providers';
 import { SettingsPage } from './SettingsPage';
@@ -24,7 +24,6 @@ import { PracticeCoach } from '../components/PracticeCoach';
 import { usePracticeRun } from '../hooks/usePracticeRun';
 import { useStealthState } from '../hooks/useStealth';
 import { LocalCodingSetup } from '../components/LocalCodingSetup';
-import { LocalCodingHistory, type ReconcileRequest } from '../components/LocalCodingHistory';
 import { useLocalCodingProject } from '../hooks/useLocalCodingProject';
 import { ENGINES, type LocalCodingMessage } from '../../../shared/localCoding';
 import { lockedMessage } from '../../../shared/plans';
@@ -107,17 +106,22 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
       scroll.current?.scrollBy({ top: action.payload, behavior: 'smooth' });
       return;
     }
+    if (action.type === 'session-trace-saved' && typeof action.payload?.file === 'string') { setTraceSaved(action.payload.file); return; }
     if (action.type !== 'review-action' || typeof action.payload?.text !== 'string') return;
     setPrefill({ id: ++prefillId.current, text: action.payload.text });
   }), []);
+  // With Debug on, the session's trace file is announced when the session ends (or Debug is turned off).
+  const [traceSaved, setTraceSaved] = useState<string | null>(null);
+  const [traceCopied, setTraceCopied] = useState(false);
+  useEffect(() => { setTraceCopied(false); }, [traceSaved]);
   const openLocalFile = useCallback((result: LocalCodingMessage, fileId: string) => {
     if (!result.resultingVersionId) return;
-    void unwrap(window.novi.openReview({ projectId: result.projectId, fromVersionId: result.baseVersionId, toVersionId: result.resultingVersionId, fileId })).catch((error) => chat.setError(errorText(error)));
+    void unwrap(window.novi.openReview({ projectId: result.projectId, toVersionId: result.resultingVersionId, fileId })).catch((error) => chat.setError(errorText(error)));
   }, [chat.setError]);
-  function sendLocal(content: string, imageIds: string[], reconcile?: ReconcileRequest) {
+  function sendLocal(content: string, imageIds: string[]) {
     if (!localBinding || !local.project || local.project.projectId !== localBinding.projectId) { chat.setError('Wait for the selected Local Coding project to load, or choose a working folder first.'); return Promise.resolve(false); }
-    const baseVersionId = reconcile?.baseVersionId ?? local.project.selectedVersionId;
-    return chat.send({ content, imageIds, pinnedContext, localCoding: { baseVersionId, ...(reconcile ? { reconcile: { fromVersionId: reconcile.fromVersionId, fileIds: reconcile.fileIds } } : {}) } });
+    // Every request builds on the latest proposal, so follow-ups refine earlier answers.
+    return chat.send({ content, imageIds, pinnedContext, localCoding: { baseVersionId: local.project.selectedVersionId } });
   }
   const listenKey = config.audioRecordShortcut || 'Alt+A';
   function startPractice() {
@@ -274,10 +278,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
       />;
   const settingsPage = <SettingsPage state={state} onSaved={onSaved} onBack={() => setSettings(false)} onSignOut={onSignOut} onCleared={chat.clear} onDebugEnabledChange={setDebugEnabled} closeRequest={settingsCloseRequest} />;
   const localSetup = <LocalCodingSetup state={state} onStarted={(snapshot, conversationId) => { onSaved(snapshot); setComposerKey((key) => key + 1); chat.setSelectedId(conversationId); chat.setError(''); }} />;
-  const localHistory = localMode && localBinding && local.project && <LocalCodingHistory state={state} project={local.project} busy={chat.busy || contextBusy || ending}
-    onProject={local.setProject} onSnapshot={onSaved} onError={chat.setError}
-    onReconcile={(request) => void sendLocal(`Reconcile the proposed ${request.fromLabel} changes into the refreshed local files: ${request.files.join(', ')}.`, [], request)}
-    readyNotice={local.notice} onDismissNotice={local.clearNotice} />;
   const readyCard = !readyDismissed && !sentInSession && !practice.active && !localMode && <ReadyCard transparent={transparent} listenKey={listenKey} snapshotKey={config.screenshotShortcut || 'Alt+3'}
     practiceDisabled={contextBusy || chat.busy || ending} onPractice={startPractice} onDismiss={() => setReadyDismissed(true)} />;
 
@@ -316,7 +316,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
           </header>}
           {!modern && <DebugPanel compact conversationId={chat.selectedId} onEnabledChange={setDebugEnabled} />}
           {!modern && readyCard}
-          {!modern && localHistory}
           {!modern && appMode === 'system-design' && <button type="button" className="secondary" onClick={() => void unwrap(window.novi.setCodeViewerVisible(true)).then(() => unwrap(window.novi.updateCodeViewer(diagramBlocks(chat.selected?.messages || [])))).catch((error) => chat.setError(errorText(error)))}>Open diagrams · saved with this conversation</button>}
           {!modern && conversation}
           {modern && <div className="modern-dashboard">{sidebar}<button type="button" className="primary" onClick={() => void window.novi.workspaceAction('show')}>Show Live Insights</button></div>}
@@ -451,8 +450,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             </TrayMenu>
             {modern && <>
               <TrayMenu label="Sessions & history" title={<History size={16} />} className="modern-session-menu">
-                {sidebar}{readyCard}{localHistory}
-                {chat.selected?.messages.filter(message => message.localCoding).map(message => <LocalCodingResult key={message.id} result={message.localCoding!} onOpenFile={openLocalFile} />)}
+                {sidebar}{readyCard}
                 <DebugPanel compact conversationId={chat.selectedId} onEnabledChange={setDebugEnabled} />
                 {appMode === 'system-design' && <button type="button" className="text-button" onClick={() => void unwrap(window.novi.setCodeViewerVisible(true)).catch(error => chat.setError(errorText(error)))}>Open diagrams</button>}
                 <button type="button" className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button>
@@ -486,6 +484,17 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
 
       {createPortal(<>
       {/* Every way to end a session asks first; focus starts on Keep session and Escape keeps it. */}
+      {traceSaved && <div className="session-confirm" role="alertdialog" aria-modal="true" aria-label="Debug trace saved" onKeyDown={(event) => { if (event.key === 'Escape') setTraceSaved(null); }}><div className="trace-saved">
+        <h2>Debug trace saved</h2>
+        <p>Everything from this session was written to this file. Share it when reporting a problem; it holds steps and errors only, never your prompts, files or keys.</p>
+        <code className="trace-path" tabIndex={0}>{traceSaved}</code>
+        <div className="trace-actions">
+          <button type="button" className="secondary" onClick={() => void unwrap(window.novi.copyText(traceSaved)).then(() => setTraceCopied(true)).catch((error) => chat.setError(errorText(error)))}>{traceCopied ? 'Copied' : 'Copy path'}</button>
+          <button type="button" className="secondary" onClick={() => void unwrap(window.novi.openDebugTrace('file')).catch((error) => chat.setError(errorText(error)))}>Open file</button>
+          <button type="button" className="secondary" onClick={() => void unwrap(window.novi.openDebugTrace('folder')).catch((error) => chat.setError(errorText(error)))}>Open folder</button>
+          <button type="button" className="primary" autoFocus onClick={() => setTraceSaved(null)}>Done</button>
+        </div>
+      </div></div>}
       {confirmEnd && <div className="session-confirm" role="alertdialog" aria-modal="true" aria-label="End context session" onKeyDown={(event) => { if (event.key === 'Escape' && !ending) setConfirmEnd(false); }}><div><h2>End this session?</h2><p>Your conversations and attachments stay saved. The temporary AI Context.md file will be removed; source folders stay in place.</p><button className="text-button" autoFocus disabled={ending} onClick={() => setConfirmEnd(false)}>Keep session</button><button className="danger-button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div></div>}
       {renaming && <dialog ref={renameDialog} className="dialog" aria-labelledby="rename-title" onCancel={() => setRenaming(null)}>
         <form onSubmit={async (event) => {

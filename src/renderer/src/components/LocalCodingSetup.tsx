@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Check, Download, FileText, FolderOpen, FolderPlus, Loader2, Lock, Play, RefreshCw, Terminal, Trash2, X } from 'lucide-react';
+import { ArrowUp, Check, Download, FolderOpen, Loader2, Lock, Play, RefreshCw, Terminal, Trash2 } from 'lucide-react';
 import { ENGINES, type EngineId, type EngineModel, type EngineReadiness, type EngineUpdate, type SourcePreview } from '../../../shared/localCoding';
 import type { ProviderConnection, Snapshot } from '../../../shared/types';
 import { errorText, unwrap } from '../services/api';
@@ -14,32 +14,39 @@ const agentLogos = { codex: codexLogo, claude: claudeLogo, antigravity: geminiLo
 
 const size = (bytes: number) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
-/** Chooses the engine, then a compatible connection, then a model, and shows the reasoning level that will be used. */
+/** The coding agent that runs on a provider connection: OpenAI keys run Codex, Anthropic keys Claude Code, Gemini keys Antigravity. */
+export const engineForConnection = (connection: Pick<ProviderConnection, 'provider'>) => ENGINES.find((engine) => engine.provider === connection.provider) ?? null;
+
+/**
+ * The agent follows the chosen connection; only the model is a separate choice.
+ * Connections are offered when their provider has an installed agent that accepts them.
+ */
 export function useEngineChoice(state: Snapshot, initial?: { engine: EngineId; connectionId: string; model: string }) {
   const [readiness, setReadiness] = useState<EngineReadiness[] | null>(null);
-  const [engine, setEngine] = useState<EngineId>(initial?.engine ?? 'codex');
   const [connectionId, setConnectionId] = useState(initial?.connectionId ?? '');
   const [models, setModels] = useState<EngineModel[] | null>(null);
   const [model, setModel] = useState(initial?.model ?? '');
   const [error, setError] = useState('');
+  const settings = state.settings;
+  const connections = (settings?.connections ?? []).filter((connection) => connection.enabled !== false && engineForConnection(connection));
   useEffect(() => {
     let alive = true;
-    void unwrap(window.novi.getLocalCodingReadiness()).then((items) => {
-      if (!alive) return;
-      setReadiness(items);
-      if (!initial) {
-        const first = items.find((item) => item.available);
-        if (first) { setEngine(first.engine); setConnectionId(first.connections[0]?.id ?? ''); }
-      }
-    }).catch((cause) => { if (alive) setError(errorText(cause)); });
+    void unwrap(window.novi.getLocalCodingReadiness()).then((items) => { if (alive) setReadiness(items); }).catch((cause) => { if (alive) setError(errorText(cause)); });
     return () => { alive = false; };
   }, []);
-  const ready = readiness?.find((item) => item.engine === engine);
+  // A connection is usable when its agent is installed and lists it; prefer the active one.
+  const usable = connections.filter((connection) => readiness?.find((item) => item.engine === engineForConnection(connection)!.id)?.connections.some((entry) => entry.id === connection.id));
   useEffect(() => {
-    if (ready && !ready.connections.some((item) => item.id === connectionId)) setConnectionId(ready.connections[0]?.id ?? '');
-  }, [ready, connectionId]);
+    if (!readiness) return;
+    if (usable.some((connection) => connection.id === connectionId)) return;
+    const preferred = usable.find((connection) => connection.id === settings?.activeConnectionId) ?? usable[0];
+    setConnectionId(preferred?.id ?? '');
+  }, [readiness, connectionId, usable.map((connection) => connection.id).join(','), settings?.activeConnectionId]);
+  const connection = connections.find((item) => item.id === connectionId);
+  const engine = connection ? engineForConnection(connection)!.id : null;
+  const ready = engine ? readiness?.find((item) => item.engine === engine) : undefined;
   useEffect(() => {
-    if (!ready?.available || !connectionId) { setModels(null); return; }
+    if (!engine || !ready?.available || !connectionId) { setModels(null); return; }
     let alive = true;
     setModels(null); setError('');
     void unwrap(window.novi.listEngineModels({ engine, connectionId })).then((list) => {
@@ -47,65 +54,65 @@ export function useEngineChoice(state: Snapshot, initial?: { engine: EngineId; c
       setModels(list);
       setModel((current) => {
         if (list.some((item) => item.id === current)) return current;
-        // Prefer the connection's Deep model when this engine offers it.
-        const deep = state.settings?.modelRoles?.[connectionId]?.deep;
-        return list.find((item) => item.id === deep)?.id ?? list[0]?.id ?? '';
+        // Prefer the connection's Deep model when this agent offers it, then the connection's own model.
+        const deep = settings?.modelRoles?.[connectionId]?.deep;
+        return list.find((item) => item.id === deep)?.id ?? list.find((item) => item.id === connection?.model)?.id ?? list[0]?.id ?? '';
       });
     }).catch((cause) => { if (alive) { setModels([]); setError(errorText(cause)); } });
     return () => { alive = false; };
   }, [engine, connectionId, ready?.available]);
   const chosen = models?.find((item) => item.id === model) ?? null;
-  const connection = state.settings?.connections.find((item) => item.id === connectionId);
-  return { readiness, ready, engine, setEngine, connectionId, setConnectionId, models, model, setModel, chosen, connection, error };
+  // Why nothing can start: no connection at all, or every connection's agent is missing.
+  const problem = !connections.length ? 'Add an OpenAI, Anthropic or Gemini connection in Settings › API Management first.'
+    : readiness && !usable.length ? `Install the coding agent for your connection in Settings › API Management › Local Coding agents (${connections.map((item) => engineForConnection(item)!.label).filter((label, index, all) => all.indexOf(label) === index).join(', ')}).`
+    : ready && !ready.available ? ready.problem : null;
+  return { readiness, ready, engine, connections: usable, connectionId, setConnectionId, models, model, setModel, chosen, connection, error, problem };
 }
 
 export function EngineFields({ choice, disabled }: { choice: ReturnType<typeof useEngineChoice>; disabled: boolean }) {
-  const { readiness, ready, engine, setEngine, connectionId, setConnectionId, models, model, setModel, chosen } = choice;
+  const { readiness, engine, connections, connectionId, setConnectionId, models, model, setModel, chosen, problem } = choice;
+  const spec = ENGINES.find((item) => item.id === engine);
   return <div className="lc-engine-grid">
-    <label>Agent
-      <select value={engine} disabled={disabled || !readiness} onChange={(event) => setEngine(event.target.value as EngineId)}>
-        {ENGINES.map((item) => { const status = readiness?.find((entry) => entry.engine === item.id); return <option key={item.id} value={item.id}>{item.label}{status && !status.available ? ' (unavailable)' : ''}</option>; })}
-      </select>
-    </label>
     <label>Connection
-      <select value={connectionId} disabled={disabled || !ready?.connections.length} onChange={(event) => setConnectionId(event.target.value)}>
-        {!ready?.connections.length && <option value="">No compatible connection</option>}
-        {ready?.connections.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+      <select value={connectionId} disabled={disabled || !readiness || !connections.length} onChange={(event) => setConnectionId(event.target.value)}>
+        {!connections.length && <option value="">{readiness ? 'No usable connection' : 'Checking agents…'}</option>}
+        {connections.map((item) => <option key={item.id} value={item.id}>{item.name} · {engineForConnection(item)!.connectionLabel}</option>)}
       </select>
     </label>
     <label>Model
       <select value={model} disabled={disabled || !models?.length} onChange={(event) => setModel(event.target.value)}>
-        {!models && <option value="">{ready?.available ? 'Loading models…' : 'Unavailable'}</option>}
+        {!models && <option value="">{engine && choice.ready?.available ? 'Loading models…' : 'Choose a connection'}</option>}
         {models?.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
       </select>
     </label>
-    <div className="lc-reasoning"><span>Reasoning</span><strong>{chosen ? chosen.highestEffort ? `Highest supported · ${chosen.highestEffort}` : 'Model default (no reasoning levels)' : 'Choose a model first'}</strong></div>
-    {ready && !ready.available && <p className="lc-problem" role="alert">{ready.problem}</p>}
+    <div className="lc-reasoning"><span>Agent</span><strong>{spec ? <><img src={agentLogos[spec.id]} alt="" width={14} height={14} aria-hidden="true" />{spec.label}</> : 'Follows the connection'}</strong>{chosen && <span className="muted">{chosen.highestEffort ? ' · reasoning high' : ''}</span>}</div>
+    {problem && <p className="lc-problem" role="alert">{problem}</p>}
   </div>;
 }
 
 export function LocalCodingSetup({ state, onStarted }: { state: Snapshot; onStarted: (snapshot: Snapshot, conversationId: string) => void }) {
   const choice = useEngineChoice(state);
   const [folder, setFolder] = useState(() => localStorage.getItem('novi_local_coding_folder') || '');
-  const [extra, setExtra] = useState<string[]>([]);
-  const [explorer, setExplorer] = useState<'folder' | 'files' | null>(null);
+  const [explorer, setExplorer] = useState(false);
   const [preview, setPreview] = useState<SourcePreview | null>(null);
   const [busy, setBusy] = useState<'' | 'preview' | 'start'>(''), [error, setError] = useState('');
   const attempt = useRef(0);
 
-  async function review(workingFolder = folder, extraPaths = extra) {
+  async function check(workingFolder = folder) {
     if (!workingFolder.trim()) return;
     const current = ++attempt.current;
     setBusy('preview'); setError(''); setPreview(null);
     try {
-      const next = await unwrap(window.novi.selectLocalSources({ workingFolder: workingFolder.trim(), extra: extraPaths }));
+      const next = await unwrap(window.novi.selectLocalSources({ workingFolder: workingFolder.trim(), extra: [] }));
       if (current === attempt.current) setPreview(next);
     } catch (cause) { if (current === attempt.current) setError(errorText(cause)); }
     finally { if (current === attempt.current) setBusy(''); }
   }
+  // A remembered folder is checked as soon as the screen opens.
+  useEffect(() => { if (folder.trim()) void check(folder); }, []);
 
   async function start() {
-    if (!preview || preview.blocking || !choice.chosen || !choice.connectionId) return;
+    if (!preview || preview.blocking || !choice.chosen || !choice.connectionId || !choice.engine) return;
     setBusy('start'); setError('');
     try {
       const result = await unwrap(window.novi.captureLocalSources({ selectionId: preview.selectionId, engine: choice.engine, connectionId: choice.connectionId, model: choice.model }));
@@ -115,60 +122,35 @@ export function LocalCodingSetup({ state, onStarted }: { state: Snapshot; onStar
     finally { setBusy(''); }
   }
 
-  const changeSources = (nextFolder: string, nextExtra: string[]) => { setFolder(nextFolder); setExtra(nextExtra); setPreview(null); if (nextFolder.trim()) void review(nextFolder, nextExtra); };
-  const provider = ENGINES.find((item) => item.id === choice.engine)!;
+  const useFolder = (next: string) => { setFolder(next); setPreview(null); if (next.trim()) void check(next); };
   const canStart = Boolean(preview && !preview.blocking && choice.chosen && choice.connectionId && !busy && choice.ready?.available);
 
   return <section className="lc-setup" aria-label="Local Coding setup">
     <header className="lc-setup-header">
       <h2>Local Coding</h2>
-      <p>Ask questions about a project on this computer. The agent reads a captured copy, and every code change stays a proposal you review. Nothing is applied to your files.</p>
+      <p>Pick a project folder. A coding agent reads it in the background and answers in chat; proposed changes open in a review window with a file tree and diffs. Your files are never modified.</p>
     </header>
 
     <div className="lc-field">
       <label htmlFor="lc-folder">Working folder</label>
-      <form className="lc-folder-row" onSubmit={(event) => { event.preventDefault(); changeSources(folder, extra); }}>
+      <form className="lc-folder-row" onSubmit={(event) => { event.preventDefault(); useFolder(folder); }}>
         <input id="lc-folder" value={folder} spellCheck={false} disabled={!!busy} onChange={(event) => { setFolder(event.target.value); setPreview(null); }} placeholder="/Users/me/projects/interview-app" />
         <button type="submit" className="secondary" disabled={!!busy || !folder.trim()}>Open</button>
       </form>
-      <button type="button" className="text-button lc-browse" disabled={!!busy} onClick={() => setExplorer('folder')}><FolderOpen size={14} />Browse inside Novi</button>
-    </div>
-
-    <div className="lc-field">
-      <span className="lc-label">Additional context</span>
-      <div className="lc-extra">
-        {extra.map((path) => <span className="lc-chip" key={path} title={path}><FileText size={13} aria-hidden="true" />{path.split(/[\\/]/).pop()}<button type="button" className="icon-button" aria-label={`Remove ${path}`} disabled={!!busy} onClick={() => changeSources(folder, extra.filter((item) => item !== path))}><X size={12} /></button></span>)}
-        <button type="button" className="secondary lc-add" disabled={!!busy || !folder.trim()} onClick={() => setExplorer('files')}><FolderPlus size={14} />Add files or folders</button>
-      </div>
-      <small>Screenshots, photos and audio transcripts are added in the message box after the session starts.</small>
+      <button type="button" className="text-button lc-browse" disabled={!!busy} onClick={() => setExplorer(true)}><FolderOpen size={14} />Browse</button>
+      {busy === 'preview' && <p className="lc-status" role="status"><Loader2 size={14} className="spin" />Scanning the folder…</p>}
+      {preview && <p className="lc-folder-summary" aria-label="Folder summary"><Check size={13} aria-hidden="true" /><span title={preview.roots[0].canonicalLocalPath}>{preview.roots[0].canonicalLocalPath}</span> · {preview.included.toLocaleString()} files · {size(preview.includedBytes)}{preview.excludedCount > 0 ? ` · ${preview.excludedCount.toLocaleString()} skipped (dependencies, build output, secrets, binaries)` : ''}</p>}
+      {preview?.blocking && <p className="error" role="alert">{preview.blocking}</p>}
     </div>
 
     <EngineFields choice={choice} disabled={!!busy} />
     {choice.error && <p className="error" role="alert">{choice.error}</p>}
 
-    {busy === 'preview' && <p className="lc-status" role="status"><Loader2 size={14} className="spin" />Checking the selected files…</p>}
-    {preview && <div className="lc-preview" aria-label="Source preview">
-      <p><strong>Working folder:</strong> <span title={preview.roots[0].canonicalLocalPath}>{preview.roots[0].canonicalLocalPath}</span></p>
-      <p><strong>Included:</strong> {preview.included.toLocaleString()} source and configuration files · {size(preview.includedBytes)}</p>
-      {preview.excludedCount > 0 && <details className="lc-excluded"><summary><strong>Excluded:</strong> {preview.excludedCount.toLocaleString()} items (dependencies, generated output, credentials, binaries)</summary>
-        <ul>{preview.excluded.map((item) => <li key={`${item.path}:${item.reason}`}><span>{item.path}</span><small>{item.reason}</small></li>)}</ul>
-        {preview.excludedCount > preview.excluded.length && <small>And {preview.excludedCount - preview.excluded.length} more.</small>}
-      </details>}
-      <details className="lc-included"><summary>View included files</summary>
-        <ul>{preview.includedPaths.map((path) => <li key={path}>{path}</li>)}</ul>
-        {preview.included > preview.includedPaths.length && <small>And {preview.included - preview.includedPaths.length} more.</small>}
-      </details>
-      {preview.blocking && <p className="error" role="alert">{preview.blocking}</p>}
-    </div>}
-
-    <div className="lc-readonly"><Lock size={14} aria-hidden="true" /><span><strong>Read-only.</strong> All code changes remain proposals. Files are captured into Novi; the agent reads them with read-only tools and sends what it reads to {choice.connection ? `${choice.connection.name} (${provider.connectionLabel})` : `your ${provider.connectionLabel} connection`}.{choice.engine === 'antigravity' ? ' Antigravity (agy) does not support screenshots in headless mode.' : ''}</span></div>
+    <div className="lc-readonly"><Lock size={14} aria-hidden="true" /><span><strong>Read-only.</strong> The agent only reads; nothing is written, run or deleted. What it reads is sent to {choice.connection ? `${choice.connection.name} (${engineForConnection(choice.connection)!.connectionLabel})` : 'the chosen connection'}.{choice.engine === 'antigravity' ? ' Antigravity (agy) does not support screenshots in headless mode.' : ''}</span></div>
     {error && <p className="error" role="alert">{error}</p>}
-    <button type="button" className="primary lc-start" disabled={!canStart} onClick={() => void start()}>{busy === 'start' ? <Loader2 size={15} className="spin" /> : <Play size={15} />}{busy === 'start' ? 'Capturing files…' : 'Start session'}</button>
+    <button type="button" className="primary lc-start" disabled={!canStart} onClick={() => void start()}>{busy === 'start' ? <Loader2 size={15} className="spin" /> : <Play size={15} />}{busy === 'start' ? 'Reading the folder…' : 'Start'}</button>
 
-    {explorer && <LocalFileExplorer mode={explorer} initialPath={explorer === 'folder' ? folder || undefined : folder || undefined}
-      onCancel={() => setExplorer(null)}
-      onUseFolder={(path) => { setExplorer(null); changeSources(path, extra); }}
-      onAddPaths={(paths) => { setExplorer(null); changeSources(folder, [...extra, ...paths.filter((path) => !extra.includes(path))].slice(0, 8)); }} />}
+    {explorer && <LocalFileExplorer mode="folder" initialPath={folder || undefined} onCancel={() => setExplorer(false)} onUseFolder={(path) => { setExplorer(false); useFolder(path); }} />}
   </section>;
 }
 

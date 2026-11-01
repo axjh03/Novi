@@ -47,6 +47,13 @@ export const TOOL_SCHEMAS = {
 } as const;
 
 export const EFFORT_ORDER = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+/** The effort Novi runs with: "high" when the model offers it, otherwise the strongest level below the maximum, so a request answers in minutes, not tens of minutes. */
+export function defaultEffort(efforts: string[]): string | null {
+  if (efforts.includes('high')) return 'high';
+  const known = EFFORT_ORDER.filter((effort) => efforts.includes(effort));
+  if (known.length <= 1) return known[0] ?? null;
+  return known[known.length - 2];
+}
 /** Highest listed effort by the known order. Unknown names are not guessed at. */
 export function highestEffort(efforts: string[]): string | null {
   let best: string | null = null;

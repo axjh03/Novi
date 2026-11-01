@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState, type ComponentPropsWithoutRef } from 'react';
 import Markdown, { type Components } from 'react-markdown';
-import { Check, Copy, FilePlus2, FileMinus2, FilePen, Loader2, Mic, UserRound, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Check, Copy, FilePlus2, FileMinus2, FilePen, Loader2, Mic, PanelsTopLeft, UserRound, X, ZoomIn, ZoomOut } from 'lucide-react';
 import type { ChatMessage, ImageAttachment } from '../../../../shared/types';
 import { ENGINES, type LocalCodingMessage } from '../../../../shared/localCoding';
 import { Brand } from '../Brand';
@@ -77,13 +77,19 @@ const OPERATION = {
   delete: { label: 'DELETE', Icon: FileMinus2, verb: 'Proposed deletion' },
 } as const;
 
-/** Task progress and the clickable proposed-file cards of a Local Coding answer. */
+/** Task progress and the clickable proposed-file cards of a Local Coding answer; every card opens the review window on that file. */
 export function LocalCodingResult({ result, onOpenFile }: { result: LocalCodingMessage; onOpenFile?: (result: LocalCodingMessage, fileId: string) => void }) {
   const engine = ENGINES.find((item) => item.id === result.engine)?.label ?? result.engine;
   const running = ['preparing', 'reading', 'analyzing', 'validating'].includes(result.state);
+  const count = result.changes.length;
   return <div className="lc-result">
-    {running && <p className="lc-progress" role="status"><Loader2 size={14} className="spin" aria-hidden="true" /><strong>{STATE_LABELS[result.state]}</strong>{result.progress && result.progress !== STATE_LABELS[result.state] ? ` · ${result.progress}` : ''}<span> · {engine} on {result.baseLabel}</span></p>}
-    {!!result.changes.length && <ul className="lc-cards" aria-label={`Proposed files in ${result.resultingLabel}`}>
+    {running && <p className="lc-progress" role="status"><Loader2 size={14} className="spin" aria-hidden="true" /><strong>{STATE_LABELS[result.state]}</strong>{result.progress && result.progress !== STATE_LABELS[result.state] ? ` · ${result.progress}` : ''}<span> · {engine}</span></p>}
+    {result.traceFile && <p className="lc-trace"><span>Debug trace</span><code title={result.traceFile}>{result.traceFile}</code><button type="button" className="text-button" onClick={() => void unwrap(window.novi.copyText(result.traceFile!)).catch(() => {})}><Copy size={12} aria-hidden="true" />Copy path</button></p>}
+    {count > 0 && <div className="lc-changes-head">
+      <span>{count} file{count === 1 ? '' : 's'} changed</span>
+      <button type="button" className="text-button" onClick={() => onOpenFile?.(result, result.changes[0].fileId)}><PanelsTopLeft size={13} aria-hidden="true" />Open review window</button>
+    </div>}
+    {count > 0 && <ul className="lc-cards" aria-label="Proposed files">
       {result.changes.map((change) => { const { label, Icon, verb } = OPERATION[change.operation]; return <li key={change.fileId}>
         <button type="button" className={`lc-card ${change.operation}`} onClick={() => onOpenFile?.(result, change.fileId)} aria-label={`${verb}: ${change.rootName}/${change.relativePath}, ${change.additions} added, ${change.deletions} removed. Open the diff.`}>
           <span className="lc-op"><Icon size={13} aria-hidden="true" />{label}</span>
@@ -93,7 +99,6 @@ export function LocalCodingResult({ result, onOpenFile }: { result: LocalCodingM
         </button>
       </li>; })}
     </ul>}
-    {!running && result.state !== 'failed' && result.state !== 'cancelled' && <p className="lc-provenance">{result.resultingLabel ? `${result.resultingLabel} · ` : ''}Based on {result.baseLabel} · produced by {engine} · {result.model}{result.reasoningEffort ? ` · reasoning ${result.reasoningEffort}` : ''} · Execution: not run</p>}
   </div>;
 }
 
@@ -101,9 +106,8 @@ export function LocalCodingResult({ result, onOpenFile }: { result: LocalCodingM
 export const Message = memo(function Message({ message, generating, onOpenFile, debugEnabled = false, readOnly = false }: { message: ChatMessage; generating: boolean; onOpenFile?: (result: LocalCodingMessage, fileId: string) => void; debugEnabled?: boolean; readOnly?: boolean }) {
   return <article className={`message ${message.role}`} aria-label={message.role === 'assistant' ? 'Novi reply' : 'Your message'}><div className="message-avatar" aria-hidden="true">{message.role === 'assistant' ? <Brand compact /> : <UserRound size={17} />}</div><div className="message-body">
     {!!message.images?.length && <div className="message-images">{message.images.map((image) => <ImagePreview key={image.id} image={image} readOnly={readOnly} />)}</div>}
-    {message.localCodingRequest && <span className="lc-request-base">Asked about {message.localCodingRequest.baseLabel}</span>}
     {message.role === 'assistant' ? <div className="markdown"><Markdown skipHtml components={markdownComponents}>{message.content}</Markdown></div> : <p className="user-content">{message.content}</p>}
-    {!readOnly && message.localCoding && <LocalCodingResult result={message.localCoding} onOpenFile={onOpenFile} />}
+    {message.localCoding && <LocalCodingResult result={message.localCoding} onOpenFile={onOpenFile} />}
     {generating && !message.content && <WaitingPhrases />}
     {message.error && <div className="error message-error" role="alert">{message.error}</div>}
     {message.status === 'stopped' && <small className="muted">Response stopped</small>}

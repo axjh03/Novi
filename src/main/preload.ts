@@ -74,20 +74,16 @@ const api: NoviAPI = {
   listEngineModels: (input) => ipcRenderer.invoke('local-coding-models', input),
   captureLocalSources: (input) => ipcRenderer.invoke('local-coding-start', input),
   getProjectState: (projectId) => ipcRenderer.invoke('local-coding-state', projectId),
-  selectProjectVersion: (input) => ipcRenderer.invoke('local-coding-select', input),
-  updateLocalCodingEngine: (input) => ipcRenderer.invoke('local-coding-engine', input),
-  listReviewChanges: (input) => ipcRenderer.invoke('local-coding-changes', input),
   getReviewDiff: (input) => ipcRenderer.invoke('local-coding-review', input),
   openReview: (input) => ipcRenderer.invoke('local-coding-open-review', input),
-  refreshLocalSources: (input) => ipcRenderer.invoke('local-coding-refresh', input),
-  resolveRefreshConflict: (input) => ipcRenderer.invoke('local-coding-resolve', input),
   onReviewTarget: (callback) => {
     const listener = (_event: Electron.IpcRendererEvent, target: Parameters<typeof callback>[0]) => callback(target);
     ipcRenderer.on('review-target', listener);
     return () => { ipcRenderer.removeListener('review-target', listener); };
   },
   getReviewTarget: () => ipcRenderer.invoke('local-coding-review-target'),
-  getReviewChanges: (fromVersionId) => ipcRenderer.invoke('local-coding-review-changes', { fromVersionId }),
+  getReviewTree: () => ipcRenderer.invoke('local-coding-review-tree'),
+  openDebugTrace: (kind) => ipcRenderer.invoke('debug-trace-open', { kind }),
   sendReviewAction: (action) => ipcRenderer.invoke('local-coding-review-action', action),
   initializeContext: retry => ipcRenderer.invoke('initialize-context', retry),
   endContext: () => ipcRenderer.invoke('end-context'),
