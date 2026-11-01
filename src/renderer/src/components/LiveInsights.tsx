@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { AudioLines, BadgeCheck, Check, ChevronDown, GripVertical, MessageSquareMore, RotateCcw, Sparkles, Square, Text, UserRound, X } from 'lucide-react';
+import { BadgeCheck, Check, ChevronDown, GripVertical, MessageSquareMore, RotateCcw, Sparkles, Square, Text, UserRound, X } from 'lucide-react';
 import type { TranscriptSegment } from '../../../shared/interview';
 import { Brand } from './Brand';
 import { TrayMenu } from './TrayMenu';
@@ -15,6 +15,23 @@ const actions = [
 ];
 const modifier = /mac/i.test(navigator.platform) ? '⌘' : 'Ctrl';
 
+/** Time spent listening in this session: runs while audio is captured, holds while paused. */
+function useListeningClock(listening: boolean) {
+  const [held, setHeld] = useState(0);
+  const [since, setSince] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (listening) { setSince(Date.now()); return; }
+    setSince(current => { if (current) setHeld(value => value + Date.now() - current); return null; });
+  }, [listening]);
+  useEffect(() => {
+    if (!since) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [since]);
+  return held + (since ? Math.max(0, now - since) : 0);
+}
+
 export function LiveInsights({ children, footer, transcript, listening, transitioning, busy, onAudio, onAsk, onEnd, onWindow, mode, onMode }: {
   mode: string; onMode: (mode: string) => void;
   children: ReactNode; footer: ReactNode; transcript: TranscriptSegment[]; listening: boolean; transitioning: boolean; busy: boolean;
@@ -25,9 +42,7 @@ export function LiveInsights({ children, footer, transcript, listening, transiti
   const atBottom = useRef(true);
   const [tab, setTab] = useState('insights');
   const [collapsed, setCollapsed] = useState(false);
-  const [started] = useState(Date.now);
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => { const timer = window.setInterval(() => setElapsed(Date.now() - started), 1000); return () => window.clearInterval(timer); }, [started]);
+  const elapsed = useListeningClock(listening);
   const question = insightQuestion(transcript);
   useLayoutEffect(() => { if (atBottom.current && content.current) content.current.scrollTop = content.current.scrollHeight; }, [children, transcript, tab]);
   // "Ask AI" opens the panel on Insights and puts the cursor in the box.
@@ -37,17 +52,15 @@ export function LiveInsights({ children, footer, transcript, listening, transiti
   };
   return <>
     <header className="live-navbar" aria-label="Session controls">
-      <span className="live-drag live-orb" title="Drag to move Novi"><GripVertical size={16} /></span>
-      <div className="live-capsule">
-        <button type="button" className="live-logo" aria-label="Toggle dashboard" onClick={() => onWindow('dashboard')}><Brand compact /></button>
-        <button type="button" className={`live-listen ${listening ? 'listening' : ''}`} disabled={transitioning} aria-pressed={listening} aria-label={listening ? 'Pause audio capture' : 'Start audio capture'} title={`${listening ? 'Pause' : 'Start'} listening (Alt+A)`} onClick={onAudio}>
-          <span className="live-wave" aria-hidden="true"><i /><i /><i /><i /></span>
-          <span className="live-listen-label" role="status">{transitioning ? 'Connecting' : listening ? 'Listening' : 'Listen'}</span>
-        </button>
-        <button type="button" className="live-ask" onClick={ask} title={`Ask AI (${modifier}+Enter sends)`}><Sparkles size={13} aria-hidden="true" /><span>Ask AI</span><kbd aria-hidden="true">{modifier} ↵</kbd></button>
-        <button type="button" className="live-timer" onClick={onEnd} title="End the session"><Square size={9} fill="currentColor" aria-hidden="true" /><span>{formatSessionTime(elapsed)} · End</span></button>
-      </div>
-      <button type="button" className="live-close live-orb" aria-label="Hide widget; session continues" title={`Hide · ${modifier} + \\`} onClick={() => onWindow('hide')}><X size={16} /></button>
+      <span className="live-drag" title="Drag to move Novi" aria-hidden="true"><GripVertical size={15} /></span>
+      <button type="button" className="live-logo" aria-label="Toggle dashboard" title="Show or hide the main window" onClick={() => onWindow('dashboard')}><Brand compact /></button>
+      <button type="button" className={`live-listen ${listening ? 'listening' : ''}`} disabled={transitioning} aria-pressed={listening} aria-label={listening ? 'Pause audio capture' : 'Start audio capture'} title={`${listening ? 'Pause' : 'Start'} listening (Alt+A)`} onClick={onAudio}>
+        <span className="live-wave" aria-hidden="true"><i /><i /><i /><i /></span>
+        <span className="live-listen-label" role="status">{transitioning ? 'Connecting' : listening ? 'Listening' : 'Listen'}</span>
+      </button>
+      <button type="button" className="live-ask" onClick={ask} title={`Ask AI (${modifier}+Enter sends)`}><Sparkles size={13} aria-hidden="true" /><span>Ask AI</span><kbd aria-hidden="true">{modifier} ↵</kbd></button>
+      <button type="button" className="live-timer" onClick={onEnd} title="End the session"><Square size={9} fill="currentColor" aria-hidden="true" /><span>{formatSessionTime(elapsed)} · End</span></button>
+      <button type="button" className="live-close" aria-label="Hide widget; session continues" title={`Hide · ${modifier} + \\`} onClick={() => onWindow('hide')}><X size={15} /></button>
     </header>
     <section ref={panel} className={`live-insights ${collapsed ? 'is-collapsed' : ''} ${busy ? 'is-busy' : ''}`} aria-label="Live Insights">
       <header className="live-heading">
