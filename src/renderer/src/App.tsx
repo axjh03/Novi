@@ -11,6 +11,8 @@ import { AppModeProvider } from './context/AppModeContext';
 import { updaterService } from './services/updaterService';
 import { errorText, unwrap } from './services/api';
 import { applyTheme, rememberTheme, savedTheme } from './services/theme';
+import { AppearanceGate } from './components/AppearanceGate';
+import { readAppearance, readAppearancePrompt, setAppearancePrompt, updateAppearance } from './services/appearance';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -20,6 +22,8 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean
 function Application() {
   const [state, setState] = useState<Snapshot | null>(null), [error, setError] = useState('');
   const [access, setAccess] = useState<AccessStatus>({ offline: false, connectionLost: false });
+  // Which account the appearance question was answered for in this run; it returns at the next sign-in.
+  const [appearanceAskedFor, setAppearanceAskedFor] = useState<string | null>(null);
   async function load() {
     setError('');
     try { const snapshot = await unwrap(window.novi.session()); setState(snapshot); if (snapshot.access) setAccess(snapshot.access); }
@@ -79,6 +83,12 @@ function Application() {
             <AuthPage onAuthenticated={setState} />
           ) : !state.settings?.onboardingComplete ? (
             <OnboardingPage state={state} onComplete={setState} onSignOut={() => void signOut()} />
+          ) : !state.contextSession && readAppearancePrompt() === 'ask' && appearanceAskedFor !== state.user.id ? (
+            <AppearanceGate initial={readAppearance().interfaceStyle} onChoose={(interfaceStyle, remember) => {
+              updateAppearance({ interfaceStyle });
+              if (remember) setAppearancePrompt('remembered');
+              setAppearanceAskedFor(state.user!.id);
+            }} />
           ) : state.contextSession ? (
             <ChatPage key={state.contextSession.id} state={state} onSaved={setState} onSignOut={() => void signOut()} />
           ) : (

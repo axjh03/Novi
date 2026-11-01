@@ -20,6 +20,17 @@ export function updateAppearance(patch: Partial<Appearance>) {
   window.dispatchEvent(new Event(CHANGE));
 }
 
+// Whether sign-in asks which appearance to start in. 'ask' until the person remembers a choice.
+const PROMPT_KEY = 'novi_appearance_prompt';
+export type AppearancePrompt = 'ask' | 'remembered';
+export function readAppearancePrompt(): AppearancePrompt {
+  try { return localStorage.getItem(PROMPT_KEY) === 'remembered' ? 'remembered' : 'ask'; } catch { return 'ask'; }
+}
+export function setAppearancePrompt(value: AppearancePrompt) {
+  try { localStorage.setItem(PROMPT_KEY, value); } catch { /* Private windows: the question simply returns next time. */ }
+  window.dispatchEvent(new Event(CHANGE));
+}
+
 export function subscribeAppearance(update: () => void) {
   const onStorage = (event: StorageEvent) => { if (event.key === KEY || event.key === null) update(); };
   window.addEventListener('storage', onStorage);

@@ -16,6 +16,7 @@
     "start": "electron-vite preview",
     "web:setup": "npm --prefix webapp run setup",
     "web:dev": "npm --prefix webapp run dev",
+    "sync:installers": "node scripts/sync-install-scripts.mjs",
     "test": "node --test tests/*.test.mjs && tsx --test tests/*.test.ts",
     "test:local-models": "node --test tests/local-models.test.mjs",
     "test:desktop": "npm run build && tsx scripts/smoke.ts",

@@ -6,13 +6,315 @@
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
-$animation = $null
+# ---- novi stage begin ----
+# The stage. While the install runs, a renderer in a second runspace draws a card on the alternate
+# screen: the NOVI wordmark lights up as the download comes in, a bar with the speed and the time
+# left, the plan of steps with the one in progress, and the installation sheet, one line at a time.
+# The main thread never draws; it keeps the plan in a shared table as "status<TAB>label<TAB>note"
+# lines, and the renderer follows the growing download file for the figures.
+#
+#   Start-NoviStage @('Step one', 'Step two')       enters the stage with the plan
+#   Invoke-NoviStep 'Step one' { ... } [file] [size] runs one step quietly; errors propagate
+#   Set-NoviNote '80 MB'                             annotates the step that just ran
+#   Stop-NoviStage -Finished                         holds the finished card, leaves, prints the receipt
+#
+# Without a terminal (redirected output, no virtual terminal, CI, NOVI_NO_ANIMATION=1) the steps
+# print as plain lines. NOVI_ASCII=1 draws without Unicode. A failing step restores the terminal
+# before its error is raised.
+$novi = @{ Stage = $null; Runner = $null; Handle = $null; Encoding = $null; Steps = (New-Object Collections.ArrayList); Current = -1; Title = ''; Details = '' }
+
 # Bytes of a download, as people read them.
 function Format-NoviBytes([long]$bytes) {
     if ($bytes -ge 1048576) { return ('{0:0.0} MB' -f ($bytes / 1048576)) }
     if ($bytes -ge 1024) { return ('{0} KB' -f [int][Math]::Floor($bytes / 1024)) }
     return "$bytes B"
 }
+
+function Write-NoviPlan {
+    if (-not $novi.Stage) { return }
+    $lines = foreach ($step in $novi.Steps) { "$($step.Status)`t$($step.Label)`t$($step.Note)" }
+    $novi.Stage.Plan = ($lines -join "`n")
+}
+
+function Start-NoviStage([string[]]$labels) {
+    $novi.Steps.Clear(); $novi.Current = -1; $novi.Stage = $null
+    foreach ($label in $labels) { [void]$novi.Steps.Add(@{ Status = 'pending'; Label = $label; Note = '' }) }
+    if ([Console]::IsOutputRedirected -or -not $Host.UI.SupportsVirtualTerminal -or $env:CI -or $env:NOVI_NO_ANIMATION) { return }
+    $state = [hashtable]::Synchronized(@{ Plan = ''; ProgressFile = ''; Total = 0L; Quit = $false; Title = $novi.Title; Details = $novi.Details; Ascii = [bool]$env:NOVI_ASCII })
+    $runner = [PowerShell]::Create()
+    [void]$runner.AddScript($script:noviRender).AddArgument($state)
+    $esc = [char]27
+    try {
+        $novi.Encoding = [Console]::OutputEncoding
+        [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
+        [Console]::Write("$esc[?1049h$esc[?25l$esc[2J")
+        $novi.Stage = $state; $novi.Runner = $runner
+        Write-NoviPlan
+        $novi.Handle = $runner.BeginInvoke()
+    } catch {
+        $runner.Dispose(); $novi.Stage = $null; $novi.Runner = $null
+        [Console]::Write("$esc[0m$esc[?25h$esc[?1049l")
+        if ($novi.Encoding) { [Console]::OutputEncoding = $novi.Encoding }
+    }
+}
+
+function Invoke-NoviStep([string]$label, [scriptblock]$action, [string]$progressFile = '', [long]$total = 0) {
+    $found = -1
+    for ($i = 0; $i -lt $novi.Steps.Count; $i++) {
+        if ($found -lt 0 -and $novi.Steps[$i].Status -eq 'pending' -and $novi.Steps[$i].Label -eq $label) { $found = $i }
+    }
+    if ($found -lt 0) { $found = $novi.Current + 1; $novi.Steps.Insert($found, @{ Status = 'pending'; Label = $label; Note = '' }) }
+    $novi.Current = $found
+    $step = $novi.Steps[$found]
+    if (-not $novi.Stage) {
+        Write-Host "==> $label" -ForegroundColor Cyan
+        & $action
+        return
+    }
+    $step.Status = 'active'; Write-NoviPlan
+    $novi.Stage.Total = $total; $novi.Stage.ProgressFile = $progressFile
+    $started = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        & $action
+        $step.Status = 'done'
+        if (-not $step.Note) {
+            $seconds = [int][Math]::Floor($started.Elapsed.TotalSeconds)
+            $bytes = 0L
+            if ($progressFile -and (Test-Path -LiteralPath $progressFile)) { try { $bytes = (Get-Item -LiteralPath $progressFile).Length } catch { $bytes = 0L } }
+            if ($bytes -gt 0 -and $seconds -ge 1) { $step.Note = "$(Format-NoviBytes $bytes) in ${seconds}s" }
+            elseif ($bytes -gt 0) { $step.Note = Format-NoviBytes $bytes }
+            elseif ($seconds -ge 2) { $step.Note = "${seconds}s" }
+        }
+        Write-NoviPlan
+    } catch {
+        $step.Status = 'failed'; $step.Note = 'failed'; Write-NoviPlan
+        Stop-NoviStage
+        Write-Host "==> $label failed" -ForegroundColor Red
+        throw
+    } finally {
+        if ($novi.Stage) { $novi.Stage.ProgressFile = ''; $novi.Stage.Total = 0L }
+    }
+}
+
+function Set-NoviNote([string]$text) {
+    if (-not $novi.Stage) { Write-Host "  -> $text" -ForegroundColor Gray; return }
+    if ($novi.Current -ge 0) { $novi.Steps[$novi.Current].Note = $text; Write-NoviPlan }
+}
+
+function Stop-NoviStage([switch]$Finished) {
+    if (-not $novi.Stage) { return }
+    if ($Finished) { Start-Sleep -Milliseconds 1400 }
+    $esc = [char]27
+    try {
+        $novi.Stage.Quit = $true
+        if ($novi.Handle -and -not $novi.Handle.AsyncWaitHandle.WaitOne(600)) { $novi.Runner.Stop() }
+    } catch { } finally {
+        try { $novi.Runner.Dispose() } catch { }
+        $novi.Stage = $null; $novi.Runner = $null; $novi.Handle = $null
+        [Console]::Write("$esc[0m$esc[?25h$esc[?1049l")
+        if ($novi.Encoding) { [Console]::OutputEncoding = $novi.Encoding; $novi.Encoding = $null }
+    }
+    if ($Finished) {
+        $ok = if ($env:NOVI_ASCII) { '+' } else { [string][char]0x2713 }
+        Write-Host ''
+        foreach ($step in $novi.Steps) {
+            $mark = if ($step.Status -eq 'done') { $ok } elseif ($step.Status -eq 'failed') { 'x' } else { '.' }
+            $colour = if ($step.Status -eq 'done') { 'Green' } elseif ($step.Status -eq 'failed') { 'Red' } else { 'DarkGray' }
+            Write-Host "  $mark" -ForegroundColor $colour -NoNewline
+            Write-Host ('  {0,-40} ' -f $step.Label) -NoNewline
+            Write-Host $step.Note -ForegroundColor DarkGray
+        }
+        Write-Host ''
+    }
+}
+
+# The renderer, run in its own runspace with the shared state as its only argument. It draws the
+# card about twelve times a second and returns once Quit is set.
+$script:noviRender = {
+    param($state)
+    $e = [char]27
+    function G([int]$code) { return [string][char]$code }
+    if ($state.Ascii) {
+        $G_TL = '+'; $G_TR = '+'; $G_BL = '+'; $G_BR = '+'; $G_H = '-'; $G_V = '|'; $G_TOP = '#'; $G_BOT = '#'; $G_FULL = '#'
+        $G_BAR = '='; $G_HALF = '-'; $G_TRACK = '-'; $G_OK = '+'; $G_BAD = 'x'; $G_DOT = '.'; $G_SPIN = @('|', '/', '-', '\')
+    } else {
+        $G_TL = G 0x256D; $G_TR = G 0x256E; $G_BL = G 0x2570; $G_BR = G 0x256F; $G_H = G 0x2500; $G_V = G 0x2502
+        $G_TOP = G 0x2580; $G_BOT = G 0x2584; $G_FULL = G 0x2588; $G_BAR = G 0x2501; $G_HALF = G 0x2578; $G_TRACK = G 0x2500
+        $G_OK = G 0x2713; $G_BAD = G 0x2717; $G_DOT = G 0x00B7; $G_SPIN = @((G 0x2596), (G 0x2598), (G 0x259D), (G 0x2597))
+    }
+    $RS = "$e[0m"; $BG = "$e[48;5;233m"; $BOLD = "$e[1m"; $NOBOLD = "$e[22m"
+    function F([int]$n) { return "$e[38;5;${n}m" }
+    $INK = F 255; $MUTED = F 245; $FAINT = F 240; $LINEC = F 237; $ROSE = F 217; $ROSEMID = F 181; $OKC = F 151; $BADC = F 210
+    function Format-NoviBytes([long]$bytes) {
+        if ($bytes -ge 1048576) { return ('{0:0.0} MB' -f ($bytes / 1048576)) }
+        if ($bytes -ge 1024) { return ('{0} KB' -f [int][Math]::Floor($bytes / 1024)) }
+        return "$bytes B"
+    }
+    function Pad([int]$n) { if ($n -gt 0) { return (' ' * $n) } else { return '' } }
+    # The wordmark: ten pixel rows, thirty-two columns, drawn two pixel rows per text row.
+    $px = @(
+        '#.....#   .#####.   #......#   #',
+        '##....#   #.....#   #......#   #',
+        '##....#   #.....#   #......#   #',
+        '#.#...#   #.....#   .#....#.   #',
+        '#.#...#   #.....#   .#....#.   #',
+        '#..#..#   #.....#   .#....#.   #',
+        '#...#.#   #.....#   ..#..#..   #',
+        '#....##   #.....#   ..#..#..   #',
+        '#....##   #.....#   ...##...   #',
+        '#.....#   .#####.   ...##...   #')
+    $wm = @()
+    for ($r = 0; $r -lt 5; $r++) {
+        $rowGlyphs = @()
+        for ($c = 0; $c -lt 32; $c++) {
+            $pair = [string]$px[$r * 2][$c] + [string]$px[$r * 2 + 1][$c]
+            $rowGlyphs += $(if ($pair -eq '##') { $G_FULL } elseif ($pair -eq '#.') { $G_TOP } elseif ($pair -eq '.#') { $G_BOT } else { ' ' })
+        }
+        $wm += , $rowGlyphs
+    }
+    $details = ("$($state.Details)|Ctrl+C stops the install and tidies up").TrimStart('|').Split('|')
+    $title = [string]$state.Title
+    $frame = 0; $size = ''; $cardW = 0; $HLINE = ''; $BLANK = ''
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    $sample = [Diagnostics.Stopwatch]::StartNew(); $sampled = 0L; $speed = 0L; $lastFile = ''
+    while (-not $state.Quit) {
+        $out = ''
+        $cols = [Console]::WindowWidth; $rows = [Console]::WindowHeight
+        if ($size -and $size -ne "$cols`:$rows") { $out = "$e[2J" }
+        $size = "$cols`:$rows"
+        $w = [Math]::Min(64, $cols - 4)
+        if ($w -ne $cardW) { $cardW = $w; $HLINE = $G_H * [Math]::Max(0, $cardW); $BLANK = Pad $cardW }
+        $steps = @()
+        foreach ($planLine in ([string]$state.Plan).Split("`n")) {
+            if (-not $planLine) { continue }
+            $parts = $planLine.Split("`t")
+            $steps += , @{ S = $parts[0]; L = $parts[1]; N = $(if ($parts.Length -gt 2) { $parts[2] } else { '' }) }
+        }
+        $n = $steps.Count; $active = -1; $dn = 0
+        for ($i = 0; $i -lt $n; $i++) { if ($steps[$i].S -eq 'active') { $active = $i }; if ($steps[$i].S -eq 'done') { $dn++ } }
+        $pct = -1; $done = 0L; $total = [long]$state.Total; $permille = 0
+        $file = [string]$state.ProgressFile
+        if ($file -ne $lastFile) { $lastFile = $file; $sampled = 0L; $speed = 0L; $sample.Restart() }
+        if ($file -and (Test-Path -LiteralPath $file)) {
+            try { $done = (Get-Item -LiteralPath $file).Length } catch { $done = 0L }
+            if ($sample.Elapsed.TotalSeconds -ge 1) { $speed = [long](($done - $sampled) / $sample.Elapsed.TotalSeconds); $sampled = $done; $sample.Restart() }
+            if ($total -gt 0) { $permille = [Math]::Min(1000, [int][Math]::Floor($done * 1000 / $total)); $pct = [int][Math]::Floor($permille / 10) }
+        }
+        $finale = ($n -gt 0 -and $dn -eq $n)
+        $elapsed = [int][Math]::Floor($clock.Elapsed.TotalSeconds)
+        $clockText = '{0:00}:{1:00}' -f [int][Math]::Floor($elapsed / 60), ($elapsed % 60)
+        $spin = $G_SPIN[[int][Math]::Floor($frame / 2) % 4]
+        $fullH = 17 + $n; $medH = 11 + $n
+        if ($cardW -ge 52 -and $rows -ge $fullH) { $mode = 'full'; $Hh = $fullH }
+        elseif ($cardW -ge 40 -and $rows -ge $medH) { $mode = 'medium'; $Hh = $medH }
+        else { $mode = 'compact' }
+        if ($mode -eq 'compact') {
+            if ($finale) { $text = 'Novi is ready'; $spin = "$OKC$G_OK" } elseif ($active -ge 0) { $text = $steps[$active].L } else { $text = 'Preparing' }
+            if ($pct -ge 0 -and -not $finale) { $text = "$text  $pct%  $(Format-NoviBytes $speed)/s" } else { $text = "$text  $clockText" }
+            $text = $text.Substring(0, [Math]::Min($text.Length, [Math]::Max(1, $cols - 9)))
+            [Console]::Write("$out$e[H$e[2K$ROSE${BOLD}NOVI$NOBOLD $spin $INK$text$RS")
+            $frame++; Start-Sleep -Milliseconds 80
+            continue
+        }
+        $left = [int][Math]::Floor(($cols - $cardW - 2) / 2) + 1; $cardTop = [int][Math]::Floor(($rows - $Hh) / 2) + 1
+        $card = New-Object Collections.ArrayList
+        [void]$card.Add($BLANK)
+        if ($mode -eq 'full') {
+            # The wordmark. Lit columns follow the download; a glint sweeps over what is lit. Without
+            # a known size, a band of light passes back and forth over the dim letters.
+            if ($finale) { $lit = 32 } elseif ($pct -ge 0) { $lit = [int][Math]::Floor($permille * 32 / 1000) } else { $lit = -1 }
+            $glint = ($frame * 2 % 96) - 12
+            $p = $frame % 100; if ($p -gt 50) { $p = 100 - $p }; $centre = [int][Math]::Floor($p * 48 / 50) - 8
+            $rowsText = @('', '', '', '', ''); $last = -1
+            for ($c = 0; $c -lt 32; $c++) {
+                if ($lit -ge 0) {
+                    if ($c -lt $lit) {
+                        $d = [Math]::Abs($c - $glint)
+                        if ($d -eq 0) { $colour = 231 } elseif ($d -eq 1) { $colour = 224 }
+                        elseif ($c -lt 11) { $colour = 175 } elseif ($c -lt 21) { $colour = 181 } else { $colour = 217 }
+                    } elseif ($c -eq $lit) { if ([int][Math]::Floor($frame / 3) % 2 -eq 0) { $colour = 181 } else { $colour = 239 } }
+                    else { $colour = 237 }
+                } else {
+                    $d = [Math]::Abs($c - $centre)
+                    if ($d -le 1) { $colour = 224 } elseif ($d -le 3) { $colour = 217 } elseif ($d -le 6) { $colour = 181 } elseif ($d -le 10) { $colour = 175 } else { $colour = 132 }
+                }
+                if ($colour -ne $last) { $seq = F $colour; for ($r = 0; $r -lt 5; $r++) { $rowsText[$r] += $seq }; $last = $colour }
+                for ($r = 0; $r -lt 5; $r++) { $rowsText[$r] += $wm[$r][$c] }
+            }
+            $wl = [int][Math]::Floor(($cardW - 32) / 2); $lpad = Pad $wl; $rpad = Pad ($cardW - 32 - $wl)
+            for ($r = 0; $r -lt 5; $r++) { [void]$card.Add("$lpad$($rowsText[$r])$rpad") }
+            [void]$card.Add($BLANK)
+            $tag = 'A quiet space to think.'
+            $shown = $title.Substring(0, [Math]::Min($title.Length, [Math]::Max(0, $cardW - 6 - $tag.Length - 2)))
+            [void]$card.Add("   $MUTED$tag$(Pad ($cardW - 6 - $tag.Length - $shown.Length))$INK$shown   ")
+            [void]$card.Add($BLANK)
+        } else {
+            $shown = $title.Substring(0, [Math]::Min($title.Length, [Math]::Max(0, $cardW - 6 - 9 - 2)))
+            [void]$card.Add("   $ROSE${BOLD}N O V I$NOBOLD$(Pad ($cardW - 6 - 7 - $shown.Length))$INK$shown   ")
+            [void]$card.Add($BLANK)
+        }
+        # The bar, with half-cell precision, and the line of figures under it.
+        $bw = $cardW - 6
+        if ($finale -or $pct -ge 0) {
+            $eighths = if ($finale) { $bw * 2 } else { [int][Math]::Floor($permille * $bw * 2 / 1000) }
+            $cells = [int][Math]::Floor($eighths / 2); $half = $eighths % 2
+            $bar = $ROSE + ($G_BAR * $cells) + $(if ($half -eq 1) { $G_HALF } else { '' }) + $LINEC + ($G_TRACK * [Math]::Max(0, $bw - $cells - $half))
+        } else {
+            $span = $bw - 10; $p = $frame % ($span * 2); if ($p -gt $span) { $p = $span * 2 - $p }
+            $bar = $LINEC + ($G_TRACK * $p) + "$ROSEMID$G_BAR$G_BAR$ROSE$($G_BAR * 6)$ROSEMID$G_BAR$G_BAR$LINEC" + ($G_TRACK * [Math]::Max(0, $bw - $p - 10))
+        }
+        [void]$card.Add("   $bar   ")
+        if ($finale) {
+            $l = "$OKC$G_OK ${INK}Novi is ready."; $lw = 16; $r = "Done in $clockText"
+        } elseif ($pct -ge 0) {
+            $l1 = '{0,3}%' -f $pct; $l2 = "   $(Format-NoviBytes $speed)/s   $(Format-NoviBytes $done) of $(Format-NoviBytes $total)"
+            $l = "$INK$BOLD$l1$NOBOLD$MUTED$l2"; $lw = $l1.Length + $l2.Length
+            $r = ''
+            if ($pct -ge 100) { $r = 'finishing up' }
+            elseif ($speed -gt 0) {
+                $eta = [long][Math]::Floor(($total - $done) / $speed)
+                if ($eta -ge 3600) { $r = "about $([int][Math]::Floor($eta / 3600))h $([int][Math]::Floor($eta % 3600 / 60))m left" }
+                elseif ($eta -ge 60) { $r = "about $([int][Math]::Floor($eta / 60))m left" }
+                elseif ($eta -ge 1) { $r = "about ${eta}s left" }
+                else { $r = 'almost there' }
+            }
+        } elseif ($active -ge 0) {
+            $l = "$MUTED$($steps[$active].L)..."; $lw = $steps[$active].L.Length + 3; $r = ''
+        } else {
+            $l = "${MUTED}Preparing..."; $lw = 12; $r = ''
+        }
+        if ($cardW - 6 - $lw - $r.Length -lt 2) { $r = '' }
+        [void]$card.Add("   $l$(Pad ($cardW - 6 - $lw - $r.Length))$MUTED$r   ")
+        [void]$card.Add($BLANK)
+        # The plan.
+        for ($i = 0; $i -lt $n; $i++) {
+            switch ($steps[$i].S) {
+                'done' { $mark = "$OKC$G_OK"; $lc = $MUTED; $nc = $MUTED }
+                'active' { $mark = "$ROSE$spin"; $lc = "$INK$BOLD"; $nc = $MUTED }
+                'failed' { $mark = "$BADC$G_BAD"; $lc = $BADC; $nc = $BADC }
+                default { $mark = "$FAINT$G_DOT"; $lc = $FAINT; $nc = $FAINT }
+            }
+            $note = [string]$steps[$i].N; $lw = [Math]::Max(8, $cardW - 6 - 3 - $note.Length - 2)
+            $label = $steps[$i].L.Substring(0, [Math]::Min($steps[$i].L.Length, $lw))
+            [void]$card.Add("   $mark  $lc$label$NOBOLD$(Pad ($cardW - 6 - 3 - $label.Length - $note.Length))$nc$note   ")
+        }
+        [void]$card.Add($BLANK)
+        # The sheet, a line at a time, and the clock.
+        $detail = $details[[int][Math]::Floor($frame / 50) % $details.Length]
+        $dc = if ($frame % 50 -lt 3) { $FAINT } else { $MUTED }
+        $detail = $detail.Substring(0, [Math]::Min($detail.Length, [Math]::Max(0, $cardW - 6 - 5 - 3)))
+        [void]$card.Add("   $dc$detail$(Pad ($cardW - 6 - $detail.Length - 5))$MUTED$clockText   ")
+        [void]$card.Add($BLANK)
+        $row = $cardTop
+        $out += "$e[$row;${left}H$BG$LINEC$G_TL$HLINE$G_TR$RS"; $row++
+        foreach ($content in $card) { $out += "$e[$row;${left}H$BG$LINEC$G_V$content$LINEC$G_V$RS"; $row++ }
+        $out += "$e[$row;${left}H$BG$LINEC$G_BL$HLINE$G_BR$RS"
+        [Console]::Write($out)
+        $frame++; Start-Sleep -Milliseconds 80
+    }
+}
+# ---- novi stage end ----
+
 # The size of the installer before it is fetched, so the bar can show a percentage. 0 when unknown.
 function Get-NoviContentLength([string]$url) {
     try {
@@ -36,120 +338,13 @@ function Get-NoviLatestVersion([string]$baseUrl) {
     } catch { }
     return ''
 }
-# While a step runs, Pac-Man eats his way along the lane. Given the file being downloaded and its
-# total size, he follows the download and the bar shows the percentage, the speed and the size.
-# NOVI_DETAILS holds the lines of the installation sheet, separated by |, shown when there is room.
-function Start-NoviAnimation([string]$label, [string]$progressFile = '', [long]$total = 0) {
-    if ([Console]::IsOutputRedirected -or -not $Host.UI.SupportsVirtualTerminal -or $env:CI -or $env:NOVI_NO_ANIMATION) { return }
-    $esc = [char]27
-    $runner = [PowerShell]::Create()
-    [void]$runner.AddScript({
-        param($label, $progressFile, $total, $details)
-        $esc = [char]27; $frame = 0; $lastSize = ''
-        $clock = [Diagnostics.Stopwatch]::StartNew()
-        $sample = [Diagnostics.Stopwatch]::StartNew(); $sampled = 0L; $speed = 0L; $done = 0L
-        function Format-NoviBytes([long]$bytes) {
-            if ($bytes -ge 1048576) { return ('{0:0.0} MB' -f ($bytes / 1048576)) }
-            if ($bytes -ge 1024) { return ('{0} KB' -f [int][Math]::Floor($bytes / 1024)) }
-            return "$bytes B"
-        }
-        while ($true) {
-            $cols = [Console]::WindowWidth; $rows = [Console]::WindowHeight
-            $width = [Math]::Min(64, $cols - 6)
-            $elapsed = [int][Math]::Floor($clock.Elapsed.TotalSeconds)
-            $spinner = @('|', '/', '-', '\')[[int][Math]::Floor($frame / 2) % 4]
-            $pct = -1
-            if ($progressFile -and (Test-Path -LiteralPath $progressFile)) {
-                try { $done = (Get-Item -LiteralPath $progressFile).Length } catch { $done = 0L }
-                if ($sample.Elapsed.TotalSeconds -ge 1) { $speed = [long](($done - $sampled) / $sample.Elapsed.TotalSeconds); $sampled = $done; $sample.Restart() }
-                if ($total -gt 0) { $pct = [Math]::Min(100, [int][Math]::Floor($done * 100 / $total)) }
-            }
-            $output = ''
-            if ($lastSize -ne "$cols`:$rows") { $output = "$esc[2J"; $lastSize = "$cols`:$rows" }
-            if ($width -ge 38 -and $rows -ge 14) {
-                $height = 14; $lane = 4; $sheet = $false
-                if ($width -ge 54 -and $rows -ge 24) { $height = 20; $lane = 10 }
-                if ($width -ge 54 -and $rows -ge 30 -and $details) { $height = 26; $sheet = $true }
-                $left = [int][Math]::Floor(($cols - $width) / 2) + 1
-                $top = [int][Math]::Floor(($rows - $height) / 2) + 1
-                $output += "$esc[$top;${left}H$esc[2K$esc[0;1;36mNOVI  /  INSTALLING"
-                if ($height -eq 20) {
-                    $output += "$esc[$($top + 2);${left}H$esc[2K  NN   N   OOO   V     V  III" +
-                        "$esc[$($top + 3);${left}H$esc[2K  N N  N  O   O   V   V    I " +
-                        "$esc[$($top + 4);${left}H$esc[2K  N  N N  O   O    V V     I " +
-                        "$esc[$($top + 5);${left}H$esc[2K  N   NN   OOO      V     III" +
-                        "$esc[$($top + 7);${left}H$esc[2K$esc[0;2mA quiet space to think. Almost yours."
-                }
-                $phases = if ($label -like '*Downloading*') { "$esc[1;36m01 DOWNLOAD$esc[0;2m / 02 INSTALL / 03 LAUNCH" }
-                    else { "$esc[32m01 DOWNLOAD$esc[0m / $esc[1;36m02 INSTALL$esc[0;2m / 03 LAUNCH" }
-                $inside = $width - 2
-                $pos = if ($pct -ge 0) { [int][Math]::Floor(($inside - 6) * $pct / 100) } else { [int][Math]::Floor($frame / 2) % ($inside - 5) }
-                $remaining = $inside - $pos - 6
-                $prefix = ' ' * $pos; $suffix = ' ' * $remaining
-                $pellets = ('.  ' * [int][Math]::Ceiling($remaining / 3)).Substring(0, $remaining)
-                $mouth = if ($frame % 4 -lt 2) { '(   < ' } else { '(    )' }
-                $border = '-' * $inside
-                $shownLabel = $label.Substring(0, [Math]::Min($label.Length, $width - 18)).PadRight($width - 18)
-                $elapsedLabel = '{0:00}:{1:00} elapsed' -f [int][Math]::Floor($elapsed / 60), ($elapsed % 60)
-                $stats = ''; $barLine = "$esc[$($top + $lane + 5);${left}H$esc[2K"
-                if ($pct -ge 0) {
-                    $filled = [int][Math]::Floor($inside * $pct / 100)
-                    $barLine += "$esc[0;36m[" + ('#' * $filled) + "$esc[0;2m" + ('.' * ($inside - $filled)) + "$esc[0;36m]"
-                    $stats = ('{0,3}%   {1}/s   {2} of {3}' -f $pct, (Format-NoviBytes $speed), (Format-NoviBytes $done), (Format-NoviBytes $total))
-                    $stats = $stats.Substring(0, [Math]::Min($stats.Length, $width))
-                }
-                $output += "$esc[$($top + $lane - 2);${left}H$esc[2K$phases$esc[0m" +
-                    "$esc[$($top + $lane);${left}H$esc[2K$esc[0;2;36m+$border+" +
-                    "$esc[$($top + $lane + 1);${left}H$esc[2K$esc[0;2;36m|$esc[0;1;33m$prefix .--. $suffix$esc[0;2;36m|" +
-                    "$esc[$($top + $lane + 2);${left}H$esc[2K$esc[0;2;36m|$esc[0;1;33m$prefix$mouth$esc[0;2;36m$pellets|" +
-                    "$esc[$($top + $lane + 3);${left}H$esc[2K$esc[0;2;36m|$esc[0;1;33m$prefix '--' $suffix$esc[0;2;36m|" +
-                    "$esc[$($top + $lane + 4);${left}H$esc[2K$esc[0;2;36m+$border+" + $barLine +
-                    "$esc[$($top + $lane + 6);${left}H$esc[2K$esc[0;36m$spinner$esc[0m  $shownLabel  $esc[2m$elapsedLabel" +
-                    "$esc[$($top + $lane + 7);${left}H$esc[2K$esc[0;1m$stats$esc[0m" +
-                    "$esc[$($top + $lane + 8);${left}H$esc[2K$esc[0;2mWorking on your setup.  Ctrl+C to cancel$esc[0m"
-                if ($sheet) {
-                    $row = $top + $lane + 10
-                    foreach ($line in $details.Split('|')) {
-                        if ($row -gt $top + $height - 1) { break }
-                        $shown = $line.Substring(0, [Math]::Min($line.Length, $width))
-                        $output += "$esc[$row;${left}H$esc[2K$esc[0;2m$shown$esc[0m"
-                        $row++
-                    }
-                }
-            } else {
-                $compact = if ($pct -ge 0) { "NOVI $spinner $label $pct% ($(Format-NoviBytes $speed)/s)" } else { "NOVI $spinner $label ($($elapsed)s)" }
-                $compact = $compact.Substring(0, [Math]::Min($compact.Length, [Math]::Max(1, $cols - 1)))
-                $output += "$esc[H$esc[2K$esc[1;36m$compact$esc[0m"
-            }
-            [Console]::Write($output)
-            $frame++; Start-Sleep -Milliseconds 80
-        }
-    }).AddArgument($label).AddArgument($progressFile).AddArgument($total).AddArgument([string]$env:NOVI_DETAILS)
-    try {
-        [Console]::Write("$esc[?1049h$esc[?25l$esc[2J")
-        $handle = $runner.BeginInvoke()
-        Set-Variable -Name animation -Value $runner -Scope 1
-    } catch {
-        $runner.Dispose()
-        [Console]::Write("$esc[0m$esc[?25h$esc[?1049l")
-    }
-}
-function Stop-NoviAnimation {
-    if ($animation) {
-        try { $animation.Stop() } finally {
-            $animation.Dispose()
-            Set-Variable -Name animation -Value $null -Scope 1
-            $esc = [char]27
-            [Console]::Write("$esc[0m$esc[?25h$esc[?1049l")
-        }
-    }
-}
 
-Write-Host "==> Initializing Novi Windows Provisioner" -ForegroundColor Cyan
+Write-Host "==> Novi for Windows" -ForegroundColor Cyan
 $osCaption = Get-CimInstance Win32_OperatingSystem | Select-Object -ExpandProperty Caption
-Write-Host "  -> Operating System: Microsoft Windows [$osCaption]" -ForegroundColor Gray
+Write-Host "  -> $osCaption" -ForegroundColor Gray
 
 $baseUrl = if ($env:NOVI_BASE_URL) { $env:NOVI_BASE_URL } else { 'https://novi-virid.vercel.app' }
+$siteHost = ($baseUrl -replace '^[a-z]+://', '') -replace '/.*$', ''
 $downloadUrl = "$baseUrl/api/download?asset=windows"
 $tempPath = Join-Path $env:TEMP ("Novi-Setup-" + [Guid]::NewGuid().ToString('N') + ".exe")
 
@@ -170,60 +365,42 @@ if ($installedVersion) {
 } else {
     Write-Host "==> Installing Novi $latestVersion..." -ForegroundColor Cyan
 }
-$action = if ($mode -eq 'update') { "Update    Novi $installedVersion to $(if ($latestVersion) { $latestVersion } else { 'the latest release' })" } else { "Install   Novi $latestVersion" }
-$stepLabel = if ($mode -eq 'update') { 'Updating Novi' } else { 'Installing Novi' }
-$env:NOVI_DETAILS = "$action|Package   Novi Setup for Windows x64 (.exe)|From      $baseUrl|Into      $env:LOCALAPPDATA\Programs\novi|System    $osCaption|Then      the installer runs silently and Novi opens"
+$action = if ($mode -eq 'update') { "Update Novi $installedVersion to $(if ($latestVersion) { $latestVersion } else { 'the latest release' })" } else { "Install Novi $latestVersion" }
+$downloadLabel = if ($latestVersion) { "Download Novi $latestVersion" } else { 'Download Novi' }
+$stepLabel = if ($mode -eq 'update') { 'Run the update' } else { 'Run the installer' }
+$novi.Title = "$($osCaption -replace '^Microsoft ', ''), x64"
+$novi.Details = "$action|A Windows installer for x64|From $siteHost|Into $env:LOCALAPPDATA\Programs\novi|The installer runs silently, with no windows to click through|Novi opens by itself at the end"
 
-Write-Host "==> Downloading application payload..." -ForegroundColor Cyan
-Write-Host "  -> Endpoint: $downloadUrl" -ForegroundColor Gray
 $total = Get-NoviContentLength $downloadUrl
-if ($total -gt 0) { Write-Host "  -> Size: $(Format-NoviBytes $total)" -ForegroundColor Gray }
+Start-NoviStage @($downloadLabel, $stepLabel, 'Open Novi')
 
 try {
-    Start-NoviAnimation "Downloading Novi $latestVersion" $tempPath $total
-    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-    Invoke-WebRequest -Uri $downloadUrl -OutFile $tempPath -UseBasicParsing
+    Invoke-NoviStep $downloadLabel {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $tempPath -UseBasicParsing
+    } $tempPath $total
 } catch {
     Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
     throw "Failed to download installer from $($downloadUrl): $_"
-} finally {
-    Stop-NoviAnimation
 }
 
 if (-not (Test-Path $tempPath)) {
+    Stop-NoviStage
     throw "Downloaded installer payload not found at $tempPath"
 }
-Write-Host "  -> Received $(Format-NoviBytes (Get-Item -LiteralPath $tempPath).Length)" -ForegroundColor Gray
-
-Write-Host "==> Executing silent installer ($stepLabel)..." -ForegroundColor Cyan
-Write-Host "  -> Target binary: $tempPath /S" -ForegroundColor Gray
 
 try {
-    if ($mode -eq 'update') { Start-NoviAnimation 'Updating Novi' } else { Start-NoviAnimation 'Installing Novi' }
-    $proc = Start-Process -FilePath $tempPath -ArgumentList "/S" -PassThru -Wait
-    if ($proc.ExitCode -ne 0) {
-        throw "Installer exited with code $($proc.ExitCode)."
+    Invoke-NoviStep $stepLabel {
+        $proc = Start-Process -FilePath $tempPath -ArgumentList "/S" -PassThru -Wait
+        if ($proc.ExitCode -ne 0) {
+            throw "Installer exited with code $($proc.ExitCode)."
+        }
     }
 } catch {
     throw "Silent installation execution failed: $_"
 } finally {
-    Stop-NoviAnimation
     Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
 }
-
-Write-Host "==> $(if ($mode -eq 'update') { 'Update' } else { 'Installation' }) completed successfully." -ForegroundColor Green
-Write-Host ''
-Write-Host "  Novi is $(if ($mode -eq 'update') { "updated to $latestVersion" } else { 'installed' }) and opening now." -ForegroundColor White
-Write-Host ''
-Write-Host ('  {0,-12}{1}' -f 'Installed', "$env:LOCALAPPDATA\Programs\novi (Start menu: Novi)")
-Write-Host ('  {0,-12}{1}' -f 'Sign in', 'Individuals: the username and password from your Novi account.')
-Write-Host ('  {0,-12}{1}' -f '', 'Teams: the desktop login your organisation created for you.')
-Write-Host ('  {0,-12}{1}' -f 'AI key', "Add a provider key once in your account: $baseUrl/api-keys")
-Write-Host ('  {0,-12}{1}' -f 'Guide', "$baseUrl/how-it-works")
-Write-Host ('  {0,-12}{1}' -f 'Plans', "$baseUrl/get-access")
-Write-Host ('  {0,-12}{1}' -f 'Help', 'getnoviapp@outlook.com  -  Instagram @getnoviapp')
-Write-Host ('  {0,-12}{1}' -f 'Remove', 'Settings, Apps, Novi, Uninstall')
-Write-Host ''
 
 $installLocations = @(
     (Join-Path $env:LOCALAPPDATA "Programs\novi\Novi.exe")
@@ -239,14 +416,29 @@ foreach ($loc in $installLocations) {
     }
 }
 
-if ($targetExe) {
-    Write-Host "==> Launching Novi ($targetExe)..." -ForegroundColor Cyan
-    Start-Process -FilePath $targetExe -WorkingDirectory (Split-Path -LiteralPath $targetExe)
-} else {
-    Write-Host "==> Launching Novi via shortcut..." -ForegroundColor Cyan
-    $desktopShortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) "Novi.lnk"
-    if (Test-Path $desktopShortcut) {
-        Invoke-Item $desktopShortcut
+Invoke-NoviStep 'Open Novi' {
+    if ($targetExe) {
+        Start-Process -FilePath $targetExe -WorkingDirectory (Split-Path -LiteralPath $targetExe)
+    } else {
+        $desktopShortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) "Novi.lnk"
+        if (Test-Path $desktopShortcut) {
+            Invoke-Item $desktopShortcut
+        }
     }
 }
+Stop-NoviStage -Finished
+
+Write-Host "==> $(if ($mode -eq 'update') { 'Update' } else { 'Installation' }) completed successfully." -ForegroundColor Green
+Write-Host ''
+Write-Host "  Novi is $(if ($mode -eq 'update') { "updated to $latestVersion" } else { 'installed' }) and opening now." -ForegroundColor White
+Write-Host ''
+Write-Host ('  {0,-12}{1}' -f 'Installed', "$env:LOCALAPPDATA\Programs\novi (Start menu: Novi)")
+Write-Host ('  {0,-12}{1}' -f 'Sign in', 'Individuals: the username and password from your Novi account.')
+Write-Host ('  {0,-12}{1}' -f '', 'Teams: the desktop login your organisation created for you.')
+Write-Host ('  {0,-12}{1}' -f 'AI key', "Add a provider key once in your account: $baseUrl/api-keys")
+Write-Host ('  {0,-12}{1}' -f 'Guide', "$baseUrl/how-it-works")
+Write-Host ('  {0,-12}{1}' -f 'Plans', "$baseUrl/get-access")
+Write-Host ('  {0,-12}{1}' -f 'Help', 'getnoviapp@outlook.com  -  Instagram @getnoviapp')
+Write-Host ('  {0,-12}{1}' -f 'Remove', 'Settings, Apps, Novi, Uninstall')
+Write-Host ''
 }

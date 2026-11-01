@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { clampTrayHeight, dockedBounds, MAIN_WINDOW_MIN, modernBounds, normalBounds, readingBoundsBelowControls, resizedTrayBounds, TRAY_NAME, trayBounds, viewerBounds } from '../src/main/services/workspace.ts';
+import { createRequire } from 'node:module';
+import { clampTrayHeight, dockedBounds, MAIN_WINDOW_MIN, modernBounds, normalBounds, readingBoundsBelowControls, resizedTrayBounds, SIDE_TRAY_WIDTH, sideTrayBounds, TRAY_NAME, trayBounds, trayRole, viewerBounds } from '../src/main/services/workspace.ts';
 
 const full = { x: 0, y: 0, width: 1920, height: 1040 };
 
@@ -110,22 +111,126 @@ test('side resizing anchors the opposite edge, enforces minimum width, and stops
   }
 });
 
-test('only the tray window name is allowed', () => {
-  assert(TRAY_NAME.test('novi-tray-ff72774b-0c3b-44cc-a57f-e74345ee346c'));
-  for (const name of ['', 'novi-tray-', 'novi-tray-x', '_blank', 'novi-tray-ff72774b-0c3b-44cc-a57f-e74345ee346c-extra']) assert(!TRAY_NAME.test(name), name);
+test('the side trays sit in the top corners and never shift for the panel', () => {
+  assert.equal(SIDE_TRAY_WIDTH, 360);
+  assert.deepEqual(sideTrayBounds(full, 'left', 64), { x: 12, y: 12, width: 360, height: 64 });
+  assert.deepEqual(sideTrayBounds(full, 'right', 64), { x: 1548, y: 12, width: 360, height: 64 });
+  const second = { x: 1920, y: 40, width: 1920, height: 1040 };
+  assert.deepEqual(sideTrayBounds(second, 'left', 64), { x: 1932, y: 52, width: 360, height: 64 }, 'left on an offset second monitor');
+  assert.deepEqual(sideTrayBounds(second, 'right', 64), { x: 3468, y: 52, width: 360, height: 64 }, 'right on an offset second monitor');
+  assert.deepEqual(sideTrayBounds(full, 'right', 64, 500), { x: 1408, y: 12, width: 500, height: 64 }, 'a manually widened side tray keeps its width');
+  const narrow = { x: 0, y: 0, width: 320, height: 600 };
+  assert.deepEqual(sideTrayBounds(narrow, 'left', 64), { x: 12, y: 12, width: 296, height: 64 }, 'width clamps to the area');
+  assert.deepEqual(sideTrayBounds(narrow, 'right', 64), { x: 12, y: 12, width: 296, height: 64 });
+  assert.equal(sideTrayBounds(full, 'left', 5000).height, 1016);
+  assert.equal(sideTrayBounds(full, 'right', 10).height, 48);
 });
+
+test('only the tray window names are allowed and each names its role', () => {
+  const uuid = 'ff72774b-0c3b-44cc-a57f-e74345ee346c';
+  assert(TRAY_NAME.test(`novi-tray-${uuid}`));
+  for (const role of ['left', 'center', 'right'] as const) {
+    assert(TRAY_NAME.test(`novi-tray-${role}-${uuid}`), role);
+    assert.equal(trayRole(`novi-tray-${role}-${uuid}`), role);
+  }
+  assert.equal(trayRole(`novi-tray-${uuid}`), 'center', 'the legacy name is the center tray');
+  for (const name of ['', 'novi-tray-', 'novi-tray-x', '_blank', `novi-tray-${uuid}-extra`, `novi-tray-top-${uuid}`, `novi-tray-left-${uuid}-extra`, `novi-tray-left-`]) {
+    assert(!TRAY_NAME.test(name), name);
+    assert.equal(trayRole(name), null, name);
+  }
+});
+
+// The service reads electron lazily through require, so a stub in the require cache stands in for it here.
+const area = { ...full };
+const electronStub = { screen: { getPrimaryDisplay: () => ({ workArea: area }), getDisplayMatching: () => ({ workArea: area }) } };
+function stubElectron() {
+  const req = createRequire(import.meta.url);
+  const id = req.resolve('electron');
+  req.cache[id] = { id, filename: id, loaded: true, exports: electronStub } as never;
+}
+
+function fakeTray(bounds = { x: 0, y: 0, width: 360, height: 190 }) {
+  const listeners = new Map<string, () => void>();
+  const tray = {
+    bounds, visible: false, destroyed: false, closed: false, visibleOnAllWorkspaces: false,
+    webContents: { setWindowOpenHandler() {}, on() {} },
+    isDestroyed: () => tray.destroyed,
+    isVisible: () => tray.visible,
+    isMinimized: () => false,
+    show: () => { tray.visible = true; },
+    hide: () => { tray.visible = false; },
+    moveTop() {},
+    close: () => { tray.closed = true; tray.destroyed = true; listeners.get('closed')?.(); },
+    getBounds: () => tray.bounds,
+    setBounds: (next: typeof bounds) => { tray.bounds = next; },
+    setVisibleOnAllWorkspaces: () => { tray.visibleOnAllWorkspaces = true; },
+    on: (event: string, listener: () => void) => { listeners.set(event, listener); },
+  };
+  return tray;
+}
+
+function fakeMain() {
+  const main = {
+    visible: true, closed: false, bounds: { x: 550, y: 96, width: 820, height: 720 },
+    webContents: { send() {} },
+    isVisible: () => main.visible, hide: () => { main.visible = false; }, show: () => { main.visible = true; },
+    close: () => { main.closed = true; }, isDestroyed: () => false, getBounds: () => main.bounds, setBounds: (next: { x: number; y: number; width: number; height: number }) => { main.bounds = next; },
+    getMinimumSize: () => [213, 150], setMinimumSize() {}, isMinimized: () => false, isMaximized: () => false, restore() {}, unmaximize() {},
+  };
+  return main;
+}
 
 test('hiding the widget preserves its window and leaves dashboard recovery when a shortcut is unavailable', async () => {
   const { WorkspaceService } = await import('../src/main/services/workspace.ts');
-  let visible = true, closed = false;
-  const main = { webContents: { send() {} }, isVisible: () => visible, hide: () => { visible = false; }, show: () => { visible = true; }, close: () => { closed = true; } };
+  const main = fakeMain();
   const workspace = new WorkspaceService(() => main as never);
   workspace.action('dashboard');
-  assert.equal(visible, false);
+  assert.equal(main.visible, false);
   workspace.action('dashboard');
-  assert.equal(visible, true);
+  assert.equal(main.visible, true);
   workspace.action('dashboard');
   workspace.action('hide');
-  assert.equal(visible, true, 'dashboard remains a recovery path when the global shortcut is unavailable');
-  assert.equal(closed, false, 'hide never closes the renderer that owns capture');
+  assert.equal(main.visible, true, 'dashboard remains a recovery path when the global shortcut is unavailable');
+  assert.equal(main.closed, false, 'hide never closes the renderer that owns capture');
+});
+
+test('the three trays are adopted by role, placed in their corners, and hidden and shown together', async () => {
+  stubElectron();
+  const { WorkspaceService } = await import('../src/main/services/workspace.ts');
+  const main = fakeMain();
+  const created: unknown[] = [];
+  const workspace = new WorkspaceService(() => main as never, (tray) => created.push(tray));
+  const adopt = (child: ReturnType<typeof fakeTray>, role: string) => (workspace as unknown as { adoptTray(child: unknown, role: string): void }).adoptTray(child, role);
+  // Real windows are born with their role's default width through trayOptions; placement keeps an existing width.
+  const left = fakeTray(), center = fakeTray({ x: 0, y: 0, width: 490, height: 190 }), right = fakeTray();
+  workspace.dock(area, 'modern');
+  // A size report before the tray exists is kept for that role only.
+  workspace.resizeTray(72, 72, 'center');
+  adopt(left, 'left'); adopt(center, 'center'); adopt(right, 'right');
+  assert.deepEqual(created, [left, center, right], 'stealth state is applied to every tray');
+  assert.equal(left.bounds.x, 12); assert.equal(right.bounds.x, 1920 - 12 - 360); assert.equal(center.bounds.x, 715, 'the center tray stays centered');
+  assert.equal(center.bounds.height, 72, 'the pending height was applied on adoption');
+  assert.equal(left.bounds.height, 190); assert.equal(right.bounds.height, 190);
+  assert.equal(center.visible, true, 'the first size report shows the tray');
+  workspace.resizeTray(64, undefined, 'left'); workspace.resizeTray(64, undefined, 'right');
+  assert.equal(left.bounds.height, 64); assert.equal(right.bounds.height, 64); assert.equal(center.bounds.height, 72, 'resizing a side tray leaves the others alone');
+  assert.equal(left.visible && right.visible, true);
+
+  workspace.action('hide');
+  assert.equal(left.visible && center.visible && right.visible, true, 'the trays hide after a short delay');
+  await new Promise((resolve) => setTimeout(resolve, 220));
+  assert.deepEqual([left.visible, center.visible, right.visible], [false, false, false]);
+  workspace.action('show');
+  assert.deepEqual([left.visible, center.visible, right.visible], [true, true, true]);
+
+  const replacement = fakeTray();
+  adopt(replacement, 'right');
+  assert.equal(right.closed, true, 'a new window for a role replaces only that role');
+  assert.equal(left.closed || center.closed, false);
+  workspace.resizeTrayWidth(420, 'left', 'right');
+  assert.deepEqual([replacement.bounds.x, replacement.bounds.width], [1908 - 420, 420]);
+  assert.equal(left.bounds.width, 360);
+
+  workspace.closeTray();
+  assert.deepEqual([left.closed, center.closed, replacement.closed], [true, true, true], 'closeTray closes every tray');
 });

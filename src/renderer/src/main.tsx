@@ -4,6 +4,7 @@ import { App } from './App';
 import { EyeTrackingOverlay } from './components/EyeTrackingOverlay';
 import { DetachedCodeViewer } from './components/CodingModeHUD';
 import './styles/app.css';
+import './styles/modern.css';
 import { syncAppearance, subscribeAppearance } from './services/appearance';
 import { applyTheme, savedTheme } from './services/theme';
 

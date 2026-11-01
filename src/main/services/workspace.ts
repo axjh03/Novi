@@ -1,13 +1,19 @@
 import type { BrowserWindow, BrowserWindowConstructorOptions, Rectangle } from 'electron';
 import { createRequire } from 'node:module';
-import type { InterfaceStyle } from '../../shared/appearance';
+import type { InterfaceStyle, TrayRole } from '../../shared/appearance';
 
 const req = typeof require === 'function' ? require : createRequire(import.meta.url);
 const electron = () => req('electron') as typeof import('electron');
 
-export const TRAY_NAME = /^novi-tray-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** `novi-tray-<role>-<uuid>`; the legacy `novi-tray-<uuid>` is the center tray. */
+export const TRAY_NAME = /^novi-tray-(?:(left|center|right)-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export function trayRole(frameName: string): TrayRole | null {
+  const match = TRAY_NAME.exec(frameName);
+  return match ? (match[1] as TrayRole | undefined) ?? 'center' : null;
+}
 const TRAY_WIDTH = 600;
 const MODERN_TRAY_WIDTH = 490;
+export const SIDE_TRAY_WIDTH = 360;
 const TRAY_MIN_WIDTH = 320;
 const TRAY_GAP = 12;
 const TRAY_MIN_HEIGHT = 48;
@@ -60,6 +66,13 @@ export function trayBounds(area: Rectangle, dockLeft: number | null, height: num
   return { x, y: area.y + TRAY_GAP, width, height: clampTrayHeight(area, height) };
 }
 
+/** The Modern side trays: top-left and top-right corners of the screen, never shifted for a docked panel. */
+export function sideTrayBounds(area: Rectangle, side: 'left' | 'right', height: number, preferredWidth = SIDE_TRAY_WIDTH): Rectangle {
+  const width = Math.max(0, Math.min(preferredWidth, area.width - 2 * TRAY_GAP));
+  const x = side === 'left' ? area.x + TRAY_GAP : area.x + area.width - TRAY_GAP - width;
+  return { x, y: area.y + TRAY_GAP, width, height: clampTrayHeight(area, height) };
+}
+
 export function clampTrayHeight(area: Rectangle, height: number): number {
   return Math.round(Math.max(TRAY_MIN_HEIGHT, Math.min(height, area.height - 2 * TRAY_GAP)));
 }
@@ -88,14 +101,20 @@ export function readingBoundsBelowControls(area: Rectangle, reader: Rectangle, c
   return { ...reader, y, height };
 }
 
-/** Docks the main window as the output panel and owns the floating input tray during a session. */
+/**
+ * Docks the main window as the output panel and owns the floating trays during a session.
+ * Up to three trays, keyed by role: Modern floats a session bar (`left`), the answer bar and panel
+ * (`center`) and an appearance bar (`right`); Classic opens only the center one. Hide/show, focus
+ * and placement treat them as a group; sizes are per tray, and only the center tray's controls
+ * height positions the Modern reading window.
+ */
 export class WorkspaceService {
-  private tray: BrowserWindow | null = null;
-  private trayShown = false;
+  private trays = new Map<TrayRole, BrowserWindow>();
+  private shown = new Set<TrayRole>();
   private hidden = false;
   private hideTimer: ReturnType<typeof setTimeout> | undefined;
   private shortcutRegistered = false;
-  private pendingHeight: { height: number; controlsHeight?: number } | null = null;
+  private pendingHeights = new Map<TrayRole, { height: number; controlsHeight?: number }>();
   private saved: { bounds: Rectangle; maximized: boolean; minimum: [number, number] } | null = null;
   private dockedState = false;
   private interfaceStyle: InterfaceStyle = 'classic';
@@ -108,6 +127,15 @@ export class WorkspaceService {
 
   get docked() { return this.dockedState; }
 
+  private tray(role: TrayRole): BrowserWindow | null {
+    const tray = this.trays.get(role);
+    return tray && !tray.isDestroyed() ? tray : null;
+  }
+
+  private *openTrays(): Generator<[TrayRole, BrowserWindow]> {
+    for (const [role, tray] of this.trays) if (!tray.isDestroyed()) yield [role, tray];
+  }
+
   action(action: 'dashboard' | 'hide' | 'show') {
     const main = this.getMainWindow();
     if (action === 'dashboard') {
@@ -118,10 +146,10 @@ export class WorkspaceService {
     this.hidden = action === 'hide';
     main?.webContents.send('global-action', { type: 'workspace-visibility', payload: !this.hidden });
     if (this.hidden) {
-      const tray = this.tray;
-      this.hideTimer = setTimeout(() => { if (tray && !tray.isDestroyed() && this.hidden) tray.hide(); }, 170);
+      const trays = [...this.trays.values()];
+      this.hideTimer = setTimeout(() => { if (this.hidden) for (const tray of trays) if (!tray.isDestroyed()) tray.hide(); }, 170);
       if (!this.shortcutRegistered) main?.show();
-    } else if (this.tray && !this.tray.isDestroyed()) this.tray.show();
+    } else for (const [, tray] of this.openTrays()) tray.show();
   }
 
   attachMain(window: BrowserWindow) {
@@ -129,19 +157,21 @@ export class WorkspaceService {
     const registered = electron().globalShortcut.register(shortcut, () => { if (this.interfaceStyle === 'modern') this.action(this.hidden ? 'show' : 'hide'); });
     this.shortcutRegistered = registered;
     window.on('closed', () => { if (registered) electron().globalShortcut.unregister(shortcut); });
-    window.webContents.setWindowOpenHandler(({ url, frameName }) => url === 'about:blank' && TRAY_NAME.test(frameName)
-      ? { action: 'allow', overrideBrowserWindowOptions: this.trayOptions() }
-      : { action: 'deny' });
+    window.webContents.setWindowOpenHandler(({ url, frameName }) => {
+      const role = url === 'about:blank' ? trayRole(frameName) : null;
+      return role ? { action: 'allow', overrideBrowserWindowOptions: this.trayOptions(role) } : { action: 'deny' };
+    });
     window.webContents.on('did-create-window', (child, { frameName }) => {
-      if (TRAY_NAME.test(frameName)) this.adoptTray(child);
+      const role = trayRole(frameName);
+      if (role) this.adoptTray(child, role);
       else child.close();
     });
-    // A reload or crash ends the page that renders the tray; never leave an empty tray behind.
+    // A reload or crash ends the page that renders the trays; never leave an empty tray behind.
     window.webContents.on('did-start-navigation', (details) => { if (details.isMainFrame && !details.isSameDocument) this.closeTray(); });
     window.webContents.on('render-process-gone', () => this.closeTray());
     window.on('closed', () => this.closeTray());
-    // The panel and the tray come forward together. moveTop never takes focus.
-    window.on('focus', () => this.bringForward(this.tray));
+    // The panel and the trays come forward together. moveTop never takes focus.
+    window.on('focus', () => { for (const [, tray] of this.openTrays()) this.bringForward(tray); });
   }
 
   private bringForward(window: BrowserWindow | null) {
@@ -149,8 +179,8 @@ export class WorkspaceService {
     try { window.moveTop(); } catch { /* Not supported on Wayland. */ }
   }
 
-  private trayOptions(): BrowserWindowConstructorOptions {
-    const bounds = this.trayPlacement(TRAY_INITIAL_HEIGHT);
+  private trayOptions(role: TrayRole): BrowserWindowConstructorOptions {
+    const bounds = this.trayPlacement(role, TRAY_INITIAL_HEIGHT);
     return {
       ...bounds, show: false, frame: false, transparent: true, backgroundColor: '#00000000', hasShadow: false,
       alwaysOnTop: true,
@@ -160,48 +190,67 @@ export class WorkspaceService {
     };
   }
 
-  /** Top-center of the screen the output panel is on, clear of the panel while docked. */
-  private trayPlacement(height: number, width?: number): Rectangle {
+  private defaultTrayWidth(role: TrayRole) {
+    return role === 'center' ? this.interfaceStyle === 'modern' ? MODERN_TRAY_WIDTH : TRAY_WIDTH : SIDE_TRAY_WIDTH;
+  }
+
+  /** On the screen the output panel is on: the center tray clear of the panel while docked, the side trays in the corners. */
+  private trayPlacement(role: TrayRole, height: number, width?: number): Rectangle {
     const { screen } = electron();
     const main = this.getMainWindow();
     const mainBounds = main && !main.isDestroyed() ? main.getBounds() : null;
     const area = (mainBounds ? screen.getDisplayMatching(mainBounds) : screen.getPrimaryDisplay()).workArea;
+    const current = this.tray(role);
+    const trayWidth = width ?? (current ? current.getBounds().width : this.defaultTrayWidth(role));
+    if (role !== 'center') return sideTrayBounds(area, role, height, trayWidth);
     const dockLeft = this.dockedState && this.interfaceStyle === 'classic' && mainBounds && intersects(mainBounds, area) ? mainBounds.x : null;
-    return trayBounds(area, dockLeft, height, width ?? (this.tray && !this.tray.isDestroyed() ? this.tray.getBounds().width : this.interfaceStyle === 'modern' ? MODERN_TRAY_WIDTH : TRAY_WIDTH));
+    return trayBounds(area, dockLeft, height, trayWidth);
   }
 
-  private adoptTray(child: BrowserWindow) {
+  private adoptTray(child: BrowserWindow, role: TrayRole) {
     // React development mode opens and closes a tray once before the real one.
     if (child.isDestroyed()) return;
-    if (this.tray && !this.tray.isDestroyed() && this.tray !== child) this.tray.close();
-    this.tray = child;
-    this.hidden = false;
+    const previous = this.tray(role);
+    if (previous && previous !== child) previous.close();
+    this.trays.set(role, child);
+    this.shown.delete(role);
+    if (this.hidden) {
+      // A tray reopened while hidden brings the whole group back, so no tray is left behind.
+      this.hidden = false;
+      for (const [other, tray] of this.openTrays()) if (other !== role && this.shown.has(other)) tray.show();
+    }
     child.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    this.trayShown = false;
     child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     child.webContents.on('will-navigate', (event) => event.preventDefault());
     child.webContents.on('will-attach-webview', (event) => event.preventDefault());
-    child.on('closed', () => { if (this.tray === child) { this.tray = null; this.trayShown = false; this.controlsHeight = 0; } });
+    child.on('closed', () => {
+      if (this.trays.get(role) !== child) return;
+      this.trays.delete(role);
+      this.shown.delete(role);
+      if (role === 'center') this.controlsHeight = 0;
+    });
     child.on('focus', () => this.bringForward(this.getMainWindow()));
     this.onTrayCreated(child);
     // The window may be adopted after the panel docked; place it against the current layout.
-    this.placeTray();
-    if (this.pendingHeight !== null) { const pending = this.pendingHeight; this.pendingHeight = null; this.resizeTray(pending.height, pending.controlsHeight); }
+    this.placeOne(role, child);
+    const pending = this.pendingHeights.get(role);
+    if (pending) { this.pendingHeights.delete(role); this.resizeTray(pending.height, pending.controlsHeight, role); }
     // Normally shown on the first size report; this covers a renderer that never reports.
-    setTimeout(() => { if (this.tray === child) this.showTray(); }, 1000);
+    setTimeout(() => { if (this.trays.get(role) === child) this.showTray(role); }, 1000);
   }
 
-  private showTray() {
-    const tray = this.tray;
-    if (!tray || tray.isDestroyed() || this.trayShown || this.hidden) return;
-    this.trayShown = true;
+  private showTray(role: TrayRole) {
+    const tray = this.tray(role);
+    if (!tray || this.shown.has(role) || this.hidden) return;
+    this.shown.add(role);
     tray.show();
   }
 
-  resizeTray(height: number, controlsHeight?: number) {
-    if (controlsHeight !== undefined) this.controlsHeight = controlsHeight;
-    const tray = this.tray;
-    if (!tray || tray.isDestroyed()) { this.pendingHeight = { height, controlsHeight }; return; }
+  resizeTray(height: number, controlsHeight?: number, role: TrayRole = 'center') {
+    // Only the center tray's controls sit above the Modern reader.
+    if (role === 'center' && controlsHeight !== undefined) this.controlsHeight = controlsHeight;
+    const tray = this.tray(role);
+    if (!tray) { this.pendingHeights.set(role, { height, controlsHeight }); return; }
     const { screen } = electron();
     const bounds = tray.getBounds();
     const area = screen.getDisplayMatching(bounds).workArea;
@@ -209,19 +258,19 @@ export class WorkspaceService {
     const y = Math.max(area.y, Math.min(bounds.y, area.y + area.height - nextHeight));
     if (nextHeight !== bounds.height || y !== bounds.y) tray.setBounds({ x: bounds.x, y, width: bounds.width, height: nextHeight });
     const main = this.getMainWindow();
-    if (this.dockedState && this.interfaceStyle === 'modern' && controlsHeight && main && !main.isDestroyed()) {
+    if (role === 'center' && this.dockedState && this.interfaceStyle === 'modern' && controlsHeight && main && !main.isDestroyed()) {
       const reader = main.getBounds();
       if (intersects(reader, area)) {
         const next = readingBoundsBelowControls(area, reader, { ...bounds, y, height: controlsHeight });
         if (next.y !== reader.y || next.height !== reader.height) main.setBounds(next);
       }
     }
-    this.showTray();
+    this.showTray(role);
   }
 
-  resizeTrayWidth(width: number, edge: 'left' | 'right') {
-    const tray = this.tray;
-    if (!tray || tray.isDestroyed()) return;
+  resizeTrayWidth(width: number, edge: 'left' | 'right', role: TrayRole = 'center') {
+    const tray = this.tray(role);
+    if (!tray) return;
     const bounds = tray.getBounds();
     const area = electron().screen.getDisplayMatching(bounds).workArea;
     tray.setBounds(resizedTrayBounds(area, bounds, width, edge));
@@ -236,25 +285,29 @@ export class WorkspaceService {
     window.setMinimumSize(Math.min(MAIN_WINDOW_MIN.width, area.width), Math.min(MAIN_WINDOW_MIN.height, area.height));
     if (this.dockedState) window.setBounds(this.interfaceStyle === 'modern' ? modernBounds(area, this.controlsHeight) : dockedBounds(area));
     else window.setBounds(normalBounds(area));
-    if (this.tray && !this.tray.isDestroyed()) {
-      this.tray.setBounds(this.trayPlacement(TRAY_INITIAL_HEIGHT, this.interfaceStyle === 'modern' ? MODERN_TRAY_WIDTH : TRAY_WIDTH));
-      this.showTray();
+    for (const [role, tray] of this.openTrays()) {
+      tray.setBounds(this.trayPlacement(role, TRAY_INITIAL_HEIGHT, this.defaultTrayWidth(role)));
+      this.showTray(role);
     }
   }
 
-  private placeTray(width?: number) {
-    const tray = this.tray;
-    if (!tray || tray.isDestroyed()) return;
-    tray.setBounds(this.trayPlacement(tray.getBounds().height, width));
+  private placeOne(role: TrayRole, tray: BrowserWindow, width?: number) {
+    tray.setBounds(this.trayPlacement(role, tray.getBounds().height, width));
   }
 
+  /** Places every open tray; `resetWidths` returns each to its default width for the current style. */
+  private placeTray(resetWidths = false) {
+    for (const [role, tray] of this.openTrays()) this.placeOne(role, tray, resetWidths ? this.defaultTrayWidth(role) : undefined);
+  }
+
+  /** Closes every tray. */
   closeTray() {
     clearTimeout(this.hideTimer);
-    const tray = this.tray;
-    this.tray = null;
-    this.trayShown = false;
-    this.pendingHeight = null;
-    if (tray && !tray.isDestroyed()) tray.close();
+    const trays = [...this.trays.values()];
+    this.trays.clear();
+    this.shown.clear();
+    this.pendingHeights.clear();
+    for (const tray of trays) if (!tray.isDestroyed()) tray.close();
   }
 
   dock(area: Rectangle, interfaceStyle: InterfaceStyle = this.interfaceStyle) {
@@ -276,7 +329,7 @@ export class WorkspaceService {
     window.setMinimumSize(Math.min(MAIN_WINDOW_MIN.width, area.width), Math.min(MAIN_WINDOW_MIN.height, area.height));
     window.setBounds(interfaceStyle === 'modern' ? modernBounds(area, this.controlsHeight) : dockedBounds(area));
     if (interfaceStyle === 'modern') window.hide(); else window.show();
-    this.placeTray(styleChanged ? interfaceStyle === 'modern' ? MODERN_TRAY_WIDTH : TRAY_WIDTH : undefined);
+    this.placeTray(styleChanged);
   }
 
   // The page closes its own tray; closing it here could race a tray it has just reopened.

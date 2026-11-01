@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Award, Brain, Code2, ExternalLink, FolderCode, History, Image, Lock, Menu, MessageSquare, Network, PanelBottom, Phone, Settings, Video, X, Zap, type LucideIcon } from 'lucide-react';
+import { Award, Brain, Code2, ExternalLink, FolderCode, Lock, Menu, MessageSquare, Network, PanelBottom, Phone, Video, X, type LucideIcon } from 'lucide-react';
 import type { AppMode, ModelOption, Snapshot } from '../../../shared/types';
 import { Sidebar } from '../components/chat/Sidebar';
 import { Composer } from '../components/chat/Composer';
-import { ImagePreview, Message } from '../components/chat/Message';
+import { Message } from '../components/chat/Message';
 import { useChat } from '../hooks/useChat';
 import { activeConnection } from '../../../shared/providers';
 import { SettingsPage } from './SettingsPage';
@@ -29,8 +29,8 @@ import { ENGINES, type LocalCodingMessage } from '../../../shared/localCoding';
 import { lockedMessage } from '../../../shared/plans';
 import { PlanLock } from '../components/PlanLock';
 import { ANSWER_STYLES } from '../../../shared/interviewProfile';
-import { ModernWindowMenu } from '../components/ModernWindowMenu';
 import { SurfacePortal } from '../components/SurfacePortal';
+import { ModernSession } from '../components/modern/ModernSession';
 
 // Each mode has its own icon so the tray can show only the active mode's name.
 const MODE_ICONS: Record<AppMode, LucideIcon> = {
@@ -106,14 +106,9 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
       scroll.current?.scrollBy({ top: action.payload, behavior: 'smooth' });
       return;
     }
-    if (action.type === 'session-trace-saved' && typeof action.payload?.file === 'string') { setTraceSaved(action.payload.file); return; }
     if (action.type !== 'review-action' || typeof action.payload?.text !== 'string') return;
     setPrefill({ id: ++prefillId.current, text: action.payload.text });
   }), []);
-  // With Debug on, the session's trace file is announced when the session ends (or Debug is turned off).
-  const [traceSaved, setTraceSaved] = useState<string | null>(null);
-  const [traceCopied, setTraceCopied] = useState(false);
-  useEffect(() => { setTraceCopied(false); }, [traceSaved]);
   const openLocalFile = useCallback((result: LocalCodingMessage, fileId: string) => {
     if (!result.resultingVersionId) return;
     void unwrap(window.novi.openReview({ projectId: result.projectId, toVersionId: result.resultingVersionId, fileId })).catch((error) => chat.setError(errorText(error)));
@@ -201,7 +196,6 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     }
   }, [et, allows, chat.setError]);
 
-
   // ──────────────────────────────────────────────────────────────────────────
 
   const [syncingModel, setSyncingModel] = useState(false);
@@ -257,29 +251,63 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   })();
 
+  const selectConversation = (id: string) => {
+    if (id !== chat.selectedId) setComposerKey(key => key + 1);
+    if (chat.conversations.find((item) => item.id === id)?.localCoding) setAppMode('local-coding');
+    chat.setSelectedId(id); setSettings(false); setSidebarCollapsed(true); chat.setError('');
+  };
+  const renameConversation = (id: string) => { chat.setError(''); setConversationName(chat.conversations.find(item => item.id === id)?.title || ''); setRenaming(id); };
+  const saveConversation = (id: string) => { void unwrap(window.novi.saveConversation(id)).catch(error => chat.setError(errorText(error))); };
   const sidebar = <Sidebar
-        collapsed={!modern && sidebarCollapsed}
-        popover={modern}
+        collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((value) => !value)}
         conversations={chat.conversations}
         selectedId={chat.selectedId}
         displayName={config.displayName}
         busy={sidebarBusy || syncingModel}
         onNew={() => { setConfirmEnd(true); setSidebarCollapsed(true); }}
-        onSelect={(id) => {
-          if (id !== chat.selectedId) setComposerKey(key => key + 1);
-          if (chat.conversations.find((item) => item.id === id)?.localCoding) setAppMode('local-coding');
-          chat.setSelectedId(id); setSettings(false); setSidebarCollapsed(true); chat.setError('');
-        }}
+        onSelect={selectConversation}
         onDelete={setDeleting}
-        onRename={(id) => { chat.setError(''); setConversationName(chat.conversations.find(item => item.id === id)?.title || ''); setRenaming(id); }}
-        onSave={(id) => { void unwrap(window.novi.saveConversation(id)).catch(error => chat.setError(errorText(error))); }}
+        onRename={renameConversation}
+        onSave={saveConversation}
         onSettings={() => { practice.cancel(); setSettings(true); setSidebarCollapsed(true); }}
       />;
   const settingsPage = <SettingsPage state={state} onSaved={onSaved} onBack={() => setSettings(false)} onSignOut={onSignOut} onCleared={chat.clear} onDebugEnabledChange={setDebugEnabled} closeRequest={settingsCloseRequest} />;
   const localSetup = <LocalCodingSetup state={state} onStarted={(snapshot, conversationId) => { onSaved(snapshot); setComposerKey((key) => key + 1); chat.setSelectedId(conversationId); chat.setError(''); }} />;
   const readyCard = !readyDismissed && !sentInSession && !practice.active && !localMode && <ReadyCard transparent={transparent} listenKey={listenKey} snapshotKey={config.screenshotShortcut || 'Alt+3'}
     practiceDisabled={contextBusy || chat.busy || ending} onPractice={startPractice} onDismiss={() => setReadyDismissed(true)} />;
+  const practiceCoach = practice.active && <PracticeCoach state={practice.state} voiced={practice.voiced} listenKey={listenKey}
+    onTypeInstead={practice.typeInstead} onRemove={() => void removePractice()} onEnd={practice.cancel} />;
+  const eyeTracking = <EyeTrackingPanel
+    state={et.state}
+    error={et.error}
+    isCalibrated={et.isCalibrated}
+    showDebugDot={showDebugDot}
+    sensitivity={et.sensitivity}
+    onSetSensitivity={et.setSensitivity}
+    cameras={et.cameras}
+    selectedCameraId={et.selectedCameraId}
+    monitors={et.monitors}
+    selectedDisplayId={et.selectedDisplayId}
+    overlayActive={et.overlayActive}
+    onToggle={() => void handleEyeToggle()}
+    onToggleDebug={() => setShowDebugDot((v) => !v)}
+    onListCameras={et.listCameras}
+    onSwitchCamera={et.switchCamera}
+    onListMonitors={et.listMonitors}
+    onOpenOverlay={et.openOverlay}
+    onCloseOverlay={et.closeOverlay}
+    onSetMonitor={setWorkingMonitor}
+    onSendSticky={['coding', 'system-design', 'local-coding'].includes(appMode) ? et.sendStickyToOverlay : undefined}
+    locked={!allows('eye-tracking')}
+  />;
+  const openDiagrams = () => void unwrap(window.novi.setCodeViewerVisible(true)).then(() => unwrap(window.novi.updateCodeViewer(diagramBlocks(chat.selected?.messages || [])))).catch((error) => chat.setError(errorText(error)));
+  const send = (content: string, images: { id: string }[]) => {
+    setSentInSession(true);
+    if (localMode) return sendLocal(content, images.map((image) => image.id));
+    return chat.send({ content, imageIds: images.map((image) => image.id), pinnedContext });
+  };
+  const placeholder = localMode ? localBinding && local.project ? `Ask about ${localBinding.name}. Next request uses ${local.project.versions.find((version) => version.id === local.project!.selectedVersionId)?.label ?? 'the selected version'}` : 'Start Local Coding in the panel first' : undefined;
 
   const conversation = <>
 {localMode && !localBinding ? (
@@ -297,38 +325,88 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             </div>
           ) : (
             <div className="empty-state">
-              <h1>{modern ? contextBusy ? 'Preparing your session…' : 'Ready when you are.' : welcome}</h1>
+              <h1>{modern ? contextBusy ? 'Preparing your session…' : 'Ready when you are. Press Answer, or ask below.' : welcome}</h1>
             </div>
           )}
   </>;
 
-  return (
-    <div className={`chat-layout ${modern ? 'modern-layout' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      {!modern && sidebar}
+  const dialogs = createPortal(<>
+    {/* Every way to end a session asks first; focus starts on Keep session and Escape keeps it. */}
+    {confirmEnd && <div className="session-confirm" role="alertdialog" aria-modal="true" aria-label="End context session" onKeyDown={(event) => { if (event.key === 'Escape' && !ending) setConfirmEnd(false); }}><div><h2>End this session?</h2><p>Your conversations and attachments stay saved. The temporary AI Context.md file will be removed; source folders stay in place.</p><button className="text-button" autoFocus disabled={ending} onClick={() => setConfirmEnd(false)}>Keep session</button><button className="danger-button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div></div>}
+    {renaming && <dialog ref={renameDialog} className="dialog" aria-labelledby="rename-title" onCancel={() => setRenaming(null)}>
+      <form onSubmit={async (event) => {
+        event.preventDefault(); chat.setError(''); setSavingName(true);
+        try { if (await chat.rename(renaming, conversationName)) setRenaming(null); }
+        finally { setSavingName(false); }
+      }}>
+        <h2 id="rename-title">Rename conversation</h2>
+        <label>Conversation name<input autoFocus value={conversationName} maxLength={100} required
+          onFocus={(event) => event.target.select()} onChange={(event) => setConversationName(event.target.value)} /></label>
+        {chat.error && <p className="error" role="alert">{chat.error}</p>}
+        <div className="conversation-dialog-actions">
+          <button type="button" className="text-button" disabled={savingName} onClick={() => setRenaming(null)}>Cancel</button>
+          <button type="submit" className="primary" disabled={savingName || !conversationName.trim()}>{savingName ? 'Saving…' : 'Save name'}</button>
+        </div>
+      </form>
+    </dialog>}
+    {/* Delete dialog */}
+    {deleting && (
+      <dialog ref={deleteDialog} className="dialog" aria-labelledby="delete-title" onCancel={() => setDeleting(null)}>
+        <h2 id="delete-title">Delete this conversation?</h2>
+        <p>Its messages and local images will be removed. This cannot be undone.</p>
+        <div>
+          <button autoFocus className="text-button" onClick={() => setDeleting(null)}>Keep it</button>
+          <button className="danger-button" onClick={() => { void chat.remove(deleting); setDeleting(null); }}>Delete conversation</button>
+        </div>
+      </dialog>
+    )}
+  </>, overlayHost || document.body);
 
-      {settings && !modern && <div className="settings-surface" ref={setSettingsHost} />}
-        <main className={`chat-main ${!chat.selected ? 'empty' : ''}`} hidden={settings && !modern}>
-          {!modern && <header className="chat-header">
+  if (modern) {
+    return <div className="chat-layout modern-layout">
+      <main className="chat-main empty">
+        <div className="modern-idle"><p>Novi is floating above your screen. Answers appear in the middle panel.</p><button type="button" className="primary" onClick={() => void window.novi.workspaceAction('show')}>Show the bars</button></div>
+      </main>
+      <ModernSession key={composerKey} state={state} conversation={conversation}
+        busy={chat.busy || contextBusy || ending || syncingModel} streaming={chat.busy}
+        error={chat.error} onDismissError={() => chat.setError('')}
+        contextError={state.contextSession?.status === 'error'} onRetryContext={() => void retryContext()} retryingContext={retryingContext}
+        onSend={send} prefill={prefill} onPrefillApplied={() => setPrefill(undefined)} placeholder={placeholder}
+        model={{ connection, connections: enabledConnections, options: modelOptions, roles, available: availableModels, loading: loadingModels, syncing: syncingModel, change: (id, model) => void handleModelChange(id, model) }}
+        history={{ conversations: chat.conversations, selectedId: chat.selectedId, displayName: config.displayName, busy: sidebarBusy || syncingModel, select: selectConversation, create: () => setConfirmEnd(true), rename: renameConversation, remove: setDeleting, save: saveConversation,
+          attachments: chat.selected?.messages.flatMap(message => message.images || []) || [] }}
+        local={{ active: localMode, binding: Boolean(localBinding), name: localBinding?.name, engine: ENGINES.find((item) => item.id === localBinding?.engine)?.label, model: localBinding?.model, setup: localSetup }}
+        tools={eyeTracking} debug={<DebugPanel compact conversationId={chat.selectedId} onEnabledChange={setDebugEnabled} />} practice={practiceCoach} ready={readyCard}
+        onDiagrams={appMode === 'system-design' ? openDiagrams : undefined}
+        onEnd={() => setConfirmEnd(true)} ending={ending}
+        settingsOpen={settings} onOpenSettings={() => { practice.cancel(); setSettings(true); }} onCloseSettings={() => setSettingsCloseRequest(value => value + 1)} settingsPanel={<div ref={setSettingsHost} />}
+        onSwitchToClassic={() => setInterfaceStyle('classic')}
+        onClosed={() => { setInterfaceStyle('classic'); chat.setError('A floating Modern window closed, so Novi switched back to Classic. Choose Modern again under Settings › Appearance to reopen it.'); }}
+        listenKey={listenKey} />
+      {dialogs}
+      <SurfacePortal target={settingsHost}>{settings && settingsPage}</SurfacePortal>
+    </div>;
+  }
+
+  return (
+    <div className={`chat-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      {sidebar}
+
+      {settings && <div className="settings-surface" ref={setSettingsHost} />}
+        <main className={`chat-main ${!chat.selected ? 'empty' : ''}`} hidden={settings}>
+          <header className="chat-header">
             <div className="header-title-area">
               <span className="header-title">{chat.selected?.title || 'A new conversation'}</span>
             </div>
             <div className="session-controls"><span title="Temporary session context">{state.contextSession?.isEmpty ? 'Empty session' : state.contextSession?.summaryReady ? 'Ready' : state.contextSession?.status === 'error' ? 'Context error' : 'Loading context…'}</span><button className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button></div>
-          </header>}
-          {!modern && <DebugPanel compact conversationId={chat.selectedId} onEnabledChange={setDebugEnabled} />}
-          {!modern && readyCard}
-          {!modern && appMode === 'system-design' && <button type="button" className="secondary" onClick={() => void unwrap(window.novi.setCodeViewerVisible(true)).then(() => unwrap(window.novi.updateCodeViewer(diagramBlocks(chat.selected?.messages || [])))).catch((error) => chat.setError(errorText(error)))}>Open diagrams · saved with this conversation</button>}
-          {!modern && conversation}
-          {modern && <div className="modern-dashboard">{sidebar}<button type="button" className="primary" onClick={() => void window.novi.workspaceAction('show')}>Show Live Insights</button></div>}
-        <TrayPortal detached={modern || (trayDetached && !settings)} modern={modern} panel={settings ? <div ref={setSettingsHost} /> : localMode && !localBinding && !contextBusy ? localSetup : undefined}
-          onPanelClose={settings ? () => setSettingsCloseRequest(value => value + 1) : undefined}
-          onClosed={() => {
-            setTrayDetached(false);
-            // Modern lives in the floating window; when that window closes or cannot open, say so instead of silently reverting.
-            if (modern) { setInterfaceStyle('classic'); chat.setError('The floating Modern window closed, so Novi switched back to Classic. Choose Modern again under Settings › Appearance to reopen it.'); }
-          }}>
+          </header>
+          <DebugPanel compact conversationId={chat.selectedId} onEnabledChange={setDebugEnabled} />
+          {readyCard}
+          {appMode === 'system-design' && <button type="button" className="secondary" onClick={openDiagrams}>Open diagrams · saved with this conversation</button>}
+          {conversation}
+        <TrayPortal detached={trayDetached && !settings} onClosed={() => setTrayDetached(false)}>
           {transparent && clickThrough && <p className="tray-input-hint" role="status">Clicks pass through · Press <kbd>{clickThroughShortcut}</kbd> to type</p>}
-          {practice.active && <PracticeCoach state={practice.state} voiced={practice.voiced} listenKey={listenKey}
-            onTypeInstead={practice.typeInstead} onRemove={() => void removePractice()} onEnd={practice.cancel} />}
+          {practiceCoach}
           {syncingModel && <div className="tray-status" role="status">Saving model selection…</div>}
           {state.contextSession?.status === 'error' && <div className="error" role="alert">
             <p>Session setup could not finish. Your documents and instructions are still loaded.</p>
@@ -341,14 +419,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             </div>
           )}
           <Composer
-            compact={modern}
-            insights={conversation}
-            onEnd={modern ? () => setConfirmEnd(true) : undefined}
-            suspended={settings && !modern}
-            smartControl={modern && !localMode && <button type="button" className="composer-quick-btn" aria-label="Smart mode" aria-pressed={Boolean(roles?.deep && connection?.model === roles.deep)}
-              disabled={sidebarBusy || syncingModel || !roles?.deep || !roles?.fast}
-              title={roles?.deep && roles?.fast ? 'Switch between configured Deep and Fast models' : 'Configure Fast and Deep models in Model roles to enable Smart mode'}
-              onClick={() => void handleModelChange(connection!.id, connection?.model === roles?.deep ? roles!.fast : roles!.deep)}><Zap size={14} />Smart</button>}
+            suspended={settings}
             toolbar={<>
 
             <TrayMenu className="tray-mode-menu" label="Change conversation mode" title={<><ModeIcon size={14} /><span>{SESSION_MODES.find(mode => mode.id === appMode)?.name}</span></>}>
@@ -424,106 +495,28 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
             </TrayMenu>
             <TrayMenu className="tray-tools" label="More controls" title={<><Menu size={16} />{(et.state !== 'idle' || et.overlayActive) && <span className={`tray-tool-status ${et.state === 'error' ? 'has-error' : ''}`} aria-label={et.state === 'error' ? 'Eye tracking error' : 'Eye tracking or HUD active'} />}</>}>
               <div className="tray-menu-heading">Eye tracking & screen HUD</div>
-              <EyeTrackingPanel
-                state={et.state}
-                error={et.error}
-                isCalibrated={et.isCalibrated}
-                showDebugDot={showDebugDot}
-                sensitivity={et.sensitivity}
-                onSetSensitivity={et.setSensitivity}
-                cameras={et.cameras}
-                selectedCameraId={et.selectedCameraId}
-                monitors={et.monitors}
-                selectedDisplayId={et.selectedDisplayId}
-                overlayActive={et.overlayActive}
-                onToggle={() => void handleEyeToggle()}
-                onToggleDebug={() => setShowDebugDot((v) => !v)}
-                onListCameras={et.listCameras}
-                onSwitchCamera={et.switchCamera}
-                onListMonitors={et.listMonitors}
-                onOpenOverlay={et.openOverlay}
-                onCloseOverlay={et.closeOverlay}
-                onSetMonitor={setWorkingMonitor}
-                onSendSticky={['coding', 'system-design', 'local-coding'].includes(appMode) ? et.sendStickyToOverlay : undefined}
-                locked={!allows('eye-tracking')}
-              />
+              {eyeTracking}
             </TrayMenu>
-            {modern && <>
-              <TrayMenu label="Sessions & history" title={<History size={16} />} className="modern-session-menu">
-                {sidebar}{readyCard}
-                <DebugPanel compact conversationId={chat.selectedId} onEnabledChange={setDebugEnabled} />
-                {appMode === 'system-design' && <button type="button" className="text-button" onClick={() => void unwrap(window.novi.setCodeViewerVisible(true)).catch(error => chat.setError(errorText(error)))}>Open diagrams</button>}
-                <button type="button" className="danger-button" disabled={ending} onClick={() => setConfirmEnd(true)}>End session</button>
-              </TrayMenu>
-              {chat.selected?.messages.some(message => message.images?.length) && <TrayMenu label="Conversation attachments" title={<Image size={16} />} className="modern-attachments-menu"><div className="message-images">{chat.selected.messages.flatMap(message => message.images?.map(image => <ImagePreview key={`${message.id}:${image.id}`} image={image} />) || [])}</div></TrayMenu>}
-              <button type="button" className="composer-quick-btn" aria-label="Settings" title="Settings" aria-pressed={settings} onClick={() => settings ? setSettingsCloseRequest(value => value + 1) : setSettings(true)}><Settings size={16} /></button>
-              <ModernWindowMenu />
-            </>}
-            {!modern && <button type="button" className="composer-quick-btn tray-dock-toggle"
+            <button type="button" className="composer-quick-btn tray-dock-toggle"
               aria-label={trayDetached ? 'Attach controls' : 'Detach controls'}
               title={trayDetached ? 'Attach controls to chat' : 'Detach controls into a floating window'}
               onClick={() => setTrayDetached(value => !value)}>
               {trayDetached ? <PanelBottom size={16} /> : <ExternalLink size={16} />}
-            </button>}
+            </button>
             </>}
             key={composerKey}
             speechModelId={config.localASRModelId}
             busy={chat.busy || contextBusy || ending || syncingModel}
-            onSend={(content, images) => {
-              setSentInSession(true);
-              if (localMode) return sendLocal(content, images.map((image) => image.id));
-              return chat.send({ content, imageIds: images.map((image) => image.id), pinnedContext });
-            }}
+            onSend={send}
             onListeningChange={practice.onListeningChange}
             prefill={prefill}
             onPrefillApplied={() => setPrefill(undefined)}
-            placeholder={localMode ? localBinding && local.project ? `Ask about ${localBinding.name}. Next request uses ${local.project.versions.find((version) => version.id === local.project!.selectedVersionId)?.label ?? 'the selected version'}` : 'Start Local Coding in the panel first' : undefined}
+            placeholder={placeholder}
           />
         </TrayPortal>
         </main>
 
-      {createPortal(<>
-      {/* Every way to end a session asks first; focus starts on Keep session and Escape keeps it. */}
-      {traceSaved && <div className="session-confirm" role="alertdialog" aria-modal="true" aria-label="Debug trace saved" onKeyDown={(event) => { if (event.key === 'Escape') setTraceSaved(null); }}><div className="trace-saved">
-        <h2>Debug trace saved</h2>
-        <p>Everything from this session was written to this file. Share it when reporting a problem; it holds steps and errors only, never your prompts, files or keys.</p>
-        <code className="trace-path" tabIndex={0}>{traceSaved}</code>
-        <div className="trace-actions">
-          <button type="button" className="secondary" onClick={() => void unwrap(window.novi.copyText(traceSaved)).then(() => setTraceCopied(true)).catch((error) => chat.setError(errorText(error)))}>{traceCopied ? 'Copied' : 'Copy path'}</button>
-          <button type="button" className="secondary" onClick={() => void unwrap(window.novi.openDebugTrace('file')).catch((error) => chat.setError(errorText(error)))}>Open file</button>
-          <button type="button" className="secondary" onClick={() => void unwrap(window.novi.openDebugTrace('folder')).catch((error) => chat.setError(errorText(error)))}>Open folder</button>
-          <button type="button" className="primary" autoFocus onClick={() => setTraceSaved(null)}>Done</button>
-        </div>
-      </div></div>}
-      {confirmEnd && <div className="session-confirm" role="alertdialog" aria-modal="true" aria-label="End context session" onKeyDown={(event) => { if (event.key === 'Escape' && !ending) setConfirmEnd(false); }}><div><h2>End this session?</h2><p>Your conversations and attachments stay saved. The temporary AI Context.md file will be removed; source folders stay in place.</p><button className="text-button" autoFocus disabled={ending} onClick={() => setConfirmEnd(false)}>Keep session</button><button className="danger-button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div></div>}
-      {renaming && <dialog ref={renameDialog} className="dialog" aria-labelledby="rename-title" onCancel={() => setRenaming(null)}>
-        <form onSubmit={async (event) => {
-          event.preventDefault(); chat.setError(''); setSavingName(true);
-          try { if (await chat.rename(renaming, conversationName)) setRenaming(null); }
-          finally { setSavingName(false); }
-        }}>
-          <h2 id="rename-title">Rename conversation</h2>
-          <label>Conversation name<input autoFocus value={conversationName} maxLength={100} required
-            onFocus={(event) => event.target.select()} onChange={(event) => setConversationName(event.target.value)} /></label>
-          {chat.error && <p className="error" role="alert">{chat.error}</p>}
-          <div className="conversation-dialog-actions">
-            <button type="button" className="text-button" disabled={savingName} onClick={() => setRenaming(null)}>Cancel</button>
-            <button type="submit" className="primary" disabled={savingName || !conversationName.trim()}>{savingName ? 'Saving…' : 'Save name'}</button>
-          </div>
-        </form>
-      </dialog>}
-      {/* Delete dialog */}
-      {deleting && (
-        <dialog ref={deleteDialog} className="dialog" aria-labelledby="delete-title" onCancel={() => setDeleting(null)}>
-          <h2 id="delete-title">Delete this conversation?</h2>
-          <p>Its messages and local images will be removed. This cannot be undone.</p>
-          <div>
-            <button autoFocus className="text-button" onClick={() => setDeleting(null)}>Keep it</button>
-            <button className="danger-button" onClick={() => { void chat.remove(deleting); setDeleting(null); }}>Delete conversation</button>
-          </div>
-        </dialog>
-      )}
-      </>, overlayHost || document.body)}
+      {dialogs}
       <SurfacePortal target={settingsHost}>{settings && settingsPage}</SurfacePortal>
 
     </div>

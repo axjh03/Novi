@@ -2,20 +2,28 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { createPortal } from 'react-dom';
 import { attachPrivateCursor, useStealthState } from '../hooks/useStealth';
 import { useAppMode } from '../context/AppModeContext';
+import type { TrayRole } from '../../../shared/appearance';
 
 type TrayWindow = Window & typeof globalThis;
 
 /**
  * Moves one portal between the chat and a native window without remounting its controls.
  * Keeping the portal target preserves drafts, attachments, and active audio capture.
+ *
+ * Modern mode opens three of these, one per role: the session bar (left), the answer bar with its
+ * panel (center) and the appearance bar (right). Classic opens one, the center one, when the
+ * controls are detached. Main places each window by its role (src/main/services/workspace.ts).
  */
-export function TrayPortal({ children, detached = false, modern = false, panel, onPanelClose, onClosed }: { children: ReactNode; detached?: boolean; modern?: boolean; panel?: ReactNode; onPanelClose?: () => void; onClosed: () => void }) {
+export function TrayPortal({ children, detached = false, modern = false, role = 'center', panel, onPanelClose, onClosed, className = '' }: {
+  children: ReactNode; detached?: boolean; modern?: boolean; role?: TrayRole; panel?: ReactNode; onPanelClose?: () => void; onClosed: () => void; className?: string;
+}) {
   const { setOverlayHost } = useAppMode();
   const attached = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [root] = useState(() => {
     const element = document.createElement('div');
-    element.id = 'tray-root';
+    element.id = role === 'center' ? 'tray-root' : `tray-root-${role}`;
+    element.className = 'tray-root';
     return element;
   });
   const [tray, setTray] = useState<TrayWindow | null>(null);
@@ -41,7 +49,7 @@ export function TrayPortal({ children, detached = false, modern = false, panel, 
       return;
     }
     // Main allows only this exact name pattern (see src/main/services/workspace.ts).
-    const opened = window.open('about:blank', `novi-tray-${crypto.randomUUID()}`) as TrayWindow | null;
+    const opened = window.open('about:blank', `novi-tray-${role}-${crypto.randomUUID()}`) as TrayWindow | null;
     if (!opened) { closedRef.current(); return; }
     const trayWindow = opened;
     const doc = trayWindow.document;
@@ -61,10 +69,11 @@ export function TrayPortal({ children, detached = false, modern = false, panel, 
     // Theme, transparent mode classes and the opacity/background variables live on <html> and <body>.
     const syncRoot = () => {
       const source = document.documentElement, target = doc.documentElement;
-      target.className = `${source.className} novi-tray`.trim();
+      target.className = `${source.className} novi-tray novi-tray-${role}`.trim();
       target.lang = source.lang;
       if (source.dataset.theme) target.dataset.theme = source.dataset.theme;
       else delete target.dataset.theme;
+      if (source.dataset.interfaceStyle) target.dataset.interfaceStyle = source.dataset.interfaceStyle;
       target.style.cssText = source.style.cssText;
       target.style.setProperty('--workspace-height', `${trayWindow.screen.availHeight}px`);
       doc.body.className = document.body.className;
@@ -94,14 +103,14 @@ export function TrayPortal({ children, detached = false, modern = false, panel, 
       for (const element of shell.querySelectorAll('*')) {
         // Closed <details> content keeps a layout box (content-visibility: hidden); skip anything not shown.
         if (!element.checkVisibility()) continue;
-        const clipped = element.closest('.modern-panel, .modern-overlay-host, .modern-tray .tray-menu-content, .live-content, .live-panel-expander');
-        if (clipped && clipped !== element && !element.matches('dialog[open], .tray-menu-content')) continue;
+        const clipped = element.closest('.modern-panel, .modern-overlay-host, .modern-tray .tray-menu-content, .mod-menu-content, .mod-scroll, .live-content, .live-panel-expander');
+        if (clipped && clipped !== element && !element.matches('dialog[open], .tray-menu-content, .mod-menu-content')) continue;
         bottom = Math.max(bottom, element.getBoundingClientRect().bottom + trayWindow.scrollY + 4);
       }
       const height = Math.ceil(bottom);
       if ((height !== lastHeight || controlsChanged) && height > 0) {
         lastHeight = height;
-        void window.novi.setTrayHeight(height, shell.classList.contains('modern-tray') ? controlsHeight : undefined).catch(() => {});
+        void window.novi.setTrayHeight(height, shell.classList.contains('modern-tray') ? controlsHeight : undefined, role).catch(() => {});
       }
     };
     const schedule = () => {
@@ -153,7 +162,7 @@ export function TrayPortal({ children, detached = false, modern = false, panel, 
       moveControls(attached.current);
       closeTray();
     };
-  }, [detached, root]);
+  }, [detached, root, role]);
 
   useEffect(() => window.novi.onGlobalAction(action => {
     if (action.type === 'workspace-visibility') root.querySelector('.modern-tray')?.classList.toggle('is-hiding', action.payload === false);
@@ -187,17 +196,17 @@ export function TrayPortal({ children, detached = false, modern = false, panel, 
   return <>
     <div ref={attached} className="composer-area tray-attached" hidden={detached} />
     {createPortal(<>
-      <section className={`tray-shell ${modern ? 'modern-tray' : ''}`} aria-label="Novi controls">
+      <section className={`tray-shell ${modern ? 'modern-tray' : ''} tray-${role} ${className}`.trim()} aria-label={role === 'left' ? 'Session controls' : role === 'right' ? 'Appearance controls' : 'Novi controls'}>
         <div className="tray-controls">{children}</div>
         {modern && panel && <div className="modern-panel" ref={panelRef}>{panel}</div>}
-        <div className="modern-overlay-host" ref={modern ? setOverlayHost : undefined} />
+        {role === 'center' && <div className="modern-overlay-host" ref={modern ? setOverlayHost : undefined} />}
       </section>
-      {tray && <><TrayResizeGrip side="left" view={tray} /><TrayResizeGrip side="right" view={tray} /></>}
+      {tray && <><TrayResizeGrip side="left" view={tray} role={role} /><TrayResizeGrip side="right" view={tray} role={role} /></>}
     </>, root)}
   </>;
 }
 
-function TrayResizeGrip({ side, view }: { side: 'left' | 'right'; view: TrayWindow }) {
+function TrayResizeGrip({ side, view, role }: { side: 'left' | 'right'; view: TrayWindow; role: TrayRole }) {
   const drag = useRef<{ x: number; width: number } | null>(null);
   const timer = useRef(0), pending = useRef(0);
   const [width, setWidth] = useState(view.innerWidth);
@@ -210,11 +219,11 @@ function TrayResizeGrip({ side, view }: { side: 'left' | 'right'; view: TrayWind
     pending.current = width;
     if (!timer.current) timer.current = window.setTimeout(() => {
       timer.current = 0;
-      void window.novi.setTrayWidth(pending.current, side).catch(() => {});
+      void window.novi.setTrayWidth(pending.current, side, role).catch(() => {});
     }, 16);
   };
   return <div className={`tray-resize-grip tray-resize-${side}`} role="separator" aria-orientation="vertical"
-    aria-label={`Resize tray from ${side}`} aria-valuenow={width} aria-valuetext={`${width} pixels wide`}
+    aria-label={`Resize from ${side}`} aria-valuenow={width} aria-valuetext={`${width} pixels wide`}
     aria-valuemin={Math.min(320, view.screen.availWidth)} aria-valuemax={Math.max(width, view.screen.availWidth)}
     tabIndex={0} title="Drag to resize · Arrow keys adjust width"
     onPointerDown={event => {

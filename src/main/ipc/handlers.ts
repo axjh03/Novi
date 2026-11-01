@@ -1,5 +1,5 @@
 import { app, BrowserWindow, clipboard, desktopCapturer, dialog, globalShortcut, ipcMain, nativeImage, screen, shell } from 'electron';
-import { paletteForBackground } from '../../shared/appearance';
+import { paletteForBackground, TRAY_ROLES, type TrayRole } from '../../shared/appearance';
 import { execFile } from 'node:child_process';
 import type { AccessStatus, BehavioralFramework, ChatLatency, CodeViewerBlock, ReviewTarget, SessionProfile, Snapshot } from '../../shared/types';
 import { atomicJSON, Storage } from '../services/storage';
@@ -810,19 +810,27 @@ export function registerIPC(
     if (docked === true) workspace.dock(workingDisplay().workArea, interfaceStyle);
     else workspace.undock();
   });
+  // Which of the three Modern trays a size report is about; the legacy single tray is the center one.
+  const trayRoleInput = (value: unknown): TrayRole => {
+    if (value === undefined) return 'center';
+    if (!TRAY_ROLES.includes(value as TrayRole)) throw new UserError('Invalid tray role.');
+    return value as TrayRole;
+  };
   handle('set-tray-height', (value, event) => {
     if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can size the tray.');
     const height = Number(object(value).height);
     const controlsHeight = object(value).controlsHeight;
+    const role = trayRoleInput(object(value).role);
     if (!Number.isFinite(height) || height <= 0 || height > 10_000) throw new UserError('Invalid tray height.');
     if (controlsHeight !== undefined && (typeof controlsHeight !== 'number' || !Number.isFinite(controlsHeight) || controlsHeight <= 0 || controlsHeight > height)) throw new UserError('Invalid controls height.');
-    workspace.resizeTray(height, controlsHeight);
+    workspace.resizeTray(height, controlsHeight, role);
   });
   handle('set-tray-width', (value, event) => {
     if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can size the tray.');
     const { width, edge } = object(value);
+    const role = trayRoleInput(object(value).role);
     if (typeof width !== 'number' || !Number.isFinite(width) || Math.abs(width) > 100_000 || (edge !== 'left' && edge !== 'right')) throw new UserError('Invalid tray width.');
-    workspace.resizeTrayWidth(width, edge);
+    workspace.resizeTrayWidth(width, edge, role);
   });
   handle('reset-workspace-sizes', (_value, event) => {
     if (BrowserWindow.fromWebContents(event.sender) !== getMainWindow()) throw new UserError('Only the main window can resize the workspace.');

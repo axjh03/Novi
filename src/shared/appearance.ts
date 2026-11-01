@@ -13,6 +13,9 @@ export const PALETTES = [
 export const MIN_READING_SIZE = 70;
 export const MAX_READING_SIZE = 200;
 export type InterfaceStyle = 'classic' | 'modern';
+/** Modern mode floats three bars: session (left), answer bar and panel (center), appearance (right). Classic only has the center one. */
+export type TrayRole = 'left' | 'center' | 'right';
+export const TRAY_ROLES: readonly TrayRole[] = ['left', 'center', 'right'];
 export interface Appearance {
   interfaceStyle: InterfaceStyle;
   paletteId: string;

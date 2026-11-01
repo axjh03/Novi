@@ -16,6 +16,7 @@ import { errorText, unwrap } from '../services/api';
 import { isLicensePlan, PLAN_NAMES } from '../../../shared/plans';
 import { InterfaceStylePicker } from '../components/InterfaceStylePicker';
 import { useAppMode } from '../context/AppModeContext';
+import { readAppearancePrompt, setAppearancePrompt, subscribeAppearance } from '../services/appearance';
 
 // Every hotkey is recorded from the keys pressed; each must be different.
 const shortcuts = [
@@ -36,6 +37,8 @@ const themes = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']] as c
 export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared, onDebugEnabledChange, closeRequest = 0 }: Props) {
   const { interfaceStyle, setInterfaceStyle } = useAppMode();
   const [tab, setTab] = useState<Tab>('general');
+  const [askAtSignIn, setAskAtSignIn] = useState(() => readAppearancePrompt() === 'ask');
+  useEffect(() => subscribeAppearance(() => setAskAtSignIn(readAppearancePrompt() === 'ask')), []);
   const [value, setValue] = useState<SettingsInput>({
     ...state.settings!,
     clickThroughShortcut: state.settings!.clickThroughShortcut || DEFAULT_CLICK_THROUGH_SHORTCUT,
@@ -129,7 +132,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared, onD
         }} />}
         {tab === 'appearance' && <form onSubmit={save} className="settings-appearance">
           <fieldset disabled={busy}>
-            <section className="settings-section"><div><h2>Interface</h2><p>Two ways to work.</p></div><div className="settings-fields"><InterfaceStylePicker value={interfaceStyle} onChange={setInterfaceStyle} /><small>Interface changes apply immediately and are saved on this device. Classic is the default.</small></div></section>
+            <section className="settings-section"><div><h2>Interface</h2><p>Two ways to work.</p></div><div className="settings-fields"><InterfaceStylePicker value={interfaceStyle} onChange={setInterfaceStyle} /><small>Interface changes apply immediately and are saved on this device. Classic is the default.</small><label className="settings-toggle"><input type="checkbox" checked={askAtSignIn} onChange={event => setAppearancePrompt(event.target.checked ? 'ask' : 'remembered')} />Ask which appearance to use at sign-in</label></div></section>
             <section className="settings-section"><div><h2>Color theme</h2><p>Match your surroundings.</p></div><div className="settings-fields"><div className="segmented settings-theme" role="group" aria-label="Theme">{themes.map(([id, label]) => <button key={id} type="button" aria-pressed={value.theme === id} className={value.theme === id ? 'active' : ''} onClick={() => change({ ...value, theme: id })}>{label}</button>)}</div></div></section>
             {dirty && <div className="settings-save is-dirty">{error ? <div className="error" role="alert">{error}</div> : <span role="status">Unsaved theme change</span>}<button className="primary" type="submit">{busy ? 'Saving…' : 'Save changes'}</button></div>}
           </fieldset>
