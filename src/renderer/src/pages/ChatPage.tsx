@@ -322,7 +322,11 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
           {modern && <div className="modern-dashboard">{sidebar}<button type="button" className="primary" onClick={() => void window.novi.workspaceAction('show')}>Show Live Insights</button></div>}
         <TrayPortal detached={modern || (trayDetached && !settings)} modern={modern} panel={settings ? <div ref={setSettingsHost} /> : localMode && !localBinding && !contextBusy ? localSetup : undefined}
           onPanelClose={settings ? () => setSettingsCloseRequest(value => value + 1) : undefined}
-          onClosed={() => { setTrayDetached(false); if (modern) setInterfaceStyle('classic'); }}>
+          onClosed={() => {
+            setTrayDetached(false);
+            // Modern lives in the floating window; when that window closes or cannot open, say so instead of silently reverting.
+            if (modern) { setInterfaceStyle('classic'); chat.setError('The floating Modern window closed, so Novi switched back to Classic. Choose Modern again under Settings › Appearance to reopen it.'); }
+          }}>
           {transparent && clickThrough && <p className="tray-input-hint" role="status">Clicks pass through · Press <kbd>{clickThroughShortcut}</kbd> to type</p>}
           {practice.active && <PracticeCoach state={practice.state} voiced={practice.voiced} listenKey={listenKey}
             onTypeInstead={practice.typeInstead} onRemove={() => void removePractice()} onEnd={practice.cancel} />}

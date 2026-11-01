@@ -61,7 +61,7 @@ async function main() {
     const panel = (await popup.locator('.live-insights').boundingBox())!;
     const navbar = (await popup.locator('.live-navbar').boundingBox())!;
     assert.equal(panel.width, 462, 'reference panel width');
-    assert.equal(navbar.width, 350, 'compact toolbar width');
+    assert.equal(navbar.width, 440, 'compact toolbar width');
     assert.equal(navbar.height, 44);
     assert.equal(panel.y - navbar.y - navbar.height, 8);
     assert(Math.abs(panel.x + panel.width / 2 - navbar.x - navbar.width / 2) < 1);

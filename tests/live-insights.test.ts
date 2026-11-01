@@ -16,3 +16,9 @@ test('dynamic action comes from the latest finalized system turn, never an inven
   assert.equal(insightQuestion([{ ...segment, source: 'microphone' }]), undefined);
   assert.equal(insightQuestion([segment, { ...segment, segmentId: '2', text: 'Thank you.' }]), undefined);
 });
+test('a question without its question mark still counts when it opens like one', () => {
+  const segment: TranscriptSegment = { sessionId: 's', segmentId: '1', speakerId: 'speaker', role: 'interviewer', source: 'system', text: 'Okay great. Tell me about a time you failed.', startTime: 0, endTime: 1, revision: 1, isFinal: true };
+  assert.equal(insightQuestion([segment]), 'Tell me about a time you failed');
+  assert.equal(insightQuestion([{ ...segment, text: 'Sounds good, thanks for that.' }]), undefined);
+  assert.equal(insightQuestion([{ ...segment, text: 'What now' }]), undefined, 'two words are not enough to call a question');
+});

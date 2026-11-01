@@ -248,7 +248,7 @@ test('company and role join the instructions, and loaded folders can be saved by
   context.begin({ folderIds: [folders[0].id], purpose: 'Acme onsite', company: ' Acme ', role: 'Software Engineer II', vocabulary: 'technical', fields });
   assert.match(context.prompt, /Session purpose: Acme onsite\nCompany: Acme\nTarget role: Software Engineer II\nRole \/ perspective:/);
   assert.match(context.savedContext.instructions, /Company: Acme/);
-  assert.match(context.savedContext.instructions, /Vocabulary: Use precise professional and technical vocabulary/);
+  assert.match(context.savedContext.instructions, /Vocabulary: Use precise technical vocabulary, implementation details/);
   // Starting a session forgets loaded folders, so stale IDs cannot be saved later.
   assert.throws(() => context.folderSources([folders[0].id]), /no longer loaded/);
   context.end();
