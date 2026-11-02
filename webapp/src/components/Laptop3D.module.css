@@ -1,9 +1,14 @@
-/* The 3D laptop's stage: a square-ish box the canvas fills, isolated so the blended HTML screen and the
-   canvas stack only against each other. The screen box is a fixed 1100px wide and laid onto the glass. */
+/* The 3D laptop's stage: a square-ish box the canvas fills, isolated so the HTML screen and the canvas
+   stack only against each other: the canvas above (z-index 1) with a transparent hole
+   on the glass, the screen below it. The screen box is a fixed 1100px wide; the scene sizes the wrap to
+   the canvas and writes the 3D transforms each frame, so until then the wrap is empty and clips it all. */
 .scene { position: relative; width: 100%; aspect-ratio: 1 / 0.86; isolation: isolate; opacity: 0; }
 .scene[data-ready] { opacity: 1; transition: opacity 600ms ease; }
 @media (prefers-reduced-motion: reduce) { .scene[data-ready] { transition: none; } }
-.scene canvas { display: block; }
-.htmlWrap { pointer-events: none; }
+/* Pointer events are off on the canvas: the stage (its eventSource) takes them. */
+.scene canvas { display: block; position: absolute; z-index: 1; pointer-events: none; }
+.htmlWrap { position: absolute; top: 0; left: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.htmlOuter { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform-style: preserve-3d; pointer-events: none; }
+.htmlInner { position: absolute; pointer-events: auto; }
 .screen { position: relative; overflow: hidden; background: #050507; container-type: inline-size; pointer-events: auto; }
 .screen > * { pointer-events: auto; }

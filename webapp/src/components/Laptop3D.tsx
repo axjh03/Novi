@@ -1,14 +1,16 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { SCREEN, type ScreenElements } from './MacBookScene';
 import LaptopDrawn from './LaptopDrawn';
 import styles from './Laptop3D.module.css';
 
 /* The laptop the site shows the app on. With WebGL it is the real MacBook model (MacBookScene), a
-   client-only bundle loaded when the laptop is near the viewport; the children are its screen.
-   Without WebGL the same children go on the laptop drawn in CSS. Reduced motion keeps the model
-   and drops the opening, the float and the tilt. */
+   client-only bundle loaded when the laptop is near the viewport; the children are its screen, live
+   HTML rendered here beside the canvas (in this React tree, so it is there from the first frame) and
+   laid onto the glass by the scene. Without WebGL the same children go on the laptop drawn in CSS.
+   Reduced motion keeps the model and drops the opening, the float and the tilt. */
 const Scene = dynamic(() => import('./MacBookScene'), { ssr: false, loading: () => null });
 
 export function supportsWebGL(): boolean {
@@ -41,11 +43,20 @@ export function useSceneReady(root: React.RefObject<HTMLElement | null>) {
 
 export default function Laptop3D({ children, className = '', rest, label }: { children: ReactNode; className?: string; tilt?: boolean; sway?: boolean; rest?: [number, number]; label?: string }) {
   const root = useRef<HTMLDivElement>(null);
+  const wrap = useRef<HTMLDivElement>(null), outer = useRef<HTMLDivElement>(null), inner = useRef<HTMLDivElement>(null);
+  const screen = useMemo<ScreenElements>(() => ({ wrap, outer, inner }), []);
   const { webgl, near, active, motion } = useSceneReady(root);
   if (webgl === false) return <LaptopDrawn className={className} label={label} rest={rest ? [rest[0] * -57, rest[1] * -57] : undefined}>{children}</LaptopDrawn>;
   return (
-    <div ref={root} className={`${styles.scene} ${className}`} role={label ? 'img' : undefined} aria-label={label} data-ready={(webgl && near) || undefined}>
-      {webgl && near && <Scene motion={motion && active} rest={rest} pointerRoot={root}>{children}</Scene>}
+    <div ref={root} className={`${styles.scene} ${className}`} role={label ? 'img' : undefined} aria-label={label} data-ready={(webgl && near) || undefined} data-live={(motion && active) || undefined}>
+      {webgl && near && <Scene screen={screen} motion={motion && active} rest={rest} pointerRoot={root} />}
+      <div ref={wrap} className={styles.htmlWrap}>
+        <div ref={outer} className={styles.htmlOuter}>
+          <div ref={inner} className={styles.htmlInner}>
+            <div className={styles.screen} style={{ width: SCREEN.px, height: Math.round(SCREEN.px * SCREEN.height / SCREEN.width) }}>{children}</div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

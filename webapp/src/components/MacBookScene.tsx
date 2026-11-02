@@ -1,36 +1,46 @@
 'use client';
 
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { ContactShadows, Environment, Html, Lightformer, useGLTF } from '@react-three/drei';
+import { ContactShadows, Environment, Lightformer, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
-import styles from './Laptop3D.module.css';
 
 /* ----------------------------------------------------------------------------------------------
    A real MacBook: the Draco-compressed glTF from the pmndrs "floating laptop" example (aluminium
    body, black keys, glass screen), lit by a small studio of light panels so the metal picks up real
-   reflections, standing on a contact shadow. The screen is live HTML laid onto the glass with a
-   3D transform and blended through the WebGL canvas, so whatever the caller passes as children
-   (the app's own screenshots, a desk, a slideshow) is what the laptop shows. The lid opens on
-   mount, the body floats a little and leans toward the pointer; with reduced motion it opens
-   straight away and stands still.
+   reflections, standing on a contact shadow. The screen is live HTML that Laptop3D renders next to
+   the canvas, in the page's own React tree; every frame this scene writes the CSS 3D transform that
+   lays it onto the glass, and a plane on the glass punches a transparent hole through the canvas so
+   the HTML shows through it. The lid opens on mount, the body floats a little and leans toward the
+   pointer; with reduced motion it opens straight away and stands still.
    ---------------------------------------------------------------------------------------------- */
 
 const MODEL = '/models/macbook.glb';
 const DRACO = '/draco/';
-/* The screen's live area in model units and the CSS box drawn onto it. 1100px across 8.35 units. */
-const SCREEN = { width: 8.35, height: 5.4, px: 1100 };
+/* The screen's live area in model units and the CSS box drawn onto it: 1100px across 8.35 units. */
+export const SCREEN = { width: 8.35, height: 5.4, px: 1100 };
 const CLOSED = 1.575, OPEN = -0.425;
+
+/* The three nested elements Laptop3D renders for the screen: a clipped box the size of the canvas,
+   the camera's transform, and the screen's own transform (the same layering drei's Html uses). */
+export type ScreenElements = { wrap: RefObject<HTMLDivElement | null>; outer: RefObject<HTMLDivElement | null>; inner: RefObject<HTMLDivElement | null> };
 
 type Nodes = Record<string, THREE.Mesh>;
 type Materials = Record<string, THREE.MeshStandardMaterial>;
 
 const easeOutExpo = (t: number) => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * t));
+const epsilon = (value: number) => (Math.abs(value) < 1e-10 ? 0 : value);
+const cssMatrix = (matrix: THREE.Matrix4, multipliers: number[]) => `matrix3d(${matrix.elements.map((value, i) => epsilon(multipliers[i] * value)).join(',')})`;
+const CAMERA_MULTIPLIERS = [1, -1, 1, 1, 1, -1, 1, 1, 1, -1, 1, 1, 1, -1, 1, 1];
+const objectMultipliers = (f: number) => [1 / f, 1 / f, 1 / f, 1, -1 / f, -1 / f, -1 / f, -1, 1 / f, 1 / f, 1 / f, 1, 1, 1, 1, 1];
+/* The hole: a plane that writes a fully transparent pixel and its depth, so the glass behind it never draws. */
+const HOLE_FRAGMENT = 'void main() { gl_FragColor = vec4(0.0); }';
 
-function Model({ children, motion, rest, pointerRoot }: { children: ReactNode; motion: boolean; rest: [number, number]; pointerRoot: RefObject<HTMLElement | null> }) {
+function Model({ screen, motion, rest, pointerRoot }: { screen: ScreenElements; motion: boolean; rest: [number, number]; pointerRoot: RefObject<HTMLElement | null> }) {
   const { nodes, materials } = useGLTF(MODEL, DRACO) as unknown as { nodes: Nodes; materials: Materials };
   const body = useRef<THREE.Group>(null!);
   const lid = useRef<THREE.Group>(null!);
+  const anchor = useRef<THREE.Group>(null!);
   const start = useRef<number | null>(null);
   const pointer = useRef({ x: 0, y: 0, inside: false });
 
@@ -64,6 +74,20 @@ function Model({ children, motion, rest, pointerRoot }: { children: ReactNode; m
     body.current.rotation.x = THREE.MathUtils.lerp(body.current.rotation.x, targetX, 0.06);
     body.current.rotation.y = THREE.MathUtils.lerp(body.current.rotation.y, targetY, 0.06);
     body.current.position.y = motion ? Math.sin(t * 0.8) * 0.12 : 0;
+
+    // Lay the HTML screen onto the glass: the canvas-sized box gets the camera's perspective, the
+    // outer element the camera's inverse transform, the inner one the anchor's world transform
+    // scaled so SCREEN.px CSS pixels span SCREEN.width model units.
+    const { wrap: wrapRef, outer: outerRef, inner: innerRef } = screen;
+    if (!wrapRef.current || !outerRef.current || !innerRef.current) return;
+    const camera = state.camera as THREE.PerspectiveCamera;
+    camera.updateMatrixWorld();
+    anchor.current.updateWorldMatrix(true, false);
+    const { width, height } = state.size;
+    const fov = camera.projectionMatrix.elements[5] * height / 2;
+    wrapRef.current.style.width = `${width}px`; wrapRef.current.style.height = `${height}px`; wrapRef.current.style.perspective = `${fov}px`;
+    outerRef.current.style.transform = `translateZ(${fov}px)${cssMatrix(camera.matrixWorldInverse, CAMERA_MULTIPLIERS)}translate(${width / 2}px,${height / 2}px)`;
+    innerRef.current.style.transform = `translate(-50%,-50%)${cssMatrix(anchor.current.matrixWorld, objectMultipliers(SCREEN.px / SCREEN.width))}`;
   });
 
   return (
@@ -74,9 +98,12 @@ function Model({ children, motion, rest, pointerRoot }: { children: ReactNode; m
             <mesh material={materials.aluminium} geometry={nodes.Cube008.geometry} />
             <mesh material={materials['matte.001']} geometry={nodes.Cube008_1.geometry} />
             <mesh material={materials['screen.001']} geometry={nodes.Cube008_2.geometry} />
-            <Html transform occlude="blending" rotation-x={-Math.PI / 2} position={[0, 0.06, -0.09]} distanceFactor={400 / (SCREEN.px / SCREEN.width)} zIndexRange={[2, 0]} wrapperClass={styles.htmlWrap}>
-              <div className={styles.screen} style={{ width: SCREEN.px, height: Math.round(SCREEN.px * SCREEN.height / SCREEN.width) }}>{children}</div>
-            </Html>
+            <group ref={anchor} rotation-x={-Math.PI / 2} position={[0, 0.06, -0.09]}>
+              <mesh>
+                <planeGeometry args={[SCREEN.width, SCREEN.height]} />
+                <shaderMaterial side={THREE.DoubleSide} fragmentShader={HOLE_FRAGMENT} />
+              </mesh>
+            </group>
           </group>
         </group>
         <mesh material={materials.keys} geometry={nodes.keyboard.geometry} position={[1.79, 0, 3.45]} />
@@ -104,14 +131,14 @@ function Studio() {
   );
 }
 
-export default function MacBookScene({ children, motion, rest = [0.1, 0.17], pointerRoot }: { children: ReactNode; motion: boolean; rest?: [number, number]; pointerRoot: RefObject<HTMLElement | null> }) {
+export default function MacBookScene({ screen, motion, rest = [0.1, 0.17], pointerRoot }: { screen: ScreenElements; motion: boolean; rest?: [number, number]; pointerRoot: RefObject<HTMLElement | null> }) {
   const dpr = useMemo<[number, number]>(() => [1, 1.75], []);
   return (
     <Canvas dpr={dpr} frameloop={motion ? 'always' : 'demand'} camera={{ position: [0, 2.6, -22], fov: 28, near: 1, far: 60 }} gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }} eventSource={pointerRoot as RefObject<HTMLElement>} eventPrefix="client" style={{ background: 'transparent' }}>
       <ambientLight intensity={0.25} />
       <spotLight position={[6, 12, -10]} angle={0.5} penumbra={0.9} intensity={160} color="#fff4f6" />
       <Suspense fallback={null}>
-        <Model motion={motion} rest={rest} pointerRoot={pointerRoot}>{children}</Model>
+        <Model screen={screen} motion={motion} rest={rest} pointerRoot={pointerRoot} />
         <Studio />
       </Suspense>
       <ContactShadows position={[0, -2.5, 0]} opacity={0.5} scale={22} blur={2.4} far={3} resolution={512} frames={1} color="#1a0810" />
