@@ -178,8 +178,10 @@ novi_fail() {
 }
 
 # The renderer: a background process that draws the card about twelve times a second from the plan
-# and progress files in $1. It stops on SIGTERM once the frame in hand is written.
-novi_stage_render() (
+# and progress files in $1. It stops on SIGTERM once the frame in hand is written. The body is a
+# brace group, not a subshell, so `novi_stage_render &` is one process and the TERM from
+# novi_stage_stop reaches this loop; a ( ) body was a second process that kept drawing forever.
+novi_stage_render() {
     set +eu
     dir=$1; quit=''
     trap 'quit=1' TERM
@@ -379,23 +381,55 @@ novi_stage_render() (
         printf '%s' "$out"
         frame=$((frame + 1)); sleep 0.08
     done
-)
+}
 # ---- novi stage end ----
 
 # Downloads a file while writing "done total speed" to the file named by NOVI_PROGRESS for the stage.
+# curl runs in the background so the loop can measure it; its PID stays in NOVI_FETCH_PID until it
+# ends, so novi_fetch_cancel can stop it (background jobs ignore Ctrl+C in a script). While SUDO is
+# set, the sudo timestamp is refreshed once a minute, so a slow download cannot outlast the password
+# given before it and fail the install step that follows.
 novi_fetch() {
+    local status=0 refreshed
     url=$1; out=$2; total=0; prev=0; speed=0
     total=$(curl -sIL "$url" 2>/dev/null | tr -d '\r' | awk 'tolower($1) == "content-length:" { n = $2 } END { print n + 0 }') || total=0
-    curl -fsSL "$url" -o "$out" & pid=$!
-    prev_t=$(date +%s)
-    while kill -0 "$pid" 2>/dev/null; do
-        size=$(stat -f %z "$out" 2>/dev/null || stat -c %s "$out" 2>/dev/null || echo 0)
+    curl -fsSL "$url" -o "$out" & NOVI_FETCH_PID=$!
+    prev_t=$(date +%s); refreshed=$prev_t
+    while kill -0 "$NOVI_FETCH_PID" 2>/dev/null; do
+        # wc -c reads the size the same way on Linux and macOS (stat's flags differ); 0 before the
+        # file exists. $(( )) drops the spaces macOS puts before the number.
+        size=$(($(wc -c 2>/dev/null < "$out" || echo 0)))
         now=$(date +%s)
         if [ "$now" -gt "$prev_t" ]; then speed=$(((size - prev) / (now - prev_t))); prev=$size; prev_t=$now; fi
         if [ -n "${NOVI_PROGRESS:-}" ]; then printf '%s %s %s\n' "$size" "$total" "$speed" > "${NOVI_PROGRESS}.tmp" && mv -f "${NOVI_PROGRESS}.tmp" "$NOVI_PROGRESS"; fi
+        if [ -n "${SUDO:-}" ] && [ $((now - refreshed)) -ge 60 ]; then sudo -n -v 2>/dev/null || true; refreshed=$now; fi
         sleep 0.25
     done
-    wait "$pid"
+    wait "$NOVI_FETCH_PID" || status=$?
+    NOVI_FETCH_PID=''
+    return "$status"
+}
+
+# Stops a download still running when the script leaves (Ctrl+C, a failure), so curl does not keep
+# pulling the package into a folder that is being removed. Called by the cleanup of each flow.
+novi_fetch_cancel() {
+    if [ -n "${NOVI_FETCH_PID:-}" ]; then kill "$NOVI_FETCH_PID" 2>/dev/null || true; NOVI_FETCH_PID=''; fi
+}
+
+# Whether a process with this exact name is running. False without pgrep, as it was before this check.
+novi_running() {
+    pgrep -x "$1" >/dev/null 2>&1
+}
+
+# Asks a Novi that is still open to quit before its files are replaced. Novi runs one copy at a time,
+# so otherwise "Open Novi" would only bring the old version to the front. $1 is the installed
+# executable, $2 the process name. `stop` is Novi's own command (since 4.0.11) and skips the quit
+# prompt. Waits up to 15 seconds; a Novi still open after that is left alone and noted on the card.
+novi_quit_running() {
+    local i=0
+    "$1" stop >/dev/null 2>&1 </dev/null || true
+    while [ "$i" -lt 30 ] && novi_running "$2"; do sleep 0.5; i=$((i + 1)); done
+    if novi_running "$2"; then novi_note "still open: quit Novi and open it again"; fi
 }
 
 # The version this site is serving, from its release endpoint; empty when it cannot be reached.
@@ -473,6 +507,7 @@ if [ "${OS_TYPE}" = "Darwin" ]; then
     export NOVI_DETAILS="${ACTION}|A disk image built for ${ARCH_LABEL} Macs|From ${SITE_HOST}|Into ${INSTALL_TARGET}|Quarantine is cleared so Gatekeeper lets it open|Novi opens by itself at the end"
 
     cleanup_mac() {
+        novi_fetch_cancel
         if [ -d "${MOUNT_DIR}" ]; then hdiutil detach "${MOUNT_DIR}" -quiet 2>/dev/null || true; fi
         rm -rf "${WORK_DIR}" 2>/dev/null || true
     }
@@ -491,6 +526,7 @@ if [ "${OS_TYPE}" = "Darwin" ]; then
     novi_step "Open the disk image" hdiutil attach "${DMG_PATH}" -nobrowse -readonly -mountpoint "${MOUNT_DIR}" -quiet
     if [ ! -d "${MOUNT_DIR}/Novi.app" ]; then novi_fail "Novi.app was not found inside the disk image."; fi
 
+    if novi_running Novi; then novi_step "Close the open Novi" novi_quit_running "${INSTALL_TARGET}/Contents/MacOS/Novi" Novi; fi
     novi_step "Copy Novi into Applications" install_bundle
 
     # Novi is not notarised with Apple, so Gatekeeper would refuse the bundle. Clearing the quarantine
@@ -519,7 +555,12 @@ elif [ "${OS_TYPE}" = "Linux" ]; then
 
     LATEST_VERSION=$(novi_latest_version || true)
     WORK_DIR=$(mktemp -d /tmp/novi-linux.XXXXXX)
-    cleanup_linux() { rm -rf "${WORK_DIR}" 2>/dev/null || true; }
+    APPIMAGE_TMP=''
+    cleanup_linux() {
+        novi_fetch_cancel
+        rm -rf "${WORK_DIR}" 2>/dev/null || true
+        if [ -n "${APPIMAGE_TMP}" ]; then rm -f "${APPIMAGE_TMP}" 2>/dev/null || true; fi
+    }
     trap 'novi_stage_stop $?; cleanup_linux' EXIT
     trap 'exit 130' INT
     trap 'exit 143' TERM
@@ -542,8 +583,11 @@ elif [ "${OS_TYPE}" = "Linux" ]; then
         novi_stage_start "${DOWNLOAD_LABEL}" "Install the package" "Open Novi"
         novi_step "${DOWNLOAD_LABEL}" novi_fetch "${PAYLOAD_URL}" "${DEB_PATH}"
         if [ ! -s "${DEB_PATH}" ]; then novi_fail "The downloaded package is empty. Check your connection and try again."; fi
+        if novi_running novi; then novi_step "Close the open Novi" novi_quit_running novi novi; fi
         novi_step "Install the package" ${SUDO} dpkg --force-confdef --force-confold -i "${DEB_PATH}" || novi_step "Fix missing dependencies" ${SUDO} apt-get install -f -y
-        novi_step "Open Novi" sh -c 'nohup novi >/dev/null 2>&1 &'
+        # `start` is required by the launcher Novi's "Install command" puts in ~/.local/bin, which comes
+        # before /usr/bin on PATH; the app itself accepts it too.
+        novi_step "Open Novi" sh -c 'nohup novi start >/dev/null 2>&1 &'
         novi_stage_end
         if [ "${MODE}" = update ]; then log_ok "Update completed successfully."; else log_ok "Installation completed successfully."; fi
         print_guide "the novi package (dpkg), in your applications menu" "sudo apt remove novi"
@@ -561,13 +605,18 @@ elif [ "${OS_TYPE}" = "Linux" ]; then
         novi_plan "${INSTALLED_VERSION}" "${LATEST_VERSION}"
         export NOVI_STAGE_TITLE="Linux, ${ARCH}"
         export NOVI_DETAILS="${ACTION}|An AppImage for ${ARCH}|From ${SITE_HOST}|Into ${APPIMAGE_PATH}|Remove it later by deleting that file|Novi opens by itself at the end"
+        # The download goes next to the AppImage and replaces it only when complete, so a failed or
+        # cancelled download leaves the working copy in place. Same folder, so the move is a rename,
+        # which also works while the old copy is still running.
+        APPIMAGE_TMP="${APPIMAGE_PATH}.download"
         finish_appimage() {
-            chmod +x "${APPIMAGE_PATH}" && { [ -z "${LATEST}" ] || printf '%s\n' "${LATEST}" > "${APPIMAGE_PATH}.version"; }
+            chmod +x "${APPIMAGE_TMP}" && mv -f "${APPIMAGE_TMP}" "${APPIMAGE_PATH}" && { [ -z "${LATEST}" ] || printf '%s\n' "${LATEST}" > "${APPIMAGE_PATH}.version"; }
         }
 
         novi_stage_start "${DOWNLOAD_LABEL}" "Make it executable" "Open Novi"
-        novi_step "${DOWNLOAD_LABEL}" novi_fetch "${PAYLOAD_URL}" "${APPIMAGE_PATH}"
-        if [ ! -s "${APPIMAGE_PATH}" ]; then novi_fail "The downloaded AppImage is empty. Check your connection and try again."; fi
+        novi_step "${DOWNLOAD_LABEL}" novi_fetch "${PAYLOAD_URL}" "${APPIMAGE_TMP}"
+        if [ ! -s "${APPIMAGE_TMP}" ]; then novi_fail "The downloaded AppImage is empty. Check your connection and try again."; fi
+        if [ -x "${APPIMAGE_PATH}" ] && novi_running novi; then novi_step "Close the open Novi" novi_quit_running "${APPIMAGE_PATH}" novi; fi
         novi_step "Make it executable" finish_appimage
         novi_step "Open Novi" sh -c 'nohup "$1" >/dev/null 2>&1 &' sh "${APPIMAGE_PATH}"
         novi_stage_end

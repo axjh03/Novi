@@ -82,6 +82,19 @@ test('the stage ends with a receipt and leaves no escape sequences behind it', l
   assert.doesNotMatch(after.replace(/\x1b\[[0-9;]*m/g, ''), /\x1b\[/, 'only colours remain after the stage');
 });
 
+// The terminal stays open after the installer exits, as a real one does, so a renderer left behind
+// would keep drawing over the shell ("Preparing..." and a running clock, once its files are gone).
+test('the animation stops with the installer, after a failure too', linux, () => {
+  const source = readFileSync('webapp/public/install.sh', 'utf8');
+  for (const ending of ['novi_stage_end', 'exit 17']) {
+    const install = stage(source) + `\ntrap 'novi_stage_stop $?' EXIT\nnovi_stage_start "Testing"\nnovi_step "Testing" sleep 0.3\n${ending}`;
+    const result = inTerminal(`bash -c ${quote(install)}\necho finished\nsleep 0.6`, 100, 30);
+    assert.equal(result.status, 0, result.stdout);
+    const after = result.stdout.slice(result.stdout.lastIndexOf('finished'));
+    assert.doesNotMatch(after, /\x1b\[[0-9;]*H|Preparing/, `${ending}: nothing is drawn once the installer has exited`);
+  }
+});
+
 test('the stage fits standard, medium, compact and ASCII terminals without clearing every frame', linux, () => {
   const source = readFileSync('webapp/public/install.sh', 'utf8');
   const script = stage(source) + '\nnovi_stage_start "Download Novi" "Open Novi"\nnovi_step "Download Novi" sleep 0.4\nnovi_step "Open Novi" true\nnovi_stage_end';
