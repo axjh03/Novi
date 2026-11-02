@@ -42,16 +42,16 @@ export interface ReleaseData {
 }
 
 type AssetKey = keyof ReleaseAssetInfo;
-const platforms: { id: DesktopPlatform; name: string; requires: string; logo: string; picture: { src: string; alt: string; w: number; h: number }; tone: string; packages: { key: AssetKey; title: string; detail: string }[] }[] = [
+const platforms: { id: DesktopPlatform; name: string; requires: string; logo: string; tone: string; packages: { key: AssetKey; title: string; detail: string }[] }[] = [
   // Novi runs on Electron 44, which needs macOS 13 (Ventura) or later.
-  { id: 'mac', name: 'macOS', requires: 'macOS 13 or later', logo: '/apple-logo.png', picture: { src: '/app/chat.png', alt: 'The Novi chat window answering a code question', w: 1180, h: 940 }, tone: 'tone-paper', packages: [
+  { id: 'mac', name: 'macOS', requires: 'macOS 13 or later', logo: '/apple-logo.png', tone: 'tone-paper', packages: [
     { key: 'macArm64', title: 'Apple Silicon', detail: 'M-series chips · .dmg' },
     { key: 'macX64', title: 'Intel', detail: 'Intel processors · .dmg' },
   ] },
-  { id: 'windows', name: 'Windows', requires: 'Windows 10 and 11, 64-bit', logo: '/microsoft.png', picture: { src: '/app/transparent.png', alt: 'Novi in transparent mode over a code review question', w: 1180, h: 940 }, tone: 'tone-rose', packages: [
+  { id: 'windows', name: 'Windows', requires: 'Windows 10 and 11, 64-bit', logo: '/microsoft.png', tone: 'tone-rose', packages: [
     { key: 'windows', title: 'Windows installer', detail: '64-bit · .exe' },
   ] },
-  { id: 'linux', name: 'Linux', requires: 'Debian, Ubuntu, or any distribution with AppImage', logo: '/ubuntu.png', picture: { src: '/app/modern-dark.png', alt: 'The floating Novi bar listening to a call', w: 490, h: 457 }, tone: 'tone-wine', packages: [
+  { id: 'linux', name: 'Linux', requires: 'Debian, Ubuntu, or any distribution with AppImage', logo: '/ubuntu.png', tone: 'tone-wine', packages: [
     { key: 'linuxDeb', title: 'Debian / Ubuntu', detail: 'x64 · .deb' },
     { key: 'linuxAppImage', title: 'AppImage', detail: 'x64 · .AppImage' },
     { key: 'linuxDebArm64', title: 'Debian / Ubuntu', detail: 'ARM64 · .deb' },
@@ -170,7 +170,6 @@ export default function DownloadClient({ initialRelease }: { initialRelease: Rel
                     <button type="button" className={styles.copy} disabled={!siteOrigin} onClick={() => void copyText(command(platform.id), commandId)} aria-label="Copy the install command">{copied === commandId ? 'Copied' : 'Copy'}</button>
                   </div>
                 </div>
-                <img className={styles.systemPicture} src={platform.picture.src} alt={platform.picture.alt} width={platform.picture.w} height={platform.picture.h} loading="lazy" decoding="async" />
               </article>
             );
           })}

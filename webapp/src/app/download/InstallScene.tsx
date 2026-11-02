@@ -13,7 +13,7 @@ export default function InstallScene() {
           {faces.map(face => <div key={face} className={`${styles.cubeFace} ${styles[face]}`}>{face !== 'top' && face !== 'bottom' && <img src="/logo.svg" alt="" width={48} height={48} />}</div>)}
         </div>
       </div>
-      <div className={styles.laptop}><Laptop3D rest={[-10, -9]} tilt={false}>
+      <div className={styles.laptop}><Laptop3D rest={[0.06, 0.16]}>
         <div className={styles.desktop}>
           <div className={styles.menuBar}>
             <span className={styles.menuApple} aria-hidden="true" />

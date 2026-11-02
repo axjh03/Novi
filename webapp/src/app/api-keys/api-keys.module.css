@@ -88,7 +88,7 @@
 .security { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--gutter); align-items: end; padding: clamp(96px, 14vh, 180px) var(--margin); }
 .securityWords { grid-column: 1 / 9; }
 .securityPicture { grid-column: 9 / 13; display: flex; justify-content: flex-end; }
-.securityPicture img { width: 100%; max-width: 420px; height: auto; }
+.securityPicture > div { width: 100%; max-width: 520px; }
 .security h2 { font-size: clamp(36px, 4.2vw, 64px); letter-spacing: -0.04em; margin-left: -0.04em; }
 .securityList { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--gutter); row-gap: 32px; margin: 56px 0 0; padding: 0; list-style: none; }
 .securityList li { display: flex; flex-direction: column; gap: 12px; }

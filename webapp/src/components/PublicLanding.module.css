@@ -24,26 +24,22 @@
 .title { font-size: clamp(40px, 5.2vw, 80px); line-height: 0.95; letter-spacing: -0.04em; margin-left: -0.04em; }
 .line { display: block; overflow: clip; padding-bottom: 0.1em; margin-bottom: -0.1em; }
 .line > span { display: block; }
-/* RAW, opening once. The capitals are always pink. Three seconds after load the hidden parts open
-   ("Random Access Wisdom") and stay open; the line wraps like any other headline line instead of
-   running under the stage. Each hidden part is a grid track that opens from 0fr to 1fr, so the width
-   animates without knowing the text. With reduced motion the line stays RAW and the subline says what it stands for. */
+/* The RAW line: the short form and the long italic form share one grid cell, so the line is as tall as
+   the long form from the start and nothing under it moves. The short form shows first; the long one wipes
+   in from the left over it, holds, and the cycle repeats three times, ending on the long form. Reduced
+   motion shows the long form only. */
 .hero { overflow-x: clip; }
 .rawHost { overflow: clip; }
-.rawLine { white-space: normal; }
-.rawWord { display: inline; }
-.rawLetters { display: inline; }
-.rawLetters b { font-weight: inherit; color: var(--accent); }
-.rawSeg { display: inline-grid; grid-template-columns: 1fr; vertical-align: baseline; color: inherit; font-style: normal; }
-.rawSeg > span { min-width: 0; overflow: hidden; }
-.raw { display: none; margin-top: 20px; font: italic 400 var(--step-lead)/1.3 var(--text); color: var(--accent); }
+.rawStack { display: grid; grid-template-columns: minmax(0, 1fr); }
+.rawStack > span { grid-area: 1 / 1; display: block; min-width: 0; }
+.rawShort { opacity: 0; }
+.rawLong i { font-style: italic; }
 @media (prefers-reduced-motion: no-preference) {
-  .rawSeg { grid-template-columns: 0fr; animation: rawOpen 1400ms var(--ease-in-out) 3000ms 1 forwards; }
-  .rawSeg > span { opacity: 0; animation: rawShow 1400ms var(--ease-in-out) 3000ms 1 forwards; }
+  .rawShort { opacity: 1; animation: rawShort 3400ms var(--ease-in-out) 1100ms 3 both; }
+  .rawLong { clip-path: inset(0 100% 0 0); animation: rawLong 3400ms var(--ease-in-out) 1100ms 3 both; }
 }
-@media (prefers-reduced-motion: reduce) { .rawSeg { grid-template-columns: 0fr; } .rawSeg > span { opacity: 0; } .raw { display: block; } }
-@keyframes rawOpen { to { grid-template-columns: 1fr; } }
-@keyframes rawShow { 0%, 30% { opacity: 0; } to { opacity: 1; } }
+@keyframes rawShort { 0%, 36% { opacity: 1; } 48%, 100% { opacity: 0; } }
+@keyframes rawLong { 0%, 34% { clip-path: inset(0 100% 0 0); } 62%, 100% { clip-path: inset(0 0 0 0); } }
 .lead { max-width: 44ch; margin-top: 28px; font-size: var(--step-body); line-height: 1.55; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; margin-top: 36px; }
 .price { flex-basis: 100%; font: 400 var(--step-small)/1.4 var(--ui); color: var(--muted); }
@@ -109,7 +105,8 @@
 .sheetPicture { grid-column: 7 / 13; grid-row: 2 / 4; position: relative; min-height: 0; overflow: hidden; display: flex; align-items: flex-end; justify-content: center; }
 .sheetPicture > img { width: 100%; height: 100%; object-fit: cover; object-position: left top; }
 .sheetPicture > .sheetSmall { width: auto; height: auto; max-height: 100%; object-fit: contain; align-self: center; }
-.sheetPicture > .sheetPhone { width: auto; height: 100%; max-height: calc(86svh - 72px); object-fit: contain; object-position: bottom; }
+.sheetPicture > .sheetPhone { width: min(100%, calc((86svh - 72px) * 0.62)); min-height: 360px; aspect-ratio: 0.62 / 1; align-self: center; }
+.sheetPicture > .sheetLaptop { width: 100%; max-width: 640px; min-height: 320px; align-self: center; }
 .sheetPicture > div { width: 100%; max-width: 560px; align-self: center; }
 .tone-rose { background: var(--field-rose); color: var(--field-rose-ink); }
 .tone-wine { background: var(--field-wine); color: var(--field-wine-ink); }
@@ -237,7 +234,7 @@
   .sheet h3 { order: 1; min-height: 52px; display: flex; align-items: center; padding: 0 20px; font-size: 22px; }
   .sheetPicture { order: 2; aspect-ratio: 4 / 3; width: 100%; align-items: center; }
   .sheetPicture > img { object-position: left top; }
-  .sheetPicture > .sheetPhone { height: 100%; max-height: none; object-position: center; }
+  .sheetPicture > .sheetPhone { width: 60%; min-height: 0; }
   .sheetPicture > div { max-width: calc(100% - 40px); }
   .sheet > p { order: 3; max-width: none; padding: 24px 20px 40px; font-size: 17px; }
   .compare { display: block; min-height: 0; padding: 72px var(--margin); }

@@ -150,13 +150,13 @@ function Rig({ focus, motion, interacted, onInteract, scrollRoot }: { focus: THR
   useEffect(() => {
     if (!controls.current) return;
     const target = controls.current.target as THREE.Vector3;
-    const tween = gsap.to(target, { x: focus?.x ?? 0, y: 0, z: focus?.z ?? 0.1, duration: motion ? 0.8 : 0, ease: 'power3.out', onUpdate: () => { controls.current?.update(); invalidate(); } });
+    const tween = gsap.to(target, { x: focus?.x ?? 0, y: -0.55, z: focus?.z ?? 0.1, duration: motion ? 0.8 : 0, ease: 'power3.out', onUpdate: () => { controls.current?.update(); invalidate(); } });
     return () => { tween.kill(); };
   }, [focus, motion, invalidate]);
   return (
     <OrbitControls ref={controls} makeDefault enableZoom={false} enablePan={false} enableRotate={!coarse} enableDamping dampingFactor={0.08} rotateSpeed={0.55}
       minPolarAngle={0.5} maxPolarAngle={1.2} minAzimuthAngle={-0.95} maxAzimuthAngle={0.95}
-      autoRotate={motion && !interacted} autoRotateSpeed={0.45} target={[0, 0, 0.1]} onStart={onInteract} />
+      autoRotate={motion && !interacted} autoRotateSpeed={0.45} target={[0, -0.55, 0.1]} onStart={onInteract} />
   );
 }
 

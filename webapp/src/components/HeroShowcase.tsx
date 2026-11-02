@@ -2,16 +2,17 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import Laptop3D from './Laptop3D';
+import { Desk } from './ScreenCompare';
 import styles from './HeroShowcase.module.css';
 
 /* The product on a laptop, three screens deep: the chat window, transparent mode, and the listening
-   bar on the desk. The screens take turns every few seconds; the tabs under the laptop switch them,
+   bar over a call. The screens take turns every few seconds; the tabs under the laptop switch them,
    the laptop itself swipes, and the arrow keys walk the tabs. Real screenshots of the app, nothing drawn. */
 const HOLD = 5600;
 const slides: { id: string; label: string; caption: string; picture: ReactNode }[] = [
   { id: 'chat', label: 'Chat', caption: 'The chat window: readable code, the complexity, and the explanation for the follow-up.', picture: <img src="/app/chat.png" alt="The Novi chat window answering a code question with an explanation" width={1180} height={940} decoding="async" /> },
   { id: 'transparent', label: 'Transparent', caption: 'Capture protection on. The screen share gets the editor; you get the answer beside it.', picture: <img src="/app/transparent.png" alt="Novi in transparent mode over a code review question" width={1180} height={940} loading="lazy" decoding="async" /> },
-  { id: 'listening', label: 'Listening', caption: 'The floating bar transcribes the call and lines up the follow-ups before they ask.', picture: <div className={styles.desk}><img src="/app/modern-dark.png" alt="The floating Novi bar listening to a call, with its transcript" width={490} height={457} loading="lazy" decoding="async" /></div> },
+  { id: 'listening', label: 'Listening', caption: 'The floating bar transcribes the call and lines up the follow-ups before they ask.', picture: <Desk withNovi /> },
 ];
 
 export default function HeroShowcase() {

@@ -9,6 +9,7 @@ import BrainBot from './BrainBot';
 import { marks, PROVIDER_BRAND, type ProviderId } from './ProviderMarks';
 import CopyButton from './CopyButton';
 import KeyChecker from './KeyChecker';
+import DeskLaptop from '@/components/DeskLaptop';
 import chapters from '@/components/Chapters.module.css';
 import styles from './api-keys.module.css';
 
@@ -171,7 +172,7 @@ export default function ApiKeysPage() {
             <li data-reveal style={{ '--i': 3 } as CSSProperties}><strong>No middle server.</strong><span>Prompts, transcripts and screenshots go from your computer to the provider you chose. Nothing passes through, or is logged by, a server of ours.</span></li>
           </ul>
           </div>
-          <div className={styles.securityPicture} data-reveal style={{ '--i': 2 } as CSSProperties}><img src="/app/modern-dark.png" alt="The floating Novi bar on the desk, with its transcript" width={490} height={457} loading="lazy" decoding="async" /></div>
+          <div className={styles.securityPicture} data-reveal style={{ '--i': 2 } as CSSProperties}><DeskLaptop /></div>
         </section>
 
         <CloseRow id="setup-close" title={<>Key in hand?<br />Get the app.</>} text="Add the key to your account first, then install Novi and sign in. No account yet? Create an individual account, or contact us for a team." action="Download Novi" href="/download" />

@@ -1,0 +1,9 @@
+/* The phone's stage: a tall box the canvas fills. The screen box is the companion's own 390 × 844. */
+.scene { position: relative; width: 100%; aspect-ratio: 0.62 / 1; isolation: isolate; opacity: 0; }
+.scene[data-ready] { opacity: 1; transition: opacity 600ms ease; }
+@media (prefers-reduced-motion: reduce) { .scene[data-ready] { transition: none; } }
+.scene canvas { display: block; }
+/* no WebGL: the screenshot in a flat black frame with the same island */
+.flat { width: 100%; max-width: 330px; padding: 14px; background: #1c1b1f; border-radius: 58px; }
+.flatScreen { position: relative; overflow: hidden; border-radius: 46px; background: #000; }
+.flatScreen img { display: block; width: 100%; height: auto; }

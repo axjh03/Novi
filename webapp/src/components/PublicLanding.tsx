@@ -10,6 +10,8 @@ import { FEATURES } from '@/lib/features';
 import { AddKeyFragment, DesktopSignInFragment, NoviAnswer, ScreenshotFragment, SignupFragment, answerFor, examples } from './Fragments';
 import HeroShowcase from './HeroShowcase';
 import ScreenCompare from './ScreenCompare';
+import DeskLaptop from './DeskLaptop';
+import IPhone3D from './IPhone3D';
 import styles from './PublicLanding.module.css';
 
 const faq = [
@@ -24,9 +26,9 @@ const faq = [
 
 const sheets = [
   { feature: FEATURES[0], tone: 'rose', picture: <img src="/app/chat.png" alt="The Novi chat window answering a code question with an explanation" width={1180} height={940} loading="lazy" decoding="async" /> },
-  { feature: FEATURES[1], tone: 'wine', picture: <img className={styles.sheetSmall} src="/app/modern-dark.png" alt="The listening widget with its transcript and follow-up questions" width={490} height={457} loading="lazy" decoding="async" /> },
+  { feature: FEATURES[1], tone: 'wine', picture: <DeskLaptop className={styles.sheetLaptop} /> },
   { feature: FEATURES[2], tone: 'paper', picture: <ScreenshotFragment /> },
-  { feature: FEATURES[8], tone: 'deep', picture: <img className={styles.sheetPhone} src="/app/companion-portrait.png" alt="The phone companion with its layout, scroll and capture controls" width={390} height={844} loading="lazy" decoding="async" /> },
+  { feature: FEATURES[8], tone: 'deep', picture: <IPhone3D className={styles.sheetPhone} src="/app/companion-portrait.png" screen="/app/companion-screen.png" alt="The phone companion with its layout, scroll and capture controls" /> },
 ] as const;
 
 const modes = ['Behavioral interview', 'Technical screen', 'Recruiter call', 'Chat', 'Code', 'System design', 'Local coding'];
@@ -59,10 +61,14 @@ export default function PublicLanding({ onSignIn, onSignUp }: { onSignIn: () => 
           <div className={styles.heroCopy}>
             <h1 id="landing-title" className={styles.title}>
               {['Fuck LeetCode.', 'Fuck HackerRank.', 'Fuck Assessment.'].map((line, index) => <span className={styles.line} key={line}><span style={{ '--i': index } as CSSProperties}>{line}</span></span>)}
-              {/* RAW opens once, three seconds after load, into "Random Access Wisdom" and stays open. The capitals are pink, the rest white. */}
-              <span className={`${styles.line} ${styles.rawHost}`}><span className={styles.rawLine} style={{ '--i': 3 } as CSSProperties}>Fuck it <span className={styles.rawWord}><span className={styles.srOnly}>Random Access Wisdom</span><span aria-hidden="true" className={styles.rawLetters}><b>R</b><span className={styles.rawSeg}><span>andom&nbsp;</span></span><b>A</b><span className={styles.rawSeg}><span>ccess&nbsp;</span></span><b>W</b><span className={styles.rawSeg}><span>isdom</span></span></span></span>.</span></span>
+              {/* The last line cuts in as FUCK IT RAW, then wipes open, in italic, into what it stands for. It does that three times and rests on the long form. */}
+              <span className={`${styles.line} ${styles.rawHost}`}>
+                <span className={styles.rawStack} style={{ '--i': 3 } as CSSProperties}>
+                  <span className={styles.rawShort} aria-hidden="true">FUCK IT RAW.</span>
+                  <span className={styles.rawLong}><i>Fuck it with Random Access Wisdom.</i></span>
+                </span>
+              </span>
             </h1>
-            <p className={styles.raw}>(Random Access Wisdom)</p>
             <p className={styles.lead} data-load style={{ '--d': '640ms' } as CSSProperties}>Novi is an AI interview cheating app. Capture a live question from your screen or audio and get answers, code, and explanations during the interview. Behavioral round, technical screen, or another surprise follow-up: get the answer when you need it.</p>
             <div className={styles.actions} data-load style={{ '--d': '720ms' } as CSSProperties}>
               <Link className={styles.primary} href="/#signup" onClick={event => { event.preventDefault(); onSignUp(); }}>Create your account</Link>

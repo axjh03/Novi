@@ -8,7 +8,7 @@ import styles from './ScreenCompare.module.css';
    right. The divider is a real range input stretched over the picture, so it drags, taps and takes
    the arrow keys. The desk is drawn in HTML at true size (menu bar, call window, Dock); the overlay
    is the app's own window. Capture protection is why the left half has no Novi in it. */
-function Desk({ withNovi }: { withNovi: boolean }) {
+export function Desk({ withNovi }: { withNovi: boolean }) {
   return (
     <div className={styles.desk} data-ui aria-hidden="true">
       <div className={styles.menubar}>

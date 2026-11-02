@@ -95,7 +95,6 @@
 .onWine .commandRow .copy { background: var(--field-paper); color: var(--field-paper-ink); }
 .copy:hover { background: var(--action); }
 .copy:active { transform: scale(0.97); }
-.systemPicture { align-self: stretch; width: auto; height: 240px; margin: 28px -28px -40px; object-fit: cover; object-position: left top; }
 .copyStatus { min-height: 24px; padding: 12px var(--margin) 0; font: 400 var(--step-small)/1.4 var(--ui); color: var(--accent); }
 
 /* ---------- 3 · after the install ---------- */
@@ -135,7 +134,6 @@
   .heroTile > div { min-height: 0; height: auto; padding: 24px 16px 0; }
   .systemHead img { width: 48px; height: 48px; }
   .system { padding: 28px 20px 32px; }
-  .systemPicture { height: 200px; margin: 24px -20px -32px; }
   .packages a { grid-template-columns: 1fr; }
   .packages span { grid-column: 1; grid-row: auto; text-align: left; }
   .after { display: block; min-height: 0; padding: 72px var(--margin); }

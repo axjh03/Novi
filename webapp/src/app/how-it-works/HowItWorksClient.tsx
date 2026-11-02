@@ -7,6 +7,7 @@ import SiteFooter from '@/components/SiteFooter';
 import { ChapterPage, CloseRow, Faq, Title } from '@/components/Chapters';
 import { AddKeyFragment, DesktopSignInFragment, NoviAnswer, SignupFragment, failed, screenQuestion, shortener, twoSum, whyJob, type Answer } from '@/components/Fragments';
 import { JOURNEY, PLANS } from '@/lib/site';
+import DeskLaptop from '@/components/DeskLaptop';
 import chapters from '@/components/Chapters.module.css';
 import styles from './how-it-works.module.css';
 
@@ -51,7 +52,7 @@ export default function HowItWorksClient() {
             </div>
           </div>
           <div className={`${chapters.heroSide} ${styles.heroStage}`}>
-            <div data-open><img src="/app/modern-dark.png" alt="The floating Novi bar listening to a call, with its transcript and follow-up questions" width={490} height={457} decoding="async" /></div>
+            <div data-open><DeskLaptop /></div>
           </div>
         </section>
 

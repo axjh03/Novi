@@ -9,6 +9,7 @@ import { FEATURES, FEATURE_GROUPS } from '@/lib/features';
 import { PLANS, type PlanId } from '@/lib/site';
 import { GazeScene, LocalCodingFragment } from './Illustrations';
 import { NoviAnswer, chatService } from '@/components/Fragments';
+import IPhone3D from '@/components/IPhone3D';
 import chapters from '@/components/Chapters.module.css';
 import styles from './features.module.css';
 
@@ -136,7 +137,7 @@ export default function FeaturesClient() {
             <Link className={chapters.primary} href="/get-access?plan=ultimate" data-reveal style={{ '--i': 5 } as CSSProperties}>Get Ultimate · {PLANS.ultimate.price} {PLANS.ultimate.unit}</Link>
           </div>
           <div className={styles.phonePictures} data-reveal style={{ '--i': 1 } as CSSProperties}>
-            <img src="/app/companion-portrait.png" alt="The phone companion with its layout, scroll and capture controls" width={390} height={844} loading="lazy" decoding="async" />
+            <IPhone3D src="/app/companion-portrait.png" screen="/app/companion-screen.png" alt="The phone companion with its layout, scroll and capture controls" />
             <img src="/app/companion-landscape.png" alt="The phone companion in landscape, with its layout and listening controls" width={844} height={390} loading="lazy" decoding="async" />
           </div>
         </section>
