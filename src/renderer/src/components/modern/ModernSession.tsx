@@ -122,7 +122,7 @@ export function ModernSession(props: ModernSessionProps) {
   async function snapshot() {
     if (attaching) return;
     setAttaching(true);
-    try { if (!await captureScreenshot()) setError('Screen capture failed. Check screen recording permission and the screenshot folder in Pictures.'); }
+    try { if (!await captureScreenshot()) setError('Screen capture failed. Check screen recording permission.'); }
     catch (cause) { setError(errorText(cause)); }
     finally { setAttaching(false); }
   }

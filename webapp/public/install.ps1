@@ -5,6 +5,9 @@
 & {
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+# The site only speaks TLS 1.2 or newer, which Windows PowerShell 5.1 may not offer by default. Set
+# before the first request (the size and version checks), not just before the download.
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 # ---- novi stage begin ----
 # The stage. While the install runs, a renderer in a second runspace draws a card on the alternate
@@ -348,10 +351,20 @@ $siteHost = ($baseUrl -replace '^[a-z]+://', '') -replace '/.*$', ''
 $downloadUrl = "$baseUrl/api/download?asset=windows"
 $tempPath = Join-Path $env:TEMP ("Novi-Setup-" + [Guid]::NewGuid().ToString('N') + ".exe")
 
+# Where Novi is installed now: for this user (the default) or, under Program Files, for all users.
+# The installer is told to keep that choice (/currentuser or /allusers), as the app's own updater
+# does; without it, an all-users install would get a second copy for this user. ProgramW6432 is the
+# 64-bit Program Files even when this is a 32-bit PowerShell.
+$userExe = Join-Path $env:LOCALAPPDATA "Programs\novi\Novi.exe"
+$programFiles = if ($env:ProgramW6432) { $env:ProgramW6432 } else { $env:ProgramFiles }
+$allUsersExe = Join-Path $programFiles "Novi\Novi.exe"
+$installedExe = if (Test-Path -LiteralPath $userExe) { $userExe } elseif (Test-Path -LiteralPath $allUsersExe) { $allUsersExe } else { '' }
+$installScope = if ($installedExe -and $installedExe -eq $allUsersExe) { '/allusers' } else { '/currentuser' }
+$installDir = Split-Path -Parent $(if ($installScope -eq '/allusers') { $allUsersExe } else { $userExe })
+
 # What this run does: install, update, or nothing when the installed copy is already the latest.
-$installedExe = Join-Path $env:LOCALAPPDATA "Programs\novi\Novi.exe"
 $installedVersion = ''
-if (Test-Path -LiteralPath $installedExe) { try { $installedVersion = (Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion -replace '\+.*$', '' } catch { $installedVersion = '' } }
+if ($installedExe) { try { $installedVersion = (Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion -replace '\+.*$', '' } catch { $installedVersion = '' } }
 $latestVersion = Get-NoviLatestVersion $baseUrl
 $mode = 'install'
 if ($installedVersion) {
@@ -369,70 +382,90 @@ $action = if ($mode -eq 'update') { "Update Novi $installedVersion to $(if ($lat
 $downloadLabel = if ($latestVersion) { "Download Novi $latestVersion" } else { 'Download Novi' }
 $stepLabel = if ($mode -eq 'update') { 'Run the update' } else { 'Run the installer' }
 $novi.Title = "$($osCaption -replace '^Microsoft ', ''), x64"
-$novi.Details = "$action|A Windows installer for x64|From $siteHost|Into $env:LOCALAPPDATA\Programs\novi|The installer runs silently, with no windows to click through|Novi opens by itself at the end"
+$novi.Details = "$action|A Windows installer for x64|From $siteHost|Into $installDir|The installer runs silently, with no windows to click through|Novi opens by itself at the end"
 
 $total = Get-NoviContentLength $downloadUrl
 Start-NoviStage @($downloadLabel, $stepLabel, 'Open Novi')
 
+# Ctrl+C runs finally blocks but skips catch blocks, so leaving the stage and removing a partial
+# download happen here: without it, an interrupted install kept drawing the card over this window
+# and left the installer in TEMP. Both calls do nothing when the work is already done.
 try {
-    Invoke-NoviStep $downloadLabel {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $downloadUrl -OutFile $tempPath -UseBasicParsing
-    } $tempPath $total
-} catch {
-    Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
-    throw "Failed to download installer from $($downloadUrl): $_"
-}
+    try {
+        Invoke-NoviStep $downloadLabel {
+            Invoke-WebRequest -Uri $downloadUrl -OutFile $tempPath -UseBasicParsing
+        } $tempPath $total
+    } catch {
+        Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+        throw "Failed to download installer from $($downloadUrl): $_"
+    }
 
-if (-not (Test-Path $tempPath)) {
-    Stop-NoviStage
-    throw "Downloaded installer payload not found at $tempPath"
-}
+    if (-not (Test-Path $tempPath)) {
+        Stop-NoviStage
+        throw "Downloaded installer payload not found at $tempPath"
+    }
 
-try {
-    Invoke-NoviStep $stepLabel {
-        $proc = Start-Process -FilePath $tempPath -ArgumentList "/S" -PassThru -Wait
-        if ($proc.ExitCode -ne 0) {
-            throw "Installer exited with code $($proc.ExitCode)."
+    # A Novi that is still open would be force-closed by the installer after about a second, cutting
+    # its shutdown short. Its own `stop` command (since 4.0.11) lets it quit cleanly first; one that is
+    # still open after 15 seconds is left to the installer, as before.
+    if ($installedExe -and (Get-Process -Name Novi -ErrorAction SilentlyContinue)) {
+        Invoke-NoviStep 'Close the open Novi' {
+            Start-Process -FilePath $installedExe -ArgumentList 'stop'
+            Wait-Process -Name Novi -Timeout 15 -ErrorAction SilentlyContinue
+            if (Get-Process -Name Novi -ErrorAction SilentlyContinue) { Set-NoviNote 'still open: the installer will close it' }
         }
     }
-} catch {
-    throw "Silent installation execution failed: $_"
+
+    try {
+        Invoke-NoviStep $stepLabel {
+            $proc = Start-Process -FilePath $tempPath -ArgumentList @('/S', $installScope) -PassThru -Wait
+            if ($proc.ExitCode -ne 0) {
+                throw "Installer exited with code $($proc.ExitCode)."
+            }
+        }
+    } catch {
+        throw "Silent installation execution failed: $_"
+    } finally {
+        Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+    }
+
+    # The copy just installed first, then the other places Novi has lived.
+    $installLocations = @(
+        (Join-Path $installDir "Novi.exe")
+        $userExe
+        $allUsersExe
+        (Join-Path $env:LOCALAPPDATA "Novi\Novi.exe")
+    )
+
+    $targetExe = $null
+    foreach ($loc in $installLocations) {
+        if (Test-Path -LiteralPath $loc) {
+            $targetExe = $loc
+            break
+        }
+    }
+
+    Invoke-NoviStep 'Open Novi' {
+        if ($targetExe) {
+            Start-Process -FilePath $targetExe -WorkingDirectory (Split-Path -LiteralPath $targetExe)
+        } else {
+            $desktopShortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) "Novi.lnk"
+            if (Test-Path $desktopShortcut) {
+                Invoke-Item $desktopShortcut
+            }
+        }
+    }
+    Stop-NoviStage -Finished
 } finally {
+    Stop-NoviStage
     Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
 }
-
-$installLocations = @(
-    (Join-Path $env:LOCALAPPDATA "Programs\novi\Novi.exe")
-    (Join-Path $env:ProgramFiles "Novi\Novi.exe")
-    (Join-Path $env:LOCALAPPDATA "Novi\Novi.exe")
-)
-
-$targetExe = $null
-foreach ($loc in $installLocations) {
-    if (Test-Path -LiteralPath $loc) {
-        $targetExe = $loc
-        break
-    }
-}
-
-Invoke-NoviStep 'Open Novi' {
-    if ($targetExe) {
-        Start-Process -FilePath $targetExe -WorkingDirectory (Split-Path -LiteralPath $targetExe)
-    } else {
-        $desktopShortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) "Novi.lnk"
-        if (Test-Path $desktopShortcut) {
-            Invoke-Item $desktopShortcut
-        }
-    }
-}
-Stop-NoviStage -Finished
 
 Write-Host "==> $(if ($mode -eq 'update') { 'Update' } else { 'Installation' }) completed successfully." -ForegroundColor Green
 Write-Host ''
 Write-Host "  Novi is $(if ($mode -eq 'update') { "updated to $latestVersion" } else { 'installed' }) and opening now." -ForegroundColor White
 Write-Host ''
-Write-Host ('  {0,-12}{1}' -f 'Installed', "$env:LOCALAPPDATA\Programs\novi (Start menu: Novi)")
+Write-Host ('  {0,-12}{1}' -f 'Installed', "$installDir (Start menu: Novi)")
 Write-Host ('  {0,-12}{1}' -f 'Sign in', 'Individuals: the username and password from your Novi account.')
 Write-Host ('  {0,-12}{1}' -f '', 'Teams: the desktop login your organisation created for you.')
 Write-Host ('  {0,-12}{1}' -f 'AI key', "Add a provider key once in your account: $baseUrl/api-keys")

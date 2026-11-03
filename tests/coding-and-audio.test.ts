@@ -90,8 +90,11 @@ test('settingsInput validates coding, behavioral, screenshot, audio shortcuts, a
   assert.equal(validated.codingModeShortcut, 'Alt+C');
   assert.equal(validated.behavioralModeShortcut, 'Alt+B');
   assert.equal(validated.screenshotShortcut, 'Alt+3');
-  assert.equal(validated.saveScreenshots, true);
-  assert.equal(settingsInput({ ...input, saveScreenshots: false }).saveScreenshots, false);
+  assert.equal(validated.saveScreenshotsToPictures, false, 'copies to Pictures are opt-in');
+  assert.equal(settingsInput({ ...input, saveScreenshotsToPictures: true }).saveScreenshotsToPictures, true);
+  assert.equal(settingsInput({ ...input, saveScreenshotsToPictures: 'yes' }).saveScreenshotsToPictures, false);
+  assert.equal(settingsInput({ ...input, saveScreenshots: true }).saveScreenshotsToPictures, false, 'the old always-on key does not turn copies on');
+  assert(!('saveScreenshots' in validated));
   assert.equal(validated.audioRecordShortcut, 'Alt+A');
   assert.equal(validated.transparentShortcut, 'Option+Control+T');
   assert.equal('autoSendOnAudioStop' in validated, false);

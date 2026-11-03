@@ -51,7 +51,8 @@ export interface AppSettings {
   codingModeShortcut?: string;
   behavioralModeShortcut?: string;
   screenshotShortcut?: string;
-  saveScreenshots?: boolean;
+  /** Also save each screenshot to Pictures/Novi/Screenshots. Off unless chosen; replaced saveScreenshots, which was on for everyone. */
+  saveScreenshotsToPictures?: boolean;
   audioRecordShortcut?: string;
   transparentShortcut?: string;
   /** Legacy persisted preference; removed from the current UI and behavior. */
@@ -138,7 +139,7 @@ export interface SettingsInput {
   codingModeShortcut?: string;
   behavioralModeShortcut?: string;
   screenshotShortcut?: string;
-  saveScreenshots?: boolean;
+  saveScreenshotsToPictures?: boolean;
   audioRecordShortcut?: string;
   transparentShortcut?: string;
   fastInterviewModel?: boolean;
@@ -290,7 +291,8 @@ export interface NoviAPI {
   saveConversation(id: string): Promise<Result<void>>;
   renameConversation(id: string, title: string): Promise<Result<Conversation>>;
   deleteConversation(id: string): Promise<Result<void>>;
-  clearHistory(): Promise<Result<void>>;
+  /** Deletes every conversation; with screenshots: true also the screenshot copies saved to Pictures. */
+  clearHistory(options?: { screenshots?: boolean }): Promise<Result<void>>;
   pickImages(): Promise<Result<ImageAttachment[]>>;
   dropImages(files: File[]): Promise<Result<ImageAttachment[]>>;
   previewImage(id: string): Promise<Result<string>>;

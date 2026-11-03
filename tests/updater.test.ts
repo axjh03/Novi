@@ -15,6 +15,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { UpdateProgress } from '../src/shared/types';
 import { SettingsAppUpdater } from '../src/renderer/src/components/SettingsAppUpdater';
+import { SignInUpdate } from '../src/renderer/src/components/SignInUpdate';
 import { updaterService } from '../src/renderer/src/services/updaterService';
 
 // The updater reads electron's app and shell when it runs; install a stand-in before the module loads.
@@ -116,6 +117,34 @@ test('failed, truncated and unwritable downloads reject, remove partial files an
   await assert.rejects(updater['downloadFile'](server.url, join(server.directory, 'missing', 'payload'), () => {}), /ENOENT/);
   await updater['downloadFile'](server.url, dest, () => {});
   assert.equal(readFileSync(dest, 'utf8'), 'complete');
+});
+
+test('the sign-in screen offers an available update, shows its progress, and lets a failed install retry', t => {
+  type State = ReturnType<typeof updaterService.getState>;
+  const update = { hasUpdate: true, currentVersion: '6.0.2', latestVersion: '6.1.0' };
+  let state: State = { status: 'available', result: update, progress: null, error: null, lastCheckedAt: 1 };
+  t.mock.method(updaterService, 'getState', () => state);
+  const render = () => renderToStaticMarkup(createElement(SignInUpdate));
+  const offer = render();
+  assert.match(offer, /Novi 6\.1\.0 is available\./); assert.match(offer, /You have 6\.0\.2\./);
+  assert.match(offer, /<button type="button"[^>]*>.*Update &amp; Restart<\/button>/);
+  state = { ...state, result: { ...update, notice: 'Novi 6.1 needs macOS 13 or later.' } };
+  assert.match(render(), /needs macOS 13 or later/);
+  state = { ...state, status: 'downloading', progress: { status: 'Downloading update...', percent: 40, downloadedBytes: 40, totalBytes: 100, bytesPerSecond: 10 } };
+  const downloading = render();
+  assert.match(downloading, /role="progressbar"/); assert.match(downloading, /40%/); assert.doesNotMatch(downloading, /Update &amp; Restart/);
+  state = { ...state, status: 'error', error: 'Checksum mismatch.', progress: null };
+  const failed = render();
+  assert.match(failed, /role="alert">Checksum mismatch\./); assert.match(failed, /Try again/);
+  for (const quiet of [
+    { status: 'up-to-date', result: { ...update, hasUpdate: false } },
+    { status: 'idle', result: null },
+    { status: 'checking', result: null },
+    { status: 'error', result: null, error: 'Could not reach the update server.' },
+  ] as const) {
+    state = { progress: null, error: null, lastCheckedAt: null, ...quiet } as State;
+    assert.equal(render(), '', `${quiet.status} shows nothing on the sign-in screen`);
+  }
 });
 
 test('update page shows size, speed and percent, and stays indeterminate when size is unknown', t => {

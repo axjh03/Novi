@@ -78,6 +78,9 @@ svg { flex-shrink: 0; }
 .auth-form-wrap { width: 100%; max-width: 350px; }
 .auth-form-wrap h2 { font-size: 30px; margin-bottom: 10px; }
 .auth-form-wrap > p { font-size: 13px; }
+.signin-update { display: grid; gap: 10px; margin: 18px 0 4px; padding: 14px; border: 1px solid var(--border); border-radius: 8px; }
+.signin-update p { margin: 0; font-size: 13px; }
+.signin-update > button { justify-self: start; display: inline-flex; align-items: center; gap: 6px; }
 .segmented { display: flex; background: var(--panel); border: 1px solid var(--border); padding: 4px; border-radius: 8px; margin: 25px 0; }
 .segmented button { flex: 1; padding: 9px; font-size: 12px; border-radius: 5px; color: var(--muted); }
 .segmented button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 5px #0001; }
@@ -168,6 +171,9 @@ svg { flex-shrink: 0; }
 .confirmation { border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
 .confirmation p { font-size: 12px; color: var(--muted); }
 .confirmation > div { display: flex; justify-content: flex-end; gap: 8px; }
+/* A long option label stays beside its checkbox instead of wrapping under it. */
+.confirmation .settings-toggle { flex-wrap: nowrap; align-items: flex-start; margin: 10px 0 12px; font-size: 12px; font-weight: 400; }
+.confirmation .settings-toggle input { flex: none; margin-top: 1px; }
 /* Chat shell */
 .chat-layout { position: relative; display: grid; grid-template-columns: 244px minmax(0, 1fr); height: 100%; overflow: hidden; transition: grid-template-columns 220ms ease; }
 .chat-layout.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }

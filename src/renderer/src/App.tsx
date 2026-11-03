@@ -39,11 +39,12 @@ function Application() {
   }), []);
   // If startup failed while offline, load again as soon as the access server answers.
   useEffect(() => { if (!state && error && !access.offline) void load(); }, [access.offline]);
+  // The startup check waits for the snapshot, so an account's "Check for updates on startup: off" is
+  // respected. Signed out (no settings) it runs, so the sign-in screen can offer an update.
+  const startupUpdateCheck = state !== null && state.settings?.checkUpdatesAtStartup !== false;
   useEffect(() => {
-    if (state?.settings?.checkUpdatesAtStartup !== false) {
-      void updaterService.initStartupCheck(true);
-    }
-  }, [state?.settings?.checkUpdatesAtStartup]);
+    if (startupUpdateCheck) void updaterService.initStartupCheck(true);
+  }, [startupUpdateCheck]);
   useEffect(() => {
     // Remember the account's theme so startup and sign-in use it before any account loads.
     const chosen = state?.settings?.theme;

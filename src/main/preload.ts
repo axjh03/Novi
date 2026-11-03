@@ -119,7 +119,7 @@ const api: NoviAPI = {
   saveConversation: id => ipcRenderer.invoke('save-conversation', id),
   renameConversation: (id, title) => ipcRenderer.invoke('rename-conversation', { id, title }),
   deleteConversation: (id) => ipcRenderer.invoke('delete-conversation', id),
-  clearHistory: () => ipcRenderer.invoke('clear-history'),
+  clearHistory: (options?: { screenshots?: boolean }) => ipcRenderer.invoke('clear-history', options),
   pickImages: () => ipcRenderer.invoke('pick-images'),
   dropImages: (files) => ipcRenderer.invoke('drop-images', files.map((file) => webUtils.getPathForFile(file))),
   previewImage: (id) => ipcRenderer.invoke('preview-image', id),

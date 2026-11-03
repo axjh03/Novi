@@ -47,12 +47,14 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared, onD
     codingModeShortcut: state.settings!.codingModeShortcut || 'Alt+C',
     behavioralModeShortcut: state.settings!.behavioralModeShortcut || 'Alt+B',
     screenshotShortcut: state.settings!.screenshotShortcut || 'Alt+3',
-    saveScreenshots: state.settings!.saveScreenshots ?? true,
+    saveScreenshotsToPictures: state.settings!.saveScreenshotsToPictures ?? false,
     audioRecordShortcut: state.settings!.audioRecordShortcut || 'Alt+A',
     fastInterviewModel: state.settings!.fastInterviewModel ?? false,
     checkUpdatesAtStartup: state.settings!.checkUpdatesAtStartup ?? true,
   });
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(false), [confirm, setConfirm] = useState(false);
+  // Clear history's opt-in to also delete the screenshot copies in Pictures; unticked each time the confirmation opens.
+  const [clearScreenshots, setClearScreenshots] = useState(false);
   const [dirty, setDirty] = useState(false), [leaving, setLeaving] = useState(false), [accountError, setAccountError] = useState('');
   const previousCloseRequest = useRef(closeRequest);
   useEffect(() => {
@@ -91,7 +93,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared, onD
   async function clear() {
     setBusy(true); setAccountError('');
     try {
-      await unwrap(window.novi.clearHistory());
+      await unwrap(window.novi.clearHistory({ screenshots: clearScreenshots }));
       onSaved(await unwrap(window.novi.session()));
       onCleared();
       setConfirm(false);
@@ -175,7 +177,7 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared, onD
                   </div>
                   <div className="settings-fields settings-fields-interaction">
                     {shortcuts.slice(2).map(shortcutField)}
-                    <label><input type="checkbox" checked={value.saveScreenshots ?? true} onChange={(event) => change({ ...value, saveScreenshots: event.target.checked })} /> Save captured screenshots to Pictures/Novi/Screenshots</label>
+                    <label className="settings-toggle"><input type="checkbox" checked={value.saveScreenshotsToPictures ?? false} onChange={(event) => change({ ...value, saveScreenshotsToPictures: event.target.checked })} />Also save screenshots to Pictures/Novi/Screenshots<small>Screenshots always stay in the chat. Copies in Pictures stay after you delete a conversation; Clear history can remove them. On Windows, Pictures is often synced to OneDrive.</small></label>
                   </div>
                 </section>
 
@@ -212,13 +214,14 @@ export function SettingsPage({ state, onSaved, onBack, onSignOut, onCleared, onD
                 <button
                   className="danger-button"
                   disabled={busy}
-                  onClick={() => setConfirm(true)}
+                  onClick={() => { setClearScreenshots(false); setConfirm(true); }}
                 >
                   <Trash2 size={16} />Clear conversation history
                 </button>
                 {confirm && (
                   <div className="confirmation" role="alert">
                     <p>Delete all saved conversations and their local image copies? {state.contextSession ? 'Loaded reference context stays active until you end the session. ' : ''}This cannot be undone.</p>
+                    <label className="settings-toggle"><input type="checkbox" checked={clearScreenshots} onChange={(event) => setClearScreenshots(event.target.checked)} />Also delete the screenshots saved to Pictures/Novi/Screenshots, from every account on this computer</label>
                     <div>
                       <button className="text-button" onClick={() => setConfirm(false)}>Cancel</button>
                       <button className="danger-button" onClick={() => void clear()} disabled={busy}>Delete all conversations</button>

@@ -170,7 +170,7 @@ export async function reportUnfinishedUpdate(parent?: BrowserWindow, now = Date.
     type: 'warning' as const,
     title: 'Novi update did not finish',
     message: `Novi ${current} is still installed. The update to ${pending.version} did not finish.`,
-    detail: `If Windows asked for permission, the update needs it. You can try again from Settings › Updates, download Novi from the website, or run the downloaded installer:\n${pending.installer}`,
+    detail: `If Windows asked for permission, the update needs it. You can try again from Settings › Updates or the sign-in screen, download Novi from the website, or run the downloaded installer:\n${pending.installer}`,
     buttons: ['Open download page', 'Close'],
     defaultId: 0,
     cancelId: 1,

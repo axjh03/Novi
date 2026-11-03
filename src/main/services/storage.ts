@@ -47,6 +47,8 @@ export class Storage {
       user.settings.transparentBg ||= '#0f172a';
       user.settings.checkUpdatesAtStartup = user.settings.checkUpdatesAtStartup ?? true;
       user.settings.autoStartEmptySession = user.settings.autoStartEmptySession ?? false;
+      // saveScreenshots (on for everyone) became the opt-in saveScreenshotsToPictures: drop the old key so it starts off.
+      delete (user.settings as AppSettings & { saveScreenshots?: boolean }).saveScreenshots;
       if (this.data.version === 1) {
         const old = user.settings as AppSettings & { ai?: AIProviderConfig };
         old.connections = old.ai && old.onboardingComplete ? [{ ...old.ai, id: 'legacy', name: PROVIDERS[old.ai.provider].name }] : [];

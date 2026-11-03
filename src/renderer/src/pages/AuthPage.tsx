@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 import type { Snapshot } from '../../../shared/types';
 import { errorText, unwrap } from '../services/api';
+import { SignInUpdate } from '../components/SignInUpdate';
 
 /**
  * The sign-in screen (desktop sign-in is always through the managed access server).
@@ -10,7 +11,8 @@ import { errorText, unwrap } from '../services/api';
  * - remembered login fields are restored, with saved passwords protected by the OS secure store;
  * - Show/hide password, and a "Caps Lock is on" hint while typing the password;
  * - after a failed attempt the error appears under the button and the password is selected, ready to retype;
- * - password saving is optional and available only with a working system credential store.
+ * - password saving is optional and available only with a working system credential store;
+ * - an available update can be installed from here, outside the form so signing in never disables it.
  *
  * @param onAuthenticated called with the app snapshot after a successful sign-in.
  */
@@ -55,6 +57,7 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (state: Snapsho
 
   return <div className="auth-layout managed-auth">
     <main className="auth-main"><div className="auth-form-wrap"><h2>Welcome back.</h2><p className="muted">Individuals: use your web account. Enterprise members: use your assigned desktop login.</p>
+      <SignInUpdate />
       <form onSubmit={submit}><fieldset disabled={busy}>
         <label>Username<input autoFocus autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} placeholder="Your Novi username" required maxLength={64} /></label>
         <div className="auth-password">

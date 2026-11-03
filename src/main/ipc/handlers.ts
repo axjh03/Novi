@@ -19,6 +19,7 @@ import { interviewSkill } from '../../shared/interviewProfile';
 import { StealthService } from '../services/stealth';
 import { AudioService, decodeAudio } from '../services/audio';
 import { captureScreenBuffer } from '../services/screenCapture';
+import { deleteScreenshotCopies, saveScreenshotCopy } from '../services/screenshotCopies';
 import { AudioTranscriptionService } from '../services/audioTranscription';
 import { AppUpdater } from '../services/updater';
 import { PermissionService } from '../services/permissions';
@@ -42,6 +43,9 @@ import { SmartPlacementService } from '../services/smartPlacement';
 import { AUTO_DETECT_SHORTCUT } from '../../shared/windowLayout';
 import { AIProviderFactory } from '../services/providers';
 import type { Feature } from '../../shared/plans';
+
+/** Where the optional copies of screenshots go: Pictures/Novi/Screenshots. */
+const screenshotsFolder = () => join(app.getPath('pictures'), 'Novi', 'Screenshots');
 
 export function registerIPC(
   rendererUrl: string,
@@ -698,12 +702,18 @@ export function registerIPC(
     }
     storage.save(); images.prune();
   });
-  handle('clear-history', () => {
+  // { screenshots: true } also deletes the copies saved to Pictures/Novi/Screenshots. Those are
+  // shared by every account on this computer, which the confirmation in Settings says.
+  handle('clear-history', (value) => {
     const { storage, images, chat, localCoding } = get(); chat.assertIdle();
+    const screenshots = value !== undefined && object(value).screenshots === true;
     for (const conversation of storage.current().conversations) localCoding.removeForConversation(conversation);
     storage.current().conversations = [];
     if (storage.sessionConversations !== null) storage.sessionConversations = [];
     storage.save(); images.prune();
+    if (!screenshots) return;
+    try { deleteScreenshotCopies(screenshotsFolder()); }
+    catch (error) { throw new UserError(`Your history was cleared, but some screenshots in Pictures could not be deleted: ${error instanceof Error ? error.message : String(error)}`); }
   });
   handle('pick-images', async (_value, event) => {
     get().storage.current();
@@ -1007,12 +1017,12 @@ export function registerIPC(
     const pngBuffer = await captureScreenBuffer(getMainWindow, workingMonitorId);
     const now = new Date();
     const name = `Screen-${now.toISOString().replace(/[:.]/g, '-')}-${randomUUID()}.png`;
-    if (get().storage.current().settings.saveScreenshots !== false) {
-      const directory = join(app.getPath('pictures'), 'Novi', 'Screenshots', now.toISOString().slice(0, 19).replace(/:/g, '-'));
-      mkdirSync(directory, { recursive: true, mode: 0o700 });
-      writeFileSync(join(directory, name), pngBuffer, { flag: 'wx', mode: 0o600 });
-    }
+    // The chat copy comes first: the optional copy in Pictures must never cost the user the screenshot.
     const attachment = get().images.importBuffer(pngBuffer, name);
+    if (get().storage.current().settings.saveScreenshotsToPictures === true) {
+      try { saveScreenshotCopy(screenshotsFolder(), pngBuffer, now); }
+      catch (error) { console.warn('[Screenshots] Could not save a copy to Pictures:', error); }
+    }
     return attachment;
   });
   handle('set-working-monitor', (value) => {

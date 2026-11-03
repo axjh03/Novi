@@ -125,7 +125,7 @@ export function Composer({ busy, onSend, suspended = false, onListeningChange, p
     if (attaching) return;
     setAttaching(true);
     try {
-      if (!await captureScreenshot()) setError('Screen capture failed. Check screen recording permission and the screenshot folder in Pictures.');
+      if (!await captureScreenshot()) setError('Screen capture failed. Check screen recording permission.');
     } catch (err) {
       setError(errorText(err));
     } finally {
