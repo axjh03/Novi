@@ -47,7 +47,7 @@ export interface ModernSessionProps {
  */
 export function ModernSession(props: ModernSessionProps) {
   const { state, busy, streaming, onSend, local, settingsOpen, onOpenSettings, onCloseSettings, onClosed } = props;
-  const { appMode, allows, captureScreenshot, pendingAttachment, consumePendingAttachment, overlayHost } = useAppMode();
+  const { appMode, allows, captureScreenshot, pendingAttachment, consumePendingAttachment } = useAppMode();
   const listening = useListening();
   const elapsed = useListeningClock(listening.active);
   const [tab, setTab] = useState<StageTab>('answer');
@@ -135,7 +135,11 @@ export function ModernSession(props: ModernSessionProps) {
   }
 
   // The remote companion and global hotkeys act on the box the same way as in Classic.
-  useEffect(() => window.novi.onGlobalAction(action => {
+  // Subscribed once; the handler reads the latest render through a ref, so a new onSend each render
+  // does not re-register the listener on every streamed token.
+  const onAction = useRef<(action: Parameters<Parameters<typeof window.novi.onGlobalAction>[0]>[0]) => void>(() => {});
+  useEffect(() => window.novi.onGlobalAction(action => onAction.current(action)), []);
+  onAction.current = action => {
     if (action.type === 'submit-prompt') void send();
     else if (action.type === 'capture-and-send') void snapAndSend();
     else if (action.type === 'delete-last-snapshot') setImages(current => current.slice(0, -1));
@@ -145,7 +149,7 @@ export function ModernSession(props: ModernSessionProps) {
       setText(action.payload); textRef.current = action.payload;
       if (action.type === 'quick-prompt') void send();
     }
-  }), [busy, attaching, images, onSend]);
+  };
 
   const modeName = SESSION_MODES.find(mode => mode.id === appMode)?.name ?? 'Chat';
   const modelName = local.active ? local.model || 'Local Coding' : props.model.connection?.model || 'No model';
@@ -176,7 +180,5 @@ export function ModernSession(props: ModernSessionProps) {
     <TrayPortal detached modern role="right" onClosed={onClosed}>
       <ScreenDeck onSwitchToClassic={props.onSwitchToClassic} onError={setError} />
     </TrayPortal>
-    {/* Dialogs from the chat page portal into the center window through overlayHost. */}
-    {overlayHost ? null : null}
   </>;
 }

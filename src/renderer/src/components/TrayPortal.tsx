@@ -14,6 +14,10 @@ type TrayWindow = Window & typeof globalThis;
  * panel (center) and the appearance bar (right). Classic opens one, the center one, when the
  * controls are detached. Main places each window by its role (src/main/services/workspace.ts).
  */
+// Containers that clip their own content, and floating content that can still overflow the shell.
+const TRAY_CLIPS = '.modern-panel, .modern-overlay-host, .modern-tray .tray-menu-content, .deck-menu-content, .deck-scroll, .live-content, .live-panel-expander';
+const TRAY_OVERFLOWS = 'dialog[open], .tray-menu-content, .deck-menu-content';
+
 export function TrayPortal({ children, detached = false, modern = false, role = 'center', panel, onPanelClose, onClosed, className = '' }: {
   children: ReactNode; detached?: boolean; modern?: boolean; role?: TrayRole; panel?: ReactNode; onPanelClose?: () => void; onClosed: () => void; className?: string;
 }) {
@@ -100,13 +104,18 @@ export function TrayPortal({ children, detached = false, modern = false, role = 
         root.style.setProperty('--controls-height', `${controlsHeight}px`);
       }
       let bottom = root.getBoundingClientRect().bottom + trayWindow.scrollY;
-      for (const element of shell.querySelectorAll('*')) {
-        // Closed <details> content keeps a layout box (content-visibility: hidden); skip anything not shown.
-        if (!element.checkVisibility()) continue;
-        const clipped = element.closest('.modern-panel, .modern-overlay-host, .modern-tray .tray-menu-content, .deck-menu-content, .deck-scroll, .live-content, .live-panel-expander');
-        if (clipped && clipped !== element && !element.matches('dialog[open], .tray-menu-content, .deck-menu-content')) continue;
-        bottom = Math.max(bottom, element.getBoundingClientRect().bottom + trayWindow.scrollY + 4);
-      }
+      // Closed <details> content keeps a layout box (content-visibility: hidden); skip anything not shown.
+      const include = (element: Element) => {
+        if (element.checkVisibility()) bottom = Math.max(bottom, element.getBoundingClientRect().bottom + trayWindow.scrollY + 4);
+      };
+      // Content inside a clipping container cannot grow the window, so its subtree is skipped whole
+      // instead of testing every node (a streamed answer has thousands). The containers themselves,
+      // and open menus and dialogs anywhere, still count.
+      const walker = doc.createTreeWalker(shell, NodeFilter.SHOW_ELEMENT, {
+        acceptNode: (node) => (node as Element).matches(TRAY_CLIPS) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+      });
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) include(node as Element);
+      for (const element of shell.querySelectorAll(`${TRAY_CLIPS}, ${TRAY_OVERFLOWS}`)) include(element);
       const height = Math.ceil(bottom);
       if ((height !== lastHeight || controlsChanged) && height > 0) {
         lastHeight = height;

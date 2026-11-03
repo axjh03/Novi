@@ -95,10 +95,12 @@ export function LiveStage({ listening, elapsed, question, onAnswer, onAsk, onSna
         <div className="deck-panel-inner">
           {notices}
           {question && <button type="button" className="deck-question" disabled={busy} onClick={onAnswer} title="Answer what they just asked"><span className="deck-question-who">They asked</span><span className="deck-question-text">{question}</span><b>Answer</b></button>}
-          <div ref={content} onScroll={event => { const element = event.currentTarget; atBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 60; }}
-            id={`deck-stage-panel-${tab}`} role="tabpanel" tabIndex={0} aria-labelledby={`deck-stage-${tab}`} className="deck-scroll deck-tab-panel" key={tab}>
-            {tab === 'answer' ? <div className="deck-answer">{conversation}</div> : <div className="deck-transcript">{transcript.length ? transcript.map(segment => <article key={`${segment.sessionId}:${segment.segmentId}`}><header><strong>{segment.source === 'microphone' ? 'You' : segment.speakerId || 'Speaker'}</strong><time>{formatSessionTime(segment.startTime)}</time></header><p className={segment.isFinal ? '' : 'partial'}>{segment.text}</p></article>) : <p className="deck-empty">Press Listen to see the conversation here.</p>}</div>}
-          </div>
+          {/* Both panels stay mounted, so switching tabs never re-renders the whole conversation. */}
+          {(['answer', 'transcript'] as const).map(panel => <div key={panel} ref={panel === tab ? content : undefined} hidden={panel !== tab}
+            onScroll={event => { const element = event.currentTarget; atBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 60; }}
+            id={`deck-stage-panel-${panel}`} role="tabpanel" tabIndex={0} aria-labelledby={`deck-stage-${panel}`} className="deck-scroll deck-tab-panel">
+            {panel === 'answer' ? <div className="deck-answer">{conversation}</div> : <div className="deck-transcript">{transcript.length ? transcript.map(segment => <article key={`${segment.sessionId}:${segment.segmentId}`}><header><strong>{segment.source === 'microphone' ? 'You' : segment.speakerId || 'Speaker'}</strong><time>{formatSessionTime(segment.startTime)}</time></header><p className={segment.isFinal ? '' : 'partial'}>{segment.text}</p></article>) : <p className="deck-empty">Press Listen to see the conversation here.</p>}</div>}
+          </div>)}
           <form className="deck-composer" onSubmit={event => { event.preventDefault(); composer.send(); }}
             onDragEnter={event => { drag(event); if (event.dataTransfer.types.includes('Files')) { dragDepth.current++; setDragging(true); } }}
             onDragOver={drag}
@@ -113,7 +115,7 @@ export function LiveStage({ listening, elapsed, question, onAnswer, onAsk, onSna
                 </MenuGroup>
               </ToolMenu>
               <textarea ref={composer.textareaRef} aria-label="Message Novi" rows={1} maxLength={100000} value={composer.text}
-                placeholder={busy ? 'Type the next question; it sends when Novi is ready' : composer.placeholder || 'Ask anything, or just press Answer'}
+                placeholder={busy ? 'Type your next question; send it when this answer finishes' : composer.placeholder || 'Ask anything, or just press Answer'}
                 onChange={event => composer.setText(event.target.value)}
                 onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); composer.send(); } }} />
               {composer.streaming

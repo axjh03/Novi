@@ -7,6 +7,9 @@ import { Storage } from './storage';
 import { UserError } from './validation';
 
 const MAX_SIZE = 8 * 1024 * 1024;
+// Encoded images kept in memory, newest last. Every send replays the whole history's images, and a
+// screenshot session would otherwise re-read and re-encode each one, synchronously, per message.
+const ENCODED_CACHE_CHARS = 48 * 1024 * 1024;
 export function imageMime(bytes: Buffer): string | null {
   if (bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return 'image/png';
   if (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) return 'image/jpeg';
@@ -15,6 +18,8 @@ export function imageMime(bytes: Buffer): string | null {
 }
 export class ImageService {
   private pending = new Map<string, { userId: string; image: ImageAttachment }>();
+  private encoded = new Map<string, string>();
+  private encodedChars = 0;
   private directory: string;
   constructor(private storage: Storage) {
     this.directory = join(storage.directory, 'images');
@@ -84,9 +89,20 @@ export class ImageService {
     return { id: image.id, name: image.name, mimeType: image.mimeType };
   }
   dataUrl(id: string): string {
+    // resolve() still runs first: it checks the image belongs to the signed-in account.
     const image = this.resolve(id);
-    try { return `data:${image.mimeType};base64,${readFileSync(join(this.directory, image.id)).toString('base64')}`; }
+    const cached = this.encoded.get(image.id);
+    if (cached !== undefined) { this.encoded.delete(image.id); this.encoded.set(image.id, cached); return cached; }
+    let url: string;
+    try { url = `data:${image.mimeType};base64,${readFileSync(join(this.directory, image.id)).toString('base64')}`; }
     catch { throw new UserError('A saved image is missing. Start a new chat and attach it again.'); }
+    this.encoded.set(image.id, url);
+    this.encodedChars += url.length;
+    for (const [key, value] of this.encoded) {
+      if (this.encodedChars <= ENCODED_CACHE_CHARS || key === image.id) break;
+      this.encoded.delete(key); this.encodedChars -= value.length;
+    }
+    return url;
   }
   preview(id: string): string {
     const image = this.resolve(id);
@@ -104,5 +120,6 @@ export class ImageService {
     for (const file of readdirSync(this.directory)) {
       if (/^[\da-f-]{36}$/.test(file) && !used.has(file) && !this.pending.has(file)) unlinkSync(join(this.directory, file));
     }
+    for (const [key, value] of this.encoded) if (!used.has(key) && !this.pending.has(key)) { this.encoded.delete(key); this.encodedChars -= value.length; }
   }
 }

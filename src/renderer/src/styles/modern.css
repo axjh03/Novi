@@ -45,7 +45,7 @@
 .modern-tray ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
 /* ---------- the deck: one card, a strip along its top, a row of tools ---------- */
-.deck { position: relative; z-index: 2; display: flex; flex-direction: column; width: 100%; border: 1px solid var(--deck-edge); border-radius: 14px; background: var(--deck-bg); box-shadow: var(--deck-shadow); backdrop-filter: blur(28px) saturate(130%); -webkit-backdrop-filter: blur(28px) saturate(130%); cursor: grab; -webkit-app-region: drag; container-type: inline-size; }
+.deck { position: relative; z-index: 2; display: flex; flex-direction: column; width: 100%; border: 1px solid var(--deck-edge); border-radius: 14px; background: var(--deck-bg); box-shadow: var(--deck-shadow); cursor: grab; -webkit-app-region: drag; container-type: inline-size; }
 .deck:active { cursor: grabbing; }
 .deck-row { display: flex; align-items: center; gap: 6px; min-height: 46px; padding: 7px; }
 .deck-strip { display: flex; align-items: center; gap: 10px; min-height: 26px; padding: 4px 12px 0; color: var(--muted); font-size: 11px; font-weight: 500; }
@@ -56,21 +56,23 @@
 
 /* the state word, the clock and the identity in the strip */
 .deck-state { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px 0 7px; border-radius: 11px; background: var(--deck-plate); color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; cursor: default; }
-.deck-state > i { width: 6px; height: 6px; border-radius: 50%; background: var(--subtle); }
+.deck-state > i { position: relative; width: 6px; height: 6px; border-radius: 50%; background: var(--subtle); }
 .deck-state.is-live { color: var(--live); background: var(--live-soft); }
-.deck-state.is-live > i { background: var(--live); animation: deck-ping 1.6s ease-out infinite; }
+.deck-state.is-live > i { background: var(--live); }
 .deck-state.is-connecting > i { background: var(--rose); animation: deck-pulse 1s ease-in-out infinite; }
 .deck-state.is-through { color: var(--text); background: var(--rose-soft); }
 .deck-clock { font-variant-numeric: tabular-nums; color: var(--text); }
 .deck-meta { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .deck-meta b { color: var(--text); font-weight: 600; }
-@keyframes deck-ping { 0% { box-shadow: 0 0 0 0 var(--live-soft); } 70% { box-shadow: 0 0 0 6px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+/* The ping is a ring that grows and fades on its own layer; animating box-shadow repainted every frame. */
+:is(.deck-state.is-live > i, .deck-dot.is-live)::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--live); opacity: 0; pointer-events: none; animation: deck-ping 1.6s ease-out infinite; }
+@keyframes deck-ping { 0% { opacity: .45; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(3); } }
 @keyframes deck-pulse { 50% { opacity: .3; } }
 
 /* the meter: seven bars that breathe while live */
 .deck-meter { display: inline-flex; align-items: center; gap: 2px; height: 14px; flex: none; }
-.deck-meter i { display: block; width: 2px; height: 3px; border-radius: 2px; background: var(--subtle); transition: height 120ms var(--deck-ease-out), background-color var(--deck-fast) ease; }
-.deck-meter.is-active i { background: var(--live); height: calc(3px + 11px * var(--level, .3)); animation: deck-wave 820ms ease-in-out infinite alternate; }
+.deck-meter i { display: block; width: 2px; height: 14px; border-radius: 2px; background: var(--subtle); scale: 1 calc(3 / 14); transition: scale 120ms var(--deck-ease-out), background-color var(--deck-fast) ease; }
+.deck-meter.is-active i { background: var(--live); scale: 1 calc((3 + 11 * var(--level, .3)) / 14); animation: deck-wave 820ms ease-in-out infinite alternate; }
 .deck-meter.is-active i:nth-child(2), .deck-meter.is-active i:nth-child(6) { animation-delay: -260ms; }
 .deck-meter.is-active i:nth-child(3), .deck-meter.is-active i:nth-child(5) { animation-delay: -520ms; }
 .deck-meter.is-active i:nth-child(4) { animation-delay: -130ms; }
@@ -95,7 +97,8 @@
 .deck-tool.tone-danger.has-label { background: var(--danger); color: #fff; font-weight: 600; }
 .deck-tool.tone-danger.has-label:hover:not(:disabled) { background: var(--danger); filter: brightness(1.06); }
 .deck-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex: none; }
-.deck-dot.is-live { background: var(--live); animation: deck-ping 1.6s ease-out infinite; }
+.deck-dot { position: relative; }
+.deck-dot.is-live { background: var(--live); }
 .deck-dot.is-error { background: var(--danger); }
 .deck-dot.is-on { background: var(--rose); }
 .deck-tool > .deck-dot { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border: 2px solid var(--deck-solid); box-sizing: content-box; }
@@ -191,7 +194,7 @@
 .deck-tab[aria-selected='true'] .deck-count { background: var(--rose-soft); color: var(--rose); }
 
 /* ---------- the panel under the live deck ---------- */
-.deck-panel { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 10px; padding: 8px 12px 12px; border: 1px solid var(--deck-edge); border-radius: 14px; background: var(--deck-bg); box-shadow: var(--deck-shadow); backdrop-filter: blur(28px) saturate(130%); -webkit-backdrop-filter: blur(28px) saturate(130%); -webkit-app-region: drag; }
+.deck-panel { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 10px; padding: 8px 12px 12px; border: 1px solid var(--deck-edge); border-radius: 14px; background: var(--deck-bg); box-shadow: var(--deck-shadow); -webkit-app-region: drag; }
 .deck-panel-head { display: flex; align-items: center; gap: 8px; min-height: 28px; }
 .deck-collapse { display: grid; place-items: center; width: 28px; height: 28px; flex: none; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
 .deck-collapse:hover { color: var(--text); background: var(--deck-hover); }
@@ -209,7 +212,8 @@
 .deck-scroll { min-height: 110px; max-height: min(300px, calc(var(--workspace-height, 800px) / var(--ui-scale, 1) - 300px)); overflow: auto; padding: 2px 2px 4px; scrollbar-width: thin; scrollbar-color: var(--deck-edge) transparent; cursor: text; user-select: text; }
 .deck-scroll:focus-visible { outline: 1px solid var(--rose); outline-offset: -1px; border-radius: 8px; }
 .deck-tab-panel { animation: deck-crossfade 180ms var(--deck-ease-out); }
-@keyframes deck-crossfade { from { opacity: 0; filter: blur(2px); transform: translateY(3px); } }
+.deck-tab-panel[hidden] { display: none; }
+@keyframes deck-crossfade { from { opacity: 0; transform: translateY(3px); } }
 @keyframes deck-rise { from { opacity: 0; transform: translateY(4px); } }
 .deck-answer .conversation-scroll { overflow: visible; }
 .deck-answer .messages { padding: 0; gap: 10px; max-width: none; }

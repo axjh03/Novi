@@ -1,4 +1,4 @@
-import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import type { FaceLandmarker } from '@mediapipe/tasks-vision';
 import type { GazePoint } from './GazeTypes';
 import { GazeCalibrationModel } from './GazeCalibrationModel';
 
@@ -45,6 +45,8 @@ export class GazeEstimator {
     const cleanModel = modelUrl.replace(/^\//, '');
     const resolvedModelUrl = new URL(cleanModel, baseUrl).href;
     const wasmPath = new URL('mediapipe-wasm', baseUrl).href;
+    // MediaPipe is fetched only once eye tracking starts, so it stays out of app startup.
+    const { FaceLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
     const vision = await FilesetResolver.forVisionTasks(wasmPath);
     try {
       this.landmarker = await FaceLandmarker.createFromOptions(vision, {

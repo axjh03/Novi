@@ -96,14 +96,17 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   const localMode = appMode === 'local-coding';
   const localBinding = chat.selected?.localCoding;
   const local = useLocalCodingProject(localBinding, chat.busy, chat.selected?.messages, chat.setError);
+  // In Modern the conversation sits inside the live deck's panel, which is what actually scrolls.
+  const codeViewerSentAt = useRef(0);
+  const scroller = () => scroll.current?.closest<HTMLElement>('.deck-scroll') ?? scroll.current;
   useEffect(() => window.novi.onGlobalAction((action) => {
     if (action.type === 'scroll-conversation-to' && typeof action.payload === 'number') {
-      const element = scroll.current;
+      const element = scroller();
       if (element) element.scrollTo({ top: action.payload * (element.scrollHeight - element.clientHeight), behavior: 'instant' });
       return;
     }
     if (action.type === 'scroll-conversation' && typeof action.payload === 'number') {
-      scroll.current?.scrollBy({ top: action.payload, behavior: 'smooth' });
+      scroller()?.scrollBy({ top: action.payload, behavior: 'smooth' });
       return;
     }
     if (action.type !== 'review-action' || typeof action.payload?.text !== 'string') return;
@@ -155,7 +158,7 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   useEffect(() => { if (atBottom.current && scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight; }, [chat.selected?.messages]);
   useEffect(() => { atBottom.current = true; if (scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight; }, [chat.selectedId]);
   useEffect(() => {
-    const element = scroll.current;
+    const element = scroller();
     let timer = 0;
     const report = () => {
       timer = 0;
@@ -170,7 +173,15 @@ export function ChatPage({ state, onSaved, onSignOut }: { state: Snapshot; onSav
   }, [chat.selectedId, settings]);
   useEffect(() => {
     if (appMode !== 'coding' && appMode !== 'system-design') return;
-    void unwrap(window.novi.updateCodeViewer(appMode === 'system-design' ? diagramBlocks(chat.selected?.messages || [], streamingMessageId) : codeFromMessages(chat.selected?.messages || []))).catch(console.error);
+    const update = () => {
+      codeViewerSentAt.current = performance.now();
+      void unwrap(window.novi.updateCodeViewer(appMode === 'system-design' ? diagramBlocks(chat.selected?.messages || [], streamingMessageId) : codeFromMessages(chat.selected?.messages || []))).catch(console.error);
+    };
+    // While an answer streams, update the viewer a few times a second rather than on every token.
+    const wait = streamingMessageId ? 150 - (performance.now() - codeViewerSentAt.current) : 0;
+    if (wait <= 0) { update(); return; }
+    const timer = window.setTimeout(update, wait);
+    return () => window.clearTimeout(timer);
   }, [appMode, chat.selected?.messages, chat.selectedId, streamingMessageId]);
 
   // ── Eye tracking ──────────────────────────────────────────────────────────

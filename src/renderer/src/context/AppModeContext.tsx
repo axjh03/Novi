@@ -4,10 +4,12 @@ import {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   type ReactNode,
 } from 'react';
 import type { AppMode, ImageAttachment, Snapshot, MonitorDisplay, BehavioralFramework } from '../../../shared/types';
 import { unwrap } from '../services/api';
+import { shortcutKey } from '../services/shortcutKey';
 import { eyeTracking } from '../eye-tracking/EyeTrackingService';
 import { readAppearance, subscribeAppearance, updateAppearance } from '../services/appearance';
 import { useStealthState } from '../hooks/useStealth';
@@ -193,14 +195,17 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
 
   useEffect(() => {
     if (!appearance.smart || !transparent) { setSmartPaletteStatus(''); return; }
-    let cancelled = false, timer = 0;
+    let cancelled = false, timer = 0, first = true;
     const sample = async () => {
       if (document.visibilityState === 'hidden') { timer = window.setTimeout(sample, 10000); return; }
-      setSmartPaletteStatus('Detecting background…');
+      // Only the first sample says it is detecting; repeating it every 10 seconds made the status flicker.
+      if (first) setSmartPaletteStatus('Detecting background…');
+      first = false;
       try {
         const smartPalette = await unwrap(window.novi.sampleBackgroundPalette(appearance.opacity));
         if (cancelled) return;
-        updateAppearance({ smartPalette });
+        // An unchanged background changes nothing, so it must not re-render every window.
+        if (JSON.stringify(readAppearance().smartPalette) !== JSON.stringify(smartPalette)) updateAppearance({ smartPalette });
         setSmartPaletteStatus(`Smart colors · ${smartPalette.opacity}% opacity`);
         timer = window.setTimeout(sample, 10000);
       } catch {
@@ -277,7 +282,7 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
       const isAltOrOption = e.altKey;
       if (!isAltOrOption) return;
 
-      const key = e.key.toLowerCase();
+      const key = shortcutKey(e);
       if (key === 'c') {
         e.preventDefault();
         setAppMode(appMode === 'coding' ? fallbackMode(features) : 'coding');
@@ -295,38 +300,40 @@ export function AppModeProvider({ children, snapshot, onSnapshotUpdated }: Provi
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [sessionActive, appMode, setAppMode, features, captureScreenshot]);
 
+  const value = useMemo<AppModeContextType>(() => ({
+    interfaceStyle: appearance.interfaceStyle,
+    setInterfaceStyle,
+    titleBarHost, setTitleBarHost,
+    overlayHost, setOverlayHost,
+    answerStyle,
+    setAnswerStyle,
+    appMode,
+    setAppMode,
+    allows,
+    behavioralFramework,
+    setBehavioralFramework,
+    latestScreenshot,
+    captureScreenshot,
+    workingMonitorId,
+    setWorkingMonitor,
+    monitors,
+    refreshMonitors,
+    transparentOpacity: appearance.opacity,
+    setTransparentOpacity,
+    paletteId: appearance.paletteId,
+    setPalette,
+    smartPaletteEnabled: appearance.smart,
+    setSmartPaletteEnabled,
+    smartPaletteStatus,
+    readingSize: appearance.readingSize,
+    changeReadingSize,
+    pendingAttachment,
+    consumePendingAttachment,
+  }), [appearance.interfaceStyle, setInterfaceStyle, titleBarHost, setTitleBarHost, overlayHost, setOverlayHost, answerStyle, setAnswerStyle, appMode, setAppMode, allows, behavioralFramework, setBehavioralFramework, latestScreenshot, captureScreenshot, workingMonitorId, setWorkingMonitor, monitors, refreshMonitors, appearance.opacity, setTransparentOpacity, appearance.paletteId, setPalette, appearance.smart, setSmartPaletteEnabled, smartPaletteStatus, appearance.readingSize, changeReadingSize, pendingAttachment, consumePendingAttachment]);
+
   return (
     <AppModeContext.Provider
-      value={{
-        interfaceStyle: appearance.interfaceStyle,
-        setInterfaceStyle,
-        titleBarHost, setTitleBarHost,
-        overlayHost, setOverlayHost,
-        answerStyle,
-        setAnswerStyle,
-        appMode,
-        setAppMode,
-        allows,
-        behavioralFramework,
-        setBehavioralFramework,
-        latestScreenshot,
-        captureScreenshot,
-        workingMonitorId,
-        setWorkingMonitor,
-        monitors,
-        refreshMonitors,
-        transparentOpacity: appearance.opacity,
-        setTransparentOpacity,
-        paletteId: appearance.paletteId,
-        setPalette,
-        smartPaletteEnabled: appearance.smart,
-        setSmartPaletteEnabled,
-        smartPaletteStatus,
-        readingSize: appearance.readingSize,
-        changeReadingSize,
-        pendingAttachment,
-        consumePendingAttachment,
-      }}
+      value={value}
     >
       {children}
     </AppModeContext.Provider>

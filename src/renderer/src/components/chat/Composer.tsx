@@ -9,7 +9,7 @@ import { useAppMode } from '../../context/AppModeContext';
 import { AudioMeter } from '../AudioMeter';
 import { TrayMenu } from '../TrayMenu';
 import { DRAW_DIAGRAM_PROMPT, SESSION_MODES } from '../../../../shared/sessionModes';
-import { useListening, warmConnection } from '../../hooks/useListening';
+import { useListening, useListeningLevel, warmConnection, type LevelStore } from '../../hooks/useListening';
 
 interface Props {
   suspended?: boolean;
@@ -224,7 +224,7 @@ export function Composer({ busy, onSend, suspended = false, onListeningChange, p
                 aria-label={listening.starting ? 'Starting listening' : listening.stopping ? 'Stopping listening' : listening.active ? 'Stop listening' : 'Start listening'}
                 title={`${listening.starting ? 'Starting…' : listening.stopping ? 'Stopping…' : listening.active ? 'Stop listening' : 'Start listening'} (Alt+A)`}>
                 {listening.transitioning ? <Loader2 size={14} className="spin" /> : <Mic size={14} />}
-                {listening.active && <AudioMeter level={listening.level} />}
+                {listening.active && <ListeningMeter levels={listening.level} />}
               </button>
               <TrayMenu className="tray-audio-menu" label="Audio settings" title={<SlidersHorizontal size={14} />}>
                 <div className="tray-menu-heading">Listening settings</div>
@@ -300,4 +300,9 @@ export function Composer({ busy, onSend, suspended = false, onListeningChange, p
       )}
     </div>
   );
+}
+
+/** The meter subscribes to the level itself, so the composer does not re-render on every audio frame. */
+function ListeningMeter({ levels }: { levels: LevelStore }) {
+  return <AudioMeter level={useListeningLevel(levels)} />;
 }

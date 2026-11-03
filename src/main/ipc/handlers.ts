@@ -165,8 +165,9 @@ export function registerIPC(
       void warmer.warm(warmupUrl(context.currentConnection() ?? activeConnection(storage.current().settings)));
     } catch { /* Warm-up is best effort. */ }
   }
-  // Calls that can reach an AI provider need a fresh license check; outages fail only these.
-  const freshAccessChannels = new Set(['send', 'repair-diagram', 'initialize-context', 'start-context', 'start-empty-session', 'list-models', 'test-connection']);
+  // The license is verified at sign-in. Afterwards no request forces its own round trip to the access
+  // server: requests use the session the background heartbeat keeps current, so nothing waits on it.
+  const freshAccessChannels = new Set<string>();
   const accessStatus = (): AccessStatus => ({ offline: Boolean(services?.auth.offline), connectionLost: Boolean(services?.auth.connectionLost) });
   let sentAccess = accessStatus();
   function syncAccessStatus() {
@@ -1107,8 +1108,9 @@ export function registerIPC(
     quitting = true;
     services.remoteCompanion.stop();
     // Wait for aborted engines and recordings before exiting; repeated quit requests share this cleanup.
+    // Quitting does not sign out: a kept session reopens signed in, and a session the user chose not to
+    // keep saved no token, so it simply ends when the process exits (the server releases its lease).
     void Promise.allSettled([services.localModels.shutdown(), services.interview.stop(true), services.chat.stopAndWait()])
-      .then(() => services!.auth.signOut())
       .finally(() => { quitReady = true; app.quit(); })
       .catch(error => console.error('Shutdown cleanup failed:', error));
     services.context.end();

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { InterviewEvent, ListeningSource, TranscriptSegment } from '../../../shared/interview';
 import { listeningSources, updateTranscript } from '../../../shared/interview';
 import { errorText, unwrap } from '../services/api';
+import { shortcutKey } from '../services/shortcutKey';
 import { CloudListening } from '../services/cloudListening';
 import { InterviewAudio } from '../services/interviewAudio';
 
@@ -14,8 +15,11 @@ export interface ListeningController {
   stopping: boolean;
   /** Starting or stopping: controls that would race the change are disabled. */
   transitioning: boolean;
-  /** Current input level, 0 to 100, for meters. */
-  level: number;
+  /**
+   * Current input level, 0 to 100, for meters. It changes 10-20 times a second, so it lives outside
+   * React state: read it with `useListeningLevel` in the meter itself, not in the view that owns listening.
+   */
+  level: LevelStore;
   warning: string;
   setWarning: (warning: string) => void;
   source: ListeningSource;
@@ -29,6 +33,27 @@ export interface ListeningController {
   clearTranscript: () => void;
   toggle: (source?: ListeningSource) => Promise<void>;
   stop: () => Promise<void>;
+}
+
+/** A value that changes many times a second, subscribed to only by the component that draws it. */
+export interface LevelStore { get: () => number; subscribe: (listener: () => void) => () => void }
+function createLevelStore() {
+  let value = 0;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => value,
+    subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    set(next: number) {
+      // Changes under one point are invisible in a meter; skip them rather than redraw.
+      if (Math.abs(next - value) < 1 && !(next === 0 && value !== 0)) return;
+      value = next;
+      listeners.forEach(listener => listener());
+    },
+  };
+}
+/** The live input level, re-rendering only the calling component. */
+export function useListeningLevel(store: LevelStore) {
+  return useSyncExternalStore(store.subscribe, store.get);
 }
 
 let lastWarm = 0;
@@ -62,7 +87,8 @@ export function useListening({ suspended = false, onSegment, onStart, onStarted 
   const [active, setActive] = useState(false);
   const [starting, setStarting] = useState(false);
   const [stopping, setStopping] = useState(false);
-  const [level, setLevel] = useState(0);
+  const [level] = useState(createLevelStore);
+  const setLevel = level.set;
   const [modelId, setModelId] = useState('');
   const [warning, setWarning] = useState('');
   const cloud = useRef<CloudListening | null>(null);
@@ -196,7 +222,7 @@ export function useListening({ suspended = false, onSegment, onStart, onStarted 
   // Alt+A listens and stops from anywhere in the window; the floating windows forward it here.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.altKey && event.key.toLowerCase() === 'a') {
+      if (event.altKey && shortcutKey(event) === 'a') {
         event.preventDefault();
         if (!event.repeat) void toggle();
       }

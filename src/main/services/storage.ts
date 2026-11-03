@@ -14,7 +14,8 @@ export function readJSON<T>(file: string, fallback: T): T {
   catch { throw new UserError('Local data could not be read. Your files have been preserved. Restore a backup before continuing.'); }
 }
 export function atomicJSON(file: string, value: unknown) {
-  writeFileSync(`${file}.tmp`, JSON.stringify(value, null, 2), { mode: 0o600 });
+  // Compact: the history is rewritten whole on every save, and indentation made it about 30% larger.
+  writeFileSync(`${file}.tmp`, JSON.stringify(value), { mode: 0o600 });
   renameSync(`${file}.tmp`, file);
 }
 export class Storage {

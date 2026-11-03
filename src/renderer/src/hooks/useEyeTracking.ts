@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { eyeTracking, type EyeTrackingState } from '../eye-tracking/EyeTrackingService';
 import type { CameraDevice } from '../eye-tracking/CameraService';
-import type { GazePoint } from '../eye-tracking/GazeTypes';
 import type { MonitorDisplay } from '../../../shared/types';
 
 export interface UseEyeTrackingReturn {
   state: EyeTrackingState;
   error: string;
-  gaze: GazePoint | null;
-  dwellPoint: { x: number; y: number } | null;
   isCalibrated: boolean;
   calibrationSamples: number;
   sensitivity: number;
@@ -36,8 +33,6 @@ export interface UseEyeTrackingReturn {
 export function useEyeTracking(): UseEyeTrackingReturn {
   const [state, setState] = useState<EyeTrackingState>(eyeTracking.state);
   const [error, setError] = useState(eyeTracking.error);
-  const [gaze, setGaze] = useState<GazePoint | null>(null);
-  const [dwellPoint, setDwellPoint] = useState<{ x: number; y: number } | null>(null);
   const [isCalibrated, setIsCalibrated] = useState(eyeTracking.isCalibrated);
   const [calibrationSamples, setCalibrationSamples] = useState(eyeTracking.calibrationSamples);
   const [sensitivity, setSensitivityState] = useState<number>(eyeTracking.sensitivity);
@@ -59,29 +54,9 @@ export function useEyeTracking(): UseEyeTrackingReturn {
     setSelectedDisplayId(eyeTracking.selectedDisplayId);
   }, []);
 
-  useEffect(() => {
-    // Throttle gaze re-renders to ~30fps to avoid hammering React reconciler
-    let lastRender = 0;
-    const THROTTLE_MS = 33;
-
-    const unsubGaze = eyeTracking.onGaze((point) => {
-      const now = performance.now();
-      if (now - lastRender > THROTTLE_MS) {
-        lastRender = now;
-        setGaze(point);
-      }
-    });
-
-    const unsubDwell = eyeTracking.onDwell((point) => {
-      setDwellPoint(point);
-    });
-
-    return () => {
-      unsubGaze();
-      unsubDwell();
-      eyeTracking.stop();
-    };
-  }, []);
+  // The live gaze point is drawn by the overlay window, not here: keeping it in this hook's state
+  // re-rendered the whole chat page about 30 times a second.
+  useEffect(() => () => { eyeTracking.stop(); }, []);
 
   const listCameras = useCallback(async () => {
     const list = await eyeTracking.listCameras();
@@ -98,8 +73,6 @@ export function useEyeTracking(): UseEyeTrackingReturn {
 
   const stop = useCallback(() => {
     eyeTracking.stop();
-    setGaze(null);
-    setDwellPoint(null);
     syncState();
   }, [syncState]);
 
@@ -139,8 +112,6 @@ export function useEyeTracking(): UseEyeTrackingReturn {
 
   const closeOverlay = useCallback(async () => {
     await eyeTracking.closeOverlay();
-    setGaze(null);
-    setDwellPoint(null);
     syncState();
   }, [syncState]);
 
@@ -170,7 +141,7 @@ export function useEyeTracking(): UseEyeTrackingReturn {
   }, []);
 
   return {
-    state, error, gaze, dwellPoint, isCalibrated, calibrationSamples,
+    state, error, isCalibrated, calibrationSamples,
     sensitivity, setSensitivity,
     cameras, selectedCameraId,
     monitors, selectedDisplayId, overlayActive,

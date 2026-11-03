@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { Check, ChevronDown, Minus, Plus } from 'lucide-react';
+import { useListeningLevel, type LevelStore } from '../../hooks/useListening';
 
 /*
  * The Deck kit: the controls every Modern window is built from. A deck is one card with an optional
@@ -135,7 +136,8 @@ export function Tabs<T extends string>({ value, options, onChange, label, idPref
 }
 
 /** Seven bars that follow the input level while listening and rest when not. */
-export function Meter({ level, active, connecting = false }: { level: number; active: boolean; connecting?: boolean }) {
+export function Meter({ levels, active, connecting = false }: { levels: LevelStore; active: boolean; connecting?: boolean }) {
+  const level = useListeningLevel(levels);
   const style = { '--level': Math.max(0.15, Math.min(1, level / 60)) } as CSSProperties;
   return <span className={`deck-meter ${active ? 'is-active' : ''} ${connecting ? 'is-connecting' : ''}`.trim()} style={style} aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></span>;
 }
@@ -152,10 +154,10 @@ export function Stepper({ label, value, onDown, onUp, downLabel, upLabel, downDi
 }
 
 /** What the session is doing right now, as a strip: the state, the meter, the clock, and the identity. */
-export function StatusStrip({ state, live, connecting, level, elapsed, meta }: { state: string; live: boolean; connecting: boolean; level: number; elapsed: number; meta: ReactNode }) {
+export function StatusStrip({ state, live, connecting, level, elapsed, meta }: { state: string; live: boolean; connecting: boolean; level: LevelStore; elapsed: number; meta: ReactNode }) {
   return <>
     <span className={`deck-state ${live ? 'is-live' : ''} ${connecting ? 'is-connecting' : ''}`.trim()} role="status"><i aria-hidden="true" />{state}</span>
-    <Meter level={level} active={live} connecting={connecting} />
+    <Meter levels={level} active={live} connecting={connecting} />
     <span className="deck-clock" aria-label={`${clockText(elapsed)} listened`} title="Time spent listening">{clockText(elapsed)}</span>
     <span className="deck-spacer" aria-hidden="true" />
     <span className="deck-meta">{meta}</span>

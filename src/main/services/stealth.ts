@@ -248,10 +248,13 @@ export class StealthService {
   private startMonitoring() {
     this.stopMonitoring();
 
-    // Check periodically for NumLock changes (75ms gives snappy, unnoticeable latency)
-    this.pollInterval = setInterval(() => {
-      this.checkNumLockChange();
-    }, 75);
+    // Check periodically for NumLock changes (75ms gives snappy, unnoticeable latency). The state can
+    // only be read on Windows; elsewhere readNumLock is always false, so polling would do nothing.
+    if (this.getKeyStateFn) {
+      this.pollInterval = setInterval(() => {
+        this.checkNumLockChange();
+      }, 75);
+    }
 
     const shortcut = getGlobalShortcut();
     if (shortcut) {
