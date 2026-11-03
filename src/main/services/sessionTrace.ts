@@ -48,7 +48,18 @@ export class SessionTrace {
   }
 }
 
+/**
+ * Serializes an error's cause or diagnostics for the trace without engine output. Engine stderr and
+ * stdout can quote the request or project files, so only their length is written. A nested error keeps
+ * its name, code and first message line but not its stack: execFile copies stderr into both.
+ */
 function safe(value: unknown): string {
-  try { return JSON.stringify(value, (_key, item) => item instanceof Error ? { name: item.name, message: item.message, stack: item.stack, cause: item.cause } : item, 1) ?? String(value); }
+  try {
+    return JSON.stringify(value, (key, item) => {
+      if ((key === 'stderr' || key === 'stdout') && typeof item === 'string') return `[${item.length} characters not written]`;
+      if (item instanceof Error) return { name: item.name, code: (item as NodeJS.ErrnoException).code, message: item.message.split('\n')[0], cause: item.cause };
+      return item;
+    }, 1) ?? String(value);
+  }
   catch { return String(value); }
 }

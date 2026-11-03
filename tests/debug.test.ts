@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { DebugService } from '../src/main/services/debug.ts';
+import { SessionTrace } from '../src/main/services/sessionTrace.ts';
 
 test('debug can be enabled during a request, isolates requests and redacts registered secrets', async () => {
   const debug = new DebugService();
@@ -48,4 +52,19 @@ test('debug bounds logs, throttles repeated activity and clears on disable or ac
     debug.event('Late event from old account');
   });
   assert.deepEqual(debug.snapshot(), { enabled: false, active: [], events: [] });
+});
+
+test('the session trace keeps engine output out of errors it records', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'novi-trace-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const trace = new SessionTrace(directory, 'Trace check');
+  // Shaped like a real Antigravity failure: execFile puts stderr in its error's message and stack.
+  const failed = Object.assign(new Error('Command failed: agy models\nSECRET_SOURCE /private/project'), { code: 'ERR_FAILED', stderr: 'SECRET_SOURCE /private/project' });
+  const error = Object.assign(new Error('Antigravity could not list its models.', { cause: { error: failed, engineVersion: '1.2.3', stderr: 'SECRET_SOURCE /private/project' } }), {
+    diagnostics: { engineVersion: '1.2.3', exitCode: 1, lastEvent: 'error', stderr: 'SECRET_SOURCE /private/project' },
+  });
+  trace.error(error);
+  const text = readFileSync(trace.file!, 'utf8');
+  for (const expected of [/ERROR  Error: Antigravity could not list its models\./, /Command failed: agy models/, /ERR_FAILED/, /"exitCode": 1/, /"engineVersion": "1\.2\.3"/, /\[30 characters not written\]/]) assert.match(text, expected);
+  assert.doesNotMatch(text, /SECRET_SOURCE|private\/project/);
 });

@@ -276,7 +276,10 @@ test('with Debug on, the session trace records every request as it runs and chat
   debug.setEnabled(true); t.after(() => { debug.attachTrace(null); debug.setEnabled(false); });
   debug.attachTrace(new SessionTrace(env.storage.directory, 'Acme Staff Engineer', 'Connection "OpenAI work"'));
   const s0 = env.service.state(env.projectId).selectedVersionId;
-  env.agent.answers.push(({ tools }) => answer([{ operation: 'edit', sourceFileId: fileId(tools.list({}), 'src/cart.js'), reason: 'Sum prices', edits: [{ startLine: 2, before: ['  return items.length;'], after: ['  return items.reduce((sum, item) => sum + item.price, 0);'] }] }]));
+  env.agent.answers.push(({ tools }) => {
+    tools.search({ query: 'PRIVATE_QUERY' });
+    return answer([{ operation: 'edit', sourceFileId: fileId(tools.list({}), 'src/cart.js'), reason: 'Sum prices', edits: [{ startLine: 2, before: ['  return items.length;'], after: ['  return items.reduce((sum, item) => sum + item.price, 0);'] }] }]);
+  });
   await env.send('PRIVATE_PROMPT sum prices.', s0);
   const assistant = env.conversation().messages.at(-1)!;
   const file = assistant.localCoding!.traceFile!;
@@ -285,8 +288,8 @@ test('with Debug on, the session trace records every request as it runs and chat
   const first = env.events.find((event) => event.type === 'progress');
   assert.equal(first?.type === 'progress' && first.localCoding.traceFile, file, 'the path is shown from the first progress event');
   const text = readFileSync(file, 'utf8');
-  for (const expected of [/Session "Acme Staff Engineer"/, /Local Coding request .*engine codex .*model gpt-test/, /Model ready .*using high/, /state: preparing/, /Tool: list_files/, /state: reading  Listing files/, /Engine answered/, /state: complete/, /request ended  complete/]) assert.match(text, expected);
-  assert.doesNotMatch(text, /sk-secret-test|PRIVATE_PROMPT|export function total/, 'no key, prompt or file contents');
+  for (const expected of [/Session "Acme Staff Engineer"/, /Local Coding request .*engine codex .*model gpt-test/, /Model ready .*using high/, /state: preparing/, /Tool: list_files/, /Tool: search_files  query 13 characters/, /state: reading  Listing files/, /Engine answered/, /state: complete/, /request ended  complete/]) assert.match(text, expected);
+  assert.doesNotMatch(text, /sk-secret-test|PRIVATE_PROMPT|PRIVATE_QUERY|export function total/, 'no key, prompt, search text or file contents');
   // A failure lands in the same session file, redacted, and the error names it.
   env.agent.answers.push(() => { throw new TypeError('boom sk-secret-test'); });
   await env.send('Again.', env.service.state(env.projectId).selectedVersionId);

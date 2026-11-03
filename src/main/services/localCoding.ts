@@ -485,7 +485,7 @@ export class LocalCodingService {
         schema: PROPOSAL_SCHEMA as unknown as Record<string, unknown>,
         tools: {
           list: (args) => { debug.event('Tool: list snapshot files'); trace?.traceLine('Tool: list_files', typeof args.scope === 'string' ? `scope ${args.scope}` : ''); return reader.list(args); },
-          search: (args) => { debug.event('Tool: search snapshot files'); trace?.traceLine('Tool: search_files', `query "${String(args.query ?? '').slice(0, 120)}"${typeof args.scope === 'string' ? ` scope ${args.scope}` : ''}`); return reader.search(args); },
+          search: (args) => { debug.event('Tool: search snapshot files'); trace?.traceLine('Tool: search_files', `query ${String(args.query ?? '').length} characters${typeof args.scope === 'string' ? ` scope ${args.scope}` : ''}`); return reader.search(args); },
           read: (args) => { debug.event('Tool: read snapshot file'); trace?.traceLine('Tool: read_file', `${base.files.find((entry) => entry.fileId === args.fileId)?.relativePath ?? `fileId ${String(args.fileId)}`}${args.startLine !== undefined || args.endLine !== undefined ? ` lines ${String(args.startLine ?? 1)}-${String(args.endLine ?? 'end')}` : ''}`); return reader.read(args); },
         },
         signal: controller.signal,
